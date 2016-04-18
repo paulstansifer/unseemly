@@ -1,0 +1,14 @@
+[package]
+name = "odd"
+version = "0.1.0"
+authors = ["Paul Stansifer <paul.stansifer@gmail.com>"]
+
+[dependencies]
+chomp = { version = "0.2.5" }
+lazy_static = { version = "0.1.16" }
+regex = { version = "0.1.66" }
+
+[[bin]]
+name = "odd"
+path = "src/main.rs"
+test = true
