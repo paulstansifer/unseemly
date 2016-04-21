@@ -5,6 +5,8 @@ use std::fs::File;
 use std::io::Read;
 
 mod read;
+mod parse;
+mod name;
 
 fn main() {
     let mut raw_input = String::new();

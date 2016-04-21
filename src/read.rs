@@ -1,27 +1,35 @@
-#![allow(dead_code)]
+//#![allow(dead_code)]
 #![allow(non_upper_case_globals)]
-
+#![macro_use]
 
 extern crate regex;
 
-
 #[derive(Debug,PartialEq,Eq)]
-enum DelimChar { Paren, SquareBracket, CurlyBracket }
+pub enum DelimChar { Paren, SquareBracket, CurlyBracket }
 
 use self::DelimChar::*;
 
 #[derive(Debug,PartialEq,Eq)]
-struct TokenTree<'a> {
-    t: Vec<Token<'a>>
+pub struct TokenTree<'a> {
+    pub t: Vec<Token<'a>>
 }
 
 #[derive(Debug,PartialEq,Eq)]
-enum Token<'a> {
+pub enum Token<'a> {
     Simple(&'a str),
-    Group(DelimChar, &'a str, TokenTree<'a>)
+    Group(&'a str, DelimChar, TokenTree<'a>)
 }
 
-use self::Token::*;
+impl<'a> Token<'a> {
+    pub fn is_just(&self, s: &str) -> bool {
+        match self {
+            &Simple(x) if x == s => { true }
+            _ => { false }
+        }
+    }
+}
+
+pub use self::Token::*;
 
 // A token may start with an open delimiter, or end with a close delmiter,
 // but otherwise may not contain delimiters
@@ -62,7 +70,7 @@ fn read_tokens<'a>(s: &'a str) -> TokenTree<'a> {
                     } else if let (Some(main), Some(o_del)) = (c.name("main_o"), c.name("open")) {
                         let (inside, _last) = read_token_tree(flat_tokens);
                         // TODO check last
-                        this_level.push(Group(delim(o_del), main, inside));
+                        this_level.push(Group(main, delim(o_del), inside));
                     } else if let (Some(main), Some(c_del)) = (c.name("main_c"), c.name("close")) {
                         return (TokenTree{ t: this_level }, Some((delim(c_del), main)));
                     } else { panic!("ICE") }
@@ -84,32 +92,32 @@ fn read_tokens<'a>(s: &'a str) -> TokenTree<'a> {
 
 
 
-macro_rules! t {
+macro_rules! tokens {
     ($($contents:tt)*) => { TokenTree{t: vec![ $(  t_elt!($contents) ),* ] }}
 }
 
 macro_rules! t_elt {
-    ( [ $e:expr ;  $( $list:tt )* ] ) => { Group(SquareBracket, $e, t!($($list)*))};
-    ( { $e:expr ;  $( $list:tt )* } ) => { Group(CurlyBracket, $e, t!($($list)*))};
-    ( ( $e:expr ;  $( $list:tt )* ) ) => { Group(Paren, $e, t!($($list)*))};
+    ( [ $e:expr ;  $( $list:tt )* ] ) => { Group($e, SquareBracket, tokens!($($list)*))};
+    ( { $e:expr ;  $( $list:tt )* } ) => { Group($e, CurlyBracket, tokens!($($list)*))};
+    ( ( $e:expr ;  $( $list:tt )* ) ) => { Group($e, Paren, tokens!($($list)*))};
     ($e:expr) => { Simple($e) }
 }
 
 #[test]
 fn test_simple_reading()  {
-    assert_eq!(read_tokens(""), t!());
-    assert_eq!(read_tokens("asdf"), t!("asdf"));
+    assert_eq!(read_tokens(""), tokens!());
+    assert_eq!(read_tokens("asdf"), tokens!("asdf"));
     assert_eq!(read_tokens("a s d-f d - f && a\na    8888"),
-               t!("a" "s" "d-f" "d" "-" "f" "&&" "a" "a" "8888"));
+               tokens!("a" "s" "d-f" "d" "-" "f" "&&" "a" "a" "8888"));
 }
 #[test]
 fn test_nested_reading() {
-    assert_eq!(read_tokens("()"), t!(("";)));
-    assert_eq!(read_tokens("a ()"), t!("a" ("";)));
-    assert_eq!(read_tokens("(b)"), t!(("";"b")));
-    assert_eq!(read_tokens("f x(c)x"), t!("f" ("x";"c")));
-    assert_eq!(read_tokens("f x[d]x"), t!("f" ["x";"d"]));
-    assert_eq!(read_tokens("$-[()]$- x"), t!(["$-";("";)] "x"));
+    assert_eq!(read_tokens("()"), tokens!(("";)));
+    assert_eq!(read_tokens("a ()"), tokens!("a" ("";)));
+    assert_eq!(read_tokens("(b)"), tokens!(("";"b")));
+    assert_eq!(read_tokens("f x(c)x"), tokens!("f" ("x";"c")));
+    assert_eq!(read_tokens("f x[d]x"), tokens!("f" ["x";"d"]));
+    assert_eq!(read_tokens("$-[()]$- x"), tokens!(["$-";("";)] "x"));
     assert_eq!(read_tokens("(#(5 6)# -[yy foo()foo aa]-)"),
-               t!((""; ("#"; "5" "6") ["-"; "yy" ("foo";) "aa"])))
+               tokens!((""; ("#"; "5" "6") ["-"; "yy" ("foo";) "aa"])))
 }
