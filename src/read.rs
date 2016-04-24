@@ -4,7 +4,9 @@
 
 extern crate regex;
 
-#[derive(Debug,PartialEq,Eq)]
+use name::*;
+
+#[derive(Debug,PartialEq,Eq,Clone,Copy)]
 pub enum DelimChar { Paren, SquareBracket, CurlyBracket }
 
 use self::DelimChar::*;
@@ -16,14 +18,14 @@ pub struct TokenTree<'a> {
 
 #[derive(Debug,PartialEq,Eq)]
 pub enum Token<'a> {
-    Simple(&'a str),
-    Group(&'a str, DelimChar, TokenTree<'a>)
+    Simple(Name<'a>),
+    Group(Name<'a>, DelimChar, TokenTree<'a>)
 }
 
 impl<'a> Token<'a> {
     pub fn is_just(&self, s: &str) -> bool {
         match self {
-            &Simple(x) if x == s => { true }
+            &Simple(ref x) if x.is(s) => { true }
             _ => { false }
         }
     }
@@ -50,7 +52,7 @@ fn delim(s: &str) -> DelimChar {
 fn read_tokens<'a>(s: &'a str) -> TokenTree<'a> {
     lazy_static! {
         static ref token : regex::Regex =
-            regex::Regex::new(format!(r"((?P<main_o>{nd}*)(?P<open>{o}))|((?P<close>{c})(?P<main_c>{nd}*))|(?P<normal>{nd}+)",
+            regex::Regex::new(format!(r"(?P<open_all>(?P<main_o>{nd}*)(?P<open>{o}))|((?P<close>{c})(?P<main_c>{nd}*))|(?P<normal>{nd}+)",
                                       o = open, c = close, nd = nondelim)
                                       .as_str()).unwrap();
     }
@@ -66,11 +68,12 @@ fn read_tokens<'a>(s: &'a str) -> TokenTree<'a> {
                     print!("Got {:?}\n", c);
 
                     if let Some(normal) = c.name("normal") {
-                        this_level.push(Simple(normal));
-                    } else if let (Some(main), Some(o_del)) = (c.name("main_o"), c.name("open")) {
+                        this_level.push(Simple(n(normal)));
+                    } else if let (Some(main), Some(o_del), Some(all))
+                        = (c.name("main_o"), c.name("open"), c.name("open_all")) {
                         let (inside, _last) = read_token_tree(flat_tokens);
                         // TODO check last
-                        this_level.push(Group(main, delim(o_del), inside));
+                        this_level.push(Group(n(all), delim(o_del), inside));
                     } else if let (Some(main), Some(c_del)) = (c.name("main_c"), c.name("close")) {
                         return (TokenTree{ t: this_level }, Some((delim(c_del), main)));
                     } else { panic!("ICE") }
@@ -97,10 +100,10 @@ macro_rules! tokens {
 }
 
 macro_rules! t_elt {
-    ( [ $e:expr ;  $( $list:tt )* ] ) => { Group($e, SquareBracket, tokens!($($list)*))};
-    ( { $e:expr ;  $( $list:tt )* } ) => { Group($e, CurlyBracket, tokens!($($list)*))};
-    ( ( $e:expr ;  $( $list:tt )* ) ) => { Group($e, Paren, tokens!($($list)*))};
-    ($e:expr) => { Simple($e) }
+    ( [ $e:expr ;  $( $list:tt )* ] ) => { Group(n(concat!($e,"[")), SquareBracket, tokens!($($list)*))};
+    ( { $e:expr ;  $( $list:tt )* } ) => { Group(n(concat!($e,"{")), CurlyBracket, tokens!($($list)*))};
+    ( ( $e:expr ;  $( $list:tt )* ) ) => { Group(n(concat!($e,"(")), Paren, tokens!($($list)*))};
+    ($e:expr) => { Simple(n($e)) }
 }
 
 #[test]

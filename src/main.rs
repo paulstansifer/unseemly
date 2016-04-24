@@ -4,9 +4,10 @@ use std::path::Path;
 use std::fs::File;
 use std::io::Read;
 
+mod name;
 mod read;
 mod parse;
-mod name;
+mod core_forms;
 
 fn main() {
     let mut raw_input = String::new();
