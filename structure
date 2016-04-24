@@ -1,0 +1,47 @@
+
+
+ Frontend pipeline:
+
+  [Read]  →  [Parse (extensibly)]  →  [Typecheck]  →  [Expand/evaluate]
+          ↑
+      TokenTree
+
+[Read] read.rs
+  The reader is very simple. Tokens boundaries are whitespace, and the inside
+  boundaries of ()[]{}. If a token ends with ([{, it should match a token that
+  is identical except for starting with )]} instead.
+
+[Parse] parse.rs
+  The parser has to parse arbitrary grammars (`FormPat`s). Furthermore, it must
+  be able to extend the grammar it is currently parsing (it does this by
+  extending `SynEnv`).
+
+[Typecheck] TODO
+
+[Expand/evaluate] TODO
+  Starting with phase n, expand code in phase n-1 by executing phase n code.
+  Phase 0 is actual evaluation
+
+Crucial data structures:
+
+  `Name` name.rs
+    Will contain hygiene metadata, eventually
+
+  `TokenTree` read.rs
+    The result of reading; a tree with nodes at every ()[]{}
+
+  `FormPat` parse.rs
+    Grammar for forms (core and user-defined)
+
+  `Form` TODO
+    Everything one needs to know about a language form. Contains:
+     * `FormPat` [parse time] -- grammar (how we know the user used the form)
+     * TODO [phase ??? runtime] -- binding information
+     * TODO [parse time] -- grammar "binding" information (syntax extension)
+     * TODO [???] -- phasing information (does this form adjust the phase?)
+     * TODO [phase ??? runtime] -- how to expand this macro
+         or how to evaluate this core form
+
+  `SynEnv` parse.rs
+    TODO this should be a functional-style data structure
+    [Map from [named grammar nodes] to [lists of [some way to make forms]] ]
