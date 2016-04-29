@@ -2,6 +2,7 @@
 
 use read::{Token, TokenTree, DelimChar, Group, Simple};
 use name::*;
+use form::Form;
 use std::collections::HashMap;
 use std::boxed::Box;
 use std::option::Option;
@@ -51,8 +52,8 @@ impl<'t> Token<'t> {
 use self::Ast::*;
 
 
-/// FormPat is a grammar for syntax forms, augmented with binding information
-#[derive(Clone)]
+/// FormPat is a grammar for syntax forms
+#[derive(Debug,Clone)]
 pub enum FormPat<'t> {
     Literal(&'t str),
     AnyAtom,
@@ -76,7 +77,7 @@ macro_rules! form {
 }
 */
 
-pub type SynEnv<'t> = HashMap<Name<'t>, FormPat<'t>>;
+pub type SynEnv<'t> = HashMap<Name<'t>, Box<Form<'t>>>;
 
 struct FormPatParser<'t> {
     f: &'t FormPat<'t>,

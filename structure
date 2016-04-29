@@ -2,7 +2,7 @@
 
  Frontend pipeline:
 
-  [Read]  →  [Parse (extensibly)]  →  [Typecheck]  →  [Expand/evaluate]
+  [Read]  →  [Parse (extensibly)]  →  [Typesynth]  →  [Expand/evaluate]
           ↑
       TokenTree
 
@@ -14,9 +14,13 @@
 [Parse] parse.rs
   The parser has to parse arbitrary grammars (`FormPat`s). Furthermore, it must
   be able to extend the grammar it is currently parsing (it does this by
-  extending `SynEnv`).
+  extending `SynEnv`), and generate new `Form`s.
 
-[Typecheck] TODO
+[Typesynth] ty.rs
+  Type synthesis for core forms.
+
+  It should be possible to derive type synthesis for macros! Synthesize a type
+  for the macro body, and it'll tell you what you get. I think.
 
 [Expand/evaluate] TODO
   Starting with phase n, expand code in phase n-1 by executing phase n code.
@@ -33,14 +37,22 @@ Crucial data structures:
   `FormPat` parse.rs
     Grammar for forms (core and user-defined)
 
-  `Form` TODO
+  `Form` form.rs
     Everything one needs to know about a language form. Contains:
      * `FormPat` [parse time] -- grammar (how we know the user used the form)
+     * TODO [typecheck] -- typechecking rule
      * TODO [phase ??? runtime] -- binding information
      * TODO [parse time] -- grammar "binding" information (syntax extension)
-     * TODO [???] -- phasing information (does this form adjust the phase?)
+     * relative_phase [???] -- phasing information (does this form adjust the phase?)
      * TODO [phase ??? runtime] -- how to expand this macro
          or how to evaluate this core form
+     * TODO [misc] -- pretty-printing information
+
+  `Ast` TODO
+    An instance of a form, or an atom.
+     * `Form` -- the form this is a node of
+     * TODO -- a hashmap of subforms
+     * TODO -- type parameters (e.g. what type is this expression)
 
   `SynEnv` parse.rs
     TODO this should be a functional-style data structure

@@ -9,6 +9,9 @@ mod read;
 mod parse;
 mod core_forms;
 
+mod form;
+mod ty;
+
 fn main() {
     let mut raw_input = String::new();
     File::open(&Path::new(&std::env::args().next()
