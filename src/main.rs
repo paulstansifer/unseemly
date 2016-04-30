@@ -4,13 +4,18 @@ use std::path::Path;
 use std::fs::File;
 use std::io::Read;
 
+mod util;
+
 mod name;
 mod read;
+mod ast;
 mod parse;
 mod core_forms;
 
 mod form;
 mod ty;
+
+
 
 fn main() {
     let mut raw_input = String::new();

@@ -9,34 +9,14 @@ use std::boxed::Box;
 use std::option::Option;
 use std::iter;
 use std::clone::Clone;
+use ast::Ast;
+use ast::Ast::*;
 
 extern crate combine;
 
 use self::combine::{Parser, ParseResult, ParseError};
 use self::combine::primitives::{State, SliceStream, Positioner, Consumed, Error};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Ast<'t> {
-    Trivial,
-    Atom(Name<'t>),
-    Shape(Vec<Ast<'t>>),
-    Node(HashMap<Name<'t>, Ast<'t>>)
-}
-
-impl<'t> iter::FromIterator<Ast<'t>> for Ast<'t> {
-    fn from_iter<I: IntoIterator<Item=Ast<'t>>>(i: I) -> Self {
-        Shape(i.into_iter().collect())
-    }
-}
-
-macro_rules! ast {
-    ($($contents:tt)*) => { Shape(vec![ $(  ast_elt!($contents) ),* ] )}
-}
-
-macro_rules! ast_elt {
-    ( ( $( $list:tt )* ) ) => { ast!($($list)*)};
-    ($e:expr) => { Atom(n($e)) }
-}
 
 
 impl<'t> Token<'t> {
@@ -50,18 +30,17 @@ impl<'t> Token<'t> {
     }
 }
 
-use self::Ast::*;
-
 
 /// FormPat is a grammar for syntax forms
 #[derive(Debug,Clone)]
 pub enum FormPat<'t> {
     Literal(&'t str),
-    AnyAtom,
+    AnyToken,
     Delimited(Name<'t>, DelimChar, Box<FormPat<'t>>),
     Seq(Vec<FormPat<'t>>),
     Star(Box<FormPat<'t>>),
     Alt(Vec<FormPat<'t>>),
+    Biased(Box<FormPat<'t>>, Box<FormPat<'t>>),
     Call(Name<'t>),
 
     Scope(Box<FormPat<'t>>), // limits the region where names are meaningful.
@@ -75,12 +54,13 @@ pub enum FormPat<'t> {
 
 macro_rules! form_pat {
     ((lit $e:expr)) => { Literal($e) };
-    (aa) => { AnyAtom };
+    (at) => { AnyToken };
     ((delim $n:expr, $d:expr, $body:tt)) => {
         Delimited(n($n), ::read::delim($d), Box::new(form_pat!($body)))
     };
     ((star $body:tt)) => {  Star(Box::new(form_pat!($body))) };
     ((alt $($body:tt),* )) => { Alt(vec![ $( form_pat!($body) ),* ] )};
+    ((biased $lhs:tt $rhs:tt)) => { Biased(Box::new(form_pat!($lhs), Box::new($rhs))) };
     ((call $n:expr)) => { Call(n($n)) };
     ((named $n:expr, $body:tt)) => { Named(n($n), Box::new(form_pat!($body))) };
     ( [$($body:tt),*] ) => { Seq(vec![ $(form_pat!($body)),* ])}
@@ -91,7 +71,8 @@ pub type SynEnv<'t> = HashMap<Name<'t>, Box<Form<'t>>>;
 
 struct FormPatParser<'t> {
     f: &'t FormPat<'t>,
-    se: SynEnv<'t> //unsure if this is the right lifetime
+    se: SynEnv<'t>, //unsure if this is the right lifetime. TODO functionalize
+
 }
 
 impl<'t> Positioner for Token<'t> {
@@ -142,7 +123,7 @@ impl<'t> combine::Parser for FormPatParser<'t> {
                 combine::satisfy(|tok: &'t Token<'t>| {tok.is_just(exp_tok)}).parse_state(inp)
                     .map(ast_ify)
             }
-            AnyAtom => { combine::any().parse_state(inp).map(ast_ify) }
+            AnyToken => { combine::any().parse_state(inp).map(ast_ify) }
             Delimited(ref exp_extra, ref exp_delim, ref f) => {
                 let (tok, rest) = try!(inp.uncons());
                 match *tok {
@@ -190,14 +171,14 @@ use self::FormPat::*;
 
 #[test]
 fn test_parsing() {
-    assert_eq!(parse_top(&Seq(vec![AnyAtom]), &tokens!("asdf")).unwrap(), ast!("asdf"));
-    assert_eq!(parse_top(&Seq(vec![AnyAtom, Literal("fork"), AnyAtom]),
+    assert_eq!(parse_top(&Seq(vec![AnyToken]), &tokens!("asdf")).unwrap(), ast!("asdf"));
+    assert_eq!(parse_top(&Seq(vec![AnyToken, Literal("fork"), AnyToken]),
                &tokens!("asdf" "fork" "asdf")).unwrap(),
                ast!("asdf" "fork" "asdf"));
-    assert_eq!(parse_top(&Seq(vec![AnyAtom, Literal("fork"), AnyAtom]),
+    assert_eq!(parse_top(&Seq(vec![AnyToken, Literal("fork"), AnyToken]),
                &tokens!("asdf" "fork" "asdf")).unwrap(),
                ast!("asdf" "fork" "asdf"));
-    parse_top(&Seq(vec![AnyAtom, Literal("fork"), AnyAtom]),
+    parse_top(&Seq(vec![AnyToken, Literal("fork"), AnyToken]),
           &tokens!("asdf" "knife" "asdf")).unwrap_err();
     assert_eq!(parse_top(&Seq(vec![Star(Box::new(Literal("*"))), Literal("X")]),
                      &tokens!("*" "*" "*" "*" "*" "X")).unwrap(),
@@ -208,4 +189,5 @@ fn test_advanced_parsing() {
     assert_eq!(parse_top(&form_pat!([(star (alt (lit"X"), (lit "O"))), (lit "!")]),
                          &tokens!("X" "O" "O" "O" "X" "X" "!")).unwrap(),
                ast!(("X" "O" "O" "O" "X" "X") "!"));
+    //assert_eq!(parse_top(&form_pat!((star (biased )))))
 }
