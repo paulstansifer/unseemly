@@ -1,6 +1,7 @@
 #![allow(dead_code,unused_imports)]
+#![macro_use]
 
-use read::{Token, TokenTree, DelimChar, Group, Simple};
+use read::{Token, TokenTree, DelimChar, Group, Simple, delim};
 use name::*;
 use form::Form;
 use std::collections::HashMap;
@@ -61,7 +62,7 @@ pub enum FormPat<'t> {
     Seq(Vec<FormPat<'t>>),
     Star(Box<FormPat<'t>>),
     Alt(Vec<FormPat<'t>>),
-    NamedPat(Name<'t>),
+    Call(Name<'t>),
 
     Scope(Box<FormPat<'t>>), // limits the region where names are meaningful.
     Named(Name<'t>, Box<FormPat<'t>>),
@@ -71,11 +72,20 @@ pub enum FormPat<'t> {
     NamesExport(Vec<Name<'t>>, Box<FormPat<'t>>)
 }
 
-/*
-macro_rules! form {
-    ($($contents:tt)*) => { Seq(vec![ $(  ast_elt!($contents) ),* ] )}
+
+macro_rules! form_pat {
+    ((lit $e:expr)) => { Literal($e) };
+    (aa) => { AnyAtom };
+    ((delim $n:expr, $d:expr, $body:tt)) => {
+        Delimited(n($n), ::read::delim($d), Box::new(form_pat!($body)))
+    };
+    ((star $body:tt)) => {  Star(Box::new(form_pat!($body))) };
+    ((alt $($body:tt),* )) => { Alt(vec![ $( form_pat!($body) ),* ] )};
+    ((call $n:expr)) => { Call(n($n)) };
+    ((named $n:expr, $body:tt)) => { Named(n($n), Box::new(form_pat!($body))) };
+    ( [$($body:tt),*] ) => { Seq(vec![ $(form_pat!($body)),* ])}
 }
-*/
+
 
 pub type SynEnv<'t> = HashMap<Name<'t>, Box<Form<'t>>>;
 
@@ -192,5 +202,10 @@ fn test_parsing() {
     assert_eq!(parse_top(&Seq(vec![Star(Box::new(Literal("*"))), Literal("X")]),
                      &tokens!("*" "*" "*" "*" "*" "X")).unwrap(),
                ast!(("*" "*" "*" "*" "*") "X"));
+}
 
+fn test_advanced_parsing() {
+    assert_eq!(parse_top(&form_pat!([(star (alt (lit"X"), (lit "O"))), (lit "!")]),
+                         &tokens!("X" "O" "O" "O" "X" "X" "!")).unwrap(),
+               ast!(("X" "O" "O" "O" "X" "X") "!"));
 }

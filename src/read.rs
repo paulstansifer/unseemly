@@ -41,7 +41,7 @@ const open : &'static str = r"[\[\(\{]";
 const close : &'static str = r"[\]\)\}]";
 
 
-fn delim(s: &str) -> DelimChar {
+pub fn delim(s: &str) -> DelimChar {
     match s {
         "(" => Paren, "[" => SquareBracket, "{" => CurlyBracket,
         ")" => Paren, "]" => SquareBracket, "}" => CurlyBracket,
@@ -69,7 +69,7 @@ fn read_tokens<'a>(s: &'a str) -> TokenTree<'a> {
 
                     if let Some(normal) = c.name("normal") {
                         this_level.push(Simple(n(normal)));
-                    } else if let (Some(main), Some(o_del), Some(all))
+                    } else if let (Some(_main), Some(o_del), Some(all))
                         = (c.name("main_o"), c.name("open"), c.name("open_all")) {
                         let (inside, _last) = read_token_tree(flat_tokens);
                         // TODO check last
