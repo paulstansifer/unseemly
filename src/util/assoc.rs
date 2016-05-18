@@ -1,21 +1,23 @@
 use std::rc::Rc;
 use std::clone::Clone;
 
+use std::fmt;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+
+#[derive(PartialEq, Eq, Clone)]
 pub struct Assoc<K: PartialEq, V> {
     n: Option<Rc<AssocNode<K, V>>>
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 struct AssocNode<K : PartialEq, V> {
     k: K,
     v: V,
     next: Assoc<K,V>
 }
 
-impl<K : PartialEq, V>  Assoc<K, V> {
-    fn find(&self, target: &K) -> Option<&V> {
+impl<K : PartialEq, V> Assoc<K, V> {
+    pub fn find<'assoc, 'f>(&'assoc self, target: &'f K) -> Option<&'assoc V> {
         match self.n {
             None => None,
             Some(ref node) => {
@@ -28,15 +30,42 @@ impl<K : PartialEq, V>  Assoc<K, V> {
         }
     }
 
-    fn set(&self, k: K, v: V) -> Assoc<K, V> {
+    pub fn set(&self, k: K, v: V) -> Assoc<K, V> {
         Assoc{
             n: Some(Rc::new(AssocNode {
                 k: k, v: v, next: Assoc { n: self.n.clone() }
         }))}
     }
-
-    fn new() -> Assoc<K, V> {
+    
+    pub fn new() -> Assoc<K, V> {
         Assoc{ n: None }
+    }
+}
+
+impl<K : PartialEq + fmt::Debug, V : fmt::Debug> fmt::Debug for Assoc<K, V> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        try!(write!(f, "<"));
+        let mut cur = &self.n;
+        let mut first = true;
+        while let &Some(ref node) = cur {
+            try!(write!(f, "{:?} => {:?}", node.k, node.v));
+            if !first { try!(write!(f, ", ")); }
+            first = false;
+            cur = &node.next.n;
+        }
+        write!(f, ">")
+    }
+}
+
+impl<K : PartialEq + Clone, V : Clone> Assoc<K, V> {
+
+    pub fn set_assoc(&self, other: &Assoc<K, V>) -> Assoc<K, V> {
+        match other.n {
+            None => (*self).clone(),
+            Some(ref node) => {
+                self.set_assoc(&node.next).set(node.k.clone(), node.v.clone())
+            }
+        }
     }
 }
 

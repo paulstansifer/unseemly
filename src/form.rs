@@ -19,3 +19,11 @@ impl<'t> Debug for Form<'t> {
         formatter.write_str(format!("[FORM {:?}]", self.grammar).as_str())
     }
 }
+
+
+pub fn simple_form<'t>(p: FormPat<'t>) -> Form<'t> {
+    Form {
+        grammar: p,
+        relative_phase: HashMap::new()
+    }
+}

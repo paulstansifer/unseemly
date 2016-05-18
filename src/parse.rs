@@ -3,7 +3,7 @@
 
 use read::{Token, TokenTree, DelimChar, Group, Simple, delim};
 use name::*;
-use form::Form;
+use form::{Form, simple_form};
 use std::collections::HashMap;
 use std::boxed::Box;
 use std::option::Option;
@@ -11,12 +11,13 @@ use std::iter;
 use std::clone::Clone;
 use ast::Ast;
 use ast::Ast::*;
+use util::assoc::Assoc;
 
 extern crate combine;
 
 use self::combine::{Parser, ParseResult, ParseError};
 use self::combine::primitives::{State, SliceStream, Positioner, Consumed, Error};
-
+use self::combine::combinator::ParserExt;
 
 
 impl<'t> Token<'t> {
@@ -31,7 +32,14 @@ impl<'t> Token<'t> {
 }
 
 
-/// FormPat is a grammar for syntax forms
+/**
+  FormPat is a grammar for syntax forms.
+
+  Most kinds of grammar nodes produce an `Ast` of either `Shape` or `Node`,
+   but `Named` and `Scope` are special:
+   everything outside of a `Named` (up to a `Scope`, if any) is discarded,
+    and `Scope` produces a `Node`, which maps names to what they got.
+ */
 #[derive(Debug,Clone)]
 pub enum FormPat<'t> {
     Literal(&'t str),
@@ -60,19 +68,20 @@ macro_rules! form_pat {
     };
     ((star $body:tt)) => {  Star(Box::new(form_pat!($body))) };
     ((alt $($body:tt),* )) => { Alt(vec![ $( form_pat!($body) ),* ] )};
-    ((biased $lhs:tt $rhs:tt)) => { Biased(Box::new(form_pat!($lhs), Box::new($rhs))) };
+    ((biased $lhs:tt, $rhs:tt)) => { Biased(Box::new(form_pat!($lhs)), 
+                                            Box::new(form_pat!($rhs))) };
     ((call $n:expr)) => { Call(n($n)) };
+    ((scope $body:tt)) => { Scope(form_pat!($body)) };
     ((named $n:expr, $body:tt)) => { Named(n($n), Box::new(form_pat!($body))) };
     ( [$($body:tt),*] ) => { Seq(vec![ $(form_pat!($body)),* ])}
 }
 
 
-pub type SynEnv<'t> = HashMap<Name<'t>, Box<Form<'t>>>;
+pub type SynEnv<'t> = Assoc<Name<'t>, Box<Form<'t>>>;
 
-struct FormPatParser<'t> {
-    f: &'t FormPat<'t>,
-    se: SynEnv<'t>, //unsure if this is the right lifetime. TODO functionalize
-
+struct FormPatParser<'form, 't: 'form> {
+    f: &'form FormPat<'t>,
+    se: SynEnv<'t>
 }
 
 impl<'t> Positioner for Token<'t> {
@@ -81,36 +90,38 @@ impl<'t> Positioner for Token<'t> {
     fn update(&self, position: &mut usize) { *position += 1 as usize }
 }
 
-impl<'t> FormPatParser<'t> {
+impl<'form, 't> FormPatParser<'form, 't> {
     fn parse_tokens(&mut self, ts: &'t Vec<Token<'t>>)
             -> ParseResult<Ast<'t>, SliceStream<'t, Token<'t>>> {
         self.parse_state(State::new(SliceStream::<'t, Token<'t>>(ts.as_slice())))
     }
 
-    fn descend(&self, f: &'t FormPat<'t>) -> FormPatParser<'t> {
+    fn descend(&self, f: &'form FormPat<'t>) -> FormPatParser<'form, 't> {
         FormPatParser{f: f, se: self.se.clone()}
     }
 }
 
-fn parse<'t>(f: &'t FormPat<'t>, tt: &'t TokenTree<'t>, se: SynEnv<'t>)
+/** Parse `tt` with the grammar `f` in the environment `se`.
+  The environment is used for lookup when `Call` patterns are reached. */
+fn parse<'t>(f: &'t FormPat<'t>, se: SynEnv<'t>, tt: &'t TokenTree<'t>)
         -> Result<Ast<'t>, ParseError<SliceStream<'t, Token<'t>>>> {
     FormPatParser{f: &f, se: se}.parse_tokens(&tt.t).map(|res| res.0)
         .map_err(|consumed| consumed.into_inner())
 }
 
+/** Parse `tt` with the grammar `f` in an empty syntactic environment.
+ `Call` patterns are errors. */
 fn parse_top<'t>(f: &'t FormPat<'t>, tt: &'t TokenTree<'t>)
         -> Result<Ast<'t>, ParseError<SliceStream<'t, Token<'t>>>> {
-    FormPatParser{f: &f, se: HashMap::new()}.parse_tokens(&tt.t).map(|res| res.0)
+    FormPatParser{f: &f, se: Assoc::new()}.parse_tokens(&tt.t).map(|res| res.0)
         .map_err(|consumed| consumed.into_inner())
 }
 
-
-impl<'t> combine::Parser for FormPatParser<'t> {
+impl<'form, 't> combine::Parser for FormPatParser<'form, 't> {
     type Input = SliceStream<'t, Token<'t>>;
     type Output = Ast<'t>;
 
-
-    fn parse_state(&mut self, inp: State<Self::Input>)
+    fn parse_state<'f>(self: &'f mut FormPatParser<'form, 't>, inp: State<Self::Input>)
           -> ParseResult<Self::Output, Self::Input> {
 
         fn ast_ify<'t, I>(res : (&'t Token<'t>, I)) -> (Ast<'t>, I) {
@@ -149,7 +160,6 @@ impl<'t> combine::Parser for FormPatParser<'t> {
                 combine::value(Shape(subs)).parse_state(remaining)
             }
             Star(ref f) => {
-
                 combine::many(self.descend(f)).parse_state(inp)
             }
             Alt(ref fs) => {
@@ -157,6 +167,26 @@ impl<'t> combine::Parser for FormPatParser<'t> {
                     |f| combine::try(self.descend(f))).collect();
                 combine::choice(parsers).parse_state(inp)
             }
+            Biased(ref lhs, ref rhs) => {
+                combine::try(self.descend(lhs)).or(self.descend(rhs)).parse_state(inp)
+            }
+            Call(ref n) => {
+                let deeper_form : &'f Box<Form> = self.se.find(&n).unwrap();
+                let mut deeper = self.descend(&deeper_form.grammar);
+                deeper.parse_state::<'f>(inp)
+            }
+            
+            
+            Named(ref name, ref f) => {
+                self.descend(f).parse_state(inp).map(|parse_res| 
+                    (Node(Assoc::new().set(*name, parse_res.0)), parse_res.1))
+            }
+            Scope(ref f) => {
+                self.descend(f).parse_state(inp).map(|parse_res|
+                    (parse_res.0.flatten_to_node(), parse_res.1))
+            }
+            
+            
             _ => {panic!("TODO")}
         }
               /*
@@ -185,9 +215,29 @@ fn test_parsing() {
                ast!(("*" "*" "*" "*" "*") "X"));
 }
 
+#[test]
 fn test_advanced_parsing() {
-    assert_eq!(parse_top(&form_pat!([(star (alt (lit"X"), (lit "O"))), (lit "!")]),
+    assert_eq!(parse_top(&form_pat!([(star (alt (lit "X"), (lit "O"))), (lit "!")]),
                          &tokens!("X" "O" "O" "O" "X" "X" "!")).unwrap(),
                ast!(("X" "O" "O" "O" "X" "X") "!"));
-    //assert_eq!(parse_top(&form_pat!((star (biased )))))
+    assert_eq!(parse_top(&form_pat!((star (biased (named "tictactoe", (alt (lit "X"), (lit "O"))),
+                                                  (named "igetit", (alt (lit "O"), (lit "H")))))),
+                         &tokens!("X" "O" "H" "O" "X" "H" "O")).unwrap(),
+               ast!(["tictactoe"; "X"] ["tictactoe"; "O"] ["igetit"; "H"]
+                    ["tictactoe"; "O"] ["tictactoe"; "X"] ["igetit"; "H"]
+                    ["tictactoe"; "O"]));
+    assert_eq!(parse(&form_pat!((call "expr")),
+                     assoc_n!(
+                         "other_1" => Box::new(simple_form(form_pat!((lit "other")))),
+                         "expr" => Box::new(simple_form(form_pat!([(lit "a"), (lit "b")]))),
+                         "other_2" => Box::new(simple_form(form_pat!((lit "otherother"))))),
+                     &tokens!("a" "b")).unwrap(),
+               ast!("a" "b"));
 }
+/*
+#[test]
+fn test_syn_env_parsing() {
+    let mut se = Assoc::new();
+    se = se.set(n("xes"), Box::new(Form { grammar: form_pat!((star (lit "X")),
+                                          relative_phase)}))
+}*/
