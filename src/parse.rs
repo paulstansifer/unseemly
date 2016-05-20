@@ -13,6 +13,8 @@ use ast::Ast;
 use ast::Ast::*;
 use util::assoc::Assoc;
 
+use std::marker::PhantomData;
+
 extern crate combine;
 
 use self::combine::{Parser, ParseResult, ParseError};
@@ -35,7 +37,7 @@ impl<'t> Token<'t> {
 /**
   FormPat is a grammar for syntax forms.
 
-  Most kinds of grammar nodes produce an `Ast` of either `Shape` or `Node`,
+  Most kinds of grammar nodes produce an `Ast` of either `Shape` or `Env`,
    but `Named` and `Scope` are special:
    everything outside of a `Named` (up to a `Scope`, if any) is discarded,
     and `Scope` produces a `Node`, which maps names to what they got.
@@ -44,6 +46,7 @@ impl<'t> Token<'t> {
 pub enum FormPat<'t> {
     Literal(&'t str),
     AnyToken,
+    AnyAtomicToken,
     Delimited(Name<'t>, DelimChar, Box<FormPat<'t>>),
     Seq(Vec<FormPat<'t>>),
     Star(Box<FormPat<'t>>),
@@ -63,6 +66,7 @@ pub enum FormPat<'t> {
 macro_rules! form_pat {
     ((lit $e:expr)) => { Literal($e) };
     (at) => { AnyToken };
+    (aat) => { AnyAtomicToken };
     ((delim $n:expr, $d:expr, $body:tt)) => {
         Delimited(n($n), ::read::delim($d), Box::new(form_pat!($body)))
     };
@@ -77,11 +81,12 @@ macro_rules! form_pat {
 }
 
 
-pub type SynEnv<'t> = Assoc<Name<'t>, Box<Form<'t>>>;
+pub type SynEnv<'t> = Assoc<Name<'t>, Vec<Form<'t>>>;
 
-struct FormPatParser<'form, 't: 'form> {
+struct FormPatParser<'form, 'tokens: 'form, 't: 'tokens> {
     f: &'form FormPat<'t>,
-    se: SynEnv<'t>
+    se: SynEnv<'t>,
+    token_phantom: PhantomData<&'tokens usize>
 }
 
 impl<'t> Positioner for Token<'t> {
@@ -90,57 +95,65 @@ impl<'t> Positioner for Token<'t> {
     fn update(&self, position: &mut usize) { *position += 1 as usize }
 }
 
-impl<'form, 't> FormPatParser<'form, 't> {
-    fn parse_tokens(&mut self, ts: &'t Vec<Token<'t>>)
-            -> ParseResult<Ast<'t>, SliceStream<'t, Token<'t>>> {
-        self.parse_state(State::new(SliceStream::<'t, Token<'t>>(ts.as_slice())))
+impl<'form, 'tokens, 't: 'form> FormPatParser<'form, 'tokens, 't> {
+    fn parse_tokens(&'form mut self, ts: &'tokens Vec<Token<'t>>)
+            -> ParseResult<Ast<'t>, SliceStream<'tokens, Token<'t>>> {
+        
+        self.parse_state(State::new(SliceStream::<'tokens, Token<'t>>(ts.as_slice())))
     }
 
-    fn descend(&self, f: &'form FormPat<'t>) -> FormPatParser<'form, 't> {
-        FormPatParser{f: f, se: self.se.clone()}
+    fn descend<'subform>(&self, f: &'subform FormPat<'t>) -> FormPatParser<'subform, 'tokens, 't> {
+        FormPatParser{f: f, se: self.se.clone(), token_phantom: PhantomData}
     }
 }
 
 /** Parse `tt` with the grammar `f` in the environment `se`.
   The environment is used for lookup when `Call` patterns are reached. */
-fn parse<'t>(f: &'t FormPat<'t>, se: SynEnv<'t>, tt: &'t TokenTree<'t>)
-        -> Result<Ast<'t>, ParseError<SliceStream<'t, Token<'t>>>> {
-    FormPatParser{f: &f, se: se}.parse_tokens(&tt.t).map(|res| res.0)
+fn parse<'fun, 't: 'fun>(f: &'fun FormPat<'t>, se: SynEnv<'t>, tt: &'fun TokenTree<'t>)
+        -> Result<Ast<'t>, ParseError<SliceStream<'fun, Token<'t>>>> {
+    FormPatParser{f: f, se: se, token_phantom: PhantomData}.parse_tokens(&tt.t).map(|res| res.0)
         .map_err(|consumed| consumed.into_inner())
 }
+
 
 /** Parse `tt` with the grammar `f` in an empty syntactic environment.
  `Call` patterns are errors. */
-fn parse_top<'t>(f: &'t FormPat<'t>, tt: &'t TokenTree<'t>)
-        -> Result<Ast<'t>, ParseError<SliceStream<'t, Token<'t>>>> {
-    FormPatParser{f: &f, se: Assoc::new()}.parse_tokens(&tt.t).map(|res| res.0)
-        .map_err(|consumed| consumed.into_inner())
+fn parse_top<'fun, 't>(f: &'fun FormPat<'t>, tt: &'fun TokenTree<'t>)
+        -> Result<Ast<'t>, ParseError<SliceStream<'fun, Token<'t>>>> {
+        
+    parse(f, Assoc::new(), tt)
 }
 
-impl<'form, 't> combine::Parser for FormPatParser<'form, 't> {
-    type Input = SliceStream<'t, Token<'t>>;
+impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
+    type Input = SliceStream<'tokens, Token<'t>>;
     type Output = Ast<'t>;
 
-    fn parse_state<'f>(self: &'f mut FormPatParser<'form, 't>, inp: State<Self::Input>)
+    fn parse_state<'f>(self: &'f mut FormPatParser<'form, 'tokens, 't>, inp: State<Self::Input>)
           -> ParseResult<Self::Output, Self::Input> {
 
-        fn ast_ify<'t, I>(res : (&'t Token<'t>, I)) -> (Ast<'t>, I) {
+        fn ast_ify<'t, I>(res : (&Token<'t>, I)) -> (Ast<'t>, I) {
             let (got, inp) = res;
             (got.to_ast(), inp)
         }
 
-        match *self.f {
-            Literal(exp_tok) => {
-                combine::satisfy(|tok: &'t Token<'t>| {tok.is_just(exp_tok)}).parse_state(inp)
+        match self.f {
+            &Literal(exp_tok) => {
+                combine::satisfy(|tok: &'tokens Token<'t>| {tok.is_just(exp_tok)}).parse_state(inp)
                     .map(ast_ify)
             }
-            AnyToken => { combine::any().parse_state(inp).map(ast_ify) }
-            Delimited(ref exp_extra, ref exp_delim, ref f) => {
+            &AnyToken => { combine::any().parse_state(inp).map(ast_ify) }
+            &AnyAtomicToken => {
+                combine::satisfy(|tok: &'tokens Token<'t>| { 
+                    match *tok { Simple(_) => true, _ => false } }).parse_state(inp).map(ast_ify)
+            }
+            &Delimited(ref exp_extra, ref exp_delim, ref f) => {
                 let (tok, rest) = try!(inp.uncons());
                 match *tok {
                     Group(ref extra, ref delim, ref body)
-                    if (extra, delim) == (exp_extra, exp_delim) => {
+                    if (extra, delim) == (&exp_extra, &exp_delim) => {
+                        //let sub_fpp : FormPatParser = self.descend(&*f);
                         self.descend(f).parse_tokens(&body.t)
+                        //self.descend(f).parse_tokens(&body.t)
                     },
                     // bad error message; improve:
                     _ => {
@@ -149,39 +162,41 @@ impl<'form, 't> combine::Parser for FormPatParser<'form, 't> {
                     }
                 }
             }
-            Seq(ref fs) => {
+            &Seq(ref fs) => {
                 let mut subs = vec![];
                 let mut remaining = inp;
                 for f in fs {
-                    let (parsed, rest) = try!(self.descend(f).parse_state(remaining));
+                    let (parsed, rest) = try!(self.descend(&f).parse_state(remaining));
                     subs.push(parsed);
                     remaining = rest.into_inner();
                 }
                 combine::value(Shape(subs)).parse_state(remaining)
             }
-            Star(ref f) => {
+            &Star(ref f) => {
                 combine::many(self.descend(f)).parse_state(inp)
             }
-            Alt(ref fs) => {
+            &Alt(ref fs) => {
                 let parsers: Vec<_> = fs.iter().map(
-                    |f| combine::try(self.descend(f))).collect();
+                    |f| combine::try(self.descend(&f))).collect();
                 combine::choice(parsers).parse_state(inp)
             }
-            Biased(ref lhs, ref rhs) => {
+            &Biased(ref lhs, ref rhs) => {
                 combine::try(self.descend(lhs)).or(self.descend(rhs)).parse_state(inp)
             }
-            Call(ref n) => {
-                let deeper_form : &'f Box<Form> = self.se.find(&n).unwrap();
-                let mut deeper = self.descend(&deeper_form.grammar);
-                deeper.parse_state::<'f>(inp)
+            &Call(ref n) => {
+                //TODO: we should indicate which form was parsed in the AST
+                let deeper_forms : &'f Vec<Form> = self.se.find(&n).unwrap();
+                let parsers : Vec<_> = deeper_forms.iter().map(
+                    |f| combine::try(self.descend(&f.grammar))).collect();
+                combine::choice(parsers).parse_state(inp)
             }
             
             
-            Named(ref name, ref f) => {
+            &Named(ref name, ref f) => {
                 self.descend(f).parse_state(inp).map(|parse_res| 
-                    (Node(Assoc::new().set(*name, parse_res.0)), parse_res.1))
+                    (Env(Assoc::new().set(*name, parse_res.0)), parse_res.1))
             }
-            Scope(ref f) => {
+            &Scope(ref f) => {
                 self.descend(f).parse_state(inp).map(|parse_res|
                     (parse_res.0.flatten_to_node(), parse_res.1))
             }
@@ -220,18 +235,22 @@ fn test_advanced_parsing() {
     assert_eq!(parse_top(&form_pat!([(star (alt (lit "X"), (lit "O"))), (lit "!")]),
                          &tokens!("X" "O" "O" "O" "X" "X" "!")).unwrap(),
                ast!(("X" "O" "O" "O" "X" "X") "!"));
+               
     assert_eq!(parse_top(&form_pat!((star (biased (named "tictactoe", (alt (lit "X"), (lit "O"))),
                                                   (named "igetit", (alt (lit "O"), (lit "H")))))),
                          &tokens!("X" "O" "H" "O" "X" "H" "O")).unwrap(),
                ast!(["tictactoe"; "X"] ["tictactoe"; "O"] ["igetit"; "H"]
                     ["tictactoe"; "O"] ["tictactoe"; "X"] ["igetit"; "H"]
                     ["tictactoe"; "O"]));
-    assert_eq!(parse(&form_pat!((call "expr")),
+    
+    let parse_expr = form_pat!((call "expr"));     
+    let toks_a_b = tokens!("a" "b");
+    assert_eq!(parse(&parse_expr,
                      assoc_n!(
-                         "other_1" => Box::new(simple_form(form_pat!((lit "other")))),
-                         "expr" => Box::new(simple_form(form_pat!([(lit "a"), (lit "b")]))),
-                         "other_2" => Box::new(simple_form(form_pat!((lit "otherother"))))),
-                     &tokens!("a" "b")).unwrap(),
+                         "other_1" => vec![simple_form(form_pat!((lit "other")))],
+                         "expr" => vec![simple_form(form_pat!([(lit "a"), (lit "b")]))],
+                         "other_2" => vec![simple_form(form_pat!((lit "otherother")))]),
+                     &toks_a_b).unwrap(),
                ast!("a" "b"));
 }
 /*

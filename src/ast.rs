@@ -3,15 +3,20 @@
 use util::assoc::Assoc;
 use name::*;
 use std::iter;
+use std::cmp::PartialEq;
 use std::fmt;
+use std::rc::Rc;
+use form::Form;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq)]
 pub enum Ast<'t> {
     Trivial,
     Atom(Name<'t>),
     Shape(Vec<Ast<'t>>),
-    Node(Assoc<Name<'t>, Ast<'t>>)
+    Env(Assoc<Name<'t>, Ast<'t>>),
+    Node(Rc<Form<'t>>, Box<Ast<'t>>)
 }
+
 
 impl<'t> fmt::Debug for Ast<'t> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -24,10 +29,12 @@ impl<'t> fmt::Debug for Ast<'t> {
                 for elt in v {
                     try!(elt.fmt(f));
                     if !first { try!(write!(f, " ")) }
+                    first = false;
                 }
                 write!(f, "]")
             },
-            Node(ref assoc) => { assoc.fmt(f) }
+            Env(ref assoc) => { assoc.fmt(f) },
+            Node(ref form, ref body) => { write!(f, "-({:?})-", body)}
         }
     }
 }
@@ -46,11 +53,12 @@ impl<'t> Ast<'t> {
                         accum = accum.set_assoc(&flatten(&sub_a))
                     }
                     accum
-                }
-                Node(ref contents) => contents.clone()
+                },
+                Env(ref contents) => contents.clone(),
+                Node(_, ref body) => flatten(body) 
             }
         }
-        Node(flatten(self))
+        Env(flatten(self))
     }
 
 }
@@ -69,13 +77,14 @@ macro_rules! ast {
 
 macro_rules! ast_elt {
     ( ( $( $list:tt )* ) ) => { ast!($($list)*)};
-    ( [ ] ) => { Node(Assoc::new()) } ;
+    ( [ ] ) => { Env(Assoc::new()) } ;
     ( [ $n:expr; $sub:tt $(, $n_cdr:expr; $sub_cdr:tt )* ] ) =>  {
-        if let Node(contents) = ast_elt!( [ $( $n_cdr:expr; $sub_cdr:tt ),* ] ) {
-            Node(contents.set(n($n), ast_elt!($sub)))
+        if let Env(contents) = ast_elt!( [ $( $n_cdr:expr; $sub_cdr:tt ),* ] ) {
+            Env(contents.set(n($n), ast_elt!($sub)))
         } else {
             panic!("internal macro error!")
         }
     };
+    ( { $form:expr; $sub:tt } ) => { Node(Rc::new($form), ast_elt!($tt))};
     ($e:expr) => { Atom(n($e)) }
 }
