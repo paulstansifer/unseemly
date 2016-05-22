@@ -62,37 +62,6 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
             simple_form("ident", form_pat!((lit "ident")))
         ]
         )
-    /* expr */
-/*
-    let lambda = typed_form!(
-        (delim ".[", "[", [
-               (named "param", aat), (lit ":"), 
-               (named "p_t", (call "type")), (lit ".") 
-               (named "body", (call "expr"))]),
-        |ast| Function(vec![]);
-*/
-
-                                       
-    /* type */
-    
-
-    /* //need MBE to do this 
-    let struct_type = simple_form(
-        form_pat!([ (delim "'[", "[",
-                           (star [ (named "field_name", aat), (lit ":"), 
-                                   (named "field_type" (call "type"))]))]));
-    */
-    
-    // need precedence to make this work properly
-    /*
-    let sum_type = simple_form(
-        form_pat!( [(named "rhs", (call "type")), (lit "+"), 
-                    (named "lhs", (call "type")) ]));
-    
-    let prod_type = simple_form(
-        form_pat!( [(named "rhs", (call "type")), (lit "*"), 
-                    (named "lhs", (call "type")) ]));
-    */
 }
 
 
@@ -125,3 +94,36 @@ fn form_grammar_tests() {
                                                   "rator"; {find_form("ident", &cse) ; []}]}));
 }
 
+macro_rules! expect_node {
+    ( ($form:expr) $( $n:ident = $name:expr ),* ; $body:expr ) => (
+        | node | {
+            if let Node(f, boxed_env) = node {
+                if let Env(e) = *boxed_env {
+                    if f == $form { 
+                        let ( $( $n ),* ) = ( $( e.find(&n($name)).unwrap() ),* );
+                        $body
+                    } else {
+                       Err(())
+                    }
+                } else {
+                    Err(())
+                }
+            } else {
+                Err(())
+            }
+    })
+}
+
+#[test]
+fn form_expect_node_test() {
+    let cse = make_core_syn_env();
+    let ast = ast_elt!({ find_form("apply", &cse); 
+        ["rand"; {find_form("varref", &cse) ; "f"},
+         "rator"; {find_form("varref", &cse) ; "x"}]});
+    let _ = expect_node!( (find_form("apply", &cse)) expect_f = "rand", expect_x = "rator";
+        {
+            assert_eq!(expect_f, &ast_elt!({find_form("varref", &cse); "f"}));
+            assert_eq!(expect_x, &ast_elt!({find_form("varref", &cse); "x"}));
+            Ok(())
+        })(ast);
+}

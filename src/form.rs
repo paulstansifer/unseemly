@@ -1,6 +1,5 @@
 use parse::FormPat;
 use parse::FormPat::Scope;
-use ty::Type;
 use name::*;
 use std::fmt::{Debug,Formatter,Error};
 use ast::Ast;
@@ -9,17 +8,16 @@ use std::rc::Rc;
 
 pub type NMap<'t, T> = Assoc<Name<'t>, T>;
 
-#[derive(Clone)]
 pub struct Form<'t> {
     pub name: Name<'t>,
     pub grammar: FormPat<'t>,
-    pub synth_type: Rc<Fn(Ast<'t>) -> Result<Type<'t>,()>>,
+    pub synth_type: Box<Fn(Ast<'t>) -> Result<Ast<'t>,()>>,
     pub relative_phase: Assoc<Name<'t>, i32>, /* 2^31 macro phases ought to be enough for anybody */
 }
 
 impl<'t> PartialEq for Form<'t> {
     fn eq(&self, other: &Form<'t>) -> bool {
-        self.name == other.name // Overly-generous, but we need something for testing...
+        self as *const Form == other as *const Form
     }
 }
 
@@ -35,16 +33,16 @@ pub fn simple_form<'t>(form_name: &'t str, p: FormPat<'t>) -> Rc<Form<'t>> {
             name: n(form_name),
             grammar: Scope(Box::new(p)),
             relative_phase: Assoc::new(),
-            synth_type: Rc::new(|_| Result::Ok(Type::Number))
+            synth_type: Box::new(|_| Result::Ok(Ast::Trivial))
         })
 }
 
 macro_rules! typed_form {
-    ( $p:tt, $gen_type:expr) => {
+    ( $p:tt, $gen_type:expr ) => {
         Form {
             grammar: form_pat!($p),
             relative_phase: Assoc::new(),
-            synth_type: Rc::nastew($gen_type)
+            synth_type: Box::new($gen_type)
         }
     }
 }

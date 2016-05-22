@@ -53,6 +53,12 @@ pub enum FormPat<'t> {
     Star(Box<FormPat<'t>>),
     Alt(Vec<FormPat<'t>>),
     Biased(Box<FormPat<'t>>, Box<FormPat<'t>>),
+
+    // TODO: there should be an explicit `FormNode` pattern that wraps the result in a 
+    // Node indicuating the `Form`. (Some `Form`s might only exist for parsing,
+    // and don't want to be on the `Ast`.) Also, `SynEnv` can go back to containing
+    // a single `FormPat`, so we can use `Biased` if necessary.
+
     Call(Name<'t>),
 
     Scope(Box<FormPat<'t>>), // limits the region where names are meaningful.
