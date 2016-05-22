@@ -8,6 +8,7 @@ use std::fmt;
 use std::rc::Rc;
 use form::Form;
 
+
 #[derive(Clone, PartialEq)]
 pub enum Ast<'t> {
     Trivial,
@@ -27,14 +28,16 @@ impl<'t> fmt::Debug for Ast<'t> {
                 try!(write!(f, "["));
                 let mut first = true;
                 for elt in v {
-                    try!(elt.fmt(f));
                     if !first { try!(write!(f, " ")) }
+                    try!(elt.fmt(f));
                     first = false;
                 }
                 write!(f, "]")
             },
             Env(ref assoc) => { assoc.fmt(f) },
-            Node(ref form, ref body) => { write!(f, "-({:?})-", body)}
+            Node(ref form, ref body) => { 
+                write!(f, "{{ ({:?}); {:?} }}", form.name, body)
+            }
         }
     }
 }
@@ -63,7 +66,7 @@ impl<'t> Ast<'t> {
 
 }
 
-use self::Ast::*;
+pub use self::Ast::*;
 
 impl<'t> iter::FromIterator<Ast<'t>> for Ast<'t> {
     fn from_iter<I: IntoIterator<Item=Ast<'t>>>(i: I) -> Self {
@@ -79,12 +82,12 @@ macro_rules! ast_elt {
     ( ( $( $list:tt )* ) ) => { ast!($($list)*)};
     ( [ ] ) => { Env(Assoc::new()) } ;
     ( [ $n:expr; $sub:tt $(, $n_cdr:expr; $sub_cdr:tt )* ] ) =>  {
-        if let Env(contents) = ast_elt!( [ $( $n_cdr:expr; $sub_cdr:tt ),* ] ) {
+        if let Env(contents) = ast_elt!( [ $( $n_cdr; $sub_cdr ),* ] ) {
             Env(contents.set(n($n), ast_elt!($sub)))
         } else {
             panic!("internal macro error!")
         }
     };
-    ( { $form:expr; $sub:tt } ) => { Node(Rc::new($form), ast_elt!($tt))};
+    ( { $form:expr; $sub:tt } ) => { Node($form, Box::new(ast_elt!($sub)))};
     ($e:expr) => { Atom(n($e)) }
 }

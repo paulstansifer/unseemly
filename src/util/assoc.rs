@@ -4,16 +4,18 @@ use std::clone::Clone;
 use std::fmt;
 
 
+// TODO: we can get rid of a lot of these `pub`s by making `Assoc` iterable
+
 #[derive(PartialEq, Eq, Clone)]
 pub struct Assoc<K: PartialEq, V> {
-    n: Option<Rc<AssocNode<K, V>>>
+    pub n: Option<Rc<AssocNode<K, V>>>
 }
 
 #[derive(PartialEq, Eq, Clone)]
-struct AssocNode<K : PartialEq, V> {
-    k: K,
-    v: V,
-    next: Assoc<K,V>
+pub struct AssocNode<K : PartialEq, V> {
+    pub k: K,
+    pub v: V,
+    pub next: Assoc<K,V>
 }
 
 impl<K : PartialEq, V> Assoc<K, V> {
@@ -44,16 +46,16 @@ impl<K : PartialEq, V> Assoc<K, V> {
 
 impl<K : PartialEq + fmt::Debug, V : fmt::Debug> fmt::Debug for Assoc<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(write!(f, "<"));
+        try!(write!(f, "<|"));
         let mut cur = &self.n;
         let mut first = true;
         while let &Some(ref node) = cur {
-            try!(write!(f, "{:?} => {:?}", node.k, node.v));
             if !first { try!(write!(f, ", ")); }
+            try!(write!(f, "{:?} => {:?}", node.k, node.v));
             first = false;
             cur = &node.next.n;
         }
-        write!(f, ">")
+        write!(f, "|>")
     }
 }
 

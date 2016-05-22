@@ -12,6 +12,7 @@ use std::clone::Clone;
 use ast::Ast;
 use ast::Ast::*;
 use util::assoc::Assoc;
+use std::rc::Rc;
 
 use std::marker::PhantomData;
 
@@ -81,7 +82,7 @@ macro_rules! form_pat {
 }
 
 
-pub type SynEnv<'t> = Assoc<Name<'t>, Vec<Form<'t>>>;
+pub type SynEnv<'t> = Assoc<Name<'t>, Vec<Rc<Form<'t>>>>;
 
 struct FormPatParser<'form, 'tokens: 'form, 't: 'tokens> {
     f: &'form FormPat<'t>,
@@ -109,7 +110,7 @@ impl<'form, 'tokens, 't: 'form> FormPatParser<'form, 'tokens, 't> {
 
 /** Parse `tt` with the grammar `f` in the environment `se`.
   The environment is used for lookup when `Call` patterns are reached. */
-fn parse<'fun, 't: 'fun>(f: &'fun FormPat<'t>, se: SynEnv<'t>, tt: &'fun TokenTree<'t>)
+pub fn parse<'fun, 't: 'fun>(f: &'fun FormPat<'t>, se: SynEnv<'t>, tt: &'fun TokenTree<'t>)
         -> Result<Ast<'t>, ParseError<SliceStream<'fun, Token<'t>>>> {
     FormPatParser{f: f, se: se, token_phantom: PhantomData}.parse_tokens(&tt.t).map(|res| res.0)
         .map_err(|consumed| consumed.into_inner())
@@ -118,7 +119,7 @@ fn parse<'fun, 't: 'fun>(f: &'fun FormPat<'t>, se: SynEnv<'t>, tt: &'fun TokenTr
 
 /** Parse `tt` with the grammar `f` in an empty syntactic environment.
  `Call` patterns are errors. */
-fn parse_top<'fun, 't>(f: &'fun FormPat<'t>, tt: &'fun TokenTree<'t>)
+pub fn parse_top<'fun, 't>(f: &'fun FormPat<'t>, tt: &'fun TokenTree<'t>)
         -> Result<Ast<'t>, ParseError<SliceStream<'fun, Token<'t>>>> {
         
     parse(f, Assoc::new(), tt)
@@ -184,10 +185,13 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
                 combine::try(self.descend(lhs)).or(self.descend(rhs)).parse_state(inp)
             }
             &Call(ref n) => {
-                //TODO: we should indicate which form was parsed in the AST
-                let deeper_forms : &'f Vec<Form> = self.se.find(&n).unwrap();
+                // Try all the forms at this nonterminal, and record which one we got
+                // with the `Node` AST component. 
+                let deeper_forms : &'f Vec<Rc<Form>> = self.se.find(&n).unwrap();
                 let parsers : Vec<_> = deeper_forms.iter().map(
-                    |f| combine::try(self.descend(&f.grammar))).collect();
+                    |f| combine::try(self.descend(&f.grammar)).map(
+                            move |parse_res| Node(f.clone(), Box::new(parse_res))))
+                    .collect();
                 combine::choice(parsers).parse_state(inp)
             }
             
@@ -242,20 +246,21 @@ fn test_advanced_parsing() {
                ast!(["tictactoe"; "X"] ["tictactoe"; "O"] ["igetit"; "H"]
                     ["tictactoe"; "O"] ["tictactoe"; "X"] ["igetit"; "H"]
                     ["tictactoe"; "O"]));
-    
-    let parse_expr = form_pat!((call "expr"));     
+
+    let pair_form = simple_form("pair", form_pat!([(named "lhs", (lit "a")),
+                                                   (named "rhs", (lit "b"))]));
     let toks_a_b = tokens!("a" "b");
-    assert_eq!(parse(&parse_expr,
+    assert_eq!(parse(&form_pat!((call "expr")),
                      assoc_n!(
-                         "other_1" => vec![simple_form(form_pat!((lit "other")))],
-                         "expr" => vec![simple_form(form_pat!([(lit "a"), (lit "b")]))],
-                         "other_2" => vec![simple_form(form_pat!((lit "otherother")))]),
+                         "other_1" => vec![simple_form("o", form_pat!((lit "other")))],
+                         "expr" => vec![pair_form.clone()],
+                         "other_2" => vec![simple_form("o", form_pat!((lit "otherother")))]),
                      &toks_a_b).unwrap(),
-               ast!("a" "b"));
+               ast_elt!({pair_form ; ["rhs"; "b", "lhs"; "a"]}));
 }
 /*
 #[test]
-fn test_syn_env_parsing() {
+fn test_syn_env_parsing() as{
     let mut se = Assoc::new();
     se = se.set(n("xes"), Box::new(Form { grammar: form_pat!((star (lit "X")),
                                           relative_phase)}))
