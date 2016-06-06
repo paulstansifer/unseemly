@@ -5,13 +5,15 @@ use std::fmt::{Debug,Formatter,Error};
 use ast::Ast;
 use util::assoc::Assoc;
 use std::rc::Rc;
+use ty::TypeRule;
 
 pub type NMap<'t, T> = Assoc<Name<'t>, T>;
+
 
 pub struct Form<'t> {
     pub name: Name<'t>,
     pub grammar: FormPat<'t>,
-    pub synth_type: Box<Fn(Ast<'t>) -> Result<Ast<'t>,()>>,
+    pub synth_type: TypeRule<'t>,
     pub relative_phase: Assoc<Name<'t>, i32>, /* 2^31 macro phases ought to be enough for anybody */
 }
 
@@ -33,7 +35,7 @@ pub fn simple_form<'t>(form_name: &'t str, p: FormPat<'t>) -> Rc<Form<'t>> {
             name: n(form_name),
             grammar: Scope(Box::new(p)),
             relative_phase: Assoc::new(),
-            synth_type: Box::new(|_| Result::Ok(Ast::Trivial))
+            synth_type: TypeRule::NotTyped
         })
 }
 
@@ -42,7 +44,7 @@ macro_rules! typed_form {
         Form {
             grammar: form_pat!($p),
             relative_phase: Assoc::new(),
-            synth_type: Box::new($gen_type)
+            synth_type: Custom($gen_type)
         }
     }
 }

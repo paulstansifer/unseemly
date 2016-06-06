@@ -1,3 +1,6 @@
+#![allow(dead_code,unused_imports)]
+
+
 #[macro_use] extern crate lazy_static;
 
 use std::path::Path;
@@ -7,6 +10,7 @@ use std::io::Read;
 mod util;
 
 mod name;
+mod beta;
 mod read;
 mod ast;
 mod parse;
@@ -24,6 +28,7 @@ fn main() {
         .expect("Error opening file")
         .read_to_string(&mut raw_input)
         .expect("Error reading file");
+        
 }
 
 #[test]

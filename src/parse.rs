@@ -1,4 +1,3 @@
-#![allow(dead_code,unused_imports)]
 #![macro_use]
 
 use read::{Token, TokenTree, DelimChar, Group, Simple, delim};
@@ -13,8 +12,8 @@ use ast::Ast;
 use ast::Ast::*;
 use util::assoc::Assoc;
 use std::rc::Rc;
-
 use std::marker::PhantomData;
+use beta::Beta;
 
 extern crate combine;
 
@@ -33,6 +32,7 @@ impl<'t> Token<'t> {
         }
     }
 }
+
 
 
 /**
@@ -55,7 +55,7 @@ pub enum FormPat<'t> {
     Biased(Box<FormPat<'t>>, Box<FormPat<'t>>),
 
     // TODO: there should be an explicit `FormNode` pattern that wraps the result in a 
-    // Node indicuating the `Form`. (Some `Form`s might only exist for parsing,
+    // Node indicating the `Form`. (Some `Form`s might only exist for parsing,
     // and don't want to be on the `Ast`.) Also, `SynEnv` can go back to containing
     // a single `FormPat`, so we can use `Biased` if necessary.
 
@@ -65,8 +65,8 @@ pub enum FormPat<'t> {
     Named(Name<'t>, Box<FormPat<'t>>),
 
     //SynImport(Name, Box<FormPat<'t>>), //TODO
-    NamesImport(Name<'t>, Box<FormPat<'t>>),
-    NamesExport(Vec<Name<'t>>, Box<FormPat<'t>>)
+    NameImport(Box<FormPat<'t>>, Beta<'t>),
+    //NameExport(Beta<'t>, Box<FormPat<'t>>) // This might want to go on some existing pattern
 }
 
 
@@ -196,12 +196,12 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
                 let deeper_forms : &'f Vec<Rc<Form>> = self.se.find(&n).unwrap();
                 let parsers : Vec<_> = deeper_forms.iter().map(
                     |f| combine::try(self.descend(&f.grammar)).map(
-                            move |parse_res| Node(f.clone(), Box::new(parse_res))))
+                            move |parse_res| Node(f.clone(), Rc::new(parse_res))))
                     .collect();
                 combine::choice(parsers).parse_state(inp)
             }
             
-            
+        
             &Named(ref name, ref f) => {
                 self.descend(f).parse_state(inp).map(|parse_res| 
                     (Env(Assoc::new().set(*name, parse_res.0)), parse_res.1))
@@ -210,9 +210,14 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
                 self.descend(f).parse_state(inp).map(|parse_res|
                     (parse_res.0.flatten_to_node(), parse_res.1))
             }
+
+            &NameImport(ref f, ref beta) => {
+                self.descend(f).parse_state(inp).map(|parse_res|
+                    (ExtendTypeEnv(Box::new(parse_res.0), beta.clone()), parse_res.1))
+            }
             
             
-            _ => {panic!("TODO")}
+            //_ => {panic!("TODO")}
         }
               /*
         let (tok, next) = try!(inp.uncons());
@@ -249,9 +254,9 @@ fn test_advanced_parsing() {
     assert_eq!(parse_top(&form_pat!((star (biased (named "tictactoe", (alt (lit "X"), (lit "O"))),
                                                   (named "igetit", (alt (lit "O"), (lit "H")))))),
                          &tokens!("X" "O" "H" "O" "X" "H" "O")).unwrap(),
-               ast!(["tictactoe"; "X"] ["tictactoe"; "O"] ["igetit"; "H"]
-                    ["tictactoe"; "O"] ["tictactoe"; "X"] ["igetit"; "H"]
-                    ["tictactoe"; "O"]));
+               ast!(["tictactoe" => "X"] ["tictactoe" => "O"] ["igetit" => "H"]
+                    ["tictactoe" => "O"] ["tictactoe" => "X"] ["igetit" => "H"]
+                    ["tictactoe" => "O"]));
 
     let pair_form = simple_form("pair", form_pat!([(named "lhs", (lit "a")),
                                                    (named "rhs", (lit "b"))]));
@@ -262,7 +267,7 @@ fn test_advanced_parsing() {
                          "expr" => vec![pair_form.clone()],
                          "other_2" => vec![simple_form("o", form_pat!((lit "otherother")))]),
                      &toks_a_b).unwrap(),
-               ast_elt!({pair_form ; ["rhs"; "b", "lhs"; "a"]}));
+               ast_elt!({pair_form ; ["rhs" => "b", "lhs" => "a"]}));
 }
 /*
 #[test]

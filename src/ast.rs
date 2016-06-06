@@ -2,12 +2,12 @@
 
 use util::assoc::Assoc;
 use name::*;
+use beta::Beta;
 use std::iter;
 use std::cmp::PartialEq;
 use std::fmt;
 use std::rc::Rc;
 use form::Form;
-
 
 #[derive(Clone, PartialEq)]
 pub enum Ast<'t> {
@@ -15,7 +15,38 @@ pub enum Ast<'t> {
     Atom(Name<'t>),
     Shape(Vec<Ast<'t>>),
     Env(Assoc<Name<'t>, Ast<'t>>),
-    Node(Rc<Form<'t>>, Box<Ast<'t>>)
+    Node(Rc<Form<'t>>, Rc<Ast<'t>>),
+    ExtendTypeEnv(Box<Ast<'t>>, Beta<'t>)
+}
+
+
+/*
+
+{ lam ; [ "rator" => ... , "rator_type" => ... ,
+          "rand" => ( ... ↓ "rator" : "rator_type ] }
+
+*/
+
+macro_rules! ast {
+    ($($contents:tt)*) => { Shape(vec![ $(  ast_elt!($contents) ),* ] )};
+}
+
+
+pub use self::Ast::*;
+
+
+macro_rules! ast_elt {
+    ( ( $( $list:tt )* ) ) => { ast!($($list)*)};
+    ( [ ] ) => { Env(Assoc::new()) } ;
+    ( [ $n:tt => $sub:tt $(, $n_cdr:tt => $sub_cdr:tt )* ] ) =>  {
+        if let Env(contents) = ast_elt!( [ $( $n_cdr => $sub_cdr ),* ] ) {
+            Env(contents.set(n(expr_ify!($n)), ast_elt!($sub)))
+        } else {
+            panic!("internal macro error!")
+        }
+    };
+    ( { $form:expr; $sub:tt } ) => { Node($form, Rc::new(ast_elt!($sub)))};
+    ($e:tt) => { Atom(n(expr_ify!($e))) }
 }
 
 
@@ -38,6 +69,9 @@ impl<'t> fmt::Debug for Ast<'t> {
             Node(ref form, ref body) => { 
                 write!(f, "{{ ({:?}); {:?} }}", form.name, body)
             }
+            ExtendTypeEnv(ref body, ref beta) => {
+                write!(f, "{:?}↓{:?}", body, beta)
+            }
         }
     }
 }
@@ -57,8 +91,10 @@ impl<'t> Ast<'t> {
                     }
                     accum
                 },
+                // TODO: think about unusual `Ast`s and how they should behave.
                 Env(ref contents) => contents.clone(),
-                Node(_, ref body) => flatten(body) 
+                Node(_, ref body) => flatten(body) ,
+                ExtendTypeEnv(ref body, _) => flatten(body)
             }
         }
         Env(flatten(self))
@@ -66,28 +102,9 @@ impl<'t> Ast<'t> {
 
 }
 
-pub use self::Ast::*;
-
 impl<'t> iter::FromIterator<Ast<'t>> for Ast<'t> {
     fn from_iter<I: IntoIterator<Item=Ast<'t>>>(i: I) -> Self {
         Shape(i.into_iter().collect())
     }
 }
 
-macro_rules! ast {
-    ($($contents:tt)*) => { Shape(vec![ $(  ast_elt!($contents) ),* ] )};
-}
-
-macro_rules! ast_elt {
-    ( ( $( $list:tt )* ) ) => { ast!($($list)*)};
-    ( [ ] ) => { Env(Assoc::new()) } ;
-    ( [ $n:expr; $sub:tt $(, $n_cdr:expr; $sub_cdr:tt )* ] ) =>  {
-        if let Env(contents) = ast_elt!( [ $( $n_cdr; $sub_cdr ),* ] ) {
-            Env(contents.set(n($n), ast_elt!($sub)))
-        } else {
-            panic!("internal macro error!")
-        }
-    };
-    ( { $form:expr; $sub:tt } ) => { Node($form, Box::new(ast_elt!($sub)))};
-    ($e:expr) => { Atom(n($e)) }
-}
