@@ -42,7 +42,7 @@ impl<K : PartialEq, V> Assoc<K, V> {
     pub fn new() -> Assoc<K, V> {
         Assoc{ n: None }
     }
-}
+    }
 
 impl<K : PartialEq + fmt::Debug, V : fmt::Debug> fmt::Debug for Assoc<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -66,6 +66,20 @@ impl<K : PartialEq + Clone, V : Clone> Assoc<K, V> {
             None => (*self).clone(),
             Some(ref node) => {
                 self.set_assoc(&node.next).set(node.k.clone(), node.v.clone())
+            }
+        }
+    }
+    
+    pub fn map<NewV>(&self, f: &Fn(V) -> NewV) -> Assoc<K, NewV> {
+        match self.n {
+            None => Assoc{ n: None },
+            Some(ref node) => {
+                Assoc{ 
+                    n: Some(Rc::new(AssocNode {
+                        k: node.k.clone(), v: f(node.v.clone()), 
+                        next: node.next.map(f)
+                    }))
+                }
             }
         }
     }

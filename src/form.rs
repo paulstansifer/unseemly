@@ -1,3 +1,5 @@
+#![macro_use]
+
 use parse::FormPat;
 use parse::FormPat::Scope;
 use name::*;
@@ -41,10 +43,11 @@ pub fn simple_form<'t>(form_name: &'t str, p: FormPat<'t>) -> Rc<Form<'t>> {
 
 macro_rules! typed_form {
     ( $p:tt, $gen_type:expr ) => {
-        Form {
+        Rc::new(Form {
+            name: n("unnamed form"),
             grammar: form_pat!($p),
             relative_phase: Assoc::new(),
-            synth_type: Custom($gen_type)
-        }
+            synth_type: $gen_type
+        })
     }
 }

@@ -36,6 +36,9 @@ pub use self::Ast::*;
 
 
 macro_rules! ast_elt {
+    ( (import $beta:tt $sub:tt) ) => {
+        ExtendTypeEnv(Box::new(ast_elt!($sub)), beta!($beta))
+    };
     ( ( $( $list:tt )* ) ) => { ast!($($list)*)};
     ( [ ] ) => { Env(Assoc::new()) } ;
     ( [ $n:tt => $sub:tt $(, $n_cdr:tt => $sub_cdr:tt )* ] ) =>  {
