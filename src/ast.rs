@@ -39,8 +39,9 @@ macro_rules! ast_elt {
     ( (import $beta:tt $sub:tt) ) => {
         ExtendTypeEnv(Box::new(ast_elt!($sub)), beta!($beta))
     };
+    ( (, $interp:expr)) => { $interp };
     ( ( $( $list:tt )* ) ) => { ast!($($list)*)};
-    ( [ ] ) => { Env(Assoc::new()) } ;
+    ( [ ] ) => { Env(Assoc::new()) };
     ( [ $n:tt => $sub:tt $(, $n_cdr:tt => $sub_cdr:tt )* ] ) =>  {
         if let Env(contents) = ast_elt!( [ $( $n_cdr => $sub_cdr ),* ] ) {
             Env(contents.set(n(expr_ify!($n)), ast_elt!($sub)))

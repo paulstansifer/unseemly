@@ -2,7 +2,7 @@
 
 use std::fmt;
 use name::*;
-use ty::TyEnv;
+use ty::{TyEnv, LazyPartTypes, LazilyTypedTerm};
 use util::assoc::Assoc;
 use ast::{Ast, Atom};
 
@@ -29,12 +29,12 @@ impl<'t> fmt::Debug for Beta<'t> {
             Basic(ref name, ref ty) => { write!(f, "{:?}:{:?}", name, ty) }
             SameTypeAs(ref name, ref ty_source) => { 
                 write!(f, "{:?}={:?}", name, ty_source)
-            } 
+            }
         }
     }
 }
 
-pub fn env_from_beta<'t>(b: &Beta<'t>, parts: Assoc<Name<'t>, Ast<'t>>)
+pub fn env_from_beta<'t>(b: &Beta<'t>, parts: LazyPartTypes<'t>)
          -> TyEnv<'t> {
     match b {
         &Nothing => { Assoc::new() }
@@ -43,9 +43,12 @@ pub fn env_from_beta<'t>(b: &Beta<'t>, parts: Assoc<Name<'t>, Ast<'t>>)
                 .set_assoc(&env_from_beta(&*rhs, parts))
         }
         &Basic(ref name_source, ref ty_source) => {
-            if let Some(&Atom(ref name)) = parts.find(name_source) {
-                if let Some(ref ty_stx) = parts.find(ty_source) {
-                    Assoc::new().set(*name, (**ty_stx).clone())
+                        
+            if let Some(& LazilyTypedTerm {term: Atom(ref name), ty: _} ) 
+                    = parts.parts.find(name_source) {
+                if let Some(& LazilyTypedTerm {term: ref ty_stx, ty: _} )
+                        = parts.parts.find(ty_source) {
+                    Assoc::new().set(*name, (*ty_stx).clone())
                 } else {
                     panic!("Type {:?} not found in {:?}", ty_source, parts);
                 }
@@ -53,7 +56,7 @@ pub fn env_from_beta<'t>(b: &Beta<'t>, parts: Assoc<Name<'t>, Ast<'t>>)
                 panic!("Name {:?} not found in {:?}", name_source, parts);
             }
         }
-        &SameTypeAs(ref name_source, ref ty_source) => {
+        &SameTypeAs(ref _name_source, ref _ty_source) => {
             panic!("TODO! Thread typechecking information here!")
         }
     }

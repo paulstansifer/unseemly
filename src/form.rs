@@ -36,15 +36,26 @@ pub fn simple_form<'t>(form_name: &'t str, p: FormPat<'t>) -> Rc<Form<'t>> {
     Rc::new(Form {
             name: n(form_name),
             grammar: Scope(Box::new(p)),
-            relative_phase: Assoc::new(),
+            relative_phase: Assoc::new(), 
             synth_type: TypeRule::NotTyped
         })
 }
 
-macro_rules! typed_form {
+macro_rules! basic_typed_form {
     ( $p:tt, $gen_type:expr ) => {
         Rc::new(Form {
             name: n("unnamed form"),
+            grammar: form_pat!($p),
+            relative_phase: Assoc::new(),
+            synth_type: $gen_type
+        })
+    }
+}
+
+macro_rules! typed_form {
+    ( $name:expr, $p:tt, $gen_type:expr ) => {
+        Rc::new(Form {
+            name: n($name),
             grammar: form_pat!($p),
             relative_phase: Assoc::new(),
             synth_type: $gen_type

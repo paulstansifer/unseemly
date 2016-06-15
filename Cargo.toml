@@ -6,7 +6,7 @@ authors = ["Paul Stansifer <paul.stansifer@gmail.com>"]
 [dependencies]
 lazy_static = { version = "0.1.16" }
 regex = { version = "0.1.66" }
-combine = { version = "1.3.0" }
+combine = { version = "1.3.0" } 
 
 [[bin]]
 name = "odd"

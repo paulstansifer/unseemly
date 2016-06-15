@@ -35,52 +35,104 @@ use form::{Form, simple_form};
 use util::assoc::Assoc;
 use ast::*;
 use std::rc::Rc;
+use ty::*;
+use beta::*;
+
+
+macro_rules! expect_node {
+    ( ($node:expr ; $form:expr) $( $n:ident = $name:expr ),* ; $body:expr ) => (
+        if let Node(ref f, ref boxed_env) = $node {
+            if let Env(ref e) = **boxed_env {
+                if *f == $form { 
+                    // This is tied to the signature of `Custom`
+                    let ( $( $n ),* ) = ( $( e.find(&n($name)).unwrap() ),* );
+                    $body
+                } else {
+                   Err(())
+                }
+            } else {
+                Err(())
+            }
+        } else {
+            Err(())
+        }
+    )
+}
+
 
 /* Note that both types and terms are represented as Ast<'t> */
 
 fn make_core_syn_env<'t>() -> SynEnv<'t> {
+    let fn_type = 
+        simple_form("fn", 
+            form_pat!((delim "[", "[",
+                [ (named "param", (call "type")), (lit "->"), 
+                  (named "ret", (call "type") ) ])));
+                  
+    /* This seems to be necessary to get separate `Rc`s into the closures. */
+    let fn_type_0 = fn_type.clone();
+    let fn_type_1 = fn_type.clone();
+
+    
+
     assoc_n!(
         "expr" => vec![
-            simple_form("lambda",
-                form_pat!((delim ".[", "[", [
+        
+            typed_form!("lambda",
+                (delim ".[", "[", [
                     (named "param", aat), (lit ":"), 
                     (named "p_t", (call "type")), (lit "."),
-                    (named "body", (call "expr"))]))),
-            simple_form("apply",
-                form_pat!([ (named "rator", (call "expr")),
-                            (named "rand", (call "expr"))])),
-            simple_form("varref", form_pat!(aat)),
+                    (import ["param" : "p_t"],
+                        (named "body", (call "expr")))]),
+                Custom(Box::new( move | part_types | {                    
+                    let lambda_type : Ast<'t> = 
+                        ast_elt!({ fn_type_0.clone() ;
+                            [ "param" => (, part_types.get_term(&n("p_t"))),
+                              "ret" => (, try!(part_types.get_type(&n("body"))))]}); 
+                    Ok(lambda_type)
+                }))),
+            
+            typed_form!("apply",
+                [(named "rator", (call "expr")), 
+                 (named "rand", (call "expr"))],
+                Custom(Box::new(move | part_types |
+                    expect_node!( (try!(part_types.get_type(&n("rator"))) ; 
+                                   fn_type_1)
+                        input = "param", output = "ret";
+                        
+                        if input == &try!(part_types.get_type(&n("rand"))) {
+                            Ok(output.clone())
+                        } else {
+                            Err(())
+                        })))),
+                        
+            typed_form!("var_ref", aat, VarRef)
+
+            // The first use for syntax quotes will be in macro definitions.
+            // But how will we type syntax quotes as expressions?
+            /*
             simple_form("synquote",
                 form_pat!((delim "'[", "[",
                     (star (biased (delim ",[", "[", (call "expr")), at)))))
-        ],
+                    */
+                    
+                    
+        ] ,
         "type" => vec![
-            simple_form("fn",
-                form_pat!((delim "[", "[",
-                        [ (named "rator", (call "type")), (lit "->"), 
-                          (named "rand", (call "type") ) ]))),
+            fn_type.clone(),
             simple_form("ident", form_pat!((lit "ident")))
         ]
     )
 }
 
-
-//const under_quote_grammar : FormPat<'static> =
-//    Alt(vec![Delimited]);
-
-//const grammar_grammar : FormPat<'static> = AnyAtom;
-
-
-/// intended for use in tests
-fn find_form<'t>(name: &str, se: &SynEnv<'t>) -> Rc<Form<'t>> { 
-    let mut cur = &se.n;
-    while let &Some(ref node) = cur {
-        for form in &node.v {
-            if form.name.is(name) { return form.clone() }
+fn find_form<'t>(se: &SynEnv<'t>, nt: &str, form_name: &str)
+         -> Rc<Form<'t>> {
+    for form in se.find(&n(nt)).unwrap() {
+        if form.name.is(form_name) {
+            return form.clone();
         }
-        cur = &node.next.n;
     }
-    panic!("not found!");
+    panic!("{:?} not found in {:?}", form_name, nt)
 }
 
 
@@ -90,40 +142,49 @@ fn form_grammar_tests() {
     assert_eq!(parse(&form_pat!((call "type")),
                      cse.clone(),
                      &tokens!([""; "ident" "->" "ident"])).unwrap(),
-               ast_elt!({ find_form("fn", &cse); ["rand" => {find_form("ident", &cse) ; []},
-                                                  "rator" => {find_form("ident", &cse) ; []}]}));
+               ast_elt!({ find_form(&cse, "type", "fn"); 
+                   ["ret" => {find_form(&cse, "type", "ident") ; []},
+                    "param" => {find_form(&cse, "type", "ident") ; []}]}));
 }
 
-macro_rules! expect_node {
-    ( ($form:expr) $( $n:ident = $name:expr ),* ; $body:expr ) => (
-        | node | {
-            if let Node(f, boxed_env) = node {
-                if let Env(ref e) = *boxed_env {
-                    if f == $form { 
-                        let ( $( $n ),* ) = ( $( e.find(&n($name)).unwrap() ),* );
-                        $body
-                    } else {
-                       Err(())
-                    }
-                } else {
-                    Err(())
-                }
-            } else {
-                Err(())
-            }
-    })
-}
 
 #[test]
 fn form_expect_node_test() {
     let cse = make_core_syn_env();
-    let ast = ast_elt!({ find_form("apply", &cse); 
-        ["rand" => {find_form("varref", &cse) ; "f"},
-         "rator" => {find_form("varref", &cse) ; "x"}]});
-    let _ = expect_node!( (find_form("apply", &cse)) expect_f = "rand", expect_x = "rator";
+    let ast = ast_elt!({ find_form(&cse, "expr", "apply"); 
+        ["rand" => {find_form(&cse, "expr", "var_ref") ; "f"},
+         "rator" => {find_form(&cse, "expr", "var_ref") ; "x"}]});
+    let _ = expect_node!( ( ast ; find_form(&cse, "expr", "apply")) expect_f = "rand", expect_x = "rator";
         {
-            assert_eq!(expect_f, &ast_elt!({find_form("varref", &cse); "f"}));
-            assert_eq!(expect_x, &ast_elt!({find_form("varref", &cse); "x"}));
+            assert_eq!(expect_f, &ast_elt!({find_form(&cse, "expr", "var_ref"); "f"}));
+            assert_eq!(expect_x, &ast_elt!({find_form(&cse, "expr", "var_ref"); "x"}));
             Ok(())
-        })(ast);
+        });
+}
+
+#[test]
+fn form_type_tests() {
+    let cse = make_core_syn_env();
+    
+    let mt_parts = LazyPartTypes::new(Assoc::new(), Assoc::new());
+    let mt_ty_env = Assoc::new();
+    let simple_ty_env = mt_ty_env.set(n("x"), ast_elt!("integer"));
+    
+    let vr = find_form(&cse, "expr", "var_ref");
+    let lam = find_form(&cse, "expr", "lambda");
+    let fun = find_form(&cse, "type", "fn");
+
+    
+    assert_eq!(synth_type(&ast_elt!( { vr.clone() ; "x" }),
+                          simple_ty_env.clone(), &mt_parts),
+               Ok(ast_elt!("integer")));
+    
+    assert_eq!(synth_type(&ast_elt!( 
+        { lam.clone() ;
+            [ "param" => "y", 
+              "p_t" => "float",
+              "body" => (import [ "param" : "p_t" ]  { vr.clone() ; "x"})]}),
+        simple_ty_env.clone(), &mt_parts),
+        Ok(ast_elt!({ fun.clone() ; 
+            [ "param" => "float", "ret" => "integer" ]})));
 }

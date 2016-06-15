@@ -84,6 +84,9 @@ macro_rules! form_pat {
     ((call $n:expr)) => { Call(n($n)) };
     ((scope $body:tt)) => { Scope(form_pat!($body)) };
     ((named $n:expr, $body:tt)) => { Named(n($n), Box::new(form_pat!($body))) };
+    ((import $beta:tt, $body:tt)) => { 
+        NameImport(Box::new(form_pat!($body)), beta!($beta))
+    };
     ( [$($body:tt),*] ) => { Seq(vec![ $(form_pat!($body)),* ])}
 }
 

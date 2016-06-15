@@ -16,15 +16,14 @@ It is compositional,
  except for binding, which is indicated by ExtendTypeEnv nodes. 
 These nodes  may depend on 
  the result of synthesizing sibling AST nodes
-  
-  
- the result of *parsing* sibling AST nodes corresponding to types 
-  (i.e., type annotations, which 
+ or the actual value of AST nodes corresponding to types 
+  (i.e., type annotations)
 
 */
 
 use form::Form;
-use std::rc::Rc; // we expect to want to share a lot of structure
+use std::rc::Rc; 
+use std::cell::RefCell;
 use name::*;
 use util::assoc::Assoc;
 use ast::Ast;
@@ -32,11 +31,12 @@ use ast::Ast::*;
 use beta::*;
 use parse::FormPat::AnyToken; // for making simple forms for testing
 
+
 pub enum TypeRule<'t> {
     /** A function from the types of the *parts* of this form
          to the (possible) type of this form.
     Note that the environment is not directly accessible! */
-    Custom(Box<Fn(TyEnv<'t>) -> Result<Ast<'t>, ()>>),
+    Custom(Box<(Fn(LazyPartTypes<'t>) -> Result<Ast<'t>, ()>) + 't>),
     Body(Name<'t>), /* this form has the same type as one of its subforms */
     VarRef, /* this form is a var ref; look up its type in the environment */
     NotTyped /* this form should not ever be typechecked */
@@ -47,34 +47,78 @@ pub use self::TypeRule::*;
 
 pub type TyEnv<'t> = Assoc<Name<'t>, Ast<'t>>;
 
-// TODO: we really need to memoize to avoid recomputing 
-//  (potentially exponentially!)
-//  types of subterms.
+#[derive(Clone, Debug)]
+pub struct LazilyTypedTerm<'t> {
+    pub term: Ast<'t>,
+    pub ty: RefCell<Option<Result<Ast<'t>, ()>>>
+}
 
-fn synth_type<'t>(expr: &Ast<'t>, env: TyEnv<'t>,
-                  cur_node_contents: Assoc<Name<'t>, Ast<'t>>)
+// only because lazy-rust is unstable 
+
+impl<'t> LazilyTypedTerm<'t> {
+    pub fn new(t: Ast<'t>) -> LazilyTypedTerm<'t> {
+         LazilyTypedTerm { term: t, ty: RefCell::new(None) } 
+    }
+    
+    fn get_type(&self, cur_node_contents: &LazyPartTypes<'t>) 
+               -> Result<Ast<'t>, ()> {
+        let result = 
+            self.ty.borrow_mut().take().unwrap_or_else(
+                || synth_type(&self.term, cur_node_contents.env.clone(),
+                              cur_node_contents));
+        
+        * self.ty.borrow_mut() = Some(result.clone());
+        result
+    }
+}
+
+
+/** Package containing enough information to figure out types on-demand */
+#[derive(Clone, Debug)]
+pub struct LazyPartTypes<'t> {
+    pub parts: Assoc<Name<'t>, LazilyTypedTerm<'t>>,
+    pub env: TyEnv<'t>
+}
+
+impl<'t> LazyPartTypes<'t> {
+    pub fn new(env: TyEnv<'t>, parts_untyped: Assoc<Name<'t>, Ast<'t>>) 
+            -> LazyPartTypes<'t> {
+        LazyPartTypes {
+            env: env,
+            parts: parts_untyped.map(&LazilyTypedTerm::new)
+        }
+    }
+    
+    pub fn get_type(&self, part_name: &Name<'t>) -> Result<Ast<'t>, ()> {
+        self.parts.find(part_name).unwrap().get_type(self)
+    }
+    
+    pub fn get_term(&self, part_name: &Name<'t>) -> Ast<'t> {
+        self.parts.find(part_name).unwrap().term.clone()
+    }
+}
+
+pub fn synth_type<'t>(expr: &Ast<'t>, env: TyEnv<'t>,
+                  cur_node_contents: &LazyPartTypes<'t>)
         -> Result<Ast<'t>, ()> {
+    println!("synth: {:?} in {:?}", expr, env);
     match *expr {
         Node(ref f, ref body) => {
             // certain type synthesizers only work on certain kinds of AST nodes
             match (&f.synth_type, &**body) {
-                // TODO: need to turn exprs into types before this point
-                (&Custom(ref ts_fn), &Env(ref parts)) => {
-                    let types_of_parts = parts.map(
-                        &|part_expr| synth_type(&part_expr, env.clone(), 
-                            cur_node_contents.clone()).unwrap());
-                        
-                    ts_fn(types_of_parts)
+                (&Custom(ref ts_fn), &Env(ref parts)) => {                    
+                    ts_fn(LazyPartTypes::new(env, parts.clone()))
                 }
                 (&Custom(_), _) => { panic!("{:?} isn't an environment", body); }
                 
                 (&Body(ref n), &Env(ref parts)) => {
-                    synth_type(parts.find(n).unwrap(), env, parts.clone())
+                    synth_type(parts.find(n).unwrap(), env.clone(), 
+                               &LazyPartTypes::new(env.clone(), parts.clone()))
                 }
                 (&Body(_), _) => { panic!("{:?} cannot have Body type", body); }
                 
                 (&VarRef, &Atom(ref n)) => {
-                    Ok(env.find(n).unwrap().clone())
+                    Ok(env.find(n).expect(format!("Name {:?} unbound in {:?}", n, env).as_str()).clone())
                 }
                 (&VarRef, _) => { panic!("{:?} is not a variable", body); }
                 
@@ -105,29 +149,28 @@ pub enum Type<'t> {
     NamedType(Name<'t>, Vec<Type<'t>>),
     Number
 }
-
 */
 
 
 #[test]
 fn test_type_synth() {
-    let mt_parts = Assoc::new();
+    let mt_parts = LazyPartTypes::new(Assoc::new(), Assoc::new());
     let mt_ty_env = Assoc::new();
     let simple_ty_env = mt_ty_env.set(n("x"), ast_elt!("integer"));
     
-    let var_ref = typed_form!(at, VarRef);
-    let body = typed_form!(at, Body(n("body")));
-    let untypeable = typed_form!(at, NotTyped);
+    let var_ref = basic_typed_form!(at, VarRef);
+    let body = basic_typed_form!(at, Body(n("body")));
+    let untypeable = basic_typed_form!(at, NotTyped);
     
     assert_eq!(synth_type(&ast_elt!({var_ref.clone() ; "x"}), 
-               simple_ty_env.clone(), mt_parts.clone()),
+               simple_ty_env.clone(), &mt_parts),
                Ok(ast_elt!("integer")));
                
     assert_eq!(synth_type(&ast_elt!({body.clone() ; 
                                      ["irrelevant" => {untypeable.clone() ; "-"},
                                       "body" => {var_ref.clone() ; "x"}]}),
                           simple_ty_env.clone(),
-                          mt_parts.clone()),
+                          &mt_parts),
                Ok(ast_elt!("integer")));
 
     assert_eq!(synth_type(&ast_elt!({body.clone() ;
@@ -136,12 +179,12 @@ fn test_type_synth() {
                                       "body" => (import ["new_var" : "type_of_new_var"]
                                                   {var_ref.clone() ; "y"})]}),
                           simple_ty_env.clone(),
-                          mt_parts.clone()),
+                          &mt_parts),
                Ok(ast_elt!("integer")));
                
     assert_eq!(synth_type(&ast_elt!(
-            {typed_form!(at, Custom(Box::new(|_| Ok(ast_elt!("string"))))) ; []}),
+            {basic_typed_form!(at, Custom(Box::new(|_| Ok(ast_elt!("string"))))) ; []}),
             simple_ty_env.clone(),
-            mt_parts.clone()),
+            &mt_parts),
         Ok(ast_elt!("string")));
 }
