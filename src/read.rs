@@ -1,4 +1,3 @@
-//#![allow(dead_code)]
 #![allow(non_upper_case_globals)]
 #![macro_use]
 
@@ -65,8 +64,6 @@ fn read_tokens<'a>(s: &'a str) -> TokenTree<'a> {
             match flat_tokens.next() {
                 None => { return (TokenTree{ t: this_level }, None) }
                 Some(c) => {
-                    print!("Got {:?}\n", c);
-
                     if let Some(normal) = c.name("normal") {
                         this_level.push(Simple(n(normal)));
                     } else if let (Some(_main), Some(o_del), Some(all))

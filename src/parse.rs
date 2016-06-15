@@ -161,9 +161,7 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
                 match *tok {
                     Group(ref extra, ref delim, ref body)
                     if (extra, delim) == (&exp_extra, &exp_delim) => {
-                        //let sub_fpp : FormPatParser = self.descend(&*f);
                         self.descend(f).parse_tokens(&body.t)
-                        //self.descend(f).parse_tokens(&body.t)
                     },
                     // bad error message; improve:
                     _ => {
@@ -218,15 +216,7 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
                 self.descend(f).parse_state(inp).map(|parse_res|
                     (ExtendTypeEnv(Box::new(parse_res.0), beta.clone()), parse_res.1))
             }
-            
-            
-            //_ => {panic!("TODO")}
         }
-              /*
-        let (tok, next) = try!(inp.uncons());
-        match self.f {
-            Literal(l_tok) => { inp.update(tok, combine::primitives::Consumed(next)) }
-        }*/
     }
 }
 

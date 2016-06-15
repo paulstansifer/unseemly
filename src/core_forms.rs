@@ -13,14 +13,6 @@
  QuoteContents ::= ''[ ,[ ,,[n : Name @ T],, : ,,[t : Type],, ], ]'' exports (n : t)
  QuoteContents ::= '[ ...[,[t : TokenTree],]...  ]'
 
- Where T is a Term (i.e. Expr, SynQuote, etc.)
- T ::= '[ ]'
-
-
-
-
-
- It would be really nice to be able to use types as names: `[Num -> Num+1]`.
 
  */
 
@@ -109,14 +101,7 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
             typed_form!("var_ref", aat, VarRef)
 
             // The first use for syntax quotes will be in macro definitions.
-            // But how will we type syntax quotes as expressions?
-            /*
-            simple_form("synquote",
-                form_pat!((delim "'[", "[",
-                    (star (biased (delim ",[", "[", (call "expr")), at)))))
-                    */
-                    
-                    
+            // But we will someday need them as expressions.                    
         ] ,
         "type" => vec![
             fn_type.clone(),
