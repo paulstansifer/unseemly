@@ -6,9 +6,15 @@ use std::fmt;
 
 // TODO: we can get rid of a lot of these `pub`s by making `Assoc` iterable
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq)]
 pub struct Assoc<K: PartialEq, V> {
     pub n: Option<Rc<AssocNode<K, V>>>
+}
+
+impl<K : PartialEq + Clone, V: Clone> Clone for Assoc<K, V> {
+    fn clone(&self) -> Assoc<K, V> {
+        self.map(&|rc| rc)
+    }
 }
 
 #[derive(PartialEq, Eq, Clone)]

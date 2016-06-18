@@ -7,7 +7,8 @@ use std::fmt::{Debug,Formatter,Error};
 use ast::Ast;
 use util::assoc::Assoc;
 use std::rc::Rc;
-use ty::TypeRule;
+use ast_walk::WalkRule;
+use ty::SynthesizeType;
 
 pub type NMap<'t, T> = Assoc<Name<'t>, T>;
 
@@ -15,7 +16,7 @@ pub type NMap<'t, T> = Assoc<Name<'t>, T>;
 pub struct Form<'t> {
     pub name: Name<'t>,
     pub grammar: FormPat<'t>,
-    pub synth_type: TypeRule<'t>,
+    pub synth_type: WalkRule<'t, SynthesizeType>,
     pub relative_phase: Assoc<Name<'t>, i32>, /* 2^31 macro phases ought to be enough for anybody */
 }
 
@@ -37,7 +38,7 @@ pub fn simple_form<'t>(form_name: &'t str, p: FormPat<'t>) -> Rc<Form<'t>> {
             name: n(form_name),
             grammar: Scope(Box::new(p)),
             relative_phase: Assoc::new(), 
-            synth_type: TypeRule::NotTyped
+            synth_type: WalkRule::NotWalked
         })
 }
 

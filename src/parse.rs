@@ -214,7 +214,7 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
 
             &NameImport(ref f, ref beta) => {
                 self.descend(f).parse_state(inp).map(|parse_res|
-                    (ExtendTypeEnv(Box::new(parse_res.0), beta.clone()), parse_res.1))
+                    (ExtendEnv(Box::new(parse_res.0), beta.clone()), parse_res.1))
             }
         }
     }

@@ -29,7 +29,7 @@ use ast::*;
 use std::rc::Rc;
 use ty::*;
 use beta::*;
-
+use ast_walk::WalkRule::*;
 
 macro_rules! expect_node {
     ( ($node:expr ; $form:expr) $( $n:ident = $name:expr ),* ; $body:expr ) => (
@@ -69,18 +69,19 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
 
     assoc_n!(
         "expr" => vec![
-        
             typed_form!("lambda",
+                /* syntax */
                 (delim ".[", "[", [
                     (named "param", aat), (lit ":"), 
                     (named "p_t", (call "type")), (lit "."),
                     (import ["param" : "p_t"],
                         (named "body", (call "expr")))]),
+                /* type */
                 Custom(Box::new( move | part_types | {                    
                     let lambda_type : Ast<'t> = 
                         ast_elt!({ fn_type_0.clone() ;
                             [ "param" => (, part_types.get_term(&n("p_t"))),
-                              "ret" => (, try!(part_types.get_type(&n("body"))))]}); 
+                              "ret" => (, try!(part_types.get_res(&n("body"))))]}); 
                     Ok(lambda_type)
                 }))),
             
@@ -88,11 +89,11 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
                 [(named "rator", (call "expr")), 
                  (named "rand", (call "expr"))],
                 Custom(Box::new(move | part_types |
-                    expect_node!( (try!(part_types.get_type(&n("rator"))) ; 
+                    expect_node!( (try!(part_types.get_res(&n("rator"))) ; 
                                    fn_type_1)
                         input = "param", output = "ret";
                         
-                        if input == &try!(part_types.get_type(&n("rand"))) {
+                        if input == &try!(part_types.get_res(&n("rand"))) {
                             Ok(output.clone())
                         } else {
                             Err(())
@@ -151,7 +152,6 @@ fn form_expect_node_test() {
 fn form_type_tests() {
     let cse = make_core_syn_env();
     
-    let mt_parts = LazyPartTypes::new(Assoc::new(), Assoc::new());
     let mt_ty_env = Assoc::new();
     let simple_ty_env = mt_ty_env.set(n("x"), ast_elt!("integer"));
     
@@ -161,7 +161,7 @@ fn form_type_tests() {
 
     
     assert_eq!(synth_type(&ast_elt!( { vr.clone() ; "x" }),
-                          simple_ty_env.clone(), &mt_parts),
+                          simple_ty_env.clone()),
                Ok(ast_elt!("integer")));
     
     assert_eq!(synth_type(&ast_elt!( 
@@ -169,7 +169,7 @@ fn form_type_tests() {
             [ "param" => "y", 
               "p_t" => "float",
               "body" => (import [ "param" : "p_t" ]  { vr.clone() ; "x"})]}),
-        simple_ty_env.clone(), &mt_parts),
+        simple_ty_env.clone()),
         Ok(ast_elt!({ fun.clone() ; 
             [ "param" => "float", "ret" => "integer" ]})));
 }

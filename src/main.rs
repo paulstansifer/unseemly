@@ -2,6 +2,7 @@
 
 
 #[macro_use] extern crate lazy_static;
+//extern crate num;
 
 use std::path::Path;
 use std::fs::File;
@@ -16,9 +17,11 @@ mod ast;
 mod parse;
 
 mod form;
+
+mod ast_walk;
 mod ty;
 
-mod core_forms;
+mod core_forms; 
 
 
 

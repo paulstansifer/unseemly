@@ -16,7 +16,7 @@ pub enum Ast<'t> {
     Shape(Vec<Ast<'t>>),
     Env(Assoc<Name<'t>, Ast<'t>>),
     Node(Rc<Form<'t>>, Rc<Ast<'t>>),
-    ExtendTypeEnv(Box<Ast<'t>>, Beta<'t>)
+    ExtendEnv(Box<Ast<'t>>, Beta<'t>)
 }
 
 
@@ -37,7 +37,7 @@ pub use self::Ast::*;
 
 macro_rules! ast_elt {
     ( (import $beta:tt $sub:tt) ) => {
-        ExtendTypeEnv(Box::new(ast_elt!($sub)), beta!($beta))
+        ExtendEnv(Box::new(ast_elt!($sub)), beta!($beta))
     };
     ( (, $interp:expr)) => { $interp };
     ( ( $( $list:tt )* ) ) => { ast!($($list)*)};
@@ -73,7 +73,7 @@ impl<'t> fmt::Debug for Ast<'t> {
             Node(ref form, ref body) => { 
                 write!(f, "{{ ({:?}); {:?} }}", form.name, body)
             }
-            ExtendTypeEnv(ref body, ref beta) => {
+            ExtendEnv(ref body, ref beta) => {
                 write!(f, "{:?}↓{:?}", body, beta)
             }
         }
@@ -98,7 +98,7 @@ impl<'t> Ast<'t> {
                 // TODO: think about unusual `Ast`s and how they should behave.
                 Env(ref contents) => contents.clone(),
                 Node(_, ref body) => flatten(body) ,
-                ExtendTypeEnv(ref body, _) => flatten(body)
+                ExtendEnv(ref body, _) => flatten(body)
             }
         }
         Env(flatten(self))

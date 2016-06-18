@@ -2,19 +2,19 @@
 
 use std::fmt;
 use name::*;
-use ty::{TyEnv, LazyPartTypes, LazilyTypedTerm};
+use ast_walk::{ResEnv, LazyWalkReses, LazilyWalkedTerm, WalkMode};
 use util::assoc::Assoc;
 use ast::{Ast, Atom};
 
 #[derive(PartialEq, Eq, Clone)]
 pub enum Beta<'t> {
-    /// Both of these `Name`s refer to named terms in the current `Scope` (or `Env`, for `Ast`s).
+    /// Both of these `Name`s refer to named terms in the current `Scope` (or `ResEnv`, for `Ast`s).
     /// The first is the identifier to import, and the second the syntax for its type.
     Basic(Name<'t>, Name<'t>),
     /// Like `Basic`, but here the second part is another expression 
     /// which should be typechecked, and whose type the new name gets.
     /// (This can be used write `let` without requiring a type annotation.)
-    SameTypeAs(Name<'t>, Name<'t>),
+    SameAs(Name<'t>, Name<'t>),
     Shadow(Box<Beta<'t>>, Box<Beta<'t>>),
     Nothing
 }
@@ -27,28 +27,29 @@ impl<'t> fmt::Debug for Beta<'t> {
             Nothing => { write!(f, "∅") },
             Shadow(ref lhs, ref rhs) => { write!(f, "({:?} ▷ {:?})", lhs, rhs) },
             Basic(ref name, ref ty) => { write!(f, "{:?}:{:?}", name, ty) }
-            SameTypeAs(ref name, ref ty_source) => { 
+            SameAs(ref name, ref ty_source) => { 
                 write!(f, "{:?}={:?}", name, ty_source)
             }
         }
     }
 }
 
-pub fn env_from_beta<'t>(b: &Beta<'t>, parts: LazyPartTypes<'t>)
-         -> TyEnv<'t> {
+pub fn env_from_beta<'t, Mode: WalkMode<'t>>
+    (b: &Beta<'t>, parts: &LazyWalkReses<'t, Mode>)
+         -> ResEnv<'t, Mode::Out> {
     match b {
         &Nothing => { Assoc::new() }
         &Shadow(ref lhs, ref rhs) => {
-            env_from_beta(&*lhs, parts.clone())
+            env_from_beta(&*lhs, parts)
                 .set_assoc(&env_from_beta(&*rhs, parts))
         }
         &Basic(ref name_source, ref ty_source) => {
                         
-            if let Some(& LazilyTypedTerm {term: Atom(ref name), ty: _} ) 
+            if let Some(& LazilyWalkedTerm {term: Atom(ref name), ..} ) 
                     = parts.parts.find(name_source) {
-                if let Some(& LazilyTypedTerm {term: ref ty_stx, ty: _} )
+                if let Some(& LazilyWalkedTerm {term: ref ty_stx, ..} )
                         = parts.parts.find(ty_source) {
-                    Assoc::new().set(*name, (*ty_stx).clone())
+                    Assoc::new().set(*name, Mode::ast_to_out((*ty_stx).clone()))
                 } else {
                     panic!("Type {:?} not found in {:?}", ty_source, parts);
                 }
@@ -56,8 +57,8 @@ pub fn env_from_beta<'t>(b: &Beta<'t>, parts: LazyPartTypes<'t>)
                 panic!("Name {:?} not found in {:?}", name_source, parts);
             }
         }
-        &SameTypeAs(ref _name_source, ref _ty_source) => {
-            panic!("TODO! Thread typechecking information here!")
+        &SameAs(ref _name_source, ref _ty_source) => {
+            panic!("TODO! Not implemented! But should be easy!")
         }
     }
 }
@@ -67,7 +68,7 @@ pub fn env_from_beta<'t>(b: &Beta<'t>, parts: LazyPartTypes<'t>)
 
 macro_rules! beta_connector {
     ( : ) => { Basic };
-    ( = ) => { SameTypeAs }
+    ( = ) => { SameAs }
 }
 
 macro_rules! beta {
