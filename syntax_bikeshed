@@ -1,0 +1,45 @@
+We should have a general idea of a theme for each of [] () and {}.
+
+Perhaps the on-both-sides thing is too cute. :(sad):
+
+lambda:
+  [x : Num -> x + 1]
+  `[x : Num -> x + 1]`
+  \ x : Num . x + 1
+  ^[x : Num -> x + 1]^
+  .[x : Num -> x + 1].
+  ^ x : Num -> x + 1
+  .[x : Num . x + 1].
+
+quick lambda:
+(Assuming we can get inference to work. Otherwise, maybe `the Num` or `_ : Num` instead)
+  [_ + 1]
+  _[_ + 1]_
+
+type ascription:
+  List @ Num
+  List <[Num]<   ...fish X-ray!
+  @[List Num]@
+  t[List Num]t
+  List Num   and   Map (String Num)
+  Num List   and   (String Num) Map   ...Englishy!
+
+syntax quotation:
+  '[,[e], + 1]' and ''[,[ e ], + ,,[e],,]''
+  +[-[e]- + 1]+
+  '[ ...[e]... ]'   ...but how do we escape it?
+  '[ ,,...[e],,... ]'    '[ ,[ (dotdotdotsyntax '[e]')], ]'
+
+form definition:
+(Gosh, there's a lot of stuff in here...)
+  '[(lambda ( ,{x : Name}, : ,{t : Type}, )  ,{e : Expr @ S <-- (x : t)}, )]'
+  '[(extend-syntax ,{f : Forms}, ,{body : T <-syn- f})]'
+  '[(begin-for-syntax ,{+phase e : Expr},)]'
+
+
+function invocation:
+  (map [the Num + 1] lst)     ...Schemey!
+  map ([the Num + 1] lst)     ...Cy! (but with an extra space)
+  map [the Num + 1] lst       ...MLy!
+  map [the Num + 1] over lst  ...Smalltalky!
+
