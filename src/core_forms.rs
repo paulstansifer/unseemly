@@ -28,8 +28,11 @@ use util::assoc::Assoc;
 use ast::*;
 use std::rc::Rc;
 use ty::*;
+use eval::*;
 use beta::*;
 use ast_walk::WalkRule::*;
+use num::bigint;
+use num::bigint::ToBigInt;
 
 macro_rules! expect_node {
     ( ($node:expr ; $form:expr) $( $n:ident = $name:expr ),* ; $body:expr ) => (
@@ -65,8 +68,6 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
     let fn_type_0 = fn_type.clone();
     let fn_type_1 = fn_type.clone();
 
-    
-
     assoc_n!(
         "expr" => vec![
             typed_form!("lambda",
@@ -74,16 +75,26 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
                 (delim ".[", "[", [
                     (named "param", aat), (lit ":"), 
                     (named "p_t", (call "type")), (lit "."),
-                    (import ["param" : "p_t"],
-                        (named "body", (call "expr")))]),
+                    (named "body",
+                        (import ["param" : "p_t"], (call "expr")))]),
                 /* type */
                 Custom(Box::new( move | part_types | {                    
                     let lambda_type : Ast<'t> = 
                         ast_elt!({ fn_type_0.clone() ;
                             [ "param" => (, part_types.get_term(&n("p_t"))),
                               "ret" => (, try!(part_types.get_res(&n("body"))))]}); 
-                    Ok(lambda_type)
-                }))),
+                    Ok(lambda_type)})),
+                /* evaluation */
+                Custom(Box::new( move | part_values | {
+                    Ok(Function(Rc::new(Closure {
+                        body: part_values.get_term(&n("body")),
+                        param: match part_values.get_term(&n("param")) {
+                            Atom(n) => n, _ => { panic!("internal error"); }
+                        },
+                        env: part_values.env
+                    })))
+                }))
+                ),
             
             typed_form!("apply",
                 [(named "rator", (call "expr")), 
@@ -97,9 +108,20 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
                             Ok(output.clone())
                         } else {
                             Err(())
-                        })))),
+                        }))),
+                Custom(Box::new( move | part_values | {
+                    match try!(part_values.get_res(&n("rator"))) {
+                        Function(clos) => {
+                            eval(&clos.body, clos.env.set(clos.param, 
+                                try!(part_values.get_res(&n("rand")))))
+                        },
+                        _ => { 
+                            panic!("Internal error: attempted to invoke non-function")
+                        }
+                    }
+                }))),
                         
-            typed_form!("var_ref", aat, VarRef)
+            typed_form!("var_ref", aat, VarRef, VarRef)
 
             // The first use for syntax quotes will be in macro definitions.
             // But we will someday need them as expressions.                    
@@ -172,4 +194,55 @@ fn form_type_tests() {
         simple_ty_env.clone()),
         Ok(ast_elt!({ fun.clone() ; 
             [ "param" => "float", "ret" => "integer" ]})));
+}
+
+#[test]
+fn form_eval_tests() {
+    let cse = make_core_syn_env();
+    
+    let mt_env = Assoc::new();
+    // x is 18, w is 99
+    let simple_env = mt_env.set(n("x"), Int(18.to_bigint().unwrap()))
+        .set(n("w"), Int(99.to_bigint().unwrap()));
+    
+    let vr = find_form(&cse, "expr", "var_ref");
+    let lam = find_form(&cse, "expr", "lambda");
+    let app = find_form(&cse, "expr", "apply");
+    let fun = find_form(&cse, "type", "fn");
+
+    
+    assert_eq!(eval(&ast_elt!( { vr.clone() ; "x"}), simple_env.clone()),
+               Ok(Int(18.to_bigint().unwrap())));
+    
+    // (λy.w) x
+    assert_eq!(eval(&ast_elt!( 
+        { app.clone() ;
+            [
+             "rator" => 
+                { lam.clone() ;
+                    [ "param" => "y", 
+                      "p_t" => "integer",
+                      "body" => (import [ "param" : "p_t" ]  { vr.clone() ; "w"})]},
+             "rand" =>
+                { vr.clone() ; "x"}
+            ]}),
+        simple_env.clone()),
+        Ok(Int(99.to_bigint().unwrap())));
+    
+    // (λy.y) x
+    assert_eq!(eval(&ast_elt!( 
+        { app.clone() ;
+            [
+             "rator" => 
+                { lam.clone() ;
+                    [ "param" => "y", 
+                      "p_t" => "integer",
+                      "body" => (import [ "param" : "p_t" ]  { vr.clone() ; "y"})]},
+             "rand" =>
+                { vr.clone() ; "x"}
+            ]}),
+        simple_env.clone()),
+        Ok(Int(18.to_bigint().unwrap())));
+    
+    
 }

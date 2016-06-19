@@ -38,8 +38,7 @@ use std::rc::Rc;
 // pub type Type<'t> = Ast<'t>;
 
 #[derive(Clone, Copy, Debug)]
-pub struct SynthesizeType {
-}
+pub struct SynthesizeType {}
 
 impl<'t> WalkMode<'t> for SynthesizeType {
     type Out = Ast<'t>;
@@ -47,6 +46,8 @@ impl<'t> WalkMode<'t> for SynthesizeType {
     fn get_walk_rule<'f>(f: &'f Form<'t>) -> &'f WalkRule<'t, Self> {
         &f.synth_type
     }
+    
+    fn automatically_extend_env() -> bool { true }
     
     fn ast_to_out(a: Ast<'t>) -> Ast<'t> { a }
 }
@@ -67,9 +68,9 @@ fn test_type_synth() {
     let mt_ty_env = Assoc::new();
     let simple_ty_env = mt_ty_env.set(n("x"), ast_elt!("integer"));
     
-    let var_ref = basic_typed_form!(at, VarRef);
-    let body = basic_typed_form!(at, Body(n("body")));
-    let untypeable = basic_typed_form!(at, NotWalked);
+    let var_ref = basic_typed_form!(at, VarRef, NotWalked);
+    let body = basic_typed_form!(at, Body(n("body")), NotWalked);
+    let untypeable = basic_typed_form!(at, NotWalked, NotWalked);
     
     assert_eq!(synth_type(&ast_elt!({var_ref.clone() ; "x"}), 
                simple_ty_env.clone()),
@@ -90,7 +91,8 @@ fn test_type_synth() {
                Ok(ast_elt!("integer")));
                
     assert_eq!(synth_type(&ast_elt!(
-            {basic_typed_form!(at, Custom(Box::new(|_| Ok(ast_elt!("string"))))) ; []}),
+            {basic_typed_form!(at, Custom(Box::new(|_| Ok(ast_elt!("string")))),
+                               NotWalked) ; []}),
             simple_ty_env.clone()),
         Ok(ast_elt!("string")));
 }

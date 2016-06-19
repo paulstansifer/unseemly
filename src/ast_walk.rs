@@ -150,11 +150,14 @@ pub fn walk<'t, Mode: WalkMode<'t>>
         Trivial | Atom(_) | Shape(_) | Env(_) => {
             panic!("{:?} is not a typeable node", expr);
         }
-
         
         ExtendEnv(ref body, ref beta) => {
             walk(&**body, mode,
-                 env.set_assoc(&env_from_beta(beta, cur_node_contents)),
+                 if Mode::automatically_extend_env() {
+                     env.set_assoc(&env_from_beta(beta, cur_node_contents))
+                 } else {
+                     env
+                 },
                  cur_node_contents)
         }
     }
@@ -168,6 +171,9 @@ pub trait WalkMode<'t> : Copy + Debug {
     type Out : Clone + Debug;
     
     fn get_walk_rule<'f>(&'f Form<'t>) -> &'f WalkRule<'t, Self>;
+
+    /** should the walker extend the environment based on imports? */
+    fn automatically_extend_env() -> bool { false }
     
     fn ast_to_out(a: Ast<'t>) -> Self::Out {
         panic!("not implemented: {:?} cannot be converted", a);

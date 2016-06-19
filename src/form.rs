@@ -9,6 +9,7 @@ use util::assoc::Assoc;
 use std::rc::Rc;
 use ast_walk::WalkRule;
 use ty::SynthesizeType;
+use eval::Evaluate;
 
 pub type NMap<'t, T> = Assoc<Name<'t>, T>;
 
@@ -17,6 +18,7 @@ pub struct Form<'t> {
     pub name: Name<'t>,
     pub grammar: FormPat<'t>,
     pub synth_type: WalkRule<'t, SynthesizeType>,
+    pub eval: WalkRule<'t, Evaluate>,
     pub relative_phase: Assoc<Name<'t>, i32>, /* 2^31 macro phases ought to be enough for anybody */
 }
 
@@ -38,28 +40,31 @@ pub fn simple_form<'t>(form_name: &'t str, p: FormPat<'t>) -> Rc<Form<'t>> {
             name: n(form_name),
             grammar: Scope(Box::new(p)),
             relative_phase: Assoc::new(), 
-            synth_type: WalkRule::NotWalked
+            synth_type: WalkRule::NotWalked,
+            eval: WalkRule::NotWalked
         })
 }
 
 macro_rules! basic_typed_form {
-    ( $p:tt, $gen_type:expr ) => {
+    ( $p:tt, $gen_type:expr, $eval:expr ) => {
         Rc::new(Form {
             name: n("unnamed form"),
             grammar: form_pat!($p),
             relative_phase: Assoc::new(),
-            synth_type: $gen_type
+            synth_type: $gen_type,
+            eval: $eval
         })
     }
 }
 
 macro_rules! typed_form {
-    ( $name:expr, $p:tt, $gen_type:expr ) => {
+    ( $name:expr, $p:tt, $gen_type:expr, $eval:expr ) => {
         Rc::new(Form {
             name: n($name),
             grammar: form_pat!($p),
             relative_phase: Assoc::new(),
-            synth_type: $gen_type
+            synth_type: $gen_type,
+            eval: $eval
         })
     }
 }

@@ -81,7 +81,8 @@ impl<'t> fmt::Debug for Ast<'t> {
 }
 
 impl<'t> Ast<'t> {
-    /// TODO: this ought have MBE-style support for repetition
+    // TODO: this ought have MBE-style support for repetition
+    // TODO: this ought to at least warn if we're losing anything other than `Shape`
     pub fn flatten_to_node(&self) -> Ast<'t> {
         
         fn flatten<'t>(a: & Ast<'t>) -> Assoc<Name<'t>, Ast<'t>> {
