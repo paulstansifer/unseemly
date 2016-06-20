@@ -1,6 +1,5 @@
 #![allow(dead_code,unused_imports)]
 
-
 #[macro_use] extern crate lazy_static;
 extern crate num;
 
@@ -23,7 +22,7 @@ mod ty;
 mod eval;
 
 mod core_forms; 
-
+mod core_values;
 
 
 fn main() {

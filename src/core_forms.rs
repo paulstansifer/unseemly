@@ -66,7 +66,6 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
                   
     /* This seems to be necessary to get separate `Rc`s into the closures. */
     let fn_type_0 = fn_type.clone();
-    let fn_type_1 = fn_type.clone();
 
     assoc_n!(
         "expr" => vec![
@@ -80,7 +79,7 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
                 /* type */
                 Custom(Box::new( move | part_types | {                    
                     let lambda_type : Ast<'t> = 
-                        ast_elt!({ fn_type_0.clone() ;
+                        ast_elt!({ fn_type.clone() ;
                             [ "param" => (, part_types.get_term(&n("p_t"))),
                               "ret" => (, try!(part_types.get_res(&n("body"))))]}); 
                     Ok(lambda_type)})),
@@ -101,7 +100,7 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
                  (named "rand", (call "expr"))],
                 Custom(Box::new(move | part_types |
                     expect_node!( (try!(part_types.get_res(&n("rator"))) ; 
-                                   fn_type_1)
+                                   fn_type_0)
                         input = "param", output = "ret";
                         
                         if input == &try!(part_types.get_res(&n("rand"))) {
@@ -116,7 +115,7 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
                                 try!(part_values.get_res(&n("rand")))))
                         },
                         _ => { 
-                            panic!("Internal error: attempted to invoke non-function")
+                            panic!("Type soundness bug: attempted to invoke non-function")
                         }
                     }
                 }))),
@@ -128,12 +127,14 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
         ] ,
         "type" => vec![
             fn_type.clone(),
-            simple_form("ident", form_pat!((lit "ident")))
+            simple_form("ident", form_pat!((lit "ident"))),
+            simple_form("int", form_pat!((lit "int"))),
+            
         ]
     )
 }
 
-fn find_form<'t>(se: &SynEnv<'t>, nt: &str, form_name: &str)
+pub fn find_form<'t>(se: &SynEnv<'t>, nt: &str, form_name: &str)
          -> Rc<Form<'t>> {
     for form in se.find(&n(nt)).unwrap() {
         if form.name.is(form_name) {

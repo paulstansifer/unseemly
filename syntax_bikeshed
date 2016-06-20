@@ -27,7 +27,7 @@ type ascription:
 syntax quotation:
   '[,[e], + 1]' and ''[,[ e ], + ,,[e],,]''
   +[-[e]- + 1]+
-  '[ ...[e]... ]'   ...but how do we escape it?
+  '[ ...[ ,[e], + 1 ]... ]'   ...but how do we escape it?
   '[ ,,...[e],,... ]'    '[ ,[ (dotdotdotsyntax '[e]')], ]'
 
 form definition:
