@@ -66,33 +66,33 @@ pub fn synth_type<'t>(expr: &Ast<'t>, env: Assoc<Name<'t>, Ast<'t>>) -> Result<A
 #[test]
 fn test_type_synth() {
     let mt_ty_env = Assoc::new();
-    let simple_ty_env = mt_ty_env.set(n("x"), ast_elt!("integer"));
+    let simple_ty_env = mt_ty_env.set(n("x"), ast!("integer"));
     
     let var_ref = basic_typed_form!(at, VarRef, NotWalked);
     let body = basic_typed_form!(at, Body(n("body")), NotWalked);
     let untypeable = basic_typed_form!(at, NotWalked, NotWalked);
     
-    assert_eq!(synth_type(&ast_elt!({var_ref.clone() ; "x"}), 
+    assert_eq!(synth_type(&ast!({var_ref.clone() ; "x"}), 
                simple_ty_env.clone()),
-               Ok(ast_elt!("integer")));
+               Ok(ast!("integer")));
                
-    assert_eq!(synth_type(&ast_elt!({body.clone() ; 
+    assert_eq!(synth_type(&ast!({body.clone() ; 
                                      ["irrelevant" => {untypeable.clone() ; "-"},
                                       "body" => {var_ref.clone() ; "x"}]}),
                           simple_ty_env.clone()),
-               Ok(ast_elt!("integer")));
+               Ok(ast!("integer")));
 
-    assert_eq!(synth_type(&ast_elt!({body.clone() ;
+    assert_eq!(synth_type(&ast!({body.clone() ;
                                      ["type_of_new_var" => "integer",
                                       "new_var" => "y",
                                       "body" => (import ["new_var" : "type_of_new_var"]
                                                   {var_ref.clone() ; "y"})]}),
                           simple_ty_env.clone()),
-               Ok(ast_elt!("integer")));
+               Ok(ast!("integer")));
                
-    assert_eq!(synth_type(&ast_elt!(
-            {basic_typed_form!(at, Custom(Box::new(|_| Ok(ast_elt!("string")))),
+    assert_eq!(synth_type(&ast!(
+            {basic_typed_form!(at, Custom(Box::new(|_| Ok(ast!("string")))),
                                NotWalked) ; []}),
             simple_ty_env.clone()),
-        Ok(ast_elt!("string")));
+        Ok(ast!("string")));
 }

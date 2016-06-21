@@ -61,13 +61,13 @@ pub enum FormPat<'t> {
 
     /**
      * Lookup a nonterminal in the current syntactic environment.
-     */
+     */ 
     Call(Name<'t>),
-    /**
+    /** 
      * This is where syntax gets reflective.
      * Evaluates its body (one phase up)
-     *  as a function from the current `SynEnv` to a new one,
-     *  and names the result in the current scope.
+     *  as a function from the current `SynEnv` to a new one, 
+     *  and names the result in the current scope. 
      */
     ComputeSyntax(Name<'t>, Box<FormPat<'t>>),
 
@@ -78,11 +78,11 @@ pub enum FormPat<'t> {
      * This is where syntax gets extensible.
      * Parses its body in the named syntactic environment.
      */
-    SynImport(Name<'t>, Box<FormPat<'t>>),
+    SynImport(Name<'t>, Box<FormPat<'t>>), 
     NameImport(Box<FormPat<'t>>, Beta<'t>),
     //NameExport(Beta<'t>, Box<FormPat<'t>>) // This might want to go on some existing pattern
-
-
+    
+    
 }
 
 macro_rules! form_pat {
@@ -234,7 +234,7 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
                 self.descend(f).parse_state(inp).map(|parse_res|
                     (ExtendEnv(Box::new(parse_res.0), beta.clone()), parse_res.1))
             }
-
+            
             &SynImport(ref name, ref f) => {
                 panic!("TODO")
             }
@@ -246,30 +246,30 @@ use self::FormPat::*;
 
 #[test]
 fn test_parsing() {
-    assert_eq!(parse_top(&Seq(vec![AnyToken]), &tokens!("asdf")).unwrap(), ast!("asdf"));
+    assert_eq!(parse_top(&Seq(vec![AnyToken]), &tokens!("asdf")).unwrap(), ast_shape!("asdf"));
     assert_eq!(parse_top(&Seq(vec![AnyToken, Literal("fork"), AnyToken]),
                &tokens!("asdf" "fork" "asdf")).unwrap(),
-               ast!("asdf" "fork" "asdf"));
+               ast_shape!("asdf" "fork" "asdf"));
     assert_eq!(parse_top(&Seq(vec![AnyToken, Literal("fork"), AnyToken]),
                &tokens!("asdf" "fork" "asdf")).unwrap(),
-               ast!("asdf" "fork" "asdf"));
+               ast_shape!("asdf" "fork" "asdf"));
     parse_top(&Seq(vec![AnyToken, Literal("fork"), AnyToken]),
           &tokens!("asdf" "knife" "asdf")).unwrap_err();
     assert_eq!(parse_top(&Seq(vec![Star(Box::new(Literal("*"))), Literal("X")]),
                      &tokens!("*" "*" "*" "*" "*" "X")).unwrap(),
-               ast!(("*" "*" "*" "*" "*") "X"));
+               ast_shape!(("*" "*" "*" "*" "*") "X"));
 }
 
 #[test]
 fn test_advanced_parsing() {
     assert_eq!(parse_top(&form_pat!([(star (alt (lit "X"), (lit "O"))), (lit "!")]),
                          &tokens!("X" "O" "O" "O" "X" "X" "!")).unwrap(),
-               ast!(("X" "O" "O" "O" "X" "X") "!"));
+               ast_shape!(("X" "O" "O" "O" "X" "X") "!"));
                
     assert_eq!(parse_top(&form_pat!((star (biased (named "tictactoe", (alt (lit "X"), (lit "O"))),
                                                   (named "igetit", (alt (lit "O"), (lit "H")))))),
                          &tokens!("X" "O" "H" "O" "X" "H" "O")).unwrap(),
-               ast!(["tictactoe" => "X"] ["tictactoe" => "O"] ["igetit" => "H"]
+               ast_shape!(["tictactoe" => "X"] ["tictactoe" => "O"] ["igetit" => "H"]
                     ["tictactoe" => "O"] ["tictactoe" => "X"] ["igetit" => "H"]
                     ["tictactoe" => "O"]));
 
@@ -282,7 +282,7 @@ fn test_advanced_parsing() {
                          "expr" => vec![pair_form.clone()],
                          "other_2" => vec![simple_form("o", form_pat!((lit "otherother")))]),
                      &toks_a_b).unwrap(),
-               ast_elt!({pair_form ; ["rhs" => "b", "lhs" => "a"]}));
+               ast!({pair_form ; ["rhs" => "b", "lhs" => "a"]}));
 }
 /*
 #[test]

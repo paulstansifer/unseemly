@@ -63,6 +63,7 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
             form_pat!((delim "[", "[",
                 [ (named "param", (call "type")), (lit "->"), 
                   (named "ret", (call "type") ) ])));
+    
                   
     /* This seems to be necessary to get separate `Rc`s into the closures. */
     let fn_type_0 = fn_type.clone();
@@ -79,7 +80,7 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
                 /* type */
                 Custom(Box::new( move | part_types | {                    
                     let lambda_type : Ast<'t> = 
-                        ast_elt!({ fn_type.clone() ;
+                        ast!({ fn_type.clone() ;
                             [ "param" => (, part_types.get_term(&n("p_t"))),
                               "ret" => (, try!(part_types.get_res(&n("body"))))]}); 
                     Ok(lambda_type)})),
@@ -151,7 +152,7 @@ fn form_grammar_tests() {
     assert_eq!(parse(&form_pat!((call "type")),
                      cse.clone(),
                      &tokens!([""; "ident" "->" "ident"])).unwrap(),
-               ast_elt!({ find_form(&cse, "type", "fn"); 
+               ast!({ find_form(&cse, "type", "fn"); 
                    ["ret" => {find_form(&cse, "type", "ident") ; []},
                     "param" => {find_form(&cse, "type", "ident") ; []}]}));
 }
@@ -160,13 +161,13 @@ fn form_grammar_tests() {
 #[test]
 fn form_expect_node_test() {
     let cse = make_core_syn_env();
-    let ast = ast_elt!({ find_form(&cse, "expr", "apply"); 
+    let ast = ast!({ find_form(&cse, "expr", "apply"); 
         ["rand" => {find_form(&cse, "expr", "var_ref") ; "f"},
          "rator" => {find_form(&cse, "expr", "var_ref") ; "x"}]});
     let _ = expect_node!( ( ast ; find_form(&cse, "expr", "apply")) expect_f = "rand", expect_x = "rator";
         {
-            assert_eq!(expect_f, &ast_elt!({find_form(&cse, "expr", "var_ref"); "f"}));
-            assert_eq!(expect_x, &ast_elt!({find_form(&cse, "expr", "var_ref"); "x"}));
+            assert_eq!(expect_f, &ast!({find_form(&cse, "expr", "var_ref"); "f"}));
+            assert_eq!(expect_x, &ast!({find_form(&cse, "expr", "var_ref"); "x"}));
             Ok(())
         });
 }
@@ -176,24 +177,24 @@ fn form_type_tests() {
     let cse = make_core_syn_env();
     
     let mt_ty_env = Assoc::new();
-    let simple_ty_env = mt_ty_env.set(n("x"), ast_elt!("integer"));
+    let simple_ty_env = mt_ty_env.set(n("x"), ast!("integer"));
     
     let vr = find_form(&cse, "expr", "var_ref");
     let lam = find_form(&cse, "expr", "lambda");
     let fun = find_form(&cse, "type", "fn");
 
     
-    assert_eq!(synth_type(&ast_elt!( { vr.clone() ; "x" }),
+    assert_eq!(synth_type(&ast!( { vr.clone() ; "x" }),
                           simple_ty_env.clone()),
-               Ok(ast_elt!("integer")));
+               Ok(ast!("integer")));
     
-    assert_eq!(synth_type(&ast_elt!( 
+    assert_eq!(synth_type(&ast!( 
         { lam.clone() ;
             [ "param" => "y", 
               "p_t" => "float",
               "body" => (import [ "param" : "p_t" ]  { vr.clone() ; "x"})]}),
         simple_ty_env.clone()),
-        Ok(ast_elt!({ fun.clone() ; 
+        Ok(ast!({ fun.clone() ; 
             [ "param" => "float", "ret" => "integer" ]})));
 }
 
@@ -212,11 +213,11 @@ fn form_eval_tests() {
     let fun = find_form(&cse, "type", "fn");
 
     
-    assert_eq!(eval(&ast_elt!( { vr.clone() ; "x"}), simple_env.clone()),
+    assert_eq!(eval(&ast!( { vr.clone() ; "x"}), simple_env.clone()),
                Ok(Int(18.to_bigint().unwrap())));
     
     // (λy.w) x
-    assert_eq!(eval(&ast_elt!( 
+    assert_eq!(eval(&ast!( 
         { app.clone() ;
             [
              "rator" => 
@@ -231,7 +232,7 @@ fn form_eval_tests() {
         Ok(Int(99.to_bigint().unwrap())));
     
     // (λy.y) x
-    assert_eq!(eval(&ast_elt!( 
+    assert_eq!(eval(&ast!( 
         { app.clone() ;
             [
              "rator" => 

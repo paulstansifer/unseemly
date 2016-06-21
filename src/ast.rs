@@ -16,7 +16,8 @@ pub enum Ast<'t> {
     Shape(Vec<Ast<'t>>),
     Env(Assoc<Name<'t>, Ast<'t>>),
     Node(Rc<Form<'t>>, Rc<Ast<'t>>),
-    ExtendEnv(Box<Ast<'t>>, Beta<'t>)
+    ExtendEnv(Box<Ast<'t>>, Beta<'t>),
+    //Many(Vec<Ast<'t>>)
 }
 
 
@@ -27,29 +28,29 @@ pub enum Ast<'t> {
 
 */
 
-macro_rules! ast {
-    ($($contents:tt)*) => { Shape(vec![ $(  ast_elt!($contents) ),* ] )};
+macro_rules! ast_shape {
+    ($($contents:tt)*) => { Shape(vec![ $(  ast!($contents) ),* ] )};
 }
 
 
 pub use self::Ast::*;
 
 
-macro_rules! ast_elt {
+macro_rules! ast {
     ( (import $beta:tt $sub:tt) ) => {
-        ExtendEnv(Box::new(ast_elt!($sub)), beta!($beta))
+        ExtendEnv(Box::new(ast!($sub)), beta!($beta))
     };
     ( (, $interp:expr)) => { $interp };
-    ( ( $( $list:tt )* ) ) => { ast!($($list)*)};
+    ( ( $( $list:tt )* ) ) => { ast_shape!($($list)*)};
     ( [ ] ) => { Env(Assoc::new()) };
     ( [ $n:tt => $sub:tt $(, $n_cdr:tt => $sub_cdr:tt )* ] ) =>  {
-        if let Env(contents) = ast_elt!( [ $( $n_cdr => $sub_cdr ),* ] ) {
-            Env(contents.set(n(expr_ify!($n)), ast_elt!($sub)))
+        if let Env(contents) = ast!( [ $( $n_cdr => $sub_cdr ),* ] ) {
+            Env(contents.set(n(expr_ify!($n)), ast!($sub)))
         } else {
             panic!("internal macro error!")
         }
     };
-    ( { $form:expr; $sub:tt } ) => { Node($form, Rc::new(ast_elt!($sub)))};
+    ( { $form:expr; $sub:tt } ) => { Node($form, Rc::new(ast!($sub)))};
     ($e:tt) => { Atom(n(expr_ify!($e))) }
 }
 

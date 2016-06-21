@@ -21,16 +21,16 @@ pub struct TypedValue<'t> {
 
 
 macro_rules! mk_type {
-    ( $se:expr, [ () -> $ret_t:tt] ) => { ast_elt!($ret_t) };
+    ( $se:expr, [ () -> $ret_t:tt] ) => { ast!($ret_t) };
     ( $se:expr, [ ( $param_car:tt $(, $param_cdr:tt)* )  -> $ret_t:tt ] ) => {
-        ast_elt!( { find_form($se, "type", "fn") ; 
+        ast!( { find_form($se, "type", "fn") ; 
             [
                 "param" => (, mk_type!($se, $param_car) ),
                 "ret" => (, mk_type!($se, [( $($param_cdr),* ) -> $ret_t] ))
             ]
         })
     };
-    ( $se:expr, $n:tt ) => { ast_elt!($n) };
+    ( $se:expr, $n:tt ) => { ast!($n) };
 }
 
 macro_rules! tf {
