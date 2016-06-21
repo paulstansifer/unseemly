@@ -11,7 +11,8 @@ use std::rc::Rc;
 use std::ops::{Add,Sub,Mul};
 
 
-use num::BigInt; //TMP
+use num::BigInt;
+use num::Zero;
 
 pub struct TypedValue<'t> {
     pub ty: Ast<'t>,
@@ -59,7 +60,7 @@ macro_rules! n_arg_fn {
 }
 
 
-pub fn core_values_and_types<'t>(se: &SynEnv<'t>) -> Assoc<Name<'t>, TypedValue<'t>> {
+pub fn core_typed_values<'t>(se: &SynEnv<'t>) -> Assoc<Name<'t>, TypedValue<'t>> {
     assoc_n!(
         "plus" =>
         tf!(se, [( "integer", "integer" ) -> "integer"],
@@ -69,6 +70,9 @@ pub fn core_values_and_types<'t>(se: &SynEnv<'t>) -> Assoc<Name<'t>, TypedValue<
                  ( Int(a), Int(b) ) => { Int( a.clone() - b ) }),
         "times" =>
         tf!(se, [( "integer", "integer" ) -> "integer"],
-                 ( Int(a), Int(b) ) => { Int( a.clone() * b ) })
+                 ( Int(a), Int(b) ) => { Int( a.clone() * b ) }),
+        "zero?" =>
+        tf!(se, [( "integer" ) -> "bool"],
+                 ( Int(a) ) => { Bool(a.is_zero())} )
     )
 }

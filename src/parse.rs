@@ -43,7 +43,7 @@ impl<'t> Token<'t> {
    everything outside of a `Named` (up to a `Scope`, if any) is discarded,
     and `Scope` produces a `Node`, which maps names to what they got.
  */
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub enum FormPat<'t> {
     Literal(&'t str),
     AnyToken,
@@ -59,16 +59,31 @@ pub enum FormPat<'t> {
     // and don't want to be on the `Ast`.) Also, `SynEnv` can go back to containing
     // a single `FormPat`, so we can use `Biased` if necessary.
 
+    /**
+     * Lookup a nonterminal in the current syntactic environment.
+     */
     Call(Name<'t>),
+    /**
+     * This is where syntax gets reflective.
+     * Evaluates its body (one phase up)
+     *  as a function from the current `SynEnv` to a new one,
+     *  and names the result in the current scope.
+     */
+    ComputeSyntax(Name<'t>, Box<FormPat<'t>>),
 
     Scope(Box<FormPat<'t>>), // limits the region where names are meaningful.
     Named(Name<'t>, Box<FormPat<'t>>),
 
-    //SynImport(Name, Box<FormPat<'t>>), //TODO
+    /**
+     * This is where syntax gets extensible.
+     * Parses its body in the named syntactic environment.
+     */
+    SynImport(Name<'t>, Box<FormPat<'t>>),
     NameImport(Box<FormPat<'t>>, Beta<'t>),
     //NameExport(Beta<'t>, Box<FormPat<'t>>) // This might want to go on some existing pattern
-}
 
+
+}
 
 macro_rules! form_pat {
     ((lit $e:expr)) => { Literal($e) };
@@ -202,6 +217,9 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
                 combine::choice(parsers).parse_state(inp)
             }
             
+            &ComputeSyntax(ref name, ref f) => {
+                panic!("TODO")
+            }
         
             &Named(ref name, ref f) => {
                 self.descend(f).parse_state(inp).map(|parse_res| 
@@ -215,6 +233,10 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
             &NameImport(ref f, ref beta) => {
                 self.descend(f).parse_state(inp).map(|parse_res|
                     (ExtendEnv(Box::new(parse_res.0), beta.clone()), parse_res.1))
+            }
+
+            &SynImport(ref name, ref f) => {
+                panic!("TODO")
             }
         }
     }
