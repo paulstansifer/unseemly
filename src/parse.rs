@@ -217,7 +217,7 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
                 combine::choice(parsers).parse_state(inp)
             }
             
-            &ComputeSyntax(ref name, ref f) => {
+            &ComputeSyntax(ref _name, ref _f) => {
                 panic!("TODO")
             }
         
@@ -235,7 +235,7 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
                     (ExtendEnv(Box::new(parse_res.0), beta.clone()), parse_res.1))
             }
             
-            &SynImport(ref name, ref f) => {
+            &SynImport(ref _name, ref _f) => {
                 panic!("TODO")
             }
         }

@@ -16,8 +16,7 @@ pub enum Ast<'t> {
     Shape(Vec<Ast<'t>>),
     Env(Assoc<Name<'t>, Ast<'t>>),
     Node(Rc<Form<'t>>, Rc<Ast<'t>>),
-    ExtendEnv(Box<Ast<'t>>, Beta<'t>),
-    //Many(Vec<Ast<'t>>)
+    ExtendEnv(Box<Ast<'t>>, Beta<'t>)
 }
 
 

@@ -1,9 +1,12 @@
  TODO:
-  [ ] Prelude types, values, and functions (normal and syntax)
-  [ ] Parametric types (possibly as a macro?)
+  [ ] Clean up Ast (marry Node and Env)
+  [ ] Plugins (written in Rust)
   [ ] MBE
-  [ ] Procedures as macros
+  [ ] Parametric types, enums, structs, recursive types
+  [ ] Core forms for those types
+  [ ] Prelude types, values, and functions (normal and syntax)
   [ ] Syntax pattern-matching
+  [ ] Macros (procedural!)
   [ ] Syntax quote
   [ ] Fancy bindings
   [ ] Modules
@@ -16,8 +19,8 @@
                       →  [TypeSynth]  →  [Evaluate] ↩ (phase 2)
                       →  [TypeSynth]  →  [Evaluate] ↩ (phase 1)
   [Read]  →  [Parse]  →  [TypeSynth]  →  [Evaluate] (phase 0: runtime)
-          ↑
-      TokenTree
+          ↑           ↑               ↑
+      TokenTree      Ast           Ast:Ast
 
 [Read] read.rs
   The reader is very simple.
