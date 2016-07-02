@@ -40,8 +40,6 @@ pub enum WalkRule<'t, Mode: WalkMode<'t>> {
     Custom(Box<(Fn(LazyWalkReses<'t, Mode>) -> Result<Mode::Out, ()>) + 't>),
     /** "this form has the same type/value as one of its subforms" */
     Body(Name<'t>), 
-    /** "this form is a var ref; look up its type/value in the environment" */
-    VarRef, 
     /** this form should not ever be typed/evaluated */
     NotWalked 
 }
@@ -125,29 +123,27 @@ pub fn walk<'t, Mode: WalkMode<'t>>
      cur_node_contents: &LazyWalkReses<'t, Mode>)
         -> Result<Mode::Out, ()> {
     match *expr {
-        Node(ref f, ref body) => {
+        Node(ref f, ref parts) => {
             // certain walks only work on certain kinds of AST nodes
-            match (Mode::get_walk_rule(f), &**body) {
-                (&Custom(ref ts_fn), &Env(ref parts)) => {                    
+            match Mode::get_walk_rule(f) {
+                &Custom(ref ts_fn) => {                    
                     ts_fn(LazyWalkReses::new(mode, env, parts.clone()))
                 }
-                (&Custom(_), _) => { panic!("{:?} isn't an environment", body); }
                 
-                (&Body(ref n), &Env(ref parts)) => {
+                &Body(ref n) => {
                     walk(parts.find(n).unwrap(), mode, env.clone(), 
                          &LazyWalkReses::new(mode, env.clone(), parts.clone()))
                 }
-                (&Body(_), _) => { panic!("{:?} cannot have Body type", body); }
                 
-                (&VarRef, &Atom(ref n)) => {
-                    Ok(env.find(n).expect(format!("Name {:?} unbound in {:?}", n, env).as_str()).clone())
-                }
-                (&VarRef, _) => { panic!("{:?} is not a variable", body); }
-                
-                (&NotWalked, _) => { panic!( "{:?} should not have a type at all!", expr ) }
+                &NotWalked => { panic!( "{:?} should not have a type at all!", expr ) }
             }
         }
-        Trivial | Atom(_) | Shape(_) | Env(_) => {
+        IncompleteNode(ref parts) => { panic!("{:?} isn't a complete node", parts)}
+        VariableReference(ref n) => {
+            Ok(env.find(n).expect(format!("Name {:?} unbound in {:?}", n, env).as_str()).clone())
+        }
+        
+        Trivial | Atom(_) | Shape(_) => {
             panic!("{:?} is not a typeable node", expr);
         }
         

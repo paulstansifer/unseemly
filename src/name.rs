@@ -34,7 +34,6 @@ macro_rules! assoc_n {
     };
 }
 
-
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ContainedName {
     orig: String

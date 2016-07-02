@@ -48,6 +48,7 @@ pub enum FormPat<'t> {
     Literal(&'t str),
     AnyToken,
     AnyAtomicToken,
+    VarRef,
     Delimited(Name<'t>, DelimChar, Box<FormPat<'t>>),
     Seq(Vec<FormPat<'t>>),
     Star(Box<FormPat<'t>>),
@@ -71,7 +72,8 @@ pub enum FormPat<'t> {
      */
     ComputeSyntax(Name<'t>, Box<FormPat<'t>>),
 
-    Scope(Box<FormPat<'t>>), // limits the region where names are meaningful.
+    /** Makes a node and limits the region where names are meaningful. */
+    Scope(Rc<Form<'t>>), 
     Named(Name<'t>, Box<FormPat<'t>>),
 
     /**
@@ -89,6 +91,7 @@ macro_rules! form_pat {
     ((lit $e:expr)) => { Literal($e) };
     (at) => { AnyToken };
     (aat) => { AnyAtomicToken };
+    (varref) => { VarRef };
     ((delim $n:expr, $d:expr, $body:tt)) => {
         Delimited(n($n), ::read::delim($d), Box::new(form_pat!($body)))
     };
@@ -97,7 +100,7 @@ macro_rules! form_pat {
     ((biased $lhs:tt, $rhs:tt)) => { Biased(Box::new(form_pat!($lhs)), 
                                             Box::new(form_pat!($rhs))) };
     ((call $n:expr)) => { Call(n($n)) };
-    ((scope $body:tt)) => { Scope(form_pat!($body)) };
+    ((scope $f:expr)) => { Scope($f) };
     ((named $n:expr, $body:tt)) => { Named(n($n), Box::new(form_pat!($body))) };
     ((import $beta:tt, $body:tt)) => { 
         NameImport(Box::new(form_pat!($body)), beta!($beta))
@@ -106,7 +109,7 @@ macro_rules! form_pat {
 }
 
 
-pub type SynEnv<'t> = Assoc<Name<'t>, Vec<Rc<Form<'t>>>>;
+pub type SynEnv<'t> = Assoc<Name<'t>, FormPat<'t>>;
 
 struct FormPatParser<'form, 'tokens: 'form, 't: 'tokens> {
     f: &'form FormPat<'t>,
@@ -171,6 +174,16 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
                 combine::satisfy(|tok: &'tokens Token<'t>| { 
                     match *tok { Simple(_) => true, _ => false } }).parse_state(inp).map(ast_ify)
             }
+            &VarRef => {
+                match inp.uncons() {
+                    Ok((&Simple(t), rest)) => { Ok((VariableReference(t), rest)) }
+                    Ok((&Group(_,_,_), rest)) => { 
+                        combine::unexpected("group").parse_state(rest.into_inner())
+                            .map(|_| panic!(""))
+                    }
+                    Err(e) => { Err(e) }
+                }
+            }
             &Delimited(ref exp_extra, ref exp_delim, ref f) => {
                 let (tok, rest) = try!(inp.uncons());
                 match *tok {
@@ -207,6 +220,10 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
                 combine::try(self.descend(lhs)).or(self.descend(rhs)).parse_state(inp)
             }
             &Call(ref n) => {
+                let deeper_pat : &'f FormPat = self.se.find(&n).unwrap();
+                self.descend(deeper_pat).parse_state(inp)
+
+/*                
                 // Try all the forms at this nonterminal, and record which one we got
                 // with the `Node` AST component. 
                 let deeper_forms : &'f Vec<Rc<Form>> = self.se.find(&n).unwrap();
@@ -215,6 +232,7 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
                             move |parse_res| Node(f.clone(), Rc::new(parse_res))))
                     .collect();
                 combine::choice(parsers).parse_state(inp)
+                */
             }
             
             &ComputeSyntax(ref _name, ref _f) => {
@@ -223,11 +241,12 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
         
             &Named(ref name, ref f) => {
                 self.descend(f).parse_state(inp).map(|parse_res| 
-                    (Env(Assoc::new().set(*name, parse_res.0)), parse_res.1))
+                    (IncompleteNode(Assoc::new().set(*name, parse_res.0)), parse_res.1))
             }
-            &Scope(ref f) => {
-                self.descend(f).parse_state(inp).map(|parse_res|
-                    (parse_res.0.flatten_to_node(), parse_res.1))
+            &Scope(ref form) => {
+                self.descend(&form.grammar).parse_state(inp).map(|parse_res|
+                    (Node(form.clone(), parse_res.0.flatten()),
+                     parse_res.1))
             }
 
             &NameImport(ref f, ref beta) => {
@@ -262,25 +281,31 @@ fn test_parsing() {
 
 #[test]
 fn test_advanced_parsing() {
+    let tf = simple_form("trivial_form", form_pat!((call "never parsed")));
+    
     assert_eq!(parse_top(&form_pat!([(star (alt (lit "X"), (lit "O"))), (lit "!")]),
                          &tokens!("X" "O" "O" "O" "X" "X" "!")).unwrap(),
                ast_shape!(("X" "O" "O" "O" "X" "X") "!"));
                
-    assert_eq!(parse_top(&form_pat!((star (biased (named "tictactoe", (alt (lit "X"), (lit "O"))),
-                                                  (named "igetit", (alt (lit "O"), (lit "H")))))),
-                         &tokens!("X" "O" "H" "O" "X" "H" "O")).unwrap(),
-               ast_shape!(["tictactoe" => "X"] ["tictactoe" => "O"] ["igetit" => "H"]
-                    ["tictactoe" => "O"] ["tictactoe" => "X"] ["igetit" => "H"]
-                    ["tictactoe" => "O"]));
+    let ttt = simple_form("tictactoe", form_pat!( (named "c", (alt (lit "X"), (lit "O")))));
+    let igi = simple_form("igetit", form_pat!( (named "c", (alt (lit "O"), (lit "H")))));
+    
+    assert_eq!(parse_top(
+            &form_pat!((star (biased (scope ttt.clone()), (scope igi.clone())))),
+            &tokens!("X" "O" "H" "O" "X" "H" "O")).unwrap(),
+        ast_shape!({ttt.clone(); ["c" => "X"]} {ttt.clone(); ["c" => "O"]} 
+                   {igi.clone(); ["c" => "H"]} {ttt.clone(); ["c" => "O"]} 
+                   {ttt.clone(); ["c" => "X"]} {igi; ["c" => "H"]}
+                   {ttt; ["c" => "O"]}));
 
     let pair_form = simple_form("pair", form_pat!([(named "lhs", (lit "a")),
                                                    (named "rhs", (lit "b"))]));
     let toks_a_b = tokens!("a" "b");
     assert_eq!(parse(&form_pat!((call "expr")),
                      assoc_n!(
-                         "other_1" => vec![simple_form("o", form_pat!((lit "other")))],
-                         "expr" => vec![pair_form.clone()],
-                         "other_2" => vec![simple_form("o", form_pat!((lit "otherother")))]),
+                         "other_1" => Scope(simple_form("o", form_pat!((lit "other")))),
+                         "expr" => Scope(pair_form.clone()),
+                         "other_2" => Scope(simple_form("o", form_pat!((lit "otherother"))))),
                      &toks_a_b).unwrap(),
                ast!({pair_form ; ["rhs" => "b", "lhs" => "a"]}));
 }

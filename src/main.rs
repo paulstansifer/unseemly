@@ -1,5 +1,7 @@
 #![allow(dead_code,unused_imports)]
 
+// unstable; only for testing
+// #[macro_use] extern crate log;
 #[macro_use] extern crate lazy_static;
 extern crate num;
 

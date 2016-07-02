@@ -37,7 +37,7 @@ impl<K : PartialEq, V> Assoc<K, V> {
             }
         }
     }
-
+    
     pub fn set(&self, k: K, v: V) -> Assoc<K, V> {
         Assoc{
             n: Some(Rc::new(AssocNode {
@@ -48,7 +48,18 @@ impl<K : PartialEq, V> Assoc<K, V> {
     pub fn new() -> Assoc<K, V> {
         Assoc{ n: None }
     }
+} 
+
+impl<K: PartialEq + fmt::Debug, V: fmt::Debug> Assoc<K, V> {
+    pub fn find_or_panic<'assoc, 'f>(&'assoc self, target: &'f K) -> &'assoc V {
+        match self.find(target) {
+            None => {
+                panic!("{:?} not found in {:?}", target, self)
+            },
+            Some(ref v) => v
+        }
     }
+}
 
 impl<K : PartialEq + fmt::Debug, V : fmt::Debug> fmt::Debug for Assoc<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

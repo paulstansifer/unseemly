@@ -38,7 +38,7 @@ impl<'t> Debug for Form<'t> {
 pub fn simple_form<'t>(form_name: &'t str, p: FormPat<'t>) -> Rc<Form<'t>> {
     Rc::new(Form {
             name: n(form_name),
-            grammar: Scope(Box::new(p)),
+            grammar: p,
             relative_phase: Assoc::new(), 
             synth_type: WalkRule::NotWalked,
             eval: WalkRule::NotWalked

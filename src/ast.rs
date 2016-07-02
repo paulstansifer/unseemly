@@ -9,23 +9,19 @@ use std::fmt;
 use std::rc::Rc;
 use form::Form;
 
+use parse::FormPat;
+use ast_walk::WalkRule;
+
 #[derive(Clone, PartialEq)]
 pub enum Ast<'t> {
     Trivial,
     Atom(Name<'t>),
+    VariableReference(Name<'t>),
     Shape(Vec<Ast<'t>>),
-    Env(Assoc<Name<'t>, Ast<'t>>),
-    Node(Rc<Form<'t>>, Rc<Ast<'t>>),
+    Node(Rc<Form<'t>>, Assoc<Name<'t>, Ast<'t>>),
+    IncompleteNode(Assoc<Name<'t>, Ast<'t>>),
     ExtendEnv(Box<Ast<'t>>, Beta<'t>)
 }
-
-
-/*
-
-{ lam ; [ "rator" => ... , "rator_type" => ... ,
-          "rand" => ( ... ↓ "rator" : "rator_type ] }
-
-*/
 
 macro_rules! ast_shape {
     ($($contents:tt)*) => { Shape(vec![ $(  ast!($contents) ),* ] )};
@@ -39,18 +35,16 @@ macro_rules! ast {
     ( (import $beta:tt $sub:tt) ) => {
         ExtendEnv(Box::new(ast!($sub)), beta!($beta))
     };
+    ( (vr $var:expr) ) => { VariableReference(n($var)) };
     ( (, $interp:expr)) => { $interp };
     ( ( $( $list:tt )* ) ) => { ast_shape!($($list)*)};
-    ( [ ] ) => { Env(Assoc::new()) };
-    ( [ $n:tt => $sub:tt $(, $n_cdr:tt => $sub_cdr:tt )* ] ) =>  {
-        if let Env(contents) = ast!( [ $( $n_cdr => $sub_cdr ),* ] ) {
-            Env(contents.set(n(expr_ify!($n)), ast!($sub)))
-        } else {
-            panic!("internal macro error!")
-        }
+    ( { $form:expr; [ $($part_name:tt => $sub:tt ),* ] }) => {
+        ast!( { $form ; $($part_name => $sub),* } )
     };
-    ( { $form:expr; $sub:tt } ) => { Node($form, Rc::new(ast!($sub)))};
-    ($e:tt) => { Atom(n(expr_ify!($e))) }
+    ( { $form:expr; $($part_name:tt => $sub:tt ),* }) => {
+        Node($form, assoc_n!( $( $part_name => ast!($sub) ),* ))
+    };
+    ($e:expr) => { Atom(n($e))}
 }
 
 
@@ -58,7 +52,8 @@ impl<'t> fmt::Debug for Ast<'t> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Trivial => { write!(f, "⨉") },
-            Atom(ref n) => { write!(f, "{:?}", n) },
+            Atom(ref n) => { write!(f, "⌈{:?}⌉", n) },
+            VariableReference(ref v) => { write!(f, "{:?}", v)}
             Shape(ref v) => {
                 try!(write!(f, "["));
                 let mut first = true;
@@ -69,9 +64,11 @@ impl<'t> fmt::Debug for Ast<'t> {
                 }
                 write!(f, "]")
             },
-            Env(ref assoc) => { assoc.fmt(f) },
             Node(ref form, ref body) => { 
                 write!(f, "{{ ({:?}); {:?} }}", form.name, body)
+            }
+            IncompleteNode(ref body) => {
+                write!(f, "{{ INCOMPLETE; {:?} }}", body)                
             }
             ExtendEnv(ref body, ref beta) => {
                 write!(f, "{:?}↓{:?}", body, beta)
@@ -83,28 +80,27 @@ impl<'t> fmt::Debug for Ast<'t> {
 impl<'t> Ast<'t> {
     // TODO: this ought have MBE-style support for repetition
     // TODO: this ought to at least warn if we're losing anything other than `Shape`
-    pub fn flatten_to_node(&self) -> Ast<'t> {
-        
-        fn flatten<'t>(a: & Ast<'t>) -> Assoc<Name<'t>, Ast<'t>> {
-            match *a {
-                Trivial => Assoc::new(),
-                Atom(_) => Assoc::new(),
-                Shape(ref v) => {
-                    let mut accum = Assoc::new();
-                    for sub_a in v {
-                        accum = accum.set_assoc(&flatten(&sub_a))
-                    }
-                    accum
-                },
-                // TODO: think about unusual `Ast`s and how they should behave.
-                Env(ref contents) => contents.clone(),
-                Node(_, ref body) => flatten(body) ,
-                ExtendEnv(ref body, _) => flatten(body)
-            }
+    pub fn flatten(&self) -> Assoc<Name<'t>, Ast<'t>> {
+        match *self {
+            Trivial => Assoc::new(),
+            Atom(_) => Assoc::new(),
+            VariableReference(_) => Assoc::new(),
+            Shape(ref v) => {
+                let mut accum = Assoc::new();
+                for sub_a in v {
+                    accum = accum.set_assoc(&sub_a.flatten())
+                }
+                accum
+            },
+            IncompleteNode(ref env) => { env.clone() }
+            Node(ref f, ref body) => {
+                // TODO: think about what should happen when 
+                //  `Scope` contains a `Scope` without an intervening `Named`
+                panic!("I don't know what to do here!")
+            },
+            ExtendEnv(ref body, _) => body.flatten()
         }
-        Env(flatten(self))
     }
-
 }
 
 impl<'t> iter::FromIterator<Ast<'t>> for Ast<'t> {
