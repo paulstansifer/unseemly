@@ -14,6 +14,7 @@ use util::assoc::Assoc;
 use std::rc::Rc;
 use std::marker::PhantomData;
 use beta::Beta;
+use std;
 
 extern crate combine;
 
@@ -80,11 +81,23 @@ pub enum FormPat<'t> {
      * This is where syntax gets extensible.
      * Parses its body in the named syntactic environment.
      */
-    SynImport(Name<'t>, Box<FormPat<'t>>), 
+    SynImport(Name<'t>, SyntaxExtension<'t>),
     NameImport(Box<FormPat<'t>>, Beta<'t>),
     //NameExport(Beta<'t>, Box<FormPat<'t>>) // This might want to go on some existing pattern
-    
-    
+}
+
+pub struct SyntaxExtension<'t>(pub Rc<Fn(&SynEnv<'t>) -> SynEnv<'t> + 't>);
+
+impl<'t> Clone for SyntaxExtension<'t> {
+    fn clone(&self) -> SyntaxExtension<'t> {
+        SyntaxExtension(self.0.clone())
+    }
+}
+
+impl<'t> std::fmt::Debug for SyntaxExtension<'t> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        formatter.write_str("[syntax extension]")
+    }
 }
 
 macro_rules! form_pat {
@@ -104,6 +117,9 @@ macro_rules! form_pat {
     ((named $n:expr, $body:tt)) => { Named(n($n), Box::new(form_pat!($body))) };
     ((import $beta:tt, $body:tt)) => { 
         NameImport(Box::new(form_pat!($body)), beta!($beta))
+    };
+    ((extend $n:expr, $f:expr)) => {
+        SynImport(n($n), SyntaxExtension(Rc::new($f)))
     };
     ( [$($body:tt),*] ) => { Seq(vec![ $(form_pat!($body)),* ])}
 }
@@ -130,17 +146,31 @@ impl<'form, 'tokens, 't: 'form> FormPatParser<'form, 'tokens, 't> {
         self.parse_state(State::new(SliceStream::<'tokens, Token<'t>>(ts.as_slice())))
     }
 
-    fn descend<'subform>(&self, f: &'subform FormPat<'t>) -> FormPatParser<'subform, 'tokens, 't> {
+    fn descend<'subform>(&self, f: &'subform FormPat<'t>)
+            -> FormPatParser<'subform, 'tokens, 't> {
         FormPatParser{f: f, se: self.se.clone(), token_phantom: PhantomData}
     }
+    
+    fn extend<'subform>(&self, f: &'subform FormPat<'t>, se: SynEnv<'t>)
+            -> FormPatParser<'subform, 'tokens, 't> {
+        FormPatParser{f: f, se: se, token_phantom: PhantomData}
+    }
+
 }
 
 /** Parse `tt` with the grammar `f` in the environment `se`.
   The environment is used for lookup when `Call` patterns are reached. */
 pub fn parse<'fun, 't: 'fun>(f: &'fun FormPat<'t>, se: SynEnv<'t>, tt: &'fun TokenTree<'t>)
         -> Result<Ast<'t>, ParseError<SliceStream<'fun, Token<'t>>>> {
-    FormPatParser{f: f, se: se, token_phantom: PhantomData}.parse_tokens(&tt.t).map(|res| res.0)
-        .map_err(|consumed| consumed.into_inner())
+    let (res, consumed) = 
+        try!(FormPatParser{f: f, se: se, token_phantom: PhantomData}.parse_tokens(&tt.t)
+            .map_err(|consumed| consumed.into_inner()));        
+    // TODO: this seems to lead to bad error messages 
+    //  (Essentially, asking the user why they didn't end the file
+    //    right after the last thing that did parse correctly)
+    let (_, _) = try!(combine::eof().parse_state(consumed.into_inner())
+        .map_err(|consumed| consumed.into_inner()));
+    Ok(res)
 }
 
 
@@ -155,7 +185,7 @@ pub fn parse_top<'fun, 't>(f: &'fun FormPat<'t>, tt: &'fun TokenTree<'t>)
 impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
     type Input = SliceStream<'tokens, Token<'t>>;
     type Output = Ast<'t>;
-
+    
     fn parse_state<'f>(self: &'f mut FormPatParser<'form, 'tokens, 't>, inp: State<Self::Input>)
           -> ParseResult<Self::Output, Self::Input> {
 
@@ -254,8 +284,9 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
                     (ExtendEnv(Box::new(parse_res.0), beta.clone()), parse_res.1))
             }
             
-            &SynImport(ref _name, ref _f) => {
-                panic!("TODO")
+            &SynImport(ref name, ref f) => {
+                let new_se = f.0(&self.se);
+                self.extend(new_se.find_or_panic(&name), new_se.clone()).parse_state(inp)
             }
         }
     }
@@ -280,9 +311,7 @@ fn test_parsing() {
 }
 
 #[test]
-fn test_advanced_parsing() {
-    let tf = simple_form("trivial_form", form_pat!((call "never parsed")));
-    
+fn test_advanced_parsing() {    
     assert_eq!(parse_top(&form_pat!([(star (alt (lit "X"), (lit "O"))), (lit "!")]),
                          &tokens!("X" "O" "O" "O" "X" "X" "!")).unwrap(),
                ast_shape!(("X" "O" "O" "O" "X" "X") "!"));
@@ -308,6 +337,46 @@ fn test_advanced_parsing() {
                          "other_2" => Scope(simple_form("o", form_pat!((lit "otherother"))))),
                      &toks_a_b).unwrap(),
                ast!({pair_form ; ["rhs" => "b", "lhs" => "a"]}));
+}
+
+#[test]
+fn test_extensible_parsing() {
+    
+    fn synex<'t>(s: &SynEnv<'t>) -> SynEnv<'t> {
+        
+        assoc_n!(
+            "a" => form_pat!((star (alt (lit "AA"), [(lit "Back"), (call "o"), (lit ".")]))),
+            "b" => form_pat!((lit "BB"))
+        ).set_assoc(&s)
+    }
+    
+    assert_eq!(parse_top(&form_pat!((extend "b", synex)), &tokens!("BB")).unwrap(),
+               ast!("BB"));
+               
+               
+    let orig = assoc_n!(
+        "o" => form_pat!((star (alt (lit "O"), [(lit "Extend"), (extend "a", synex), (lit ".")])))
+    );
+    
+    assert_eq!(
+        parse(&form_pat!((call "o")), orig.clone(),
+            &tokens!("O" "O" "Extend" "AA" "AA" "Back" "O" "." "AA" "." "O")).unwrap(),
+        ast_shape!("O" "O" ("Extend" ("AA" "AA" ("Back" ("O") ".") "AA") ".") "O"));
+
+    print!("{:?}\n", parse(&form_pat!((call "o")), orig.clone(),
+        &tokens!("O" "O" "Extend" "AA" "AA" "Back" "AA" "." "AA" "." "O")));
+
+    assert_eq!(
+        parse(&form_pat!((call "o")), orig.clone(),
+            &tokens!("O" "O" "Extend" "AA" "AA" "Back" "AA" "." "AA" "." "O")).is_err(),
+        true);
+
+    assert_eq!(
+        parse(&form_pat!((call "o")), orig,
+            &tokens!("O" "O" "Extend" "O" "." "O")).is_err(),
+        true);
+
+
 }
 /*
 #[test]

@@ -237,7 +237,6 @@ fn form_eval_tests() {
     
     let lam = find_form(&cse, "expr", "lambda");
     let app = find_form(&cse, "expr", "apply");
-    let fun = find_form(&cse, "type", "fn");
 
     
     assert_eq!(eval(&ast!((vr "x")), simple_env.clone()),

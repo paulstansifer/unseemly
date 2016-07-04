@@ -1,6 +1,4 @@
  TODO:
-  [ ] Clean up Ast (marry Node and Env)
-  [ ] Plugins (written in Rust)
   [ ] MBE
   [ ] Parametric types, enums, structs, recursive types
   [ ] Core forms for those types
@@ -82,3 +80,11 @@ Crucial data structures:
   `SynEnv` parse.rs
     Indicates what the grammar is at a particular point. 
     [Map from [named grammar nodes] to [lists of `Form`] ]
+
+
+
+Questions: 
+
+What if a macro like Rust's `try!` 
+ has a type error in its return value?
+What happens? What should happen? 

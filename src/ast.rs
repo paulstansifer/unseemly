@@ -52,7 +52,7 @@ impl<'t> fmt::Debug for Ast<'t> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Trivial => { write!(f, "⨉") },
-            Atom(ref n) => { write!(f, "⌈{:?}⌉", n) },
+            Atom(ref n) => { write!(f, "⋅{:?}⋅", n) },
             VariableReference(ref v) => { write!(f, "{:?}", v)}
             Shape(ref v) => {
                 try!(write!(f, "["));
@@ -93,7 +93,7 @@ impl<'t> Ast<'t> {
                 accum
             },
             IncompleteNode(ref env) => { env.clone() }
-            Node(ref f, ref body) => {
+            Node(ref _f, ref _body) => {
                 // TODO: think about what should happen when 
                 //  `Scope` contains a `Scope` without an intervening `Named`
                 panic!("I don't know what to do here!")
