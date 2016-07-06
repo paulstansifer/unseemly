@@ -230,6 +230,19 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
         
         self.repeats.push(Rc::new(sub));
     }
+    
+    
+    pub fn map<NewT>(&self, f: &Fn(T) -> NewT) -> EnvMBE<'t, NewT> {
+        EnvMBE {
+            leaves: self.leaves.map(f),
+            repeats: self.repeats.iter().map(
+                |rc_vec_mbe| Rc::new(rc_vec_mbe.iter().map(
+                    |mbe| mbe.map(f)
+                ).collect())).collect(),
+            leaf_locations: self.leaf_locations.clone(),
+            named_repeats: self.named_repeats.clone()
+        }
+    }
 }
 
 
@@ -294,6 +307,12 @@ fn test_mbe() {
         }
     }
     
+    let mapped_mbe = mbe.map(&|x| (x, x - 9000));
     
+    let first_sub_mbe = &mapped_mbe.march_all(vec![n("y")])[0];
+    
+    assert_eq!(first_sub_mbe.get_leaf(&n("y")), Some(&(9001, 1)));
+    assert_eq!(first_sub_mbe.get_leaf(&n("eight")), Some(&(8, 8 - 9000)));
+    assert_eq!(first_sub_mbe.get_leaf(&n("x")), None); 
     
 }
