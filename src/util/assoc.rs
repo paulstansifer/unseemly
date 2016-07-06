@@ -53,6 +53,15 @@ impl<K : PartialEq, V> Assoc<K, V> {
     pub fn new() -> Assoc<K, V> {
         Assoc{ n: None }
     }
+
+    pub fn iter_keys<'assoc>(&'assoc self) -> KeyIter<'assoc, K, V> {
+        KeyIter{ cur: self }
+    }
+
+    pub fn iter_values<'assoc>(&'assoc self) -> ValueIter<'assoc, K, V> {
+        ValueIter{ cur: self }
+    }
+
 } 
 
 impl<K: PartialEq + fmt::Debug, V: fmt::Debug> Assoc<K, V> {
@@ -102,6 +111,41 @@ impl<K : PartialEq + Clone, V : Clone> Assoc<K, V> {
                         next: node.next.map(f)
                     }))
                 }
+            }
+        }
+    }
+}
+
+
+pub struct KeyIter<'assoc, K: PartialEq + 'assoc, V: 'assoc> {
+    cur: &'assoc Assoc<K, V>
+}
+
+impl<'assoc, K: PartialEq, V> Iterator for KeyIter<'assoc, K, V> {
+    type Item = &'assoc K;
+    fn next(&mut self) -> Option<&'assoc K> {
+        match self.cur.n {
+            None => None,
+            Some(ref node) => {
+                self.cur = &(*node).next;
+                Some(&(*node).k)
+            }
+        }
+    }
+}
+
+pub struct ValueIter<'assoc, K: PartialEq + 'assoc, V: 'assoc> {
+    cur: &'assoc Assoc<K, V>
+}
+
+impl<'assoc, K: PartialEq, V> Iterator for ValueIter<'assoc, K, V> {
+    type Item = &'assoc V;
+    fn next(&mut self) -> Option<&'assoc V> {
+        match self.cur.n {
+            None => None,
+            Some(ref node) => {
+                self.cur = &(*node).next;
+                Some(&(*node).v)
             }
         }
     }
