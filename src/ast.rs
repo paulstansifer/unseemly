@@ -103,6 +103,7 @@ impl<'t> Ast<'t> {
     }
 }
 
+// This is used by combine::many, which is used by the Star parser
 impl<'t> iter::FromIterator<Ast<'t>> for Ast<'t> {
     fn from_iter<I: IntoIterator<Item=Ast<'t>>>(i: I) -> Self {
         Shape(i.into_iter().collect())

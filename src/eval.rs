@@ -58,6 +58,8 @@ impl<'t> WalkMode<'t> for Evaluate {
     fn get_walk_rule<'f>(f: &'f Form<'t>) -> &'f WalkRule<'t, Self> {
         &f.eval
     }
+
+    fn automatically_extend_env() -> bool { false }
 }
 
 pub fn eval_top<'t>(expr: &Ast<'t>) -> Result<Value<'t>, ()> {

@@ -6,6 +6,9 @@ use std::fmt;
 
 // TODO: we can get rid of a lot of these `pub`s by making `Assoc` iterable
 
+// Potential optimization: replace a run of ten nodes with a `HashMap`.
+// Recursively replace runs of those, too...
+
 #[derive(PartialEq, Eq)]
 pub struct Assoc<K: PartialEq, V> {
     pub n: Option<Rc<AssocNode<K, V>>>
@@ -16,6 +19,8 @@ impl<K : PartialEq + Clone, V: Clone> Clone for Assoc<K, V> {
         self.map(&|rc| rc)
     }
 }
+
+
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct AssocNode<K : PartialEq, V> {

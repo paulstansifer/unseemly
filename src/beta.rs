@@ -6,6 +6,21 @@ use ast_walk::{ResEnv, LazyWalkReses, LazilyWalkedTerm, WalkMode};
 use util::assoc::Assoc;
 use ast::{Ast, Atom};
 
+
+/**
+ `Beta`s are always tied to a particular `Form`,
+  and they have names that refer to the parts of that `Form`.
+ They are generally used to talk about environmental operations,
+  and they are most useful for typechecking
+   (the evaluation process ignores them,
+     because it needs to do more complex operations
+      to calculate extended environments).
+
+ `Beta`s are trees that determine how variables shadow each other,
+  if multiple variables are being handled at once.
+ The leaf nodes, `Basic` and `SameAs`
+ */
+
 #[derive(PartialEq, Eq, Clone)]
 pub enum Beta<'t> {
     /// Both of these `Name`s refer to named terms in the current `Scope` (or `ResEnv`, for `Ast`s).

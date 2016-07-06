@@ -1,15 +1,4 @@
 /*
- Our big asset is that we will have Γ available for type synthesis.
-
- But this means that introduced forms will be pretty restricted in design. Type-inferring `let`
- is possible, but `lambda` will have to be annotated with parameter types. Welp.
-
- We may eventually need various variations on `Type`.
-
-*/
-
-
-/*
 
 Type synthesis is a recursive traversal of an abstract syntax tree. 
 It is compositional,
@@ -17,7 +6,10 @@ It is compositional,
 These nodes  may depend on 
  the result of synthesizing sibling AST nodes
  or the actual value of AST nodes corresponding to types 
-  (i.e., type annotations)
+  (i.e., type annotations).
+
+
+
 
 */
 

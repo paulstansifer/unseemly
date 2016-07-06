@@ -1,25 +1,23 @@
-/*
- Our big asset is that we will have Γ available for type synthesis.
-
- But this means that introduced forms will be pretty restricted in design. Type-inferring `let`
- is possible, but `lambda` will have to be annotated with parameter types. Welp.
-
- We may eventually need various variations on `Type`.
-
-*/
-
 
 /*
 
-Type synthesis is a recursive traversal of an abstract syntax tree. 
-It is compositional,
- except for binding, which is indicated by ExtendResEnv nodes. 
-These nodes  may depend on 
- the result of synthesizing sibling AST nodes
- or the actual value of AST nodes corresponding to types 
-  (i.e., type annotations)
+We often need to walk an `Ast` while maintaining an environment.
+So far, this is used both for typechecking and for evaluation.
 
-*/
+Our `Ast`s have information about
+ what should happen environment-wise baked-in,
+  so `walk` processes `ExtendEnv` and `VariableReference` on its own.
+When it reaches a `Node`, the user has to specify
+ (through the definition of the respective form)
+  what to do, using a `WalkRule`.
+The most interesting `WalkRule`, `Custom`,
+ specifies an arbitrary function on the results of walking its subterms.
+Subterms are walked lazily, since not all of them are even evaluable/typeable,
+ and they might need to be walked in a specific order.
+
+
+
+ */
 
 use form::Form;
 use std::rc::Rc; 
@@ -148,13 +146,21 @@ pub fn walk<'t, Mode: WalkMode<'t>>
         }
         
         ExtendEnv(ref body, ref beta) => {
-            walk(&**body, mode,
-                 if Mode::automatically_extend_env() {
-                     env.set_assoc(&env_from_beta(beta, cur_node_contents))
-                 } else {
-                     env
-                 },
-                 cur_node_contents)
+            /*
+             While `Beta`s are great for typechecking,
+              evaluation sometimes extends environments
+               in ways that they can't handle.
+             (In particular, λ causes the `Ast` containing the `ExtendEnv`
+               to be moved to a context where its `Beta`s are meaningless!
+              The `Custom` implementation extends the environment manually instead.)
+             */
+            let new_env = if Mode::automatically_extend_env() {
+                env.set_assoc(&env_from_beta(beta, cur_node_contents))
+            } else {
+                env
+            };
+
+            walk(&**body, mode, new_env, cur_node_contents)
         }
     }
 }
