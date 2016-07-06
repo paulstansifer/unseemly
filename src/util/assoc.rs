@@ -9,6 +9,8 @@ use std::fmt;
 // Potential optimization: replace a run of ten nodes with a `HashMap`.
 // Recursively replace runs of those, too...
 
+// this is a functional data structure; dropping it on the floor is usually bad
+#[must_use] 
 #[derive(PartialEq, Eq)]
 pub struct Assoc<K: PartialEq, V> {
     pub n: Option<Rc<AssocNode<K, V>>>
@@ -53,11 +55,11 @@ impl<K : PartialEq, V> Assoc<K, V> {
     pub fn new() -> Assoc<K, V> {
         Assoc{ n: None }
     }
-
+    
     pub fn iter_keys<'assoc>(&'assoc self) -> KeyIter<'assoc, K, V> {
         KeyIter{ cur: self }
     }
-
+    
     pub fn iter_values<'assoc>(&'assoc self) -> ValueIter<'assoc, K, V> {
         ValueIter{ cur: self }
     }
