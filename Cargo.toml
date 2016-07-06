@@ -1,6 +1,6 @@
 [package]
-name = "odd"
-version = "0.1.0"
+name = "unseemly"
+version = "0.0.0"
 authors = ["Paul Stansifer <paul.stansifer@gmail.com>"]
 
 [dependencies]
@@ -10,6 +10,6 @@ combine = { version = "1.3.0" }
 num = { version = "0.1.32" }
 
 [[bin]]
-name = "odd"
+name = "unseemly"
 path = "src/main.rs"
 test = true
