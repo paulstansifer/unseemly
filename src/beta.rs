@@ -59,18 +59,18 @@ pub fn env_from_beta<'t, Mode: WalkMode<'t>>
                 .set_assoc(&env_from_beta(&*rhs, parts))
         }
         &Basic(ref name_source, ref ty_source) => {
+            //Assoc::new().set(parts.get_term(name_source).unwrap(), )
+            if let LazilyWalkedTerm {term: Atom(ref name), ..} 
+                    = **parts.parts.get_leaf_or_die(name_source) {
+                let LazilyWalkedTerm {term: ref ty_stx, ..}
+                    = **parts.parts.get_leaf_or_die(ty_source);
                         
-            if let Some(& LazilyWalkedTerm {term: Atom(ref name), ..} ) 
-                    = parts.parts.find(name_source) {
-                if let Some(& LazilyWalkedTerm {term: ref ty_stx, ..} )
-                        = parts.parts.find(ty_source) {
-                    Assoc::new().set(*name, Mode::ast_to_out((*ty_stx).clone()))
-                } else {
-                    panic!("Type {:?} not found in {:?}", ty_source, parts);
-                }
+                Assoc::new().set(*name, Mode::ast_to_out((*ty_stx).clone()))        
             } else {
-                panic!("Name {:?} not found in {:?}", name_source, parts);
+                panic!("{:?} is supposed to supply names, but is not an Atom.", 
+                    parts.parts.get_leaf_or_die(name_source).term)
             }
+            
         }
         &SameAs(ref _name_source, ref _ty_source) => {
             panic!("TODO! Not implemented! But should be easy!")

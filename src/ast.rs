@@ -1,6 +1,7 @@
 #![macro_use]
 
 use util::assoc::Assoc;
+use util::mbe::EnvMBE;
 use name::*;
 use beta::Beta;
 use std::iter;
@@ -18,8 +19,8 @@ pub enum Ast<'t> {
     Atom(Name<'t>),
     VariableReference(Name<'t>),
     Shape(Vec<Ast<'t>>),
-    Node(Rc<Form<'t>>, Assoc<Name<'t>, Ast<'t>>),
-    IncompleteNode(Assoc<Name<'t>, Ast<'t>>),
+    Node(Rc<Form<'t>>, EnvMBE<'t, Ast<'t>>),
+    IncompleteNode(EnvMBE<'t, Ast<'t>>),
     ExtendEnv(Box<Ast<'t>>, Beta<'t>)
 }
 
@@ -42,7 +43,7 @@ macro_rules! ast {
         ast!( { $form ; $($part_name => $sub),* } )
     };
     ( { $form:expr; $($part_name:tt => $sub:tt ),* }) => {
-        Node($form, assoc_n!( $( $part_name => ast!($sub) ),* ))
+        Node($form, mbe!( $( $part_name => ast!($sub) ),* ))
     };
     ($e:expr) => { Atom(n($e))}
 }
@@ -78,17 +79,16 @@ impl<'t> fmt::Debug for Ast<'t> {
 }
 
 impl<'t> Ast<'t> {
-    // TODO: this ought have MBE-style support for repetition
     // TODO: this ought to at least warn if we're losing anything other than `Shape`
-    pub fn flatten(&self) -> Assoc<Name<'t>, Ast<'t>> {
+    pub fn flatten(&self) -> EnvMBE<'t, Ast<'t>> {
         match *self {
-            Trivial => Assoc::new(),
-            Atom(_) => Assoc::new(),
-            VariableReference(_) => Assoc::new(),
+            Trivial => EnvMBE::new(),
+            Atom(_) => EnvMBE::new(),
+            VariableReference(_) => EnvMBE::new(),
             Shape(ref v) => {
-                let mut accum = Assoc::new();
+                let mut accum = EnvMBE::new();
                 for sub_a in v {
-                    accum = accum.set_assoc(&sub_a.flatten())
+                    accum = accum.combine_overriding(&sub_a.flatten())
                 }
                 accum
             },

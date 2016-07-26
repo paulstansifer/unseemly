@@ -24,6 +24,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use name::*;
 use util::assoc::Assoc;
+use util::mbe::EnvMBE;
 use ast::Ast;
 use ast::Ast::*;
 use beta::*;
@@ -56,8 +57,8 @@ pub struct LazilyWalkedTerm<'t, Mode: WalkMode<'t>> {
 // only because lazy-rust is unstable 
 
 impl<'t, Mode : WalkMode<'t>> LazilyWalkedTerm<'t, Mode> {
-    pub fn new(t: Ast<'t>) -> LazilyWalkedTerm<'t, Mode> {
-         LazilyWalkedTerm { term: t, res: RefCell::new(None) } 
+    pub fn new(t: Ast<'t>) -> Rc<LazilyWalkedTerm<'t, Mode>> {
+        Rc::new(LazilyWalkedTerm { term: t, res: RefCell::new(None) }) 
     }
     
     fn get_res(&self, cur_node_contents: &LazyWalkReses<'t, Mode>) 
@@ -80,7 +81,7 @@ impl<'t, Mode : WalkMode<'t>> LazilyWalkedTerm<'t, Mode> {
  */
 #[derive(Debug)]
 pub struct LazyWalkReses<'t, Mode: WalkMode<'t>> {
-    pub parts: Assoc<Name<'t>, LazilyWalkedTerm<'t, Mode>>,
+    pub parts: EnvMBE<'t, Rc<LazilyWalkedTerm<'t, Mode>>>,
     pub env: ResEnv<'t, Mode::Out>,
     mode: Mode
 }
@@ -98,7 +99,7 @@ impl<'t, Mode: WalkMode<'t>> Clone for LazyWalkReses<'t, Mode> {
 impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
     pub fn new(mode: Mode, 
                env: ResEnv<'t, Mode::Out>, 
-               parts_unwalked: Assoc<Name<'t>, Ast<'t>>)
+               parts_unwalked: EnvMBE<'t, Ast<'t>>)
             -> LazyWalkReses<'t, Mode> {
         LazyWalkReses {
             env: env,
@@ -108,11 +109,11 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
     }
     
     pub fn get_res(&self, part_name: &Name<'t>) -> Result<Mode::Out, ()> {
-        self.parts.find(part_name).unwrap().get_res(self)
+        self.parts.get_leaf(part_name).unwrap().get_res(self)
     }
     
     pub fn get_term(&self, part_name: &Name<'t>) -> Ast<'t> {
-        self.parts.find(part_name).unwrap().term.clone()
+        self.parts.get_leaf(part_name).unwrap().term.clone()
     }
 }
 
@@ -129,7 +130,7 @@ pub fn walk<'t, Mode: WalkMode<'t>>
                 }
                 
                 &Body(ref n) => {
-                    walk(parts.find(n).unwrap(), mode, env.clone(), 
+                    walk(parts.get_leaf(n).unwrap(), mode, env.clone(), 
                          &LazyWalkReses::new(mode, env.clone(), parts.clone()))
                 }
                 

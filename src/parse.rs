@@ -11,6 +11,7 @@ use std::clone::Clone;
 use ast::Ast;
 use ast::Ast::*;
 use util::assoc::Assoc;
+use util::mbe::EnvMBE;
 use std::rc::Rc;
 use std::marker::PhantomData;
 use beta::Beta;
@@ -271,7 +272,9 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
         
             &Named(ref name, ref f) => {
                 self.descend(f).parse_state(inp).map(|parse_res| 
-                    (IncompleteNode(Assoc::new().set(*name, parse_res.0)), parse_res.1))
+                    (IncompleteNode(EnvMBE::new_from_leaves(
+                        Assoc::new().set(*name, parse_res.0))),
+                     parse_res.1))
             }
             &Scope(ref form) => {
                 self.descend(&form.grammar).parse_state(inp).map(|parse_res|

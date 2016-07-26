@@ -35,12 +35,14 @@ use ast_walk::WalkRule::*;
 use num::bigint;
 use num::bigint::ToBigInt;
 
+
+// TODO: this ought to have some MBE support
 macro_rules! expect_node {
     ( ($node:expr ; $form:expr) $( $n:ident = $name:expr ),* ; $body:expr ) => (
         if let Node(ref f, ref env) = $node {
             if *f == $form { 
                 // This is tied to the signature of `Custom`
-                let ( $( $n ),* ) = ( $( env.find(&n($name)).unwrap() ),* );
+                let ( $( $n ),* ) = ( $( env.get_leaf_or_die(&n($name)) ),* );
                 $body
             } else {
                Err(())

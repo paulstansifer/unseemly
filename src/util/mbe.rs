@@ -1,3 +1,4 @@
+#![macro_use]
 /*
 March By Example: a user-friendly way to handle named subterms under Kleene stars,
  expressed through a special kind of environment.
@@ -22,7 +23,7 @@ The principle is this:
     
 This whole thing nicely generalizes to nesting: we use variable-arity trees instead of lists. 
 
-This also generalizes to not need transcription:
+This also generalizes outside the context of transcription:
  we will store an environment mapping names to variable-arity trees,
   and provide an operation ("march") that, given a set of names
     ("driving names", presumably the names "under the `*`")
@@ -63,6 +64,7 @@ Many interesting macros can be defined simply
 use util::assoc::Assoc;
 use name::*;
 use std::rc::Rc;
+use std::fmt;
 
 /**
  `EnvMBE` is like an environment, 
@@ -77,6 +79,9 @@ use std::rc::Rc;
   is only permitted if they were constructed to repeat the same number of times.
  
 */
+
+// `Clone` needs to traverse the whole `Vec` ):
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct EnvMBE<'t, T> {
     /// Non-repeated values
     leaves: Assoc<Name<'t>, T>,
@@ -91,14 +96,27 @@ pub struct EnvMBE<'t, T> {
     /// Where in `repeats` to look, if we want to traverse for a particular leaf.
     /// We use `.unwrap_or(None)` when looking up into this 
     ///  so we can delete by storing `None`.
-
     leaf_locations: Assoc<Name<'t>, Option<usize>>,
     
     /// The location in `repeats` that represents a specific repetition name.
     named_repeats: Assoc<Name<'t>, Option<usize>>,
 }
 
+/*
+impl<'t, T: Clone + fmt::Debug> fmt::Debug for EnvMBE<'t, T> {
+    fn fmt(&self, )
+    
+}
+*/
 
+impl<'t, T: Clone + fmt::Debug> EnvMBE<'t, T> {
+    pub fn get_leaf_or_die(&self, n: &Name<'t>) -> &T {
+        match self.leaves.find(n) {
+            Some(v) => { v }
+            None => { panic!(" {:?} not found in {:?} (perhaps it is still repeated?)", n, self) }
+        }
+    }
+}
 
 impl<'t, T: Clone> EnvMBE<'t, T> {
     pub fn new() -> EnvMBE<'t, T> {
@@ -172,7 +190,7 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
     pub fn get_leaf(&self, n: &Name<'t>) -> Option<&T> {
         self.leaves.find(n)
     }
-    
+        
     pub fn add_leaf(&mut self, n: Name<'t>, v: T) {
         self.leaves = self.leaves.set(n, v);
     }
@@ -315,4 +333,11 @@ fn test_mbe() {
     assert_eq!(first_sub_mbe.get_leaf(&n("eight")), Some(&(8, 8 - 9000)));
     assert_eq!(first_sub_mbe.get_leaf(&n("x")), None); 
     
+}
+
+// Eventually, this ought to support more complex structures
+macro_rules! mbe {
+    ($($arg:tt)*) => {
+        ::util::mbe::EnvMBE::new_from_leaves(assoc_n!($($arg)*))
+    }
 }

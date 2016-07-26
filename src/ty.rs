@@ -19,6 +19,7 @@ use ast_walk::{walk, LazyWalkReses, WalkMode, WalkRule};
 use ast_walk::WalkRule::*;
 use form::Form;
 use util::assoc::Assoc;
+use util::mbe::EnvMBE;
 use ast::*;
 
 // for macros
@@ -46,12 +47,12 @@ impl<'t> WalkMode<'t> for SynthesizeType {
 
 pub fn synth_type_top<'t>(expr: &Ast<'t>) ->  Result<Ast<'t>, ()> {
     walk(expr, SynthesizeType{}, 
-         Assoc::new(), &LazyWalkReses::new(SynthesizeType{}, Assoc::new(), Assoc::new()))
+         Assoc::new(), &LazyWalkReses::new(SynthesizeType{}, Assoc::new(), EnvMBE::new()))
 }
 
 pub fn synth_type<'t>(expr: &Ast<'t>, env: Assoc<Name<'t>, Ast<'t>>) -> Result<Ast<'t>, ()> {
     walk(expr, SynthesizeType{}, 
-         env, &LazyWalkReses::new(SynthesizeType{}, Assoc::new(), Assoc::new()))
+         env, &LazyWalkReses::new(SynthesizeType{}, Assoc::new(), EnvMBE::new()))
 }
 
 
