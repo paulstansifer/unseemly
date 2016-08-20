@@ -1,5 +1,5 @@
  TODO:
-  [ ] MBE
+  [ ] Traits
   [ ] Parametric types, enums, structs, recursive types
   [ ] Core forms for those types
   [ ] Prelude types, values, and functions (normal and syntax)
@@ -62,24 +62,21 @@ Crucial data structures:
 
   `Form` form.rs
     Everything one needs to know about a language form. Contains:
-     * `FormPat` [parse time] -- grammar (how we know the user used the form)
-     * TODO [typecheck] -- typechecking rule
-     * TODO [phase ??? runtime] -- binding information
-     * TODO [parse time] -- grammar "binding" information (syntax extension)
-     * relative_phase [???] -- phasing information (does this form adjust the phase?)
-     * TODO [phase ??? runtime] -- how to expand this macro
-         or how to evaluate this core form
+     * `grammar : FormPat` [Parse] -- grammar (how we know the user used the form)
+       Also contains:
+       * binding information
+       * grammar "binding" information (syntax extension)
+       * TODO: phase information
+     * `synth_type : WalkRule` [TypeSynth] -- typechecking rule
+     * `eval : WalkRule` [Evaluate] -- evaluation rule
      * TODO [misc] -- pretty-printing information
 
   `Ast` ast.rs
     Syntax, in its logical structure.
-     * `Node` -- A chunk of syntax governed by a `Form`
-     * `Env` -- Typically situated right underneath a `Node`, a map
-     * `ExtendEnv` -- An extension to the environment (an import)
 
   `SynEnv` parse.rs
     Indicates what the grammar is at a particular point. 
-    [Map from [named grammar nodes] to [lists of `Form`] ]
+    [Map from [named grammar nodes] to `FormPat`]
 
 
 

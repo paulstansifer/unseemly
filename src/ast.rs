@@ -19,8 +19,12 @@ pub enum Ast<'t> {
     Atom(Name<'t>),
     VariableReference(Name<'t>),
     Shape(Vec<Ast<'t>>),
+    
+    /// A meaningful chunk of syntax, governed by a form, containing an environment
     Node(Rc<Form<'t>>, EnvMBE<'t, Ast<'t>>),
     IncompleteNode(EnvMBE<'t, Ast<'t>>),
+    
+    /// Variable binding
     ExtendEnv(Box<Ast<'t>>, Beta<'t>)
 }
 
