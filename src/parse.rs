@@ -47,6 +47,9 @@ impl<'t> Token<'t> {
  */
 #[derive(Debug, Clone)]
 pub enum FormPat<'t> {
+    /// Matches 0 tokens, produces the argument
+    Anyways(Ast<'t>),
+
     Literal(&'t str),
     AnyToken,
     AnyAtomicToken,
@@ -103,6 +106,7 @@ impl<'t> std::fmt::Debug for SyntaxExtension<'t> {
 
 macro_rules! form_pat {
     ((lit $e:expr)) => { Literal($e) };
+    ((anyways $a:tt)) => { Anyways(ast!($a)) };
     (at) => { AnyToken };
     (aat) => { AnyAtomicToken };
     (varref) => { VarRef };
@@ -196,6 +200,9 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
         }
 
         match self.f {
+            &Anyways(ref ast) => {
+                combine::value(ast.clone()).parse_lazy(inp)
+            }
             &Literal(exp_tok) => {
                 combine::satisfy(|tok: &'tokens Token<'t>| {tok.is_just(exp_tok)}).parse_state(inp)
                     .map(ast_ify)
