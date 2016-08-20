@@ -298,37 +298,50 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
 use self::FormPat::*;
 
 #[test]
-fn test_parsing() {
+fn test_parsing() {    
     assert_eq!(parse_top(&Seq(vec![AnyToken]), &tokens!("asdf")).unwrap(), ast_shape!("asdf"));
+    
     assert_eq!(parse_top(&Seq(vec![AnyToken, Literal("fork"), AnyToken]),
                &tokens!("asdf" "fork" "asdf")).unwrap(),
                ast_shape!("asdf" "fork" "asdf"));
+               
     assert_eq!(parse_top(&Seq(vec![AnyToken, Literal("fork"), AnyToken]),
                &tokens!("asdf" "fork" "asdf")).unwrap(),
                ast_shape!("asdf" "fork" "asdf"));
+               
     parse_top(&Seq(vec![AnyToken, Literal("fork"), AnyToken]),
           &tokens!("asdf" "knife" "asdf")).unwrap_err();
-    assert_eq!(parse_top(&Seq(vec![Star(Box::new(Literal("*"))), Literal("X")]),
+          
+    assert_eq!(parse_top(&Seq(vec![Star(Box::new(Named(n("c"), Box::new(Literal("*"))))), Literal("X")]),
                      &tokens!("*" "*" "*" "*" "*" "X")).unwrap(),
-               ast_shape!(("*" "*" "*" "*" "*") "X"));
+               ast_shape!({- "c" => ["*", "*", "*", "*", "*"] } "X"));
 }
 
 #[test]
 fn test_advanced_parsing() {    
-    assert_eq!(parse_top(&form_pat!([(star (alt (lit "X"), (lit "O"))), (lit "!")]),
+    assert_eq!(parse_top(&form_pat!([(star (named "c", (alt (lit "X"), (lit "O")))), (lit "!")]),
                          &tokens!("X" "O" "O" "O" "X" "X" "!")).unwrap(),
-               ast_shape!(("X" "O" "O" "O" "X" "X") "!"));
-               
-    let ttt = simple_form("tictactoe", form_pat!( (named "c", (alt (lit "X"), (lit "O")))));
-    let igi = simple_form("igetit", form_pat!( (named "c", (alt (lit "O"), (lit "H")))));
+               ast_shape!({- "c" => ["X", "O", "O", "O", "X", "X"]} "!"));
+
+    assert_eq!(parse_top(
+            &form_pat!((star (biased [(named "c", (anyways "ttt")), (alt (lit "X"), (lit "O"))], 
+                                     [(named "c", (anyways "igi")), (alt (lit "O"), (lit "H"))]))),
+            &tokens!("X" "O" "H" "O" "X" "H" "O")).unwrap(),
+        ast!({ - "c" => ["ttt", "ttt", "igi", "ttt", "ttt", "igi", "ttt"]}));
+              
+    let ttt = simple_form("tictactoe", 
+        form_pat!( [(named "c", (alt (lit "X"), (lit "O")))]));
+    let igi = simple_form("igetit", 
+        form_pat!( [(named "c", (alt (lit "O"), (lit "H")))]));
     
     assert_eq!(parse_top(
-            &form_pat!((star (biased (scope ttt.clone()), (scope igi.clone())))),
+            &form_pat!((star (named "outer", (biased (scope ttt.clone()), (scope igi.clone()))))),
             &tokens!("X" "O" "H" "O" "X" "H" "O")).unwrap(),
-        ast_shape!({ttt.clone(); ["c" => "X"]} {ttt.clone(); ["c" => "O"]} 
-                   {igi.clone(); ["c" => "H"]} {ttt.clone(); ["c" => "O"]} 
-                   {ttt.clone(); ["c" => "X"]} {igi; ["c" => "H"]}
-                   {ttt; ["c" => "O"]}));
+        ast!({ - "outer" => 
+            [{ttt.clone(); ["c" => "X"]}, {ttt.clone(); ["c" => "O"]},
+             {igi.clone(); ["c" => "H"]}, {ttt.clone(); ["c" => "O"]},
+             {ttt.clone(); ["c" => "X"]}, {igi; ["c" => "H"]},
+             {ttt; ["c" => "O"]}]}));
 
     let pair_form = simple_form("pair", form_pat!([(named "lhs", (lit "a")),
                                                    (named "rhs", (lit "b"))]));
@@ -348,7 +361,7 @@ fn test_extensible_parsing() {
     fn synex<'t>(s: &SynEnv<'t>) -> SynEnv<'t> {
         
         assoc_n!(
-            "a" => form_pat!((star (alt (lit "AA"), [(lit "Back"), (call "o"), (lit ".")]))),
+            "a" => form_pat!((star (named "c", (alt (lit "AA"), [(lit "Back"), (call "o"), (lit ".")])))),
             "b" => form_pat!((lit "BB"))
         ).set_assoc(&s)
     }
@@ -358,13 +371,13 @@ fn test_extensible_parsing() {
                
                
     let orig = assoc_n!(
-        "o" => form_pat!((star (alt (lit "O"), [(lit "Extend"), (extend "a", synex), (lit ".")])))
+        "o" => form_pat!((star (named "c", (alt (lit "O"), [(lit "Extend"), (extend "a", synex), (lit ".")]))))
     );
     
     assert_eq!(
         parse(&form_pat!((call "o")), orig.clone(),
             &tokens!("O" "O" "Extend" "AA" "AA" "Back" "O" "." "AA" "." "O")).unwrap(),
-        ast_shape!("O" "O" ("Extend" ("AA" "AA" ("Back" ("O") ".") "AA") ".") "O"));
+        ast!({- "c" => ["O", "O", ("Extend" {- "c" => ["AA", "AA", ("Back" {- "c" => ["O"]} "."), "AA"]} "."), "O"]}));
 
     print!("{:?}\n", parse(&form_pat!((call "o")), orig.clone(),
         &tokens!("O" "O" "Extend" "AA" "AA" "Back" "AA" "." "AA" "." "O")));

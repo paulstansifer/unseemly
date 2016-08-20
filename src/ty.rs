@@ -69,7 +69,7 @@ fn test_type_synth() {
                Ok(ast!("integer")));
                
     assert_eq!(synth_type(&ast!({body.clone() ; 
-                                     ["irrelevant" => {untypeable.clone() ; "-"},
+                                     ["irrelevant" => {untypeable.clone() ; },
                                       "body" => (vr "x")]}),
                           simple_ty_env.clone()),
                Ok(ast!("integer")));

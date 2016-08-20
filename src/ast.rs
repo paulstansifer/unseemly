@@ -39,11 +39,14 @@ macro_rules! ast {
     ( (vr $var:expr) ) => { VariableReference(n($var)) };
     ( (, $interp:expr)) => { $interp };
     ( ( $( $list:tt )* ) ) => { ast_shape!($($list)*)};
-    ( { $form:expr; [ $($part_name:tt => $sub:tt ),* ] }) => {
-        ast!( { $form ; $($part_name => $sub),* } )
+    ( { - $($mbe_arg:tt)* } ) => {
+        IncompleteNode(mbe!( $($mbe_arg)* ))
     };
-    ( { $form:expr; $($part_name:tt => $sub:tt ),* }) => {
-        Node($form, mbe!( $( $part_name => ast!($sub) ),* ))
+    ( { $form:expr; [ $($mbe_arg:tt)* ] }) => {
+        ast!( { $form ; $($mbe_arg)* } )
+    };
+    ( { $form:expr; $($mbe_arg:tt)* }) => {
+        Node($form, mbe!( $($mbe_arg)* ))
     };
     ($e:expr) => { Atom(n($e))}
 }
@@ -53,17 +56,17 @@ impl<'t> fmt::Debug for Ast<'t> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Trivial => { write!(f, "⨉") },
-            Atom(ref n) => { write!(f, "⋅{:?}⋅", n) },
+            Atom(ref n) => { write!(f, "∘{:?}∘", n) },
             VariableReference(ref v) => { write!(f, "{:?}", v)}
             Shape(ref v) => {
-                try!(write!(f, "["));
+                try!(write!(f, "("));
                 let mut first = true;
                 for elt in v {
                     if !first { try!(write!(f, " ")) }
                     try!(elt.fmt(f));
                     first = false;
                 }
-                write!(f, "]")
+                write!(f, ")")
             },
             Node(ref form, ref body) => { 
                 write!(f, "{{ ({:?}); {:?} }}", form.name, body)
@@ -77,6 +80,9 @@ impl<'t> fmt::Debug for Ast<'t> {
         }
     }
 }
+
+
+
 
 impl<'t> Ast<'t> {
     // TODO: this ought to at least warn if we're losing anything other than `Shape`
@@ -100,13 +106,87 @@ impl<'t> Ast<'t> {
             },
             ExtendEnv(ref body, _) => body.flatten()
         }
-    }
+    }    
 }
 
 // This is used by combine::many, which is used by the Star parser
 impl<'t> iter::FromIterator<Ast<'t>> for Ast<'t> {
     fn from_iter<I: IntoIterator<Item=Ast<'t>>>(i: I) -> Self {
-        Shape(i.into_iter().collect())
+        IncompleteNode(
+            EnvMBE::new_from_anon_repeat(
+                i.into_iter().map(|a| a.flatten()).collect()))
     }
 }
 
+
+use std::iter::FromIterator;
+
+
+
+/* These macros generate `EnvMBE<Ast>`s, not arbitrary `EnvMBE`s, 
+    which is a little un-abstract, but is the main usage. */
+
+
+
+/*
+ * Wait a second, I'm writing in Rust right now! I'll use an MBE macro to implement an MBE literal! 
+ */
+macro_rules! mbe_one_name {
+    ($k:tt => [@ $n:tt $($elt:tt),*]) => {
+        ::util::mbe::EnvMBE::new_from_named_repeat(
+            n(expr_ify!($n)),
+            vec![ $( mbe_one_name!($k => $elt) ),* ]
+        )
+    };
+    
+    ($k:tt => [$($elt:tt),*]) => {
+        ::util::mbe::EnvMBE::new_from_anon_repeat(
+            vec![ $( mbe_one_name!($k => $elt) ),* ])
+    };
+    
+    // For parsing reasons, we only accept expressions that are TTs.
+    // It's hard to generalize the `mbe!` interface so that it accepts exprs 
+    // or `[]`-surrounded trees of them.
+    ($k:tt => $leaf:tt) => {
+        ::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => ast!($leaf)))
+    }
+}
+
+
+// Eventually, this ought to support more complex structures
+macro_rules! mbe {
+    ( $( $lhs:tt => $rhs:tt ),* ) => {{
+        let single_name_mbes = vec![ $( mbe_one_name!($lhs => $rhs) ),*];
+        let mut res = ::util::mbe::EnvMBE::new();
+        for m in &single_name_mbes {
+            res = res.merge(m);
+        }
+        res
+    }}
+}
+
+
+
+/*
+ * This is also sort of a test of MBE, since we need `Ast`s to make them with the macros
+ *
+ * Suppose we have the following series of `Ast`s:
+ * [b = 8] [a = [1 2], b = 8] [a = [3 4 5], b = 8]
+ *
+ * We should turn them into the following `Ast`
+ * [a = [[] [1 2] [3 4 5]], b = [8 8 8]]
+ */
+#[test]
+fn test_combine_from_kleene_star() {
+    let parse_parts = vec![ast!({ - "b" => "8.0"}),
+                           ast!({ - "a" => ["1", "2"], "b" => "8.1"}),
+                           ast!({ - "a" => ["1", "2", "3"], "b" => "8.2"})];
+    let parsed = Ast::from_iter(parse_parts);
+    
+    let mut expected_mbe = 
+        mbe!("a" => [@"triple" [], ["1", "2"], ["1", "2", "3"]],
+             "b" => [@"triple" "8.0", "8.1", "8.2"]);
+    expected_mbe.anonimize_repeat(n("triple"));
+    
+    assert_eq!(parsed, IncompleteNode(expected_mbe));
+}

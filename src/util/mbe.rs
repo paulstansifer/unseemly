@@ -81,11 +81,11 @@ use std::fmt;
 */
 
 // `Clone` needs to traverse the whole `Vec` ):
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(Eq, Debug, Clone)]
 pub struct EnvMBE<'t, T> {
     /// Non-repeated values
     leaves: Assoc<Name<'t>, T>,
-    
+
     /// Outer vec holds distinct repetitions 
     ///  (i.e. differently-named, or entirely unnamed repetitions)
     /// Note that some of the entries may be obsolete; 
@@ -102,9 +102,45 @@ pub struct EnvMBE<'t, T> {
     named_repeats: Assoc<Name<'t>, Option<usize>>,
 }
 
+impl <'t, T: PartialEq> PartialEq for EnvMBE<'t, T> {
+   fn eq(&self, other: &EnvMBE<'t, T>) -> bool {
+       fn assoc_eq_modulo_none<K : PartialEq + Clone, V: PartialEq>
+               (lhs: &Assoc<K, Option<V>>, rhs: &Assoc<K, Option<V>>)
+               -> bool {
+           for (k, v_maybe) in lhs.iter_pairs() {
+               if let &Some(ref v) = v_maybe {
+                   if let Some(&Some(ref other_v)) = rhs.find(k) {
+                       if !(v == other_v) { return false; }
+                   } else { return false; }                   
+               }
+           }
+           
+           for (other_k, other_v_maybe) in rhs.iter_pairs() {
+               if let &Some(ref other_v) = other_v_maybe {
+                   if let Some(&Some(ref v)) = rhs.find(other_k) {
+                       if !(v == other_v) { return false; }
+                   } else { return false; }                   
+               }
+           }
+           return true;
+       }
+       
+       // This ought to handle permutations of `repeats` 
+       // (matched with permutations of the indices in the assocs)
+       // but that's hard.
+       
+       self.leaves == other.leaves 
+       && self.repeats == other.repeats 
+       && assoc_eq_modulo_none(&self.leaf_locations, &other.leaf_locations)
+       && assoc_eq_modulo_none(&self.named_repeats, &other.named_repeats)
+   }    
+}
+
 /*
 impl<'t, T: Clone + fmt::Debug> fmt::Debug for EnvMBE<'t, T> {
-    fn fmt(&self, )
+    fn fmt(&self, ) {
+        
+    }
     
 }
 */
@@ -137,6 +173,21 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
         }
     }
     
+    pub fn new_from_anon_repeat(r: Vec<EnvMBE<'t, T>>) -> EnvMBE<'t, T> {
+        let mut res = EnvMBE::new();
+        res.add_anon_repeat(r);
+        res
+    }
+    
+    pub fn new_from_named_repeat(n: Name<'t>, r: Vec<EnvMBE<'t, T>>) -> EnvMBE<'t, T> {
+        let mut res = EnvMBE::new();
+        res.add_named_repeat(n, r);
+        res        
+    }
+    
+    /// Combine two `EnvMBE`s whose names (both environment names and repeat names) are disjoint,
+    /// or just overwrite the contents of the previous one.
+    /// This should maybe not be `pub` if we can avoid it.
     /// Note: ideally, the larger one should be on the LHS.
     pub fn combine_overriding(&self, rhs: &EnvMBE<'t,T>) -> EnvMBE<'t, T> {
         let adjust_rhs_by = self.repeats.len();
@@ -152,7 +203,35 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
             named_repeats: self.named_repeats.set_assoc(
                 &rhs.named_repeats.map(&|idx_opt| idx_opt.map(|idx| idx+adjust_rhs_by)))
         }
+    }
+    
+    /// Combine two `EnvMBE`s whose leaves should be disjoint, but which can contain
+    /// named repeats with the same name. This should make sense for combining the results of
+    /// matching two different chunks of a patern.
+    pub fn merge(&self, rhs: &EnvMBE<'t, T>) -> EnvMBE<'t, T> {
+        let mut res = self.clone();
         
+        let mut rhs_idx_is_named : Vec<bool> = rhs.repeats.iter().map(|_| false).collect();
+        
+        // This could be made more efficient by just reusing the `Rc`s instead of cloning the 
+        // arrays, but that would require reworking the interface.
+        
+        for (n, rep_idx) in rhs.named_repeats.iter_pairs() {
+            if let &Some(rep_idx) = rep_idx {
+                res.add_named_repeat(*n, (*rhs.repeats[rep_idx]).clone());
+                rhs_idx_is_named[rep_idx] = true;
+            }
+        }
+        
+        for (idx, rep) in rhs.repeats.iter().enumerate() {
+            if !rhs_idx_is_named[idx] {
+                res.add_anon_repeat((**rep).clone());
+            }
+        }
+        
+        res.leaves = res.leaves.set_assoc(&rhs.leaves);
+        
+        res        
     }
     
     /// Given `driving_names`, marches the whole set of names that can march with them.
@@ -200,14 +279,14 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
         let mut already_placed_repeats = ::std::collections::HashSet::<Name<'t>>::new();
 
         for sub_mbe in sub {
-            for &leaf_name in sub_mbe.leaf_locations.iter_keys()
+            for leaf_name in sub_mbe.leaf_locations.iter_keys()
                     .chain(sub_mbe.leaves.iter_keys()) {
                 if !already_placed_leaves.contains(&leaf_name) {
                     self.leaf_locations = self.leaf_locations.set(leaf_name, Some(idx));
                     already_placed_leaves.insert(leaf_name);
                 } 
             }
-            for &repeat_name in sub_mbe.named_repeats.iter_keys() {
+            for repeat_name in sub_mbe.named_repeats.iter_keys() {
                 if !already_placed_repeats.contains(&repeat_name) {
                     self.named_repeats = self.named_repeats.set(repeat_name, Some(idx));
                     already_placed_repeats.insert(repeat_name);
@@ -217,6 +296,8 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
     }
     
     pub fn add_named_repeat(&mut self, n: Name<'t>, sub: Vec<EnvMBE<'t, T>>) {
+        if sub.len() == 0 { return; } // no-op-ish, but keep the repeats clean (good for `eq`)
+        
         match self.named_repeats.find(&n).unwrap_or(&None) {
             &None => {
                 let new_index = self.repeats.len();
@@ -243,10 +324,17 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
     }
     
     pub fn add_anon_repeat(&mut self, sub: Vec<EnvMBE<'t, T>>) {
+        if sub.len() == 0 { return; } // no-op-ish, but keep the repeats clean (good for `eq`)
+
         let new_index = self.repeats.len();
         self.update_leaf_locs(new_index, &sub);
         
         self.repeats.push(Rc::new(sub));
+    }
+    
+    pub fn anonimize_repeat(&mut self, n: Name<'t>) {
+        // Now you can't find me!
+        self.named_repeats = self.named_repeats.set(n, None);
     }
     
     
@@ -331,13 +419,5 @@ fn test_mbe() {
     
     assert_eq!(first_sub_mbe.get_leaf(&n("y")), Some(&(9001, 1)));
     assert_eq!(first_sub_mbe.get_leaf(&n("eight")), Some(&(8, 8 - 9000)));
-    assert_eq!(first_sub_mbe.get_leaf(&n("x")), None); 
-    
-}
-
-// Eventually, this ought to support more complex structures
-macro_rules! mbe {
-    ($($arg:tt)*) => {
-        ::util::mbe::EnvMBE::new_from_leaves(assoc_n!($($arg)*))
-    }
+    assert_eq!(first_sub_mbe.get_leaf(&n("x")), None);     
 }
