@@ -11,7 +11,6 @@ use std::fmt;
 
 // this is a functional data structure; dropping it on the floor is usually bad
 #[must_use] 
-#[derive(PartialEq, Eq)]
 pub struct Assoc<K: PartialEq, V> {
     pub n: Option<Rc<AssocNode<K, V>>>
 }
@@ -22,9 +21,29 @@ impl<K : PartialEq + Clone, V: Clone> Clone for Assoc<K, V> {
     }
 }
 
+impl <K : PartialEq + Clone, V: PartialEq> PartialEq for Assoc<K, V> {
+    fn eq(&self, other: &Assoc<K, V>) -> bool {
+        for (k, v) in self.iter_pairs() {
+            if let Some(other_v) = other.find(k) {
+                if !(v == other_v) { return false; }
+            } else { return false; }
+        }
+        
+        for (other_k, other_v) in other.iter_pairs() {
+            if let Some(v) = other.find(other_k) {
+                if !(v == other_v) { return false; }
+            } else { return false; }
+        }
+        
+        return true;
+    }
+}
+
+impl <K : PartialEq + Clone, V: PartialEq> Eq for Assoc<K, V> {}
 
 
-#[derive(PartialEq, Eq, Clone)]
+
+#[derive(Clone)]
 pub struct AssocNode<K : PartialEq, V> {
     pub k: K,
     pub v: V,
@@ -51,20 +70,28 @@ impl<K : PartialEq, V> Assoc<K, V> {
                 k: k, v: v, next: Assoc { n: self.n.clone() }
         }))}
     }
-    
+        
     pub fn new() -> Assoc<K, V> {
         Assoc{ n: None }
     }
     
-    pub fn iter_keys<'assoc>(&'assoc self) -> KeyIter<'assoc, K, V> {
-        KeyIter{ cur: self }
+    pub fn iter_pairs<'assoc>(&'assoc self) -> PairIter<'assoc, K, V> {
+        PairIter{ seen: Assoc::new(), cur: self }
     }
     
-    pub fn iter_values<'assoc>(&'assoc self) -> ValueIter<'assoc, K, V> {
-        ValueIter{ cur: self }
-    }
-
 } 
+
+impl<K: PartialEq + Clone, V> Assoc<K,V> {
+    pub fn iter_keys<'assoc>(&'assoc self) -> Box<Iterator<Item=K> +'assoc> {
+        Box::new(self.iter_pairs().map(|p| (*p.0).clone()))
+    }
+}
+
+impl<K: PartialEq + Clone, V: Clone> Assoc<K,V> {
+    pub fn iter_values<'assoc>(&'assoc self) -> Box<Iterator<Item=V> + 'assoc> {
+        Box::new(self.iter_pairs().map(|p| (*p.1).clone()))
+    }
+}
 
 impl<K: PartialEq + fmt::Debug, V: fmt::Debug> Assoc<K, V> {
     pub fn find_or_panic<'assoc, 'f>(&'assoc self, target: &'f K) -> &'assoc V {
@@ -116,6 +143,26 @@ impl<K : PartialEq + Clone, V : Clone> Assoc<K, V> {
             }
         }
     }
+    
+    /* This isn't right without deduplication before hand...
+    pub fn filter(&self, f: &Fn(&V) -> bool) -> Assoc<K, V> {
+        match self.n {
+            None => Assoc{ n: None },
+            Some(ref node) => {
+                let v = node.v.clone();
+                if f(&v) {
+                    Assoc{ 
+                        n: Some(Rc::new(AssocNode {
+                            k: node.k.clone(), v: v, 
+                            next: node.next.filter(f)
+                        }))
+                    }
+                } else {
+                    node.next.filter(f)
+                }
+            }
+        }        
+    }*/
 }
 
 
@@ -153,6 +200,30 @@ impl<'assoc, K: PartialEq, V> Iterator for ValueIter<'assoc, K, V> {
     }
 }
 
+pub struct PairIter<'assoc, K: PartialEq + 'assoc, V: 'assoc> {
+    seen: Assoc<K, ()>,
+    cur: &'assoc Assoc<K, V>
+}
+
+impl<'assoc, K: PartialEq + Clone, V> Iterator for PairIter<'assoc, K, V> {
+    type Item = (&'assoc K, &'assoc V);
+    fn next(&mut self) -> Option<(&'assoc K, &'assoc V)> {
+        match self.cur.n {
+            None => None,
+            Some(ref node) => {
+                self.cur = &(*node).next;
+                if self.seen.find(&(*node).k).is_none() { // have we done this key already?
+                    self.seen = self.seen.set((*node).k.clone(), ()); 
+                    Some((&(*node).k, &(*node).v))
+                } else {
+                    self.next() // try the next one
+                }
+            }
+        }
+    }
+}
+
+
 #[test]
 fn test_assoc() {
     let mt : Assoc<i32, i32> = Assoc::new();
@@ -170,4 +241,24 @@ fn test_assoc() {
     assert_eq!(a2.find(&5), Some(&6));
     assert_eq!(a_override.find(&5), Some(&500));
     assert_eq!(a_override.find(&6), Some(&7));
+}
+
+
+#[test]
+fn test_assoc_eq() {
+    let mt : Assoc<i32, i32> = Assoc::new();
+    let a1 = mt.set(5,6);
+    let a2 = a1.set(6,7);
+    let a_override = a2.set(5,500);
+    
+    let a2_opposite = mt.set(6,7).set(5,6);
+    let a_override_direct = mt.set(5,500).set(6,7);
+    
+    assert_eq!(mt, Assoc::new());
+    assert_eq!(a1, a1);
+    assert!(a1 != mt);
+    assert_eq!(a2, a2);
+    assert_eq!(a2, a2_opposite);
+    assert_eq!(a_override, a_override_direct);
+    assert!(a2 != a_override);
 }
