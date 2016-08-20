@@ -81,7 +81,7 @@ use std::fmt;
 */
 
 // `Clone` needs to traverse the whole `Vec` ):
-#[derive(Eq, Debug, Clone)]
+#[derive(Eq, Clone)]
 pub struct EnvMBE<'t, T> {
     /// Non-repeated values
     leaves: Assoc<Name<'t>, T>,
@@ -136,14 +136,31 @@ impl <'t, T: PartialEq> PartialEq for EnvMBE<'t, T> {
    }    
 }
 
-/*
+
 impl<'t, T: Clone + fmt::Debug> fmt::Debug for EnvMBE<'t, T> {
-    fn fmt(&self, ) {
-        
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.leaves.empty() && self.repeats.len() == 0 {
+            write!(f, "MBE∅")
+        } else {
+            try!(write!(f, "MBE{{ lf: {:?}, rp: [", self.leaves));
+            let mut first = true;
+            for (i, rep) in self.repeats.iter().enumerate() {
+                if !first { try!(write!(f, ", ")); }
+                first = false;
+                
+                // is it a named repeat?
+                for (name, idx_maybe) in self.named_repeats.iter_pairs() {
+                    if let &Some(idx) = idx_maybe {
+                        if idx == i { try!(write!(f, "({:?}) ", name)); }
+                    }
+                }
+                try!(write!(f, "{:?}", rep));
+            }
+            write!(f, "]}}")
+        }
     }
-    
 }
-*/
+
 
 impl<'t, T: Clone + fmt::Debug> EnvMBE<'t, T> {
     pub fn get_leaf_or_die(&self, n: &Name<'t>) -> &T {

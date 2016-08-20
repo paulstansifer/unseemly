@@ -64,6 +64,8 @@ impl<K : PartialEq, V> Assoc<K, V> {
         }
     }
     
+    pub fn empty(&self) -> bool { self.n.is_none() }
+    
     pub fn set(&self, k: K, v: V) -> Assoc<K, V> {
         Assoc{
             n: Some(Rc::new(AssocNode {
