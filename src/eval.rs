@@ -24,7 +24,7 @@ pub use self::Value::*;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Closure<'t> {
     pub body: Ast<'t>,
-    pub param: Name<'t>,
+    pub params: Vec<Name<'t>>,
     pub env: Assoc<Name<'t>, Value<'t>>
 }
 

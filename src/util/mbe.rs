@@ -163,12 +163,21 @@ impl<'t, T: Clone + fmt::Debug> fmt::Debug for EnvMBE<'t, T> {
 
 
 impl<'t, T: Clone + fmt::Debug> EnvMBE<'t, T> {
-    pub fn get_leaf_or_die(&self, n: &Name<'t>) -> &T {
+    pub fn get_leaf_or_panic(&self, n: &Name<'t>) -> &T {
         match self.leaves.find(n) {
             Some(v) => { v }
             None => { panic!(" {:?} not found in {:?} (perhaps it is still repeated?)", n, self) }
         }
     }
+    
+    pub fn get_rep_leaf_or_panic(&self, n: &Name<'t>) -> Vec<&T> {
+        let mut res = vec![];
+        for r in &*self.repeats[self.leaf_locations.find_or_panic(n).unwrap()] {
+            res.push(r.get_leaf_or_panic(n))
+        }
+        res
+    } 
+
 }
 
 impl<'t, T: Clone> EnvMBE<'t, T> {
@@ -254,10 +263,13 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
     /// Given `driving_names`, marches the whole set of names that can march with them.
     /// (Adding an additional name to `driving_names` will result in the same behavior,
     ///  or a panic, in the case that the new name can't be marched with the existing ones.)
-    pub fn march_all(&self, driving_names: Vec<Name<'t>>) -> Vec<EnvMBE<T>> {
+    /// 
+    /// This takes a `Vec` of `Name` instead of just one because a particular name might
+    /// not be transcribed at all here, and thus can't tell us how to repeat.
+    pub fn march_all(&self, driving_names: &Vec<Name<'t>>) -> Vec<EnvMBE<'t, T>> {
         let mut first_march : Option<(usize, Name<'t>)> = None;
         
-        for &n in &driving_names {
+        for &n in driving_names {
             match (first_march, self.leaf_locations.find(&n).unwrap_or(&None)) {
                  (_, &None) => {}
                  (None, &Some(loc)) => { first_march = Some((loc, n)) }
@@ -286,11 +298,11 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
     pub fn get_leaf(&self, n: &Name<'t>) -> Option<&T> {
         self.leaves.find(n)
     }
-        
+            
     pub fn add_leaf(&mut self, n: Name<'t>, v: T) {
         self.leaves = self.leaves.set(n, v);
     }
-    
+        
     fn update_leaf_locs(&mut self, idx: usize, sub: &Vec<EnvMBE<'t, T>>) {
         let mut already_placed_leaves = ::std::collections::HashSet::<Name<'t>>::new();
         let mut already_placed_repeats = ::std::collections::HashSet::<Name<'t>>::new();
@@ -365,7 +377,7 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
             leaf_locations: self.leaf_locations.clone(),
             named_repeats: self.named_repeats.clone()
         }
-    }
+    } 
 }
 
 
@@ -393,13 +405,13 @@ fn test_mbe() {
     mbe.add_anon_repeat(big_mbe);
 
     
-    for (sub_mbe, teen) in mbe.march_all(vec![n("t"), n("eight")]).iter().zip(vec![11,12,13]) {
+    for (sub_mbe, teen) in mbe.march_all(&vec![n("t"), n("eight")]).iter().zip(vec![11,12,13]) {
         assert_eq!(sub_mbe.get_leaf(&n("eight")), Some(&8));
         assert_eq!(sub_mbe.get_leaf(&n("nine")), Some(&9));
         assert_eq!(sub_mbe.get_leaf(&n("t")), Some(&teen));
         assert_eq!(sub_mbe.get_leaf(&n("y")), None);
         
-        for (sub_sub_mbe, big) in sub_mbe.march_all(vec![n("y"), n("eight")]).iter().zip(vec![9001, 9002]) {
+        for (sub_sub_mbe, big) in sub_mbe.march_all(&vec![n("y"), n("eight")]).iter().zip(vec![9001, 9002]) {
             assert_eq!(sub_sub_mbe.get_leaf(&n("eight")), Some(&8));
             assert_eq!(sub_sub_mbe.get_leaf(&n("nine")), Some(&9));
             assert_eq!(sub_sub_mbe.get_leaf(&n("t")), Some(&teen));
@@ -415,13 +427,13 @@ fn test_mbe() {
     
     mbe.add_named_repeat(n("low_two_digits"), neg_teens_mbe);
     
-    for (sub_mbe, teen) in mbe.march_all(vec![n("t"), n("nt"), n("eight")]).iter().zip(vec![11,12,13]) {
+    for (sub_mbe, teen) in mbe.march_all(&vec![n("t"), n("nt"), n("eight")]).iter().zip(vec![11,12,13]) {
         assert_eq!(sub_mbe.get_leaf(&n("eight")), Some(&8));
         assert_eq!(sub_mbe.get_leaf(&n("nine")), Some(&9));
         assert_eq!(sub_mbe.get_leaf(&n("t")), Some(&teen));
         assert_eq!(sub_mbe.get_leaf(&n("nt")), Some(&-teen));
 
-        for (sub_sub_mbe, big) in sub_mbe.march_all(vec![n("y"), n("eight")]).iter().zip(vec![9001, 9002]) {
+        for (sub_sub_mbe, big) in sub_mbe.march_all(&vec![n("y"), n("eight")]).iter().zip(vec![9001, 9002]) {
             assert_eq!(sub_sub_mbe.get_leaf(&n("eight")), Some(&8));
             assert_eq!(sub_sub_mbe.get_leaf(&n("nine")), Some(&9));
             assert_eq!(sub_sub_mbe.get_leaf(&n("t")), Some(&teen));
@@ -432,7 +444,7 @@ fn test_mbe() {
     
     let mapped_mbe = mbe.map(&|x| (x, x - 9000));
     
-    let first_sub_mbe = &mapped_mbe.march_all(vec![n("y")])[0];
+    let first_sub_mbe = &mapped_mbe.march_all(&vec![n("y")])[0];
     
     assert_eq!(first_sub_mbe.get_leaf(&n("y")), Some(&(9001, 1)));
     assert_eq!(first_sub_mbe.get_leaf(&n("eight")), Some(&(8, 8 - 9000)));

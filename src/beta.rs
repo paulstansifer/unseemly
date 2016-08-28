@@ -31,6 +31,7 @@ pub enum Beta<'t> {
     /// (This can be used write `let` without requiring a type annotation.)
     SameAs(Name<'t>, Name<'t>),
     Shadow(Box<Beta<'t>>, Box<Beta<'t>>),
+    ShadowAll(Box<Beta<'t>>, Vec<Name<'t>>),
     Nothing
 }
 
@@ -41,10 +42,30 @@ impl<'t> fmt::Debug for Beta<'t> {
         match *self {
             Nothing => { write!(f, "∅") },
             Shadow(ref lhs, ref rhs) => { write!(f, "({:?} ▷ {:?})", lhs, rhs) },
+            ShadowAll(ref sub_beta, ref drivers) => { 
+                write!(f, "( {:?} ▷ ... by {:?})", sub_beta, drivers)
+            }
             Basic(ref name, ref ty) => { write!(f, "{:?}:{:?}", name, ty) }
             SameAs(ref name, ref ty_source) => { 
                 write!(f, "{:?}={:?}", name, ty_source)
             }
+        }
+    }
+}
+
+impl<'t> Beta<'t> {
+    pub fn names_mentioned(&self) -> Vec<Name<'t>> {
+        match self {
+            &Nothing => { vec![] }
+            &Shadow(ref lhs, ref rhs) => { 
+                let mut res = lhs.names_mentioned();
+                let mut r_res = rhs.names_mentioned();
+                res.append(&mut r_res);
+                res
+            }
+            &ShadowAll(_, ref drivers) => { drivers.clone() }
+            &Basic(ref n, ref v) => { vec![*n, *v] }
+            &SameAs(ref n, ref v_source) => { vec![*n, *v_source] }
         }
     }
 }
@@ -58,17 +79,24 @@ pub fn env_from_beta<'t, Mode: WalkMode<'t>>
             env_from_beta(&*lhs, parts)
                 .set_assoc(&env_from_beta(&*rhs, parts))
         }
+        &ShadowAll(ref sub_beta, ref drivers) => {
+            let mut res = Assoc::new();
+            for parts in parts.march_all(drivers) {
+                res = res.set_assoc(&env_from_beta(&*sub_beta, &parts));
+            }
+            res
+        }
         &Basic(ref name_source, ref ty_source) => {
             //Assoc::new().set(parts.get_term(name_source).unwrap(), )
             if let LazilyWalkedTerm {term: Atom(ref name), ..} 
-                    = **parts.parts.get_leaf_or_die(name_source) {
+                    = **parts.parts.get_leaf_or_panic(name_source) {
                 let LazilyWalkedTerm {term: ref ty_stx, ..}
-                    = **parts.parts.get_leaf_or_die(ty_source);
+                    = **parts.parts.get_leaf_or_panic(ty_source);
                         
                 Assoc::new().set(*name, Mode::ast_to_out((*ty_stx).clone()))        
             } else {
                 panic!("{:?} is supposed to supply names, but is not an Atom.", 
-                    parts.parts.get_leaf_or_die(name_source).term)
+                    parts.parts.get_leaf_or_panic(name_source).term)
             }
             
         }
@@ -88,6 +116,13 @@ macro_rules! beta_connector {
 
 macro_rules! beta {
     ( [] ) => { Nothing };
+    ( [* $body:tt ]) => {
+        {
+            let sub = beta!($body);
+            let drivers = sub.names_mentioned();
+            ShadowAll(Box::new(sub), drivers)
+        }
+    };
     ( [ $name:tt $connector:tt $t:tt
         $(, $name_cdr:tt $connector_cdr:tt $t_cdr:tt )*
          ] ) => { 

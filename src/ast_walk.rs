@@ -79,7 +79,7 @@ impl<'t, Mode : WalkMode<'t>> LazilyWalkedTerm<'t, Mode> {
  * Package containing enough information to walk on-demand.
  * Contents probably shouldn't be `pub`...
  */
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LazyWalkReses<'t, Mode: WalkMode<'t>> {
     pub parts: EnvMBE<'t, Rc<LazilyWalkedTerm<'t, Mode>>>,
     pub env: ResEnv<'t, Mode::Out>,
@@ -109,11 +109,30 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
     }
     
     pub fn get_res(&self, part_name: &Name<'t>) -> Result<Mode::Out, ()> {
-        self.parts.get_leaf(part_name).unwrap().get_res(self)
+        self.parts.get_leaf_or_panic(part_name).get_res(self)
+    }
+
+    pub fn get_rep_res(&self, part_name: &Name<'t>) -> Result<Vec<Mode::Out>, ()> {
+        self.parts.get_rep_leaf_or_panic(part_name)
+            .iter().map( |&lwt| lwt.get_res(self)).collect()
     }
     
     pub fn get_term(&self, part_name: &Name<'t>) -> Ast<'t> {
-        self.parts.get_leaf(part_name).unwrap().term.clone()
+        self.parts.get_leaf_or_panic(part_name).term.clone()
+    }
+    
+    pub fn get_rep_term(&self, part_name: &Name<'t>) -> Vec<Ast<'t>> {
+        self.parts.get_rep_leaf_or_panic(part_name)
+            .iter().map( |&lwt| lwt.term.clone()).collect()
+    }
+    
+    pub fn march_all(&self, driving_names: &Vec<Name<'t>>) -> Vec<LazyWalkReses<'t, Mode>> {
+        let marched  = self.parts.march_all(driving_names);
+        let mut res = vec![];
+        for marched_parts in marched.into_iter() {
+            res.push(LazyWalkReses{env: self.env.clone(), parts: marched_parts, mode: self.mode });
+        }
+        res
     }
 }
 

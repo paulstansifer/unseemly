@@ -40,9 +40,21 @@ macro_rules! ast {
     ( (import $beta:tt $sub:tt) ) => {
         ExtendEnv(Box::new(ast!($sub)), beta!($beta))
     };
+    /* // not sure we'll need this
+    ( (* $env:expr => $new_env:ident / $($n:expr),* ; $($sub_args:tt)*) ) => {
+        {
+            let mut res = vec![];
+            
+            for $new_env in $env.march_all( &vec![$($n),*] ) {
+                res.push(ast!($sub))
+            }
+            res.reverse();
+            Shape(res)
+        }
+    };*/
     ( (vr $var:expr) ) => { VariableReference(n($var)) };
     ( (, $interp:expr)) => { $interp };
-    ( ( $( $list:tt )* ) ) => { ast_shape!($($list)*)};
+    ( ( $( $list:tt )* ) ) => { ast_shape!($($list)*)}; // TODO: maybe we should use commas for consistency
     ( { - $($mbe_arg:tt)* } ) => {
         IncompleteNode(mbe!( $($mbe_arg)* ))
     };
@@ -136,6 +148,25 @@ use std::iter::FromIterator;
  * Wait a second, I'm writing in Rust right now! I'll use an MBE macro to implement an MBE literal! 
  */
 macro_rules! mbe_one_name {
+    // `elt` ought to have an interpolation that references `new_env`
+    /* TYPE PUN ALERT: $env has to be something with a `march_all` method;
+        there's no trait enforcing this.
+       
+       But wait, isn't preventing this kind of nonsense the whole point of this project?
+       
+       Well, you know the old saying: 
+        "While the mice are implementing the cat, the mice will play."    
+    */
+    ($k:tt => [* $env:expr =>($($n:expr),*) $new_env:ident : $elt:tt]) => { 
+        {
+            let mut v = vec![];
+            let marchee = vec![$(n($n)),*];
+            for $new_env in $env.march_all(&marchee).into_iter() {
+                v.push( mbe_one_name!($k => $elt));
+            }
+            ::util::mbe::EnvMBE::new_from_anon_repeat(v)            
+        }
+    };
     ($k:tt => [@ $n:tt $($elt:tt),*]) => {
         ::util::mbe::EnvMBE::new_from_named_repeat(
             n(expr_ify!($n)),
@@ -146,6 +177,15 @@ macro_rules! mbe_one_name {
     ($k:tt => [$($elt:tt),*]) => {
         ::util::mbe::EnvMBE::new_from_anon_repeat(
             vec![ $( mbe_one_name!($k => $elt) ),* ])
+    };
+    
+    // since `Ast`s go on the RHS, we have to have a distinctive interpolation syntax
+    ($k:tt => (,seq $e:expr)) => { 
+        {
+            let mut v = vec![];
+            for elt in $e.iter { v.push( mbe_one_name!($k => elt) ); }
+            ::util::mbe::EnvMBE::new_from_anon_repeat(v)
+        }
     };
     
     // For parsing reasons, we only accept expressions that are TTs.
@@ -193,4 +233,25 @@ fn test_combine_from_kleene_star() {
     expected_mbe.anonimize_repeat(n("triple"));
     
     assert_eq!(parsed, IncompleteNode(expected_mbe));
+}
+
+
+#[test]
+fn test_star_construction() {
+    let env = mbe!( "a" => ["1", "2"]);
+    
+    assert_eq!(
+        ast!( { - "x" => [* env =>("a") env : (, env.get_leaf_or_panic(&n("a")).clone())]} ),
+        ast!( { - "x" => ["1", "2"] }));
+    
+
+    
+    let env = mbe!( "a" => [@"duo" "1", "2"], "b" => [@"duo" "11", "22"]);
+    
+    assert_eq!(
+        ast!( { - "x" => [* env =>("a", "b") env : 
+                            ((, env.get_leaf_or_panic(&n("b")).clone()) 
+                             (, env.get_leaf_or_panic(&n("a")).clone()))]} ),
+        ast!( { - "x" => [("11" "1"), ("22" "2")] }));
+    
 }

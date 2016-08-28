@@ -36,13 +36,13 @@ use num::bigint;
 use num::bigint::ToBigInt;
 
 
+
 // TODO: this ought to have some MBE support
 macro_rules! expect_node {
-    ( ($node:expr ; $form:expr) $( $n:ident = $name:expr ),* ; $body:expr ) => (
-        if let Node(ref f, ref env) = $node {
+    ( ($node:expr ; $form:expr) $env:ident ; $body:expr ) => (
+        // This is tied to the signature of `Custom`
+        if let Node(ref f, ref $env) = $node {
             if *f == $form { 
-                // This is tied to the signature of `Custom`
-                let ( $( $n ),* ) = ( $( env.get_leaf_or_die(&n($name)) ),* );
                 $body
             } else {
                Err(())
@@ -50,6 +50,15 @@ macro_rules! expect_node {
         } else {
             Err(())
         }
+    )
+}
+
+macro_rules! destructure_node {
+    ( ($node:expr ; $form:expr) $( $n:ident = $name:expr ),* ; $body:expr ) => (
+        expect_node!( ($node ; $form) env ; {
+            let ( $( $n ),* ) = ( $( env.get_leaf_or_panic(&n($name)) ),* );
+            $body
+        })
     )
 }
 
@@ -66,7 +75,7 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
     let fn_type = 
         simple_form("fn", 
             form_pat!((delim "[", "[",
-                [ (named "param", (call "type")), (lit "->"), 
+                [ (star (named "param", (call "type"))), (lit "->"), 
                   (named "ret", (call "type") ) ])));
     
                   
@@ -76,26 +85,28 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
 
     let main_expr_forms = forms_to_form_pat![
         typed_form!("lambda",
-            /* syntax */
+            /* syntax */ /* TODO: add comma separators to the syntax! */
             (delim ".[", "[", [
-                (named "param", aat), (lit ":"), 
-                (named "p_t", (call "type")), (lit "."),
+                               (star [(named "param", aat), (lit ":"), 
+                                      (named "p_t", (call "type"))]), (lit "."),
                 (named "body",
-                    (import ["param" : "p_t"], (call "expr")))]),
+                    (import [* ["param" : "p_t"]], (call "expr")))]),
             /* type */
-            Custom(Box::new( move | part_types | {                    
+            Custom(Box::new( move | part_types | {
                 let lambda_type : Ast<'t> = 
                     ast!({ fn_type_1.clone() ;
-                        [ "param" => (, part_types.get_term(&n("p_t"))),
-                          "ret" => (, try!(part_types.get_res(&n("body"))))]}); 
+                         "param" => [* part_types =>("param") part_types :
+                                       (, part_types.get_term(&n("p_t")))],
+                         "ret" => (, try!(part_types.get_res(&n("body"))))});
                 Ok(lambda_type)})),
             /* evaluation */
             Custom(Box::new( move | part_values | {
                 Ok(Function(Rc::new(Closure {
                     body: part_values.get_term(&n("body")),
-                    param: match part_values.get_term(&n("param")) {
-                        Atom(n) => n, _ => { panic!("internal error"); }
-                    },
+                    params: 
+                    part_values.get_rep_term(&n("param")).iter().map(|ast|
+                        match ast { &Atom(n) => n, _ => { panic!("internal error!") } } 
+                    ).collect(),
                     env: part_values.env
                 })))
             }))
@@ -103,22 +114,33 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
         
         typed_form!("apply",
             [(named "rator", (call "expr")), 
-             (named "rand", (call "expr"))],
+             (star (named "rand", (call "expr")))],
             Custom(Box::new(move | part_types |
                 expect_node!( (try!(part_types.get_res(&n("rator"))) ; 
                                fn_type_0)
-                    input = "param", output = "ret";
+                    env;
+                    {
+                        for (input, expected) in env.get_rep_leaf_or_panic(&n("param")).iter().zip(
+                            &try!(part_types.get_rep_res(&n("rand")))
+                        ) {
+                            if input != &expected { return Err(()); }
+                        }
                     
-                    if input == &try!(part_types.get_res(&n("rand"))) {
-                        Ok(output.clone())
-                    } else {
-                        Err(())
-                    }))),
+                        Ok(env.get_leaf_or_panic(&n("ret")).clone())
+                    }
+                ))),
             Custom(Box::new( move | part_values | {
+                print!("Trying to evaluate {:?}\n", part_values);
                 match try!(part_values.get_res(&n("rator"))) {
                     Function(clos) => {
-                        eval(&clos.body, clos.env.set(clos.param, 
-                            try!(part_values.get_res(&n("rand")))))
+                        let mut env = clos.env.clone();
+                        for (p, a) in clos.params.iter().zip(
+                            try!(part_values.get_rep_res(&n("rand")))
+                        ) {
+                            env = env.set(*p, a);
+                        }
+                        
+                        eval(&clos.body, env)
                     },
                     _ => { 
                         panic!("Type soundness bug: attempted to invoke non-function")
@@ -186,7 +208,7 @@ fn form_grammar_tests() {
                      &tokens!([""; "ident" "->" "ident"])).unwrap(),
                ast!({ find_form(&cse, "type", "fn"); 
                    ["ret" => {find_form(&cse, "type", "ident") ; []},
-                    "param" => {find_form(&cse, "type", "ident") ; []}]}));
+                    "param" => [{find_form(&cse, "type", "ident") ; []}]]}));
 }
 
 
@@ -194,11 +216,11 @@ fn form_grammar_tests() {
 fn form_expect_node_test() {
     let cse = make_core_syn_env();
     let ast = ast!({ find_form(&cse, "expr", "apply"); 
-        ["rand" => (vr "f"), "rator" => (vr "x")]});
-    let _ = expect_node!( ( ast ; find_form(&cse, "expr", "apply")) expect_f = "rand", expect_x = "rator";
+        ["rand" => [(vr "f")], "rator" => (vr "x")]});
+    let _ = expect_node!( ( ast ; find_form(&cse, "expr", "apply")) env; //expect_f = "rand", expect_x = "rator";
         {
-            assert_eq!(expect_f, &ast!((vr "f")));
-            assert_eq!(expect_x, &ast!((vr "x")));
+            assert_eq!(env.get_rep_leaf_or_panic(&n("rand")), vec![&ast!((vr "f"))]);
+            assert_eq!(env.get_leaf_or_panic(&n("rator")), &ast!((vr "x")));
             Ok(())
         });
 }
@@ -220,12 +242,12 @@ fn form_type_tests() {
     
     assert_eq!(synth_type(&ast!( 
         { lam.clone() ;
-            [ "param" => "y", 
-              "p_t" => "float",
-              "body" => (import [ "param" : "p_t" ] (vr "x"))]}),
+            [ "param" => [@"p" "y"], 
+              "p_t" => [@"p" "float"],
+              "body" => (import [* [ "param" : "p_t" ]] (vr "x"))]}),
         simple_ty_env.clone()),
         Ok(ast!({ fun.clone() ; 
-            [ "param" => "float", "ret" => "integer" ]})));
+            [ "param" => ["float"], "ret" => "integer" ]})));
 }
 
 #[test]
@@ -250,10 +272,10 @@ fn form_eval_tests() {
             [
              "rator" => 
                 { lam.clone() ;
-                    [ "param" => "y", 
-                      "p_t" => "integer",
-                      "body" => (import [ "param" : "p_t" ]  (vr "w"))]},
-             "rand" => (vr "x")
+                    "param" => [@"p" "y"], 
+                    "p_t" => [@"p" "integer"],
+                    "body" => (import [* [ "param" : "p_t" ]]  (vr "w"))},
+             "rand" => [(vr "x")]
             ]}),
         simple_env.clone()),
         Ok(Int(99.to_bigint().unwrap())));
@@ -264,13 +286,11 @@ fn form_eval_tests() {
             [
              "rator" => 
                 { lam.clone() ;
-                    [ "param" => "y", 
-                      "p_t" => "integer",
-                      "body" => (import [ "param" : "p_t" ]  (vr "y"))]},
-             "rand" => (vr "x")
+                    "param" => [@"p" "y"], 
+                    "p_t" => [@"p" "integer"],
+                    "body" => (import [* [ "param" : "p_t" ]]  (vr "y"))},
+             "rand" => [(vr "x")]
             ]}),
         simple_env.clone()),
         Ok(Int(18.to_bigint().unwrap())));
-    
-    
 }
