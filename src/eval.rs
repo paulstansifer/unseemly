@@ -28,7 +28,7 @@ pub struct Closure<'t> {
     pub env: Assoc<Name<'t>, Value<'t>>
 }
 
-pub struct BIF<'t>(pub Rc<(Fn(&Value<'t>) -> Value<'t>)>);
+pub struct BIF<'t>(pub Rc<(Fn(Vec<Value<'t>>) -> Value<'t>)>);
 
 impl<'t> PartialEq for BIF<'t> {
     fn eq(&self, other: &BIF<'t>) -> bool {

@@ -71,7 +71,7 @@ macro_rules! forms_to_form_pat {
 
 /* Note that both types and terms are represented as Ast<'t> */
 
-fn make_core_syn_env<'t>() -> SynEnv<'t> {
+pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
     let fn_type = 
         simple_form("fn", 
             form_pat!((delim "[", "[",
@@ -142,8 +142,12 @@ fn make_core_syn_env<'t>() -> SynEnv<'t> {
                         
                         eval(&clos.body, env)
                     },
-                    _ => { 
-                        panic!("Type soundness bug: attempted to invoke non-function")
+                    BuiltInFunction(::eval::BIF(f)) => {
+                        Ok(f(try!(part_values.get_rep_res(&n("rand")))))
+                    }
+                    other => { 
+                        panic!("Type soundness bug: attempted to invoke {:?} 
+                        as if it were a function", other)
                     }
                 }
             })))
