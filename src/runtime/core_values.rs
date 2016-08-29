@@ -1,8 +1,8 @@
 
 use ast::Ast;
 use ast::Ast::*;
-use eval::{Value, BIF, eval};
-use eval::Value::*;
+use runtime::eval::{Value, BIF, eval};
+use runtime::eval::Value::*;
 use parse::SynEnv;
 use core_forms::{find_form, make_core_syn_env};
 use util::assoc::Assoc;

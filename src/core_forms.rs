@@ -29,7 +29,7 @@ use util::assoc::Assoc;
 use ast::*;
 use std::rc::Rc;
 use ty::*;
-use eval::*;
+use runtime::eval::*;
 use beta::*;
 use ast_walk::WalkRule::*;
 use num::bigint;
@@ -142,7 +142,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                         
                         eval(&clos.body, env)
                     },
-                    BuiltInFunction(::eval::BIF(f)) => {
+                    BuiltInFunction(::runtime::eval::BIF(f)) => {
                         Ok(f(try!(part_values.get_rep_res(&n("rand")))))
                     }
                     other => { 

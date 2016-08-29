@@ -9,7 +9,7 @@ use util::assoc::Assoc;
 use std::rc::Rc;
 use ast_walk::WalkRule;
 use ty::SynthesizeType;
-use eval::Evaluate;
+use runtime::eval::Evaluate;
 
 pub type NMap<'t, T> = Assoc<Name<'t>, T>;
 
