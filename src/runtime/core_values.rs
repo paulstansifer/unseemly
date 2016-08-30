@@ -32,6 +32,7 @@ macro_rules! mk_type {
     ( $se:expr, $n:tt ) => { ast!($n) };
 }
 
+/* Define a typed function */
 macro_rules! tf {
     ( $se:expr, [ ( $($param_t:tt),* ) -> $ret_t:tt ] , 
        ( $($param_p:pat),* ) => $body:expr) => {

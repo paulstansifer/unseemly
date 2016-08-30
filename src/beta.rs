@@ -30,7 +30,10 @@ pub enum Beta<'t> {
     /// which should be typechecked, and whose type the new name gets.
     /// (This can be used write `let` without requiring a type annotation.)
     SameAs(Name<'t>, Name<'t>),
+    /// Shadow the names from two `Beta`s.
     Shadow(Box<Beta<'t>>, Box<Beta<'t>>),
+    /// Shadow the names from a `Beta`, repeated.
+    /// The `Vec` should always be equal to `names_mentioned(...)` of the `Beta`.
     ShadowAll(Box<Beta<'t>>, Vec<Name<'t>>),
     Nothing
 }
@@ -87,7 +90,6 @@ pub fn env_from_beta<'t, Mode: WalkMode<'t>>
             res
         }
         &Basic(ref name_source, ref ty_source) => {
-            //Assoc::new().set(parts.get_term(name_source).unwrap(), )
             if let LazilyWalkedTerm {term: Atom(ref name), ..} 
                     = **parts.parts.get_leaf_or_panic(name_source) {
                 let LazilyWalkedTerm {term: ref ty_stx, ..}

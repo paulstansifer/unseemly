@@ -36,7 +36,7 @@ use num::bigint;
 use num::bigint::ToBigInt;
 
 
-
+/* Unpacking `Ast`s is a pain, so here's a macro for it*/
 // TODO: this ought to have some MBE support
 macro_rules! expect_node {
     ( ($node:expr ; $form:expr) $env:ident ; $body:expr ) => (
@@ -150,17 +150,28 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                         as if it were a function", other)
                     }
                 }
-            })))
+            })))/*,
+            
+        typed_form!("match",
+            []
+    )*/
         // The first use for syntax quotes will be in macro definitions.
         // But we will someday need them as expressions.                    
     ];
 
     assoc_n!(
+        /*"pat"*/
         "expr" => Biased(Box::new(main_expr_forms), Box::new(VarRef)),
         "type" => forms_to_form_pat![
             fn_type.clone(),
             simple_form("ident", form_pat!((lit "ident"))),
             simple_form("int", form_pat!((lit "int"))),
+            simple_form("enum", form_pat!([(lit "enum"),
+                (delim "[", "[", (star [(named "name", aat), 
+                    (delim "[", "[", [(star (named "component", (call "type")))])]))])),
+            simple_form("struct", form_pat!([(lit "struct"),
+                (delim "{", "{", (star [(named "field", aat), (lit ":"), 
+                                        (named "part", (call "type"))]))])),
             
             // TODO: these should be user-definable
             simple_form("list", 
@@ -177,7 +188,10 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
 
 
 
-
+/**
+ * Mostly for testing purposes, this looks up forms by name.
+ * In the "real world", programmers look up forms by syntax, using a parser. 
+ */
 pub fn find_form<'t>(se: &SynEnv<'t>, nt: &str, form_name: &str)
          -> Rc<Form<'t>> {             
 

@@ -8,6 +8,10 @@ use ast_walk::{walk, WalkMode, WalkRule, LazyWalkReses};
 use form::Form;
 use std;
 
+/**
+ * Values in Unseemly.
+ */
+
 #[derive(Debug,Clone,PartialEq)]
 pub enum Value<'t> {
     Int(BigInt),
@@ -59,6 +63,8 @@ impl<'t> WalkMode<'t> for Evaluate {
         &f.eval
     }
 
+    // It's not possible to construct the environment of the body of a function 
+    // at the point it's written down in code.
     fn automatically_extend_env() -> bool { false }
 }
 

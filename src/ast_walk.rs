@@ -14,11 +14,12 @@ The most interesting `WalkRule`, `Custom`,
  specifies an arbitrary function on the results of walking its subterms.
 Subterms are walked lazily, since not all of them are even evaluable/typeable,
  and they might need to be walked in a specific order.
-
-
-
  */
 
+
+/*
+TODO: generalize to handle patterns, which are negated expressions.
+*/
 use form::Form;
 use std::rc::Rc; 
 use std::cell::RefCell;
@@ -30,6 +31,7 @@ use ast::Ast::*;
 use beta::*;
 use parse::FormPat::AnyToken; // for making simple forms for testing
 use std::fmt::Debug;
+
 
 pub enum WalkRule<'t, Mode: WalkMode<'t>> {
     /** 
@@ -45,7 +47,7 @@ pub enum WalkRule<'t, Mode: WalkMode<'t>> {
 
 pub use self::WalkRule::*;
 
-
+/** An environment of walked things. */
 pub type ResEnv<'t, Out> = Assoc<Name<'t>, Out>;
 
 #[derive(Debug)]
@@ -54,8 +56,7 @@ pub struct LazilyWalkedTerm<'t, Mode: WalkMode<'t>> {
     pub res: RefCell<Option<Result<Mode::Out, ()>>>
 }
 
-// only because lazy-rust is unstable 
-
+// We only implement this because lazy-rust is unstable 
 impl<'t, Mode : WalkMode<'t>> LazilyWalkedTerm<'t, Mode> {
     pub fn new(t: Ast<'t>) -> Rc<LazilyWalkedTerm<'t, Mode>> {
         Rc::new(LazilyWalkedTerm { term: t, res: RefCell::new(None) }) 
@@ -76,11 +77,15 @@ impl<'t, Mode : WalkMode<'t>> LazilyWalkedTerm<'t, Mode> {
 
 
 /** 
- * Package containing enough information to walk on-demand.
+ * Package containing enough information to the subforms of some form on-demand.
+ *
+ * It is safe to have unwalkable subforms, as long as nothing ever refers to them.
+ * 
  * Contents probably shouldn't be `pub`...
  */
 #[derive(Debug, Clone)]
 pub struct LazyWalkReses<'t, Mode: WalkMode<'t>> {
+    /// Things that we have walked and that we might walk
     pub parts: EnvMBE<'t, Rc<LazilyWalkedTerm<'t, Mode>>>,
     pub env: ResEnv<'t, Mode::Out>,
     mode: Mode
@@ -108,15 +113,18 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
         }
     }
     
+    /** The result of walking the subform named `part_name`. This is memoized. */
     pub fn get_res(&self, part_name: &Name<'t>) -> Result<Mode::Out, ()> {
         self.parts.get_leaf_or_panic(part_name).get_res(self)
     }
 
+    /** Like `get_res`, but for subforms that are repeated at depth 1. Sort of a hack. */
     pub fn get_rep_res(&self, part_name: &Name<'t>) -> Result<Vec<Mode::Out>, ()> {
         self.parts.get_rep_leaf_or_panic(part_name)
             .iter().map( |&lwt| lwt.get_res(self)).collect()
     }
     
+    /** The subform named `part_name`, without any processing. */
     pub fn get_term(&self, part_name: &Name<'t>) -> Ast<'t> {
         self.parts.get_leaf_or_panic(part_name).term.clone()
     }
@@ -126,6 +134,7 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
             .iter().map( |&lwt| lwt.term.clone()).collect()
     }
     
+    /** March by example, turning a repeated set of part names into one LWR per repetition. */
     pub fn march_all(&self, driving_names: &Vec<Name<'t>>) -> Vec<LazyWalkReses<'t, Mode>> {
         let marched  = self.parts.march_all(driving_names);
         let mut res = vec![];
@@ -136,6 +145,9 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
     }
 }
 
+/**
+ * Make a `Mode::Out` by walking `expr` in the environment `env`.
+ */
 pub fn walk<'t, Mode: WalkMode<'t>>
     (expr: &Ast<'t>, mode: Mode, env: ResEnv<'t, Mode::Out>,
      cur_node_contents: &LazyWalkReses<'t, Mode>)
@@ -166,14 +178,6 @@ pub fn walk<'t, Mode: WalkMode<'t>>
         }
         
         ExtendEnv(ref body, ref beta) => {
-            /*
-             While `Beta`s are great for typechecking,
-              evaluation sometimes extends environments
-               in ways that they can't handle.
-             (In particular, λ causes the `Ast` containing the `ExtendEnv`
-               to be moved to a context where its `Beta`s are meaningless!
-              The `Custom` implementation extends the environment manually instead.)
-             */
             let new_env = if Mode::automatically_extend_env() {
                 env.set_assoc(&env_from_beta(beta, cur_node_contents))
             } else {
@@ -194,7 +198,18 @@ pub trait WalkMode<'t> : Copy + Debug {
     
     fn get_walk_rule<'f>(&'f Form<'t>) -> &'f WalkRule<'t, Self>;
 
-    /** should the walker extend the environment based on imports? */
+    /**
+     Should the walker extend the environment based on imports?
+    
+     While `Beta`s are great for typechecking,
+      evaluation sometimes extends environments
+       in ways that they can't handle.
+     (In particular, λ causes the `Ast` containing the `ExtendEnv`
+       to be moved to a context where its `Beta`s are meaningless!
+     If `!automatically_extend_env()`, the `Custom` implementation
+      must extend the environment properly to be safe.
+     */
+
     fn automatically_extend_env() -> bool { false }
     
     fn ast_to_out(a: Ast<'t>) -> Self::Out {

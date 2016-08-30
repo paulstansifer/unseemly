@@ -162,24 +162,6 @@ impl<'t, T: Clone + fmt::Debug> fmt::Debug for EnvMBE<'t, T> {
 }
 
 
-impl<'t, T: Clone + fmt::Debug> EnvMBE<'t, T> {
-    pub fn get_leaf_or_panic(&self, n: &Name<'t>) -> &T {
-        match self.leaves.find(n) {
-            Some(v) => { v }
-            None => { panic!(" {:?} not found in {:?} (perhaps it is still repeated?)", n, self) }
-        }
-    }
-    
-    pub fn get_rep_leaf_or_panic(&self, n: &Name<'t>) -> Vec<&T> {
-        let mut res = vec![];
-        for r in &*self.repeats[self.leaf_locations.find_or_panic(n).unwrap()] {
-            res.push(r.get_leaf_or_panic(n))
-        }
-        res
-    } 
-
-}
-
 impl<'t, T: Clone> EnvMBE<'t, T> {
     pub fn new() -> EnvMBE<'t, T> {
         EnvMBE {
@@ -190,6 +172,7 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
         }
     }
     
+    /// Creates an `EnvMBE` without any repetition
     pub fn new_from_leaves(l: Assoc<Name<'t>, T>) -> EnvMBE<'t, T> {
         EnvMBE {
             leaves: l,
@@ -199,12 +182,14 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
         }
     }
     
+    /// Creates an `EnvMBE` containing a single anonymous repeat
     pub fn new_from_anon_repeat(r: Vec<EnvMBE<'t, T>>) -> EnvMBE<'t, T> {
         let mut res = EnvMBE::new();
         res.add_anon_repeat(r);
         res
     }
     
+    /// Creates an `EnvMBE` containing a single named repeat
     pub fn new_from_named_repeat(n: Name<'t>, r: Vec<EnvMBE<'t, T>>) -> EnvMBE<'t, T> {
         let mut res = EnvMBE::new();
         res.add_named_repeat(n, r);
@@ -295,33 +280,15 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
         result
     }
     
+    /// Get a non-repeated thing in the enviornment
     pub fn get_leaf(&self, n: &Name<'t>) -> Option<&T> {
         self.leaves.find(n)
     }
-            
+    
+
+    /// Extend with a non-repeated thing     
     pub fn add_leaf(&mut self, n: Name<'t>, v: T) {
         self.leaves = self.leaves.set(n, v);
-    }
-        
-    fn update_leaf_locs(&mut self, idx: usize, sub: &Vec<EnvMBE<'t, T>>) {
-        let mut already_placed_leaves = ::std::collections::HashSet::<Name<'t>>::new();
-        let mut already_placed_repeats = ::std::collections::HashSet::<Name<'t>>::new();
-
-        for sub_mbe in sub {
-            for leaf_name in sub_mbe.leaf_locations.iter_keys()
-                    .chain(sub_mbe.leaves.iter_keys()) {
-                if !already_placed_leaves.contains(&leaf_name) {
-                    self.leaf_locations = self.leaf_locations.set(leaf_name, Some(idx));
-                    already_placed_leaves.insert(leaf_name);
-                } 
-            }
-            for repeat_name in sub_mbe.named_repeats.iter_keys() {
-                if !already_placed_repeats.contains(&repeat_name) {
-                    self.named_repeats = self.named_repeats.set(repeat_name, Some(idx));
-                    already_placed_repeats.insert(repeat_name);
-                }
-            }
-        }
     }
     
     pub fn add_named_repeat(&mut self, n: Name<'t>, sub: Vec<EnvMBE<'t, T>>) {
@@ -377,7 +344,48 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
             leaf_locations: self.leaf_locations.clone(),
             named_repeats: self.named_repeats.clone()
         }
+    }
+    
+    
+    
+    
+    fn update_leaf_locs(&mut self, idx: usize, sub: &Vec<EnvMBE<'t, T>>) {
+        let mut already_placed_leaves = ::std::collections::HashSet::<Name<'t>>::new();
+        let mut already_placed_repeats = ::std::collections::HashSet::<Name<'t>>::new();
+
+        for sub_mbe in sub {
+            for leaf_name in sub_mbe.leaf_locations.iter_keys()
+                    .chain(sub_mbe.leaves.iter_keys()) {
+                if !already_placed_leaves.contains(&leaf_name) {
+                    self.leaf_locations = self.leaf_locations.set(leaf_name, Some(idx));
+                    already_placed_leaves.insert(leaf_name);
+                } 
+            }
+            for repeat_name in sub_mbe.named_repeats.iter_keys() {
+                if !already_placed_repeats.contains(&repeat_name) {
+                    self.named_repeats = self.named_repeats.set(repeat_name, Some(idx));
+                    already_placed_repeats.insert(repeat_name);
+                }
+            }
+        }
     } 
+}
+
+impl<'t, T: Clone + fmt::Debug> EnvMBE<'t, T> {
+    pub fn get_leaf_or_panic(&self, n: &Name<'t>) -> &T {
+        match self.leaves.find(n) {
+            Some(v) => { v }
+            None => { panic!(" {:?} not found in {:?} (perhaps it is still repeated?)", n, self) }
+        }
+    }
+    
+    pub fn get_rep_leaf_or_panic(&self, n: &Name<'t>) -> Vec<&T> {
+        let mut res = vec![];
+        for r in &*self.repeats[self.leaf_locations.find_or_panic(n).unwrap()] {
+            res.push(r.get_leaf_or_panic(n))
+        }
+        res
+    }
 }
 
 

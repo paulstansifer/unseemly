@@ -13,11 +13,17 @@ use runtime::eval::Evaluate;
 
 pub type NMap<'t, T> = Assoc<Name<'t>, T>;
 
-
+/// Unseemly language form
 pub struct Form<'t> {
+    /// The name of the form. Mainly for internal use.
     pub name: Name<'t>,
+    /** The grammar the programmer should use to invoke this form. 
+     * This contains information about bindings and syntax extension; this is where it belongs!
+     */
     pub grammar: FormPat<'t>,
+    /** From a type environment, construct the type of this term. */
     pub synth_type: WalkRule<'t, SynthesizeType>,
+    /** From a value environment, evaluate this term.*/
     pub eval: WalkRule<'t, Evaluate>,
     pub relative_phase: Assoc<Name<'t>, i32>, /* 2^31 macro phases ought to be enough for anybody */
 }
