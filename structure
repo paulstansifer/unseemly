@@ -1,10 +1,11 @@
  TODO:
-  [ ] Traits
+  [ ] Kinds
   [ ] Parametric types, enums, structs, recursive types
   [ ] Core forms for those types
   [ ] Prelude types, values, and functions (normal and syntax)
   [ ] Syntax pattern-matching
   [ ] Macros (procedural!)
+  [ ] Traits  
   [ ] Syntax quote
   [ ] Fancy bindings
   [ ] Modules

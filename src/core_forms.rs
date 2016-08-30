@@ -160,7 +160,14 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
         "type" => forms_to_form_pat![
             fn_type.clone(),
             simple_form("ident", form_pat!((lit "ident"))),
-            simple_form("int", form_pat!((lit "int")))
+            simple_form("int", form_pat!((lit "int"))),
+            
+            // TODO: these should be user-definable
+            simple_form("list", 
+                form_pat!([(lit "list"), (lit "<"), (named "elt", (call "type")), (lit ">")])),
+            simple_form("tuple", 
+                form_pat!([(lit "tuple"), 
+                    (lit "<"), (star (named "elt", (call "type"))), (lit ">")]))
         ]
     )
 }

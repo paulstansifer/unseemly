@@ -84,6 +84,7 @@ pub enum FormPat<'t> {
     /**
      * This is where syntax gets extensible.
      * Parses its body in the named syntactic environment.
+     * TODO: do we need both this and `ComputeSyntax`?
      */
     SynImport(Name<'t>, SyntaxExtension<'t>),
     NameImport(Box<FormPat<'t>>, Beta<'t>),
