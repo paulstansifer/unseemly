@@ -61,7 +61,7 @@ impl<'t> WalkMode<'t> for Evaluate {
     type Elt = Value<'t>;
     
     fn get_walk_rule<'f>(f: &'f Form<'t>) -> &'f WalkRule<'t, Self> {
-        &f.eval
+        f.eval.pos()
     }
 
     // It's not possible to construct the environment of the body of a function 
@@ -72,6 +72,28 @@ impl<'t> WalkMode<'t> for Evaluate {
         ::ast_walk::var_lookup(n, env)
     }
 }
+
+#[derive(Clone, Copy, Debug)]
+pub struct NegativeEvaluate{}
+
+impl<'t> WalkMode<'t> for NegativeEvaluate {
+    type Out = Assoc<Name<'t>, Value<'t>>;
+    type Elt = Value<'t>;
+    
+    fn get_walk_rule<'f>(f: &'f Form<'t>) -> &'f WalkRule<'t, Self> {
+        &f.eval.neg()
+    }
+
+    // It's not possible to construct the environment of the body of a function 
+    // at the point it's written down in code.
+    fn automatically_extend_env() -> bool { false }
+    
+    fn var_to_out(n: &Name<'t>, env: &Assoc<Name<'t>, Value<'t>>) 
+            -> Result<Assoc<Name<'t>, Value<'t>>, ()> {
+        ::ast_walk::var_bind(n, env)
+    }
+}
+
 
 pub fn eval_top<'t>(expr: &Ast<'t>) -> Result<Value<'t>, ()> {
     eval(expr, Assoc::new())

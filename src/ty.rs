@@ -38,20 +38,37 @@ impl<'t> WalkMode<'t> for SynthesizeType {
     type Elt = Ast<'t>;
     
     fn get_walk_rule<'f>(f: &'f Form<'t>) -> &'f WalkRule<'t, Self> {
-        &f.synth_type
+        f.synth_type.pos()
     }
     
     fn automatically_extend_env() -> bool { true }
     
-    fn ast_to_elt(a: Ast<'t>) -> Ast<'t> { a }
+    fn ast_to_elt(a: Ast<'t>) -> Self::Elt { a }
     
-    fn var_to_out(n: &Name<'t>, env: &Assoc<Name<'t>, Ast<'t>>) -> Result<Ast<'t>, ()> {
+    fn var_to_out(n: &Name<'t>, env: &Assoc<Name<'t>, Self::Elt>) -> Result<Self::Out, ()> {
         ::ast_walk::var_lookup(n, env)
     }
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct NegSynthesizeType {} 
+pub struct NegativeSynthesizeType {} 
+
+impl<'t> WalkMode<'t> for NegativeSynthesizeType {
+    type Out = Assoc<Name<'t>, Ast<'t>>;
+    type Elt = Ast<'t>;
+    
+    fn get_walk_rule<'f>(f: &'f Form<'t>) -> &'f WalkRule<'t, Self> {
+        &f.synth_type.neg()
+    }
+    
+    fn automatically_extend_env() -> bool { true }
+    
+    fn ast_to_elt(a: Ast<'t>) -> Self::Elt { a }
+    
+    fn var_to_out(n: &Name<'t>, env: &Assoc<Name<'t>, Self::Elt>) -> Result<Self::Out, ()> {
+        ::ast_walk::var_bind(n, env)
+    }
+}
 
 
 

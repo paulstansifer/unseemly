@@ -38,7 +38,6 @@ use beta::*;
 use parse::FormPat::AnyToken; // for making simple forms for testing
 use std::fmt::Debug;
 
-
 pub enum WalkRule<'t, Mode: WalkMode<'t>> {
     /** 
      * A function from the types/values of the *parts* of this form
@@ -236,3 +235,10 @@ pub fn var_lookup<'t, Elt: Debug + Clone>(n: &Name<'t>, env: &Assoc<Name<'t>, El
         -> Result<Elt, ()> {
     Ok((*env.find(n).expect(format!("Name {:?} unbound in {:?}", n, env).as_str())).clone())
 }
+
+/** var_to_out, for negative walks where Out == Assoc<Name<'t>, Elt> */
+pub fn var_bind<'t, Elt: Debug + Clone>(n: &Name<'t>, env: &Assoc<Name<'t>, Elt>) 
+        -> Result<Assoc<Name<'t>, Elt>, ()> {
+    Ok(Assoc::new().set(*n, env.find(&negative_ret_val).unwrap().clone()))
+}
+

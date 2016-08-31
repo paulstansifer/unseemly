@@ -8,8 +8,8 @@ use ast::Ast;
 use util::assoc::Assoc;
 use std::rc::Rc;
 use ast_walk::WalkRule;
-use ty::SynthesizeType;
-use runtime::eval::Evaluate;
+use ty::{SynthesizeType, NegativeSynthesizeType};
+use runtime::eval::{Evaluate, NegativeEvaluate};
 
 pub type NMap<'t, T> = Assoc<Name<'t>, T>;
 
@@ -22,11 +22,28 @@ pub struct Form<'t> {
      */
     pub grammar: FormPat<'t>,
     /** From a type environment, construct the type of this term. */
-    pub synth_type: WalkRule<'t, SynthesizeType>,
+    pub synth_type: EitherPN<WalkRule<'t, SynthesizeType>, WalkRule<'t, NegativeSynthesizeType>>,
     /** From a value environment, evaluate this term.*/
-    pub eval: WalkRule<'t, Evaluate>,
+    pub eval: EitherPN<WalkRule<'t, Evaluate>, WalkRule<'t, NegativeEvaluate>>,
     pub relative_phase: Assoc<Name<'t>, i32>, /* 2^31 macro phases ought to be enough for anybody */
 }
+
+pub enum EitherPN<L, R> {
+    Positive(L),
+    Negative(R)
+}
+pub use self::EitherPN::*;
+
+impl<L, R> EitherPN<L, R> {
+    pub fn pos(&self) -> &L {
+        match self { &Positive(ref l) => l, &Negative(_) => panic!("ICE: wanted positive walk") }
+    }
+    pub fn neg(&self) -> &R {
+        match self { &Negative(ref r) => r, &Positive(_) => panic!("ICE: wanted negative walk") }
+    }
+
+}
+
 
 impl<'t> PartialEq for Form<'t> {
     fn eq(&self, other: &Form<'t>) -> bool {
@@ -46,8 +63,8 @@ pub fn simple_form<'t>(form_name: &'t str, p: FormPat<'t>) -> Rc<Form<'t>> {
             name: n(form_name),
             grammar: p,
             relative_phase: Assoc::new(), 
-            synth_type: WalkRule::NotWalked,
-            eval: WalkRule::NotWalked
+            synth_type: ::form::Positive(WalkRule::NotWalked),
+            eval: ::form::Positive(WalkRule::NotWalked)
         })
 }
 
@@ -57,8 +74,8 @@ macro_rules! basic_typed_form {
             name: n("unnamed form"),
             grammar: form_pat!($p),
             relative_phase: Assoc::new(),
-            synth_type: $gen_type,
-            eval: $eval
+            synth_type: ::form::Positive($gen_type),
+            eval: ::form::Positive($eval)
         })
     }
 }
@@ -69,8 +86,8 @@ macro_rules! typed_form {
             name: n($name),
             grammar: form_pat!($p),
             relative_phase: Assoc::new(),
-            synth_type: $gen_type,
-            eval: $eval
+            synth_type: ::form::Positive($gen_type),
+            eval: ::form::Positive($eval)
         })
     }
 }
