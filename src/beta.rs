@@ -75,7 +75,7 @@ impl<'t> Beta<'t> {
 
 pub fn env_from_beta<'t, Mode: WalkMode<'t>>
     (b: &Beta<'t>, parts: &LazyWalkReses<'t, Mode>)
-         -> ResEnv<'t, Mode::Out> {
+         -> ResEnv<'t, Mode::Elt> {
     match b {
         &Nothing => { Assoc::new() }
         &Shadow(ref lhs, ref rhs) => {
@@ -95,7 +95,7 @@ pub fn env_from_beta<'t, Mode: WalkMode<'t>>
                 let LazilyWalkedTerm {term: ref ty_stx, ..}
                     = **parts.parts.get_leaf_or_panic(ty_source);
                         
-                Assoc::new().set(*name, Mode::ast_to_out((*ty_stx).clone()))        
+                Assoc::new().set(*name, Mode::ast_to_elt((*ty_stx).clone()))        
             } else {
                 panic!("{:?} is supposed to supply names, but is not an Atom.", 
                     parts.parts.get_leaf_or_panic(name_source).term)

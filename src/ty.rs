@@ -35,6 +35,7 @@ pub struct SynthesizeType {}
 
 impl<'t> WalkMode<'t> for SynthesizeType {
     type Out = Ast<'t>;
+    type Elt = Ast<'t>;
     
     fn get_walk_rule<'f>(f: &'f Form<'t>) -> &'f WalkRule<'t, Self> {
         &f.synth_type
@@ -42,8 +43,17 @@ impl<'t> WalkMode<'t> for SynthesizeType {
     
     fn automatically_extend_env() -> bool { true }
     
-    fn ast_to_out(a: Ast<'t>) -> Ast<'t> { a }
+    fn ast_to_elt(a: Ast<'t>) -> Ast<'t> { a }
+    
+    fn var_to_out(n: &Name<'t>, env: &Assoc<Name<'t>, Ast<'t>>) -> Result<Ast<'t>, ()> {
+        ::ast_walk::var_lookup(n, env)
+    }
 }
+
+#[derive(Clone, Copy, Debug)]
+pub struct NegSynthesizeType {} 
+
+
 
 pub fn synth_type_top<'t>(expr: &Ast<'t>) ->  Result<Ast<'t>, ()> {
     walk(expr, SynthesizeType{}, 

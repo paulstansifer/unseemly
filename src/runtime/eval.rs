@@ -58,6 +58,7 @@ pub struct Evaluate {}
 
 impl<'t> WalkMode<'t> for Evaluate {
     type Out = Value<'t>;
+    type Elt = Value<'t>;
     
     fn get_walk_rule<'f>(f: &'f Form<'t>) -> &'f WalkRule<'t, Self> {
         &f.eval
@@ -66,6 +67,10 @@ impl<'t> WalkMode<'t> for Evaluate {
     // It's not possible to construct the environment of the body of a function 
     // at the point it's written down in code.
     fn automatically_extend_env() -> bool { false }
+    
+    fn var_to_out(n: &Name<'t>, env: &Assoc<Name<'t>, Value<'t>>) -> Result<Value<'t>, ()> {
+        ::ast_walk::var_lookup(n, env)
+    }
 }
 
 pub fn eval_top<'t>(expr: &Ast<'t>) -> Result<Value<'t>, ()> {
