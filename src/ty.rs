@@ -82,6 +82,12 @@ pub fn synth_type<'t>(expr: &Ast<'t>, env: Assoc<Name<'t>, Ast<'t>>) -> Result<A
          env, &LazyWalkReses::new(SynthesizeType{}, Assoc::new(), EnvMBE::new()))
 }
 
+pub fn neg_synth_type<'t>(pat: &Ast<'t>, env: Assoc<Name<'t>, Ast<'t>>)
+        -> Result<Assoc<Name<'t>, Ast<'t>>, ()> {
+    walk(pat, NegativeSynthesizeType{}, 
+         env, &LazyWalkReses::new(NegativeSynthesizeType{}, Assoc::new(), EnvMBE::new()))
+}
+
 
 #[test]
 fn test_type_synth() {

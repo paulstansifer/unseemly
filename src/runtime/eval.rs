@@ -20,7 +20,9 @@ pub enum Value<'t> {
     Cons(Rc<Value<'t>>, Rc<Value<'t>>), // TODO: switch to a different core sequence type
     Function(Rc<Closure<'t>>), // TODO: unsure if this Rc is needed
     BuiltInFunction(BIF<'t>),
-    AbstractSyntax(Name<'t>, Rc<Ast<'t>>) // likewise
+    AbstractSyntax(Name<'t>, Rc<Ast<'t>>), // likewise
+    Struct(Assoc<Name<'t>, Value<'t>>),
+    Enum(Name<'t>, Vec<Value<'t>>) // A real compiler would probably tag with numbers...
 }
 
 pub use self::Value::*;

@@ -28,6 +28,9 @@ pub struct Form<'t> {
     pub relative_phase: Assoc<Name<'t>, i32>, /* 2^31 macro phases ought to be enough for anybody */
 }
 
+/**
+ * The distinction between `Form`s with positive and negative walks is documented at `Mode`.
+ */
 pub enum EitherPN<L, R> {
     Positive(L),
     Negative(R)
@@ -88,6 +91,18 @@ macro_rules! typed_form {
             relative_phase: Assoc::new(),
             synth_type: ::form::Positive($gen_type),
             eval: ::form::Positive($eval)
+        })
+    }
+}
+
+macro_rules! negative_typed_form {
+    ( $name:expr, $p:tt, $gen_type:expr, $eval:expr ) => {
+        Rc::new(Form {
+            name: n($name),
+            grammar: form_pat!($p),
+            relative_phase: Assoc::new(),
+            synth_type: ::form::Negative($gen_type),
+            eval: ::form::Negative($eval)
         })
     }
 }

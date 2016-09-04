@@ -36,8 +36,7 @@ use num::bigint;
 use num::bigint::ToBigInt;
 
 
-/* Unpacking `Ast`s is a pain, so here's a macro for it*/
-// TODO: this ought to have some MBE support
+/* Unpacking `Ast`s into environments is a pain, so here's a macro for it*/
 macro_rules! expect_node {
     ( ($node:expr ; $form:expr) $env:ident ; $body:expr ) => (
         // This is tied to the signature of `Custom`
@@ -53,6 +52,7 @@ macro_rules! expect_node {
     )
 }
 
+// TODO: this ought to have some MBE support
 macro_rules! destructure_node {
     ( ($node:expr ; $form:expr) $( $n:ident = $name:expr ),* ; $body:expr ) => (
         expect_node!( ($node ; $form) env ; {
@@ -68,25 +68,36 @@ macro_rules! forms_to_form_pat {
     }
 }
 
+fn ast_to_atom<'t>(ast: &Ast<'t>) -> Name<'t> {
+    match ast { &Atom(n) => n, _ => { panic!("internal error!") } }
+}
+
 
 /* Note that both types and terms are represented as Ast<'t> */
 
 pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
     let fn_type = 
         simple_form("fn", 
-            form_pat!((delim "[", "[",
+            /* Friggin' Atom bracket matching doesn't ignore strings or comments. */
+            form_pat!((delim "[", "[", /*]]*/
                 [ (star (named "param", (call "type"))), (lit "->"), 
                   (named "ret", (call "type") ) ])));
+                  
+    let enum_type = 
+        simple_form("enum", form_pat!([(lit "enum"),
+            (delim "{", "{", /*}}*/ (star [(named "name", aat), 
+                (delim "(", "(", /*))*/ [(star (named "component", (call "type")))])]))]));
     
                   
     /* This seems to be necessary to get separate `Rc`s into the closures. */
     let fn_type_0 = fn_type.clone();
     let fn_type_1 = fn_type.clone();
+    let enum_type_0 = enum_type.clone();
 
     let main_expr_forms = forms_to_form_pat![
         typed_form!("lambda",
             /* syntax */ /* TODO: add comma separators to the syntax! */
-            (delim ".[", "[", [
+            (delim ".[", "[", /*]]*/ [
                                (star [(named "param", aat), (lit ":"), 
                                       (named "p_t", (call "type"))]), (lit "."),
                 (named "body",
@@ -104,9 +115,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                 Ok(Function(Rc::new(Closure {
                     body: part_values.get_term(&n("body")),
                     params: 
-                    part_values.get_rep_term(&n("param")).iter().map(|ast|
-                        match ast { &Atom(n) => n, _ => { panic!("internal error!") } } 
-                    ).collect(),
+                    part_values.get_rep_term(&n("param")).iter().map(ast_to_atom).collect(),
                     env: part_values.env
                 })))
             }))
@@ -130,7 +139,6 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                     }
                 ))),
             Custom(Box::new( move | part_values | {
-                print!("Trying to evaluate {:?}\n", part_values);
                 match try!(part_values.get_res(&n("rator"))) {
                     Function(clos) => {
                         let mut env = clos.env.clone();
@@ -158,27 +166,81 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
         // The first use for syntax quotes will be in macro definitions.
         // But we will someday need them as expressions.                    
     ];
+    
+    let main_pat_forms = forms_to_form_pat![
+        negative_typed_form!("enum_p",
+            [(named "name", aat), 
+             (delim "(", "(", /*))*/ [(star (named "component", (call "pat")))])],
+            /* (Negatively) Typecheck: */
+            Custom(Box::new( move | part_types |
+                expect_node!( (*part_types.context_elt() ; enum_type_0)
+                    enum_type_parts;
+                    {
+                        for enum_type_part /* &EnvMBE<'t, Ast<'t>> */
+                                in enum_type_parts.march_all(&vec![n("name")]) {
+                        
+                            if &part_types.get_term(&n("name")) 
+                                    != enum_type_part.get_leaf_or_panic(&n("name")) {
+                                continue; // not the right arm
+                            }
+                        
+                            let component_types : Vec<Ast<'t>> = 
+                                enum_type_part.get_rep_leaf_or_panic(&n("component"))
+                                    .iter().map(|a| (*a).clone()).collect();
+                           
+                            let mut res = Assoc::new();
+                            for sub_res in &try!(part_types
+                                    .get_rep_res_with(&n("component"), component_types)) {
+                                res = res.set_assoc(sub_res);
+                            }
+                        
+                            return Ok(res);
+                        }
+                        panic!("Type error: enum branch not found");
+                }
+        ))),
+        /* (Negatively) Evaluate: */
+        Custom(Box::new( move | part_values | {
+            match part_values.context_elt() /* : Value<'t> */ {
+                &Enum(ref name, ref elts) => {
+                    // "Try another branch"
+                    if name != &ast_to_atom(&part_values.get_term(&n("name"))) {
+                        return Err(()); 
+                    }
+                    
+                    let mut res = Assoc::new();
+                    for sub_res in &try!(part_values.get_rep_res_with(&n("component"), elts.clone())) {
+                        res = res.set_assoc(sub_res);
+                    }
+                    
+                    Ok(res)
+                }
+                _ => panic!("Type ICE: non-enum")
+            }            
+        }))    
+    )
+    
+    ];
 
     assoc_n!(
-        /*"pat"*/
+        "pat" => Biased(Box::new(main_pat_forms), Box::new(VarRef)),
         "expr" => Biased(Box::new(main_expr_forms), Box::new(VarRef)),
         "type" => forms_to_form_pat![
             fn_type.clone(),
             simple_form("ident", form_pat!((lit "ident"))),
             simple_form("int", form_pat!((lit "int"))),
-            simple_form("enum", form_pat!([(lit "enum"),
-                (delim "[", "[", (star [(named "name", aat), 
-                    (delim "[", "[", [(star (named "component", (call "type")))])]))])),
+            enum_type.clone(),
             simple_form("struct", form_pat!([(lit "struct"),
-                (delim "{", "{", (star [(named "field", aat), (lit ":"), 
-                                        (named "part", (call "type"))]))])),
-            
+                (delim "{", "{", /*}}*/ (star [(named "field", aat), (lit ":"), 
+                    (named "part", (call "type"))]))]))
+            /*
             // TODO: these should be user-definable
             simple_form("list", 
                 form_pat!([(lit "list"), (lit "<"), (named "elt", (call "type")), (lit ">")])),
             simple_form("tuple", 
                 form_pat!([(lit "tuple"), 
                     (lit "<"), (star (named "elt", (call "type"))), (lit ">")]))
+            */
         ]
     )
 }
@@ -267,12 +329,27 @@ fn form_type_tests() {
     
     assert_eq!(synth_type(&ast!( 
         { lam.clone() ;
-            [ "param" => [@"p" "y"], 
-              "p_t" => [@"p" "float"],
-              "body" => (import [* [ "param" : "p_t" ]] (vr "x"))]}),
+            "param" => [@"p" "y"], 
+            "p_t" => [@"p" "float"],
+            "body" => (import [* [ "param" : "p_t" ]] (vr "x"))}),
         simple_ty_env.clone()),
         Ok(ast!({ fun.clone() ; 
-            [ "param" => ["float"], "ret" => "integer" ]})));
+            "param" => ["float"], "ret" => "integer"})));
+        
+    let enum_p = find_form(&cse, "pat", "enum_p");
+    let enum_t = find_form(&cse, "type", "enum");
+            
+    assert_eq!(neg_synth_type(&ast!(
+        { enum_p.clone() ; 
+            "name" => "choice1",
+            "component" => [(vr "abc"), (vr "def")]
+        }),
+        mt_ty_env.set(negative_ret_val, 
+            ast!({ enum_t.clone() ;
+                "name" => [@"c" "choice0", "choice1", "choice2"],
+                "component" => [@"c" ["integer"], ["integer", "float"], ["float", "float"]]
+            }))),
+        Ok(Assoc::new().set(n("abc"), ast!("integer")).set(n("def"), ast!("float"))));
 }
 
 #[test]

@@ -139,14 +139,67 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
             .iter().map( |&lwt| lwt.term.clone()).collect()
     }
     
-    /** March by example, turning a repeated set of part names into one LWR per repetition. */
-    pub fn march_all(&self, driving_names: &Vec<Name<'t>>) -> Vec<LazyWalkReses<'t, Mode>> {
+    
+    /** Only sensible for negative walks */
+    pub fn context_elt<'f>(&'f self) -> &'f Mode::Elt {
+        self.env.find(&negative_ret_val).unwrap()
+    }
+    
+    /** Change the context. Only sensible for negative walks. */
+    pub fn with_context(&self, e: Mode::Elt) -> LazyWalkReses<'t, Mode> {
+        LazyWalkReses { env: self.env.set(negative_ret_val, e), .. self.clone() }
+    }
+    
+    /** March by example, turning a repeated set of part names into one LWR per repetition.
+     * Keeps the same environment.
+     */
+    pub fn march_parts(&self, driving_names: &Vec<Name<'t>>) -> Vec<LazyWalkReses<'t, Mode>> {
         let marched  = self.parts.march_all(driving_names);
         let mut res = vec![];
         for marched_parts in marched.into_iter() {
             res.push(LazyWalkReses{env: self.env.clone(), parts: marched_parts, mode: self.mode });
         }
         res
+    }
+    
+    /**
+     * HACK: For the sake of `mbe_one_name`, we want to treat `LazyWalkReses` and `EnvMBE` 
+     * the same way. But I don't like having the same interface for them in general; I find it
+     * confusing. So don't use this ): 
+     */
+    pub fn march_all(&self, driving_names: &Vec<Name<'t>>) -> Vec<LazyWalkReses<'t, Mode>> {
+        self.march_parts(driving_names)
+    }
+    
+    /** Combines `march_parts` and `with_context`. `new_contexts` should have the same length
+     * as the repetition marched. 
+     */ 
+    pub fn march_parts_with(&self, driving_names: &Vec<Name<'t>>, new_contexts: Vec<Mode::Elt>)
+             -> Option<Vec<LazyWalkReses<'t, Mode>>> {
+        let marched  = self.parts.march_all(driving_names);
+        if marched.len() != new_contexts.len() { return None; }
+        let mut res = vec![];
+        for (marched_parts, ctx) in marched.into_iter().zip(new_contexts.into_iter()) {
+            res.push(LazyWalkReses{env: self.env.set(negative_ret_val, ctx), parts: marched_parts,
+                                   mode: self.mode });
+        }
+        Some(res)
+    }
+    
+    /** Like `get_rep_res`, but with a different context for each repetition */
+    pub fn get_rep_res_with(&self, n: &Name<'t>, new_contexts: Vec<Mode::Elt>)
+            -> Result<Vec<Mode::Out>, ()> {
+        if let Some(sub_parts) = self.march_parts_with(&vec![*n], new_contexts) {
+            //Some(sub_parts.iter().map(|sp| sp.get_res(n)).collect())
+            let mut res = vec![];
+            for sub_part in sub_parts {
+                res.push(try!(sub_part.get_res(n)));
+            }
+            Ok(res)
+        } else {
+            panic!("Type error: Length mismatch")
+            //Err(()) // TODO: When we actually start using results, emit something specific.
+        }
     }
 }
 
@@ -170,7 +223,7 @@ pub fn walk<'t, Mode: WalkMode<'t>>
                          &LazyWalkReses::new(mode, env.clone(), parts.clone()))
                 }
                 
-                &NotWalked => { panic!( "{:?} should not have a type at all!", expr ) }
+                &NotWalked => { panic!( "{:?} should not be walked at all!", expr ) }
             }
         }
         IncompleteNode(ref parts) => { panic!("{:?} isn't a complete node", parts)}
@@ -178,7 +231,7 @@ pub fn walk<'t, Mode: WalkMode<'t>>
         VariableReference(ref n) => { Mode::var_to_out(n, &env) }
         
         Trivial | Atom(_) | Shape(_) => {
-            panic!("{:?} is not a typeable node", expr);
+            panic!("{:?} is not a walkable node", expr);
         }
         
         ExtendEnv(ref body, ref beta) => {
@@ -195,6 +248,17 @@ pub fn walk<'t, Mode: WalkMode<'t>>
 
 /**
  * This trait exists to connect `Form`s to different kinds of walks.
+ *
+ * There are two kinds of walks over `Ast`s:
+ *  * Positive walks produce an element (a value or type, say) from an environment.
+ *    They are for expression-like terms.
+ *  * Negative walks produce an environment from an element.
+ *    They are for pattern-like terms.
+ *
+ * Now, the whole environment is actually present in both cases, 
+ *  and negative walks can actually use it 
+ *   -- the special value they traverse is stored in the environment with a special name --
+ *  but they conceptually are mostly relying on the special value.
  */
 
 pub trait WalkMode<'t> : Copy + Debug {
@@ -241,4 +305,3 @@ pub fn var_bind<'t, Elt: Debug + Clone>(n: &Name<'t>, env: &Assoc<Name<'t>, Elt>
         -> Result<Assoc<Name<'t>, Elt>, ()> {
     Ok(Assoc::new().set(*n, env.find(&negative_ret_val).unwrap().clone()))
 }
-
