@@ -73,19 +73,16 @@ impl<'t> WalkMode<'t> for NegativeSynthesizeType {
 
 
 pub fn synth_type_top<'t>(expr: &Ast<'t>) ->  Result<Ast<'t>, ()> {
-    walk(expr, SynthesizeType{}, 
-         Assoc::new(), &LazyWalkReses::new(SynthesizeType{}, Assoc::new(), EnvMBE::new()))
+    walk(expr, Assoc::new(), &LazyWalkReses::new(SynthesizeType{}, Assoc::new(), EnvMBE::new()))
 }
 
 pub fn synth_type<'t>(expr: &Ast<'t>, env: Assoc<Name<'t>, Ast<'t>>) -> Result<Ast<'t>, ()> {
-    walk(expr, SynthesizeType{}, 
-         env, &LazyWalkReses::new(SynthesizeType{}, Assoc::new(), EnvMBE::new()))
+    walk(expr, env, &LazyWalkReses::new(SynthesizeType{}, Assoc::new(), EnvMBE::new()))
 }
 
 pub fn neg_synth_type<'t>(pat: &Ast<'t>, env: Assoc<Name<'t>, Ast<'t>>)
         -> Result<Assoc<Name<'t>, Ast<'t>>, ()> {
-    walk(pat, NegativeSynthesizeType{}, 
-         env, &LazyWalkReses::new(NegativeSynthesizeType{}, Assoc::new(), EnvMBE::new()))
+    walk(pat, env, &LazyWalkReses::new(NegativeSynthesizeType{}, Assoc::new(), EnvMBE::new()))
 }
 
 

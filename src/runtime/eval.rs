@@ -102,14 +102,13 @@ pub fn eval_top<'t>(expr: &Ast<'t>) -> Result<Value<'t>, ()> {
 }
 
 pub fn eval<'t>(expr: &Ast<'t>, env: Assoc<Name<'t>, Value<'t>>) -> Result<Value<'t>, ()> {
-    walk(expr, Evaluate{}, env, 
-         &LazyWalkReses::new(Evaluate{}, Assoc::new(), ::util::mbe::EnvMBE::new()))
+    walk(expr, env, &LazyWalkReses::new(Evaluate{}, Assoc::new(), ::util::mbe::EnvMBE::new()))
 }
 
 pub fn neg_eval<'t>(pat: &Ast<'t>, env: Assoc<Name<'t>, Value<'t>>)
         -> Result<Assoc<Name<'t>, Value<'t>>,()> {
-    walk(pat, NegativeEvaluate{}, env,
-         &LazyWalkReses::new(NegativeEvaluate{}, Assoc::new(), ::util::mbe::EnvMBE::new()))
+    walk(pat, env, 
+        &LazyWalkReses::new(NegativeEvaluate{}, Assoc::new(), ::util::mbe::EnvMBE::new()))
 }
 
 

@@ -69,8 +69,7 @@ impl<'t, Mode : WalkMode<'t>> LazilyWalkedTerm<'t, Mode> {
     
     /** Get the result of walking this term (memoized) */
     fn get_res(&self, cur_node_contents: &LazyWalkReses<'t, Mode>) -> Result<Mode::Out, ()> {
-        self.get_something(&|| walk(&self.term, cur_node_contents.mode,
-                                    cur_node_contents.env.clone(), cur_node_contents))
+        self.get_something(&|| walk(&self.term, cur_node_contents.env.clone(), cur_node_contents))
     }
     
     fn get_something(&self, f: &Fn() -> Result<Mode::Out, ()>) -> Result<Mode::Out, ()> {
@@ -218,21 +217,20 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
 /**
  * Make a `Mode::Out` by walking `expr` in the environment `env`.
  */
-pub fn walk<'t, Mode: WalkMode<'t>>
-    (expr: &Ast<'t>, mode: Mode, env: ResEnv<'t, Mode::Elt>,
-     cur_node_contents: &LazyWalkReses<'t, Mode>)
+pub fn walk<'t, Mode: WalkMode<'t>>(expr: &Ast<'t>, env: ResEnv<'t, Mode::Elt>,
+                                    cur_node_contents: &LazyWalkReses<'t, Mode>)
         -> Result<Mode::Out, ()> {
     match *expr {
         Node(ref f, ref parts) => {
             // certain walks only work on certain kinds of AST nodes
             match Mode::get_walk_rule(f) {
                 &Custom(ref ts_fn) => {                    
-                    ts_fn(LazyWalkReses::new(mode, env, parts.clone()))
+                    ts_fn(LazyWalkReses::new(cur_node_contents.mode, env, parts.clone()))
                 }
                 
                 &Body(ref n) => {
-                    walk(parts.get_leaf(n).unwrap(), mode, env.clone(), 
-                         &LazyWalkReses::new(mode, env.clone(), parts.clone()))
+                    walk(parts.get_leaf(n).unwrap(), env.clone(), 
+                         &LazyWalkReses::new(cur_node_contents.mode, env.clone(), parts.clone()))
                 }
                 
                 &NotWalked => { panic!( "{:?} should not be walked at all!", expr ) }
@@ -253,7 +251,7 @@ pub fn walk<'t, Mode: WalkMode<'t>>
                 env
             };
 
-            walk(&**body, mode, new_env, cur_node_contents)
+            walk(&**body, new_env, cur_node_contents)
         }
     }
 }
