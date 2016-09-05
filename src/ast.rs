@@ -183,8 +183,20 @@ macro_rules! mbe_one_name {
     ($k:tt => (,seq $e:expr)) => { 
         {
             let mut v = vec![];
-            for elt in $e.iter { v.push( mbe_one_name!($k => elt) ); }
+            for elt in $e { 
+                v.push(::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => elt)))
+            }
             ::util::mbe::EnvMBE::new_from_anon_repeat(v)
+        }
+    };
+    
+    ($k:tt => (@ $rep_n:tt ,seq $e:expr)) => { 
+        {
+            let mut v = vec![];
+            for elt in $e { 
+                v.push(::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => elt)))
+            }
+            ::util::mbe::EnvMBE::new_from_named_repeat(n(expr_ify!($rep_n)), v)
         }
     };
     

@@ -100,6 +100,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
     let enum_type_0 = enum_type.clone();
     let enum_type_1 = enum_type.clone();
     let struct_type_0 = struct_type.clone();
+    let struct_type_1 = struct_type.clone();
 
     let main_expr_forms = forms_to_form_pat![
         typed_form!("lambda",
@@ -125,8 +126,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                     part_values.get_rep_term(&n("param")).iter().map(ast_to_atom).collect(),
                     env: part_values.env
                 })))
-            }))
-            ),
+            }))),
         
         typed_form!("apply",
             [(named "rator", (call "expr")), 
@@ -205,6 +205,26 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
             Custom(Box::new( move | part_values | {
                 Ok(Enum(ast_to_atom(&part_values.get_term(&n("name"))),
                     try!(part_values.get_rep_res(&n("component")))))
+            }))),
+        typed_form!("struct_expr",
+            (delim "{", "{", /*}}*/ 
+                (star [(named "component_name", aat), (lit ":"), 
+                       (named "component", (call "expr"))])),
+            Custom(Box::new( move | part_types | {
+                Ok(ast!({ struct_type_1.clone() ;
+                    "component_name" => (@"c" ,seq part_types.get_rep_term(&n("component_name"))),
+                    "component" => (@"c" ,seq try!(part_types.get_rep_res(&n("component"))))
+                }))
+            })),
+            Custom(Box::new( move | part_values | {
+                let mut res = Assoc::new();
+                
+                for component_parts in part_values.march_parts(&vec![n("component")]) {
+                    res = res.set(ast_to_atom(&component_parts.get_term(&n("component_name"))),
+                                  try!(component_parts.get_res(&n("component"))));
+                }
+                
+                Ok(Struct(res))
             })))
 
         /*,
@@ -268,8 +288,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                 }            
             }))),
         negative_typed_form!("struct_pat",
-            [(named "name", aat),
-             (delim "{", "{", /*}}*/ 
+            [(delim "{", "{", /*}}*/ 
                  (star [(named "component_name", aat), (lit ":"), 
                         (named "component", (call "pat"))]))],
             /* (Negatively) typesynth: */
@@ -487,7 +506,8 @@ fn alg_type() {
     let cse = make_core_syn_env();
     
     let mt_ty_env = Assoc::new();
-    let simple_ty_env = assoc_n!("x" => ast!("integer"), "b" => ast!("bool"));
+    let simple_ty_env = assoc_n!(
+        "x" => ast!("integer"), "b" => ast!("bool"), "f" => ast!("float"));
 
     /* Typecheck enum pattern */
     let enum_p = find_form(&cse, "pat", "enum_pat");
@@ -515,7 +535,7 @@ fn alg_type() {
             "component" => [(vr "x"), (vr "b")],
             "t" => (, my_enum.clone())
         }),
-        simple_ty_env),
+        simple_ty_env.clone()),
         Ok(my_enum));
         
         
@@ -536,6 +556,20 @@ fn alg_type() {
             }),
             mt_ty_env.set(negative_ret_val, my_struct.clone())),
         Ok(assoc_n!("yy" => ast!("float"), "xx" => ast!("integer"))));
+        
+    /* Typecheck struct expression */ 
+    let struct_e = find_form(&cse, "expr", "struct_expr");
+    
+    // TODO: currently {x: integer, y: float} ≠ {y: float, x: integer}
+    // Implement proper type equality!
+    assert_eq!(synth_type(&ast!(
+            { struct_e.clone() ;
+                "component_name" => [@"c" "x", "y"],
+                "component" => [@"c" (vr "x"), (vr "f")]
+            }),
+            simple_ty_env.clone()),
+        Ok(my_struct)
+    )
 
 
     
