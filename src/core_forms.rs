@@ -167,6 +167,25 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                 }
             }))),
             
+        // Need to get imports of pats working first!
+        /* typed_form!("match",
+            [(lit "match"), (named "scrutinee", (call "expr")),
+             (delim "{", "{", 
+                 (star [(named "p", (call "pat")) (lit "=>") (named "arm", (call "expr"))]))],
+            /* Typesynth: */
+            Custom(Box::new(move | part_types | {
+                let mut res = None;
+                for arm_part_types in part_types.march_parts(&vec![n("arm")]) {
+                    let arm_env : Assoc<Name<'t>, Ast<'t>> = try!(
+                        arm_part_types.switch_mode(NegativeSynthesizeType{})
+                            .get_res(&n("pat")))
+                    
+                    /* let arm_res = arm_part_types */
+                }
+                
+            }))
+        ) */
+            
         typed_form!("enum_expr",
             [(named "name", aat), 
              (delim "(", "(", /*))*/ [(star (named "component", (call "pat")))]),

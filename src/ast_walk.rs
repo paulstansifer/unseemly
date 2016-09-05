@@ -150,6 +150,18 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
         LazyWalkReses { env: self.env.set(negative_ret_val, e), .. self.clone() }
     }
     
+    /** Switch to a different mode with the same `Elt` type. */
+    pub fn switch_mode<NewMode: WalkMode<'t, Elt=Mode::Elt>>(&self, new_mode: NewMode)
+            -> LazyWalkReses<'t, NewMode> {
+        LazyWalkReses::<'t, NewMode> { 
+            env: self.env.clone(),
+            parts: self.parts.map(
+                &|part: Rc<LazilyWalkedTerm<'t, Mode>>| 
+                    LazilyWalkedTerm::<'t, NewMode>::new((*part).term.clone())),
+            mode: new_mode 
+        }
+    }
+    
     /** March by example, turning a repeated set of part names into one LWR per repetition.
      * Keeps the same environment.
      */
@@ -291,7 +303,7 @@ pub trait WalkMode<'t> : Copy + Debug {
         panic!("not implemented: {:?} cannot be converted", a);
     }
     
-    fn var_to_out(var: &Name<'t>, env: &ResEnv<'t, Self::Elt>) -> Result<Self::Out, ()>; 
+    fn var_to_out(var: &Name<'t>, env: &ResEnv<'t, Self::Elt>) -> Result<Self::Out, ()>;
 }
 
 /** var_to_out, for positive walks where Out == Elt */
