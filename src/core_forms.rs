@@ -86,13 +86,20 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
     let enum_type = 
         simple_form("enum", form_pat!([(lit "enum"),
             (delim "{", "{", /*}}*/ (star [(named "name", aat), 
-                (delim "(", "(", /*))*/ [(star (named "component", (call "type")))])]))]));    
-                  
+                (delim "(", "(", /*))*/ [(star (named "component", (call "type")))])]))]));
+                
+    let struct_type =
+        simple_form("struct", form_pat!(
+            [(lit "struct"),
+             (delim "{", "{", /*}}*/ (star [(named "component_name", aat), (lit ":"), 
+                                           (named "component", (call "type"))]))]));
+            
     /* This seems to be necessary to get separate `Rc`s into the closures. */
     let fn_type_0 = fn_type.clone();
     let fn_type_1 = fn_type.clone();
     let enum_type_0 = enum_type.clone();
     let enum_type_1 = enum_type.clone();
+    let struct_type_0 = struct_type.clone();
 
     let main_expr_forms = forms_to_form_pat![
         typed_form!("lambda",
@@ -239,29 +246,83 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                         }
                         panic!("Type error: enum branch not found");
                 }
-        ))),
-        /* (Negatively) Evaluate: */
-        Custom(Box::new( move | part_values | {
-            match part_values.context_elt() /* : Value<'t> */ {
-                &Enum(ref name, ref elts) => {
-                    // "Try another branch"
-                    if name != &ast_to_atom(&part_values.get_term(&n("name"))) {
-                        return Err(()); 
+            ))),
+            /* (Negatively) Evaluate: */
+            Custom(Box::new( move | part_values | {
+                match part_values.context_elt() /* : Value<'t> */ {
+                    &Enum(ref name, ref elts) => {
+                        // "Try another branch"
+                        if name != &ast_to_atom(&part_values.get_term(&n("name"))) {
+                            return Err(()); 
+                        }
+                        
+                        let mut res = Assoc::new();
+                        for sub_res in &try!(part_values.get_rep_res_with(&n("component"), 
+                                                                          elts.clone())) {
+                            res = res.set_assoc(sub_res);
+                        }
+                        
+                        Ok(res)
                     }
-                    
-                    let mut res = Assoc::new();
-                    for sub_res in &try!(part_values.get_rep_res_with(&n("component"), elts.clone())) {
-                        res = res.set_assoc(sub_res);
+                    _ => panic!("Type ICE: non-enum")
+                }            
+            }))),
+        negative_typed_form!("struct_pat",
+            [(named "name", aat),
+             (delim "{", "{", /*}}*/ 
+                 (star [(named "component_name", aat), (lit ":"), 
+                        (named "component", (call "pat"))]))],
+            /* (Negatively) typesynth: */
+            Custom(Box::new( move | part_types | 
+                expect_node!( (*part_types.context_elt() ; struct_type_0)
+                    struct_type_parts;
+                    {
+                        let mut res = Assoc::new();
+                        for component_ctx in part_types.march_parts(&vec![n("component")]) {
+                            let mut component_found = false;
+                            for struct_type_part 
+                                    in struct_type_parts.march_all(&vec![n("component")]) {
+                                if &component_ctx.get_term(&n("component_name"))
+                                    != struct_type_part.get_leaf_or_panic(&n("component_name")) {
+                                    continue;
+                                }
+                                component_found = true;
+                                res = res.set_assoc(
+                                    &try!(component_ctx
+                                        .with_context(
+                                            struct_type_part.get_leaf_or_panic(&n("component"))
+                                                .clone())
+                                        .get_res(&n("component"))));
+                                break;
+                            }
+                            if !component_found {
+                                panic!("Type error: {:?} isn't a field of {:?}", 
+                                    component_ctx.get_term(&n("component_name")),
+                                    part_types.context_elt());
+                            }
+                        }
+                        Ok(res)
+                    }))),
+            Custom(Box::new( move | part_values | {
+                match part_values.context_elt() {
+                    &Struct(ref contents) => {
+                        let mut res = Assoc::new();
+                        
+                        for component_ctx in part_values.march_parts(&vec![n("component")]) {
+                            res = res.set_assoc(
+                                &try!(component_ctx
+                                    .with_context(contents.find_or_panic(
+                                        &ast_to_atom(
+                                            &component_ctx.get_term(&n("component_name"))))
+                                            .clone())
+                                    .get_res(&n("component"))));
+                        }
+                        
+                        Ok(res)
                     }
-                    
-                    Ok(res)
+                    _ => panic!("Type ICE: non-struct")
                 }
-                _ => panic!("Type ICE: non-enum")
-            }            
-        }))    
-    )
-    
-    ];
+            })))];
 
     assoc_n!(
         "pat" => Biased(Box::new(main_pat_forms), Box::new(VarRef)),
@@ -271,9 +332,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
             simple_form("ident", form_pat!((lit "ident"))),
             simple_form("int", form_pat!((lit "int"))),
             enum_type.clone(),
-            simple_form("struct", form_pat!([(lit "struct"),
-                (delim "{", "{", /*}}*/ (star [(named "field", aat), (lit ":"), 
-                    (named "part", (call "type"))]))]))
+            struct_type.clone()
             /*
             // TODO: these should be user-definable
             simple_form("list", 
@@ -430,7 +489,7 @@ fn alg_type() {
     let mt_ty_env = Assoc::new();
     let simple_ty_env = assoc_n!("x" => ast!("integer"), "b" => ast!("bool"));
 
-    /* Typecheck enum pattern */    
+    /* Typecheck enum pattern */
     let enum_p = find_form(&cse, "pat", "enum_pat");
     let enum_t = find_form(&cse, "type", "enum");
     
@@ -458,6 +517,28 @@ fn alg_type() {
         }),
         simple_ty_env),
         Ok(my_enum));
+        
+        
+    /* Typecheck struct pattern */    
+    
+    let struct_p = find_form(&cse, "pat", "struct_pat");
+    let struct_t = find_form(&cse, "type", "struct");
+    
+    let my_struct = ast!({ struct_t.clone() ;
+        "component_name" => [@"c" "x", "y"],
+        "component" => [@"c" "integer", "float"]
+    });
+    
+    assert_eq!(neg_synth_type(&ast!(
+            { struct_p.clone() ;
+                "component_name" => [@"c" "y", "x"],
+                "component" => [@"c" (vr "yy"), (vr "xx")]
+            }),
+            mt_ty_env.set(negative_ret_val, my_struct.clone())),
+        Ok(assoc_n!("yy" => ast!("float"), "xx" => ast!("integer"))));
+
+
+    
 }
 
 #[test]
@@ -509,4 +590,17 @@ fn alg_eval() {
         }),
         simple_env.clone()),
         Ok(Enum(n("choice1"), vec![Int(18.to_bigint().unwrap()), Bool(false)])));
+        
+    /* Evaluate struct pattern */
+    
+    let struct_p = find_form(&cse, "pat", "struct_pat");
+    assert_eq!(neg_eval(&ast!(
+        { struct_p.clone() ;
+            "component_name" => [@"c" "x", "y"],
+            "component" => [@"c" (vr "xx"), (vr "yy")]
+        }),
+        mt_env.set(negative_ret_val,
+                   Struct(assoc_n!("x" => Int(0.to_bigint().unwrap()), "y" => Bool(true))))),
+        Ok(assoc_n!("xx" => Int(0.to_bigint().unwrap()), "yy" => Bool(true))));
+    
 }

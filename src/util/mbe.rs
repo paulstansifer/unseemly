@@ -7,8 +7,8 @@ Using this as the evaluation environment of a program is probably interesting,
  but not necessarily in a good way.
 
 
-The principle is this: 
- Kleene stars in a (macro) grammar 
+The principle, when applied to pattern-based macro definitions, is as follows: 
+ Kleene stars in a macro grammar 
    (e.g. `(f=Identifier (arg=Identifier ":" arg_t=Type)*)` )
   correspond to lists in an AST.
  The original syntactic structure is irrelevant.
