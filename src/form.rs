@@ -33,16 +33,25 @@ pub struct Form<'t> {
  */
 pub enum EitherPN<L, R> {
     Positive(L),
-    Negative(R)
+    Negative(R),
+    Both(L, R)
 }
 pub use self::EitherPN::*;
 
 impl<L, R> EitherPN<L, R> {
     pub fn pos(&self) -> &L {
-        match self { &Positive(ref l) => l, &Negative(_) => panic!("ICE: wanted positive walk") }
+        match self { 
+            &Positive(ref l) => l, 
+            &Negative(_) => panic!("ICE: wanted positive walk"),
+            &Both(ref l, _) => l
+        }
     }
     pub fn neg(&self) -> &R {
-        match self { &Negative(ref r) => r, &Positive(_) => panic!("ICE: wanted negative walk") }
+        match self {
+            &Negative(ref r) => r, 
+            &Positive(_) => panic!("ICE: wanted negative walk"),
+            &Both(_, ref r) => r
+        }
     }
 
 }
@@ -103,6 +112,18 @@ macro_rules! negative_typed_form {
             relative_phase: Assoc::new(),
             synth_type: ::form::Negative($gen_type),
             eval: ::form::Negative($eval)
+        })
+    }
+}
+
+macro_rules! ambidextrous_typed_form {
+    ( $name:expr, $p:tt, $gen_type:expr, $neg_gen_type:expr, $eval:expr, $neg_eval:expr) => {
+        Rc::new(Form {
+            name: n($name),
+            grammar: form_pat!($p),
+            relative_phase: Assoc::new(),
+            synth_type: ::form::Both($gen_type, $neg_gen_type),
+            eval: ::form::Both($eval, $neg_eval)
         })
     }
 }

@@ -86,13 +86,13 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
     let enum_type = 
         simple_form("enum", form_pat!([(lit "enum"),
             (delim "{", "{", /*}}*/ (star [(named "name", aat), 
-                (delim "(", "(", /*))*/ [(star (named "component", (call "type")))])]))]));
-    
+                (delim "(", "(", /*))*/ [(star (named "component", (call "type")))])]))]));    
                   
     /* This seems to be necessary to get separate `Rc`s into the closures. */
     let fn_type_0 = fn_type.clone();
     let fn_type_1 = fn_type.clone();
     let enum_type_0 = enum_type.clone();
+    let enum_type_1 = enum_type.clone();
 
     let main_expr_forms = forms_to_form_pat![
         typed_form!("lambda",
@@ -158,7 +158,49 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                         as if it were a function", other)
                     }
                 }
-            })))/*,
+            }))),
+            
+        typed_form!("enum_expr",
+            [(named "name", aat), 
+             (delim "(", "(", /*))*/ [(star (named "component", (call "pat")))]),
+             (lit ":"), (named "t", (call "type"))],
+            /* Typesynth: */
+            Custom(Box::new( move | part_types | {
+                let res = part_types.get_term(&n("t"));
+                expect_node!( (res ; enum_type_1)
+                    enum_type_parts; 
+                    {
+                        for enum_type_part in enum_type_parts.march_all(&vec![n("name")]) {
+                            if &part_types.get_term(&n("name")) 
+                                    != enum_type_part.get_leaf_or_panic(&n("name")) {
+                                continue; // not the right arm
+                            }
+                            
+                            let component_types : Vec<Ast<'t>> = 
+                                enum_type_part.get_rep_leaf_or_panic(&n("component"))
+                                    .iter().map(|a| (*a).clone()).collect();
+                                    
+                            for (t, expected_t) in try!(part_types.get_rep_res(&n("component")))
+                                .iter().zip(component_types) {
+                                if t != &expected_t {
+                                    panic!("Expected type: {:?}, got: {:?}", expected_t, t)
+                                }
+                            }
+                            
+                            return Ok(res.clone());
+                        }
+                        panic!("{:?} is not a valid arm for the type {:?}", 
+                            part_types.get_term(&n("name")), res)
+                    }        
+                )            
+            })),
+            /* Evaluate: */
+            Custom(Box::new( move | part_values | {
+                Ok(Enum(ast_to_atom(&part_values.get_term(&n("name"))),
+                    try!(part_values.get_rep_res(&n("component")))))
+            })))
+
+        /*,
             
         typed_form!("match",
             []
@@ -168,7 +210,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
     ];
     
     let main_pat_forms = forms_to_form_pat![
-        negative_typed_form!("enum_p",
+        negative_typed_form!("enum_pat",
             [(named "name", aat), 
              (delim "(", "(", /*))*/ [(star (named "component", (call "pat")))])],
             /* (Negatively) Typecheck: */
@@ -176,8 +218,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                 expect_node!( (*part_types.context_elt() ; enum_type_0)
                     enum_type_parts;
                     {
-                        for enum_type_part /* &EnvMBE<'t, Ast<'t>> */
-                                in enum_type_parts.march_all(&vec![n("name")]) {
+                        for enum_type_part in enum_type_parts.march_all(&vec![n("name")]) {
                         
                             if &part_types.get_term(&n("name")) 
                                     != enum_type_part.get_leaf_or_panic(&n("name")) {
@@ -316,8 +357,7 @@ fn form_expect_node_test() {
 fn form_type_tests() {
     let cse = make_core_syn_env();
     
-    let mt_ty_env = Assoc::new();
-    let simple_ty_env = mt_ty_env.set(n("x"), ast!("integer"));
+    let simple_ty_env = assoc_n!("x" => ast!("integer"), "b" => ast!("bool"));
     
     let lam = find_form(&cse, "expr", "lambda");
     let fun = find_form(&cse, "type", "fn");
@@ -335,31 +375,16 @@ fn form_type_tests() {
         simple_ty_env.clone()),
         Ok(ast!({ fun.clone() ; 
             "param" => ["float"], "ret" => "integer"})));
-        
-    let enum_p = find_form(&cse, "pat", "enum_p");
-    let enum_t = find_form(&cse, "type", "enum");
-            
-    assert_eq!(neg_synth_type(&ast!(
-        { enum_p.clone() ; 
-            "name" => "choice1",
-            "component" => [(vr "abc"), (vr "def")]
-        }),
-        mt_ty_env.set(negative_ret_val, 
-            ast!({ enum_t.clone() ;
-                "name" => [@"c" "choice0", "choice1", "choice2"],
-                "component" => [@"c" ["integer"], ["integer", "float"], ["float", "float"]]
-            }))),
-        Ok(Assoc::new().set(n("abc"), ast!("integer")).set(n("def"), ast!("float"))));
+    
 }
 
 #[test]
 fn form_eval_tests() {
     let cse = make_core_syn_env();
     
-    let mt_env = Assoc::new();
-    // x is 18, w is 99
-    let simple_env = mt_env.set(n("x"), Int(18.to_bigint().unwrap()))
-        .set(n("w"), Int(99.to_bigint().unwrap()));
+    let simple_env = assoc_n!("x" => Int(18.to_bigint().unwrap()),
+                              "w" => Int(99.to_bigint().unwrap()),
+                              "b" => Bool(false));    
     
     let lam = find_form(&cse, "expr", "lambda");
     let app = find_form(&cse, "expr", "apply");
@@ -395,4 +420,93 @@ fn form_eval_tests() {
             ]}),
         simple_env.clone()),
         Ok(Int(18.to_bigint().unwrap())));
+    
+}
+
+#[test]
+fn alg_type_tests() {
+    let cse = make_core_syn_env();
+    
+    let mt_ty_env = Assoc::new();
+    let simple_ty_env = assoc_n!("x" => ast!("integer"), "b" => ast!("bool"));
+
+    /* Typecheck enum pattern */    
+    let enum_p = find_form(&cse, "pat", "enum_pat");
+    let enum_t = find_form(&cse, "type", "enum");
+    
+    let my_enum = ast!({ enum_t.clone() ;
+        "name" => [@"c" "choice0", "choice1", "choice2"],
+        "component" => [@"c" ["integer"], ["integer", "bool"], ["float", "float"]]
+    });
+        
+    assert_eq!(neg_synth_type(&ast!(
+        { enum_p.clone() ; 
+            "name" => "choice1",
+            "component" => [(vr "abc"), (vr "def")]
+        }),
+        mt_ty_env.set(negative_ret_val, my_enum.clone())),
+        Ok(Assoc::new().set(n("abc"), ast!("integer")).set(n("def"), ast!("bool"))));
+    
+    /* Typecheck enum expression */
+    let enum_e = find_form(&cse, "expr", "enum_expr");
+    
+    assert_eq!(synth_type(&ast!(
+        { enum_e.clone() ;
+            "name" => "choice1",
+            "component" => [(vr "x"), (vr "b")],
+            "t" => (, my_enum.clone())
+        }),
+        simple_ty_env),
+        Ok(my_enum));
+}
+
+#[test]
+fn alg_eval_tests() {
+    let cse = make_core_syn_env();
+    
+    let mt_env = Assoc::new();
+    let simple_env = assoc_n!("x" => Int(18.to_bigint().unwrap()),
+                              "w" => Int(99.to_bigint().unwrap()),
+                              "b" => Bool(false));
+    
+    /* Evaluate enum pattern */
+    let enum_p = find_form(&cse, "pat", "enum_pat");
+    
+    assert_eq!(neg_eval(&ast!(
+        { enum_p.clone() ; 
+            "name" => "choice1",
+            "component" => [(vr "abc"), (vr "def")]
+        }),
+        mt_env.set(negative_ret_val, 
+            Enum(n("choice1"), vec![Int(9006.to_bigint().unwrap()), Bool(true)]))),
+        Ok(assoc_n!("abc" => Int(9006.to_bigint().unwrap()), "def" => Bool(true))));
+            
+    assert_eq!(neg_eval(&ast!(
+        { enum_p.clone() ; 
+            "name" => "choice1",
+            "component" => [(vr "abc"), (vr "def")]
+        }),
+        mt_env.set(negative_ret_val, 
+            Enum(n("choice0"), vec![Int(12321.to_bigint().unwrap())]))),
+        Err(()));
+
+    /* Evaluate enum expression */
+
+    let enum_t = find_form(&cse, "type", "enum");
+    
+    let my_enum = ast!({ enum_t.clone() ;
+        "name" => [@"c" "choice0", "choice1", "choice2"],
+        "component" => [@"c" ["integer"], ["integer", "bool"], ["float", "float"]]
+    });
+
+    let enum_e = find_form(&cse, "expr", "enum_expr");
+    
+    assert_eq!(eval(&ast!(
+        { enum_e.clone() ;
+            "name" => "choice1",
+            "component" => [(vr "x"), (vr "b")],
+            "t" => (, my_enum.clone())
+        }),
+        simple_env.clone()),
+        Ok(Enum(n("choice1"), vec![Int(18.to_bigint().unwrap()), Bool(false)])));
 }
