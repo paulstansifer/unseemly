@@ -306,7 +306,7 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
 use self::FormPat::*;
 
 #[test]
-fn test_parsing() {    
+fn basic_parsing() {    
     assert_eq!(parse_top(&Seq(vec![AnyToken]), &tokens!("asdf")).unwrap(), ast_shape!("asdf"));
     
     assert_eq!(parse_top(&Seq(vec![AnyToken, Literal("fork"), AnyToken]),
@@ -326,7 +326,7 @@ fn test_parsing() {
 }
 
 #[test]
-fn test_advanced_parsing() {    
+fn advanced_parsing() {    
     assert_eq!(parse_top(&form_pat!([(star (named "c", (alt (lit "X"), (lit "O")))), (lit "!")]),
                          &tokens!("X" "O" "O" "O" "X" "X" "!")).unwrap(),
                ast_shape!({- "c" => ["X", "O", "O", "O", "X", "X"]} "!"));
@@ -364,7 +364,7 @@ fn test_advanced_parsing() {
 }
 
 #[test]
-fn test_extensible_parsing() {
+fn extensible_parsing() {
     
     fn synex<'t>(s: &SynEnv<'t>) -> SynEnv<'t> {
         

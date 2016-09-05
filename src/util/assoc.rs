@@ -227,7 +227,7 @@ impl<'assoc, K: PartialEq + Clone, V> Iterator for PairIter<'assoc, K, V> {
 
 
 #[test]
-fn test_assoc() {
+fn basic_assoc() {
     let mt : Assoc<i32, i32> = Assoc::new();
     let a1 = mt.set(5,6);
     let a2 = a1.set(6,7);
@@ -247,7 +247,7 @@ fn test_assoc() {
 
 
 #[test]
-fn test_assoc_eq() {
+fn assoc_equality() {
     let mt : Assoc<i32, i32> = Assoc::new();
     let a1 = mt.set(5,6);
     let a2 = a1.set(6,7);

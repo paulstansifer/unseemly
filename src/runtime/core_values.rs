@@ -87,7 +87,7 @@ pub fn core_typed_values<'t>(se: &SynEnv<'t>) -> Assoc<Name<'t>, TypedValue<'t>>
 
 
 #[test]
-fn test_core_values() {
+fn basic_core_value_evaluation() {
     let cse = make_core_syn_env();
     let cte = core_typed_values(&cse);
     let ce = cte.map(&erase_types);

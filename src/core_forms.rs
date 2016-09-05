@@ -329,7 +329,7 @@ pub fn find_form<'t>(se: &SynEnv<'t>, nt: &str, form_name: &str)
 
 
 #[test]
-fn form_grammar_tests() {
+fn form_grammar() {
     let cse = make_core_syn_env();
     assert_eq!(parse(&form_pat!((call "type")),
                      cse.clone(),
@@ -341,7 +341,7 @@ fn form_grammar_tests() {
 
 
 #[test]
-fn form_expect_node_test() {
+fn form_expect_node() {
     let cse = make_core_syn_env();
     let ast = ast!({ find_form(&cse, "expr", "apply"); 
         ["rand" => [(vr "f")], "rator" => (vr "x")]});
@@ -354,7 +354,7 @@ fn form_expect_node_test() {
 }
 
 #[test]
-fn form_type_tests() {
+fn form_type() {
     let cse = make_core_syn_env();
     
     let simple_ty_env = assoc_n!("x" => ast!("integer"), "b" => ast!("bool"));
@@ -379,7 +379,7 @@ fn form_type_tests() {
 }
 
 #[test]
-fn form_eval_tests() {
+fn form_eval() {
     let cse = make_core_syn_env();
     
     let simple_env = assoc_n!("x" => Int(18.to_bigint().unwrap()),
@@ -424,7 +424,7 @@ fn form_eval_tests() {
 }
 
 #[test]
-fn alg_type_tests() {
+fn alg_type() {
     let cse = make_core_syn_env();
     
     let mt_ty_env = Assoc::new();
@@ -461,7 +461,7 @@ fn alg_type_tests() {
 }
 
 #[test]
-fn alg_eval_tests() {
+fn alg_eval() {
     let cse = make_core_syn_env();
     
     let mt_env = Assoc::new();

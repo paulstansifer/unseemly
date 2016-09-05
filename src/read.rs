@@ -104,14 +104,14 @@ macro_rules! t_elt {
 }
 
 #[test]
-fn test_simple_reading()  {
+fn simple_reading()  {
     assert_eq!(read_tokens(""), tokens!());
     assert_eq!(read_tokens("asdf"), tokens!("asdf"));
     assert_eq!(read_tokens("a s d-f d - f && a\na    8888"),
                tokens!("a" "s" "d-f" "d" "-" "f" "&&" "a" "a" "8888"));
 }
 #[test]
-fn test_nested_reading() {
+fn nested_reading() {
     assert_eq!(read_tokens("()"), tokens!(("";)));
     assert_eq!(read_tokens("a ()"), tokens!("a" ("";)));
     assert_eq!(read_tokens("(b)"), tokens!(("";"b")));

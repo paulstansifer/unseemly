@@ -90,7 +90,7 @@ pub fn neg_synth_type<'t>(pat: &Ast<'t>, env: Assoc<Name<'t>, Ast<'t>>)
 
 
 #[test]
-fn test_type_synth() {
+fn basic_type_synth() {
     let mt_ty_env = Assoc::new();
     let simple_ty_env = mt_ty_env.set(n("x"), ast!("integer"));
     

@@ -391,7 +391,7 @@ impl<'t, T: Clone + fmt::Debug> EnvMBE<'t, T> {
 
 #[test]
 
-fn test_mbe() {
+fn basic_mbe() {
     let mut mbe = EnvMBE::new();
     mbe.add_leaf(n("eight"), 8 as i32);
     mbe.add_leaf(n("nine"), 9);

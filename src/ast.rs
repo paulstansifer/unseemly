@@ -221,7 +221,7 @@ macro_rules! mbe {
  * [a = [[] [1 2] [3 4 5]], b = [8 8 8]]
  */
 #[test]
-fn test_combine_from_kleene_star() {
+fn combine_from_kleene_star() {
     let parse_parts = vec![ast!({ - "b" => "8.0"}),
                            ast!({ - "a" => ["1", "2"], "b" => "8.1"}),
                            ast!({ - "a" => ["1", "2", "3"], "b" => "8.2"})];
@@ -237,7 +237,7 @@ fn test_combine_from_kleene_star() {
 
 
 #[test]
-fn test_star_construction() {
+fn star_construction() {
     let env = mbe!( "a" => ["1", "2"]);
     
     assert_eq!(
