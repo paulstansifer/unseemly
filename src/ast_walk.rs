@@ -66,10 +66,10 @@ impl<'t, Mode : WalkMode<'t>> LazilyWalkedTerm<'t, Mode> {
     pub fn new(t: Ast<'t>) -> Rc<LazilyWalkedTerm<'t, Mode>> {
         Rc::new(LazilyWalkedTerm { term: t, res: RefCell::new(None) }) 
     }
-    
+        
     /** Get the result of walking this term (memoized) */
     fn get_res(&self, cur_node_contents: &LazyWalkReses<'t, Mode>) -> Result<Mode::Out, ()> {
-        self.get_something(&|| walk(&self.term, cur_node_contents.env.clone(), cur_node_contents))
+        self.get_something(&|| walk(&self.term, cur_node_contents))
     }
     
     fn get_something(&self, f: &Fn() -> Result<Mode::Out, ()>) -> Result<Mode::Out, ()> {
@@ -92,28 +92,15 @@ pub struct LazyWalkReses<'t, Mode: WalkMode<'t>> {
     /// Things that we have walked and that we might walk
     pub parts: EnvMBE<'t, Rc<LazilyWalkedTerm<'t, Mode>>>,
     pub env: ResEnv<'t, Mode::Elt>,
-    mode: Mode
 }
-
-/*
-impl<'t, Mode: WalkMode<'t>> Clone for LazyWalkReses<'t, Mode> {
-    fn clone(&self) -> LazyWalkReses<'t, Mode> {
-        LazyWalkReses {
-            parts: self.parts.clone(), env: self.env.clone(), mode: self.mode
-        }
-    }
-}
-*/
 
 impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
-    pub fn new(mode: Mode, 
-               env: ResEnv<'t, Mode::Elt>, 
+    pub fn new(env: ResEnv<'t, Mode::Elt>, 
                parts_unwalked: EnvMBE<'t, Ast<'t>>)
             -> LazyWalkReses<'t, Mode> {
         LazyWalkReses {
             env: env,
             parts: parts_unwalked.map(&LazilyWalkedTerm::new),
-            mode: mode
         }
     }
     
@@ -138,7 +125,6 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
             .iter().map( |&lwt| lwt.term.clone()).collect()
     }
     
-    
     /** Only sensible for negative walks */
     pub fn context_elt<'f>(&'f self) -> &'f Mode::Elt {
         self.env.find(&negative_ret_val).unwrap()
@@ -146,18 +132,22 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
     
     /** Change the context. Only sensible for negative walks. */
     pub fn with_context(&self, e: Mode::Elt) -> LazyWalkReses<'t, Mode> {
-        LazyWalkReses { env: self.env.set(negative_ret_val, e), .. self.clone() }
+        LazyWalkReses { env: self.env.set(negative_ret_val, e), .. (*self).clone() }
+    }
+    
+    /** Change the whole environment */
+    pub fn with_environment(&self, env: ResEnv<'t, Mode::Elt>) -> LazyWalkReses<'t, Mode> {
+        LazyWalkReses { env: env, .. (*self).clone() }
     }
     
     /** Switch to a different mode with the same `Elt` type. */
-    pub fn switch_mode<NewMode: WalkMode<'t, Elt=Mode::Elt>>(&self, new_mode: NewMode)
+    pub fn switch_mode<NewMode: WalkMode<'t, Elt=Mode::Elt>>(&self/*, new_mode: NewMode*/)
             -> LazyWalkReses<'t, NewMode> {
         LazyWalkReses::<'t, NewMode> { 
             env: self.env.clone(),
             parts: self.parts.map(
                 &|part: Rc<LazilyWalkedTerm<'t, Mode>>| 
                     LazilyWalkedTerm::<'t, NewMode>::new((*part).term.clone())),
-            mode: new_mode 
         }
     }
     
@@ -168,7 +158,7 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
         let marched  = self.parts.march_all(driving_names);
         let mut res = vec![];
         for marched_parts in marched.into_iter() {
-            res.push(LazyWalkReses{env: self.env.clone(), parts: marched_parts, mode: self.mode });
+            res.push(LazyWalkReses{env: self.env.clone(), parts: marched_parts/*, mode: self.mode*/ });
         }
         res
     }
@@ -191,8 +181,8 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
         if marched.len() != new_contexts.len() { return None; }
         let mut res = vec![];
         for (marched_parts, ctx) in marched.into_iter().zip(new_contexts.into_iter()) {
-            res.push(LazyWalkReses{env: self.env.set(negative_ret_val, ctx), parts: marched_parts,
-                                   mode: self.mode });
+            res.push(LazyWalkReses{env: self.env.set(negative_ret_val, ctx), 
+                                   parts: marched_parts});
         }
         Some(res)
     }
@@ -216,21 +206,21 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
 
 /**
  * Make a `Mode::Out` by walking `expr` in the environment `env`.
+ * TODO: remove the `env` environment, just use cur_node_contents
  */
-pub fn walk<'t, Mode: WalkMode<'t>>(expr: &Ast<'t>, env: ResEnv<'t, Mode::Elt>,
-                                    cur_node_contents: &LazyWalkReses<'t, Mode>)
+pub fn walk<'t, Mode: WalkMode<'t>>(expr: &Ast<'t>, cur_node_contents: &LazyWalkReses<'t, Mode>)
         -> Result<Mode::Out, ()> {
     match *expr {
         Node(ref f, ref parts) => {
             // certain walks only work on certain kinds of AST nodes
             match Mode::get_walk_rule(f) {
-                &Custom(ref ts_fn) => {                    
-                    ts_fn(LazyWalkReses::new(cur_node_contents.mode, env, parts.clone()))
+                &Custom(ref ts_fn) => {
+                    ts_fn(LazyWalkReses::new(cur_node_contents.env.clone(), parts.clone()))
                 }
                 
                 &Body(ref n) => {
-                    walk(parts.get_leaf(n).unwrap(), env.clone(), 
-                         &LazyWalkReses::new(cur_node_contents.mode, env.clone(), parts.clone()))
+                    walk(parts.get_leaf(n).unwrap(),
+                         &LazyWalkReses::<Mode>::new(cur_node_contents.env.clone(), parts.clone()))
                 }
                 
                 &NotWalked => { panic!( "{:?} should not be walked at all!", expr ) }
@@ -238,20 +228,17 @@ pub fn walk<'t, Mode: WalkMode<'t>>(expr: &Ast<'t>, env: ResEnv<'t, Mode::Elt>,
         }
         IncompleteNode(ref parts) => { panic!("{:?} isn't a complete node", parts)}
         
-        VariableReference(ref n) => { Mode::var_to_out(n, &env) }
+        VariableReference(ref n) => { Mode::var_to_out(n, &cur_node_contents.env) }
         
         Trivial | Atom(_) | Shape(_) => {
             panic!("{:?} is not a walkable node", expr);
         }
         
         ExtendEnv(ref body, ref beta) => {
-            let new_env = if Mode::automatically_extend_env() {
-                env.set_assoc(&env_from_beta(beta, cur_node_contents))
-            } else {
-                env
-            };
+            let new_env = cur_node_contents.env.set_assoc(
+                &try!(env_from_beta(beta, cur_node_contents)));
 
-            walk(&**body, new_env, cur_node_contents)
+            walk(&**body, &cur_node_contents.with_environment(new_env))
         }
     }
 }
@@ -271,7 +258,7 @@ pub fn walk<'t, Mode: WalkMode<'t>>(expr: &Ast<'t>, env: ResEnv<'t, Mode::Elt>,
  *  but they conceptually are mostly relying on the special value.
  */
 
-pub trait WalkMode<'t> : Copy + Debug {
+pub trait WalkMode<'t> : Debug + Copy {
     /** The output of the walking process.
      *
      * Negated walks produce an environment of Self::Elt, positive walks produce Self::Elt.
@@ -281,7 +268,9 @@ pub trait WalkMode<'t> : Copy + Debug {
     /** The object type for the environment to walk in. */
     type Elt : Clone + Debug; 
     
-    fn get_walk_rule<'f>(&'f Form<'t>) -> &'f WalkRule<'t, Self>;
+    type Negative : WalkMode<'t, Elt=Self::Elt>;
+    
+    fn get_walk_rule<'f>(&'f Form<'t>) -> &'f WalkRule<'t, Self> where Self: Sized ;
 
     /**
      Should the walker extend the environment based on imports?
@@ -297,11 +286,21 @@ pub trait WalkMode<'t> : Copy + Debug {
 
     fn automatically_extend_env() -> bool { false }
     
-    fn ast_to_elt(a: Ast<'t>) -> Self::Elt {
-        panic!("not implemented: {:?} cannot be converted", a);
+    fn ast_to_elt(a: Ast<'t>, _: &LazyWalkReses<'t, Self>) -> Self::Elt {
+        panic!("not implemented: {:?} cannot be converted", a)
+    }
+    
+    fn out_to_env(o: Self::Out) -> Assoc<Name<'t>, Self::Elt> {
+        panic!("not implemented: {:?} cannot be converted", o)
+    }
+    
+    fn out_to_elt(o: Self::Out) -> Self::Elt {
+        panic!("not implemented: {:?} cannot be converted", o)
     }
     
     fn var_to_out(var: &Name<'t>, env: &ResEnv<'t, Self::Elt>) -> Result<Self::Out, ()>;
+    
+    fn positive() -> bool;
 }
 
 /** var_to_out, for positive walks where Out == Elt */

@@ -62,6 +62,8 @@ impl<'t> WalkMode<'t> for Evaluate {
     type Out = Value<'t>;
     type Elt = Value<'t>;
     
+    type Negative = NegativeEvaluate;
+    
     fn get_walk_rule<'f>(f: &'f Form<'t>) -> &'f WalkRule<'t, Self> {
         f.eval.pos()
     }
@@ -70,9 +72,17 @@ impl<'t> WalkMode<'t> for Evaluate {
     // at the point it's written down in code.
     fn automatically_extend_env() -> bool { false }
     
+    fn ast_to_elt(a: Ast<'t>, parts: &LazyWalkReses<'t, Self>) -> Self::Elt { 
+        walk::<Evaluate>(&a, parts).unwrap() //TODO: this should probably return a result
+    }
+    
     fn var_to_out(n: &Name<'t>, env: &Assoc<Name<'t>, Value<'t>>) -> Result<Value<'t>, ()> {
         ::ast_walk::var_lookup(n, env)
     }
+    
+    fn out_to_elt(o: Self::Out) -> Self::Elt { o }
+    
+    fn positive() -> bool { true }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -81,6 +91,8 @@ pub struct NegativeEvaluate{}
 impl<'t> WalkMode<'t> for NegativeEvaluate {
     type Out = Assoc<Name<'t>, Value<'t>>;
     type Elt = Value<'t>;
+    
+    type Negative = Evaluate;
     
     fn get_walk_rule<'f>(f: &'f Form<'t>) -> &'f WalkRule<'t, Self> {
         &f.eval.neg()
@@ -94,6 +106,10 @@ impl<'t> WalkMode<'t> for NegativeEvaluate {
             -> Result<Assoc<Name<'t>, Value<'t>>, ()> {
         ::ast_walk::var_bind(n, env)
     }
+    
+    fn out_to_env(o: Self::Out) -> Assoc<Name<'t>, Self::Elt> { o }
+    
+    fn positive() -> bool { false }
 }
 
 
@@ -102,13 +118,13 @@ pub fn eval_top<'t>(expr: &Ast<'t>) -> Result<Value<'t>, ()> {
 }
 
 pub fn eval<'t>(expr: &Ast<'t>, env: Assoc<Name<'t>, Value<'t>>) -> Result<Value<'t>, ()> {
-    walk(expr, env, &LazyWalkReses::new(Evaluate{}, Assoc::new(), ::util::mbe::EnvMBE::new()))
+    walk::<Evaluate>(expr, &LazyWalkReses::new(env, ::util::mbe::EnvMBE::new()))
 }
 
 pub fn neg_eval<'t>(pat: &Ast<'t>, env: Assoc<Name<'t>, Value<'t>>)
         -> Result<Assoc<Name<'t>, Value<'t>>,()> {
-    walk(pat, env, 
-        &LazyWalkReses::new(NegativeEvaluate{}, Assoc::new(), ::util::mbe::EnvMBE::new()))
+    walk::<NegativeEvaluate>(pat, 
+        &LazyWalkReses::<NegativeEvaluate>::new(env, ::util::mbe::EnvMBE::new()))
 }
 
 

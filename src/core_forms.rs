@@ -148,14 +148,27 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
             Custom(Box::new( move | part_values | {
                 match try!(part_values.get_res(&n("rator"))) {
                     Function(clos) => {
-                        let mut env = clos.env.clone();
-                        for (p, a) in clos.params.iter().zip(
-                            try!(part_values.get_rep_res(&n("rand")))
-                        ) {
-                            env = env.set(*p, a);
+
+                        
+                        // Evaluate arguments into a fake LazyWalkReses,
+                        //  making a dummy form that has the actual arguments and the body together
+                        let mut params = vec![];
+                        for (p, t) in clos.params.iter().zip(
+                                part_values.get_rep_term(&n("rand"))) {
+                            let new_arg_parts = ::util::mbe::EnvMBE::new_from_leaves(
+                                assoc_n!("param" => Atom(*p), "p_t" => t));
+                            params.push(new_arg_parts);
+                            //new_env_parts.add_leaf(*p, t);
                         }
                         
-                        eval(&clos.body, env)
+                        let new_env_parts = ::util::mbe::EnvMBE::new_from_anon_repeat(params);
+                        
+                        ::ast_walk::walk::<::runtime::eval::Evaluate>(&clos.body,
+                            &::ast_walk::LazyWalkReses::new(clos.env.clone(), new_env_parts))
+                        
+                        //TODO!!!! call `walk` directly with a made-up cur_node_contents!
+                        
+                        //eval(&clos.body, env)
                     },
                     BuiltInFunction(::runtime::eval::BIF(f)) => {
                         Ok(f(try!(part_values.get_rep_res(&n("rand")))))
@@ -166,25 +179,40 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                     }
                 }
             }))),
-            
+            /*
         // Need to get imports of pats working first!
-        /* typed_form!("match",
+        typed_form!("match",
             [(lit "match"), (named "scrutinee", (call "expr")),
              (delim "{", "{", 
-                 (star [(named "p", (call "pat")) (lit "=>") (named "arm", (call "expr"))]))],
+                 (star [(named "p", (call "pat")), (lit "=>") 
+                        (import ["p" = "scrutinee"] (named "arm", (call "expr")))]))],
             /* Typesynth: */
             Custom(Box::new(move | part_types | {
                 let mut res = None;
                 for arm_part_types in part_types.march_parts(&vec![n("arm")]) {
-                    let arm_env : Assoc<Name<'t>, Ast<'t>> = try!(
-                        arm_part_types.switch_mode(NegativeSynthesizeType{})
-                            .get_res(&n("pat")))
-                    
-                    /* let arm_res = arm_part_types */
+                    let arm_res = try!(arm_part_types.get_res("arm"));
+
+                    match res {
+                        None => { res = arm_res }
+                        Some(old_res) => {
+                            if old_res != arm_res {
+                                panic!("Type error: arm mismatch: {:?} vs. {:?}", old_res, arm_res)
+                            }
+                        }
+                    }
                 }
                 
+                match res { 
+                    None => panic!("Type error: no arms!"),
+                    Some(r) => r
+                }
+                
+            })),
+            /* Evaluation: */
+            Custom(Box::new( move | part_values | {
+                
             }))
-        ) */
+        ),*/
             
         typed_form!("enum_expr",
             [(named "name", aat), 
@@ -505,7 +533,7 @@ fn form_eval() {
         Ok(Int(99.to_bigint().unwrap())));
     
     // (λy.y) x
-    assert_eq!(eval(&ast!( 
+    assert_eq!(eval(&ast!(
         { app.clone() ;
             [
              "rator" => 

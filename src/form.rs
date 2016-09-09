@@ -53,7 +53,8 @@ impl<L, R> EitherPN<L, R> {
             &Both(_, ref r) => r
         }
     }
-
+    pub fn is_pos(&self) -> bool { match self { &Negative(_) => false, _ => true }}
+    pub fn is_neg(&self) -> bool { match self { &Positive(_) => false, _ => true }}
 }
 
 

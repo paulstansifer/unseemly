@@ -73,21 +73,20 @@ impl<'t> Beta<'t> {
     }
 }
 
-pub fn env_from_beta<'t, Mode: WalkMode<'t>>
-    (b: &Beta<'t>, parts: &LazyWalkReses<'t, Mode>)
-         -> ResEnv<'t, Mode::Elt> {
+pub fn env_from_beta<'t, Mode: WalkMode<'t>>(b: &Beta<'t>, parts: &LazyWalkReses<'t, Mode>)
+         -> Result<ResEnv<'t, Mode::Elt>, ()> {
     match b {
-        &Nothing => { Assoc::new() }
+        &Nothing => { Ok(Assoc::new()) }
         &Shadow(ref lhs, ref rhs) => {
-            env_from_beta(&*lhs, parts)
-                .set_assoc(&env_from_beta(&*rhs, parts))
+            Ok(try!(env_from_beta(&*lhs, parts))
+                .set_assoc(&try!(env_from_beta(&*rhs, parts))))
         }
         &ShadowAll(ref sub_beta, ref drivers) => {
             let mut res = Assoc::new();
             for parts in parts.march_all(drivers) {
-                res = res.set_assoc(&env_from_beta(&*sub_beta, &parts));
+                res = res.set_assoc(&try!(env_from_beta(&*sub_beta, &parts)));
             }
-            res
+            Ok(res)
         }
         &Basic(ref name_source, ref ty_source) => {
             if let LazilyWalkedTerm {term: Atom(ref name), ..} 
@@ -95,15 +94,21 @@ pub fn env_from_beta<'t, Mode: WalkMode<'t>>
                 let LazilyWalkedTerm {term: ref ty_stx, ..}
                     = **parts.parts.get_leaf_or_panic(ty_source);
                         
-                Assoc::new().set(*name, Mode::ast_to_elt((*ty_stx).clone()))        
+                Ok(Assoc::new().set(*name, Mode::ast_to_elt((*ty_stx).clone(), parts)))        
             } else {
                 panic!("{:?} is supposed to supply names, but is not an Atom.", 
                     parts.parts.get_leaf_or_panic(name_source).term)
             }
-            
         }
-        &SameAs(ref _name_source, ref _ty_source) => {
-            panic!("TODO! Not implemented! But should be easy!")
+        
+        // treats the node `name_source` mentions as a negative node, and gets names from it
+        &SameAs(ref name_source, ref res_source) => {
+            // TODO: `env_from_beta` needs to return a Result
+            let ty = try!(parts.get_res(res_source));
+            Ok(Mode::Negative::out_to_env(
+                try!(parts.switch_mode::<Mode::Negative>()
+                    .with_context(Mode::out_to_elt(ty))
+                    .get_res(name_source))))
         }
     }
 }
