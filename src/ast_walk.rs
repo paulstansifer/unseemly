@@ -69,10 +69,10 @@ impl<'t, Mode : WalkMode<'t>> LazilyWalkedTerm<'t, Mode> {
         
     /** Get the result of walking this term (memoized) */
     fn get_res(&self, cur_node_contents: &LazyWalkReses<'t, Mode>) -> Result<Mode::Out, ()> {
-        self.get_something(&|| walk(&self.term, cur_node_contents))
+        self.memoized(&|| walk(&self.term, cur_node_contents))
     }
     
-    fn get_something(&self, f: &Fn() -> Result<Mode::Out, ()>) -> Result<Mode::Out, ()> {
+    fn memoized(&self, f: &Fn() -> Result<Mode::Out, ()>) -> Result<Mode::Out, ()> {
         let result = self.res.borrow_mut().take().unwrap_or_else(f);
         * self.res.borrow_mut() = Some(result.clone());
         result

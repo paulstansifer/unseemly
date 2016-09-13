@@ -161,14 +161,13 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                             //new_env_parts.add_leaf(*p, t);
                         }
                         
+                        // All these colons suggest that maybe there's 
+                        // some other interface that should exist.
+                        
                         let new_env_parts = ::util::mbe::EnvMBE::new_from_anon_repeat(params);
                         
                         ::ast_walk::walk::<::runtime::eval::Evaluate>(&clos.body,
                             &::ast_walk::LazyWalkReses::new(clos.env.clone(), new_env_parts))
-                        
-                        //TODO!!!! call `walk` directly with a made-up cur_node_contents!
-                        
-                        //eval(&clos.body, env)
                     },
                     BuiltInFunction(::runtime::eval::BIF(f)) => {
                         Ok(f(try!(part_values.get_rep_res(&n("rand")))))
@@ -179,40 +178,41 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                     }
                 }
             }))),
-            /*
         // Need to get imports of pats working first!
         typed_form!("match",
             [(lit "match"), (named "scrutinee", (call "expr")),
              (delim "{", "{", 
-                 (star [(named "p", (call "pat")), (lit "=>") 
-                        (import ["p" = "scrutinee"] (named "arm", (call "expr")))]))],
+                 (star [(named "p", (call "pat")), (lit "=>"),
+                        (named "arm", (import ["p" = "scrutinee"], (call "expr")))]))],
             /* Typesynth: */
             Custom(Box::new(move | part_types | {
                 let mut res = None;
                 for arm_part_types in part_types.march_parts(&vec![n("arm")]) {
-                    let arm_res = try!(arm_part_types.get_res("arm"));
+                    let arm_res = try!(arm_part_types.get_res(&n("arm")));
 
                     match res {
-                        None => { res = arm_res }
-                        Some(old_res) => {
-                            if old_res != arm_res {
+                        None => { res = Some(arm_res) }
+                        Some(ref old_res) => {
+                            if old_res != &arm_res {
                                 panic!("Type error: arm mismatch: {:?} vs. {:?}", old_res, arm_res)
                             }
                         }
                     }
                 }
                 
-                match res { 
-                    None => panic!("Type error: no arms!"),
-                    Some(r) => r
-                }
-                
+                Ok(res.expect("Type error: no arms!"))                
             })),
             /* Evaluation: */
             Custom(Box::new( move | part_values | {
-                
+                for arm_values in part_values.march_all(&vec![n("arm")]) {
+                    match arm_values.get_res(&n("arm")) {
+                        Ok(res) => { return Ok(res); }
+                        Err(()) => { /* try the next one */ }
+                    }
+                }
+                panic!("No arms matched! This ought to be a type error, but isn't.");
             }))
-        ),*/
+        ),
             
         typed_form!("enum_expr",
             [(named "name", aat), 
@@ -615,9 +615,32 @@ fn alg_type() {
                 "component" => [@"c" (vr "x"), (vr "f")]
             }),
             simple_ty_env.clone()),
-        Ok(my_struct)
-    )
-
+        Ok(my_struct));
+    
+    /* Simple match... */
+    
+    let mtch = find_form(&cse, "expr", "match");
+    
+    assert_eq!(synth_type(&ast!({ mtch.clone() ;
+                "scrutinee" => (vr "f"),
+                "p" => [@"arm" (vr "my_new_name"), (vr "unreachable")],
+                "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")), 
+                                 (import ["p" = "scrutinee"] (vr "f"))]
+            }),
+            simple_ty_env.clone()),
+        Ok(ast!("float")));
+    
+        
+    // TODO: use this test when type errors aren't panics
+        /*
+    assert_eq!(synth_type(&ast!({ mtch.clone() ;
+                "scrutinee" => (vr "b"),
+                "p" => [@"arm" (vr "my_new_name"), (vr "unreachable")],
+                "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")), 
+                                 (import ["p" = "scrutinee"] (vr "f"))]
+            }),
+            simple_ty_env.clone()),
+        Err(())); */
 
     
 }
@@ -683,5 +706,19 @@ fn alg_eval() {
         mt_env.set(negative_ret_val,
                    Struct(assoc_n!("x" => Int(0.to_bigint().unwrap()), "y" => Bool(true))))),
         Ok(assoc_n!("xx" => Int(0.to_bigint().unwrap()), "yy" => Bool(true))));
+    
+    /* Evaluate match */
+    
+    let mtch = find_form(&cse, "expr", "match");
+    
+    assert_eq!(eval(&ast!({ mtch.clone() ;
+                "scrutinee" => (vr "x"),
+                "p" => [@"arm" (vr "my_new_name"), (vr "unreachable")],
+                "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")), 
+                                 (import ["p" = "scrutinee"] (vr "x"))]
+        }),
+        simple_env.clone()),
+        Ok(Int(18.to_bigint().unwrap()))
+    )
     
 }

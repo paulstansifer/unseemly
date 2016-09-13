@@ -1,0 +1,4 @@
+* segmented unit tests: for when your unit tests want to depend on other code 
+  you've written to avoid writing grotty constructors and constructor-like 
+  code. You insert boundaries, and the unit test system tells you which side
+  changed (thus, who to blame). Try a few variations on this.

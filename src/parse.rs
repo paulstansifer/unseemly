@@ -87,6 +87,11 @@ pub enum FormPat<'t> {
      * TODO: do we need both this and `ComputeSyntax`?
      */
     SynImport(Name<'t>, SyntaxExtension<'t>),
+    /**
+     * FOOTGUN:  NameImport(Named(...), ...) is almost always wrong.
+     * (write Named(NameImport(..., ...)) instead) 
+     * TODO: make this better
+     */
     NameImport(Box<FormPat<'t>>, Beta<'t>),
     //NameExport(Beta<'t>, Box<FormPat<'t>>) // This might want to go on some existing pattern
 }
