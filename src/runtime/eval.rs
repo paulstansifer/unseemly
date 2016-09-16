@@ -1,3 +1,4 @@
+#![macro_use]
 
 use num::bigint::BigInt;
 use util::assoc::Assoc;
@@ -16,13 +17,26 @@ use std;
 pub enum Value<'t> {
     Int(BigInt),
     Bool(bool),
-    Ident(ContainedName),
+    Ident(ContainedName), // TODO: should this exist?
     Cons(Rc<Value<'t>>, Rc<Value<'t>>), // TODO: switch to a different core sequence type
     Function(Rc<Closure<'t>>), // TODO: unsure if this Rc is needed
     BuiltInFunction(BIF<'t>),
-    AbstractSyntax(Name<'t>, Rc<Ast<'t>>), // likewise
+    AbstractSyntax(Name<'t>, Rc<Ast<'t>>), // likewise. Also, I'm not sure `Name` is right...
     Struct(Assoc<Name<'t>, Value<'t>>),
     Enum(Name<'t>, Vec<Value<'t>>) // A real compiler would probably tag with numbers...
+}
+
+macro_rules! val {
+    (i $i:expr) => { Int($i.to_bigint().unwrap()) };
+    (b $b:expr) => { Bool($b) };
+    (cons $a:tt, $d:tt) => { Cons(Rc::new(val!($a)), Rc::new(val! $d )) };
+    (f $body:tt, $params:expr, $env:tt) => {
+        Function(Rc::new(Closure(ast!($body), $params, assoc_n! $env)))
+    };
+    (bif $f:expr) => { BuiltInFunction(BIF(Rc::new($f))) };
+    (ast $nm:expr, $body:tt) => { AbstractSyntax(n($nm), ast! $body) };
+    (struct $( $k:tt => $v:tt ),* ) => { Struct(assoc_n!( $( $k => val! $v),* ))};
+    (enum $nm:expr, $($v:tt),*) => { Enum(n($nm), vec![ $( val! $v ),* ])}
 }
 
 pub use self::Value::*;

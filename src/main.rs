@@ -23,9 +23,10 @@ mod form;
 mod ast_walk;
 mod ty;
 
+mod runtime;
+
 mod core_forms;
 
-mod runtime;
 
 
 fn main() {

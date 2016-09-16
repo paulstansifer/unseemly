@@ -650,9 +650,7 @@ fn alg_eval() {
     let cse = make_core_syn_env();
     
     let mt_env = Assoc::new();
-    let simple_env = assoc_n!("x" => Int(18.to_bigint().unwrap()),
-                              "w" => Int(99.to_bigint().unwrap()),
-                              "b" => Bool(false));
+    let simple_env = assoc_n!("x" => val!(i 18), "w" => val!(i 99), "b" => val!(b false));
     
     /* Evaluate enum pattern */
     let enum_p = find_form(&cse, "pat", "enum_pat");
@@ -662,17 +660,15 @@ fn alg_eval() {
             "name" => "choice1",
             "component" => [(vr "abc"), (vr "def")]
         }),
-        mt_env.set(negative_ret_val, 
-            Enum(n("choice1"), vec![Int(9006.to_bigint().unwrap()), Bool(true)]))),
-        Ok(assoc_n!("abc" => Int(9006.to_bigint().unwrap()), "def" => Bool(true))));
+        mt_env.set(negative_ret_val, val!(enum "choice1", (i 9006), (b true)))),
+        Ok(assoc_n!("abc" => val!(i 9006), "def" => val!(b true))));
             
     assert_eq!(neg_eval(&ast!(
         { enum_p.clone() ; 
             "name" => "choice1",
             "component" => [(vr "abc"), (vr "def")]
         }),
-        mt_env.set(negative_ret_val, 
-            Enum(n("choice0"), vec![Int(12321.to_bigint().unwrap())]))),
+        mt_env.set(negative_ret_val, val!(enum "choice0", (i 12321)))),
         Err(()));
 
     /* Evaluate enum expression */
@@ -693,7 +689,7 @@ fn alg_eval() {
             "t" => (, my_enum.clone())
         }),
         simple_env.clone()),
-        Ok(Enum(n("choice1"), vec![Int(18.to_bigint().unwrap()), Bool(false)])));
+        Ok(val!(enum "choice1", (i 18), (b false))));
         
     /* Evaluate struct pattern */
     
@@ -704,8 +700,8 @@ fn alg_eval() {
             "component" => [@"c" (vr "xx"), (vr "yy")]
         }),
         mt_env.set(negative_ret_val,
-                   Struct(assoc_n!("x" => Int(0.to_bigint().unwrap()), "y" => Bool(true))))),
-        Ok(assoc_n!("xx" => Int(0.to_bigint().unwrap()), "yy" => Bool(true))));
+                   Struct(assoc_n!("x" => val!(i 0), "y" => val!(b true))))),
+        Ok(assoc_n!("xx" => val!(i 0), "yy" => val!(b true))));
     
     /* Evaluate match */
     
@@ -718,7 +714,6 @@ fn alg_eval() {
                                  (import ["p" = "scrutinee"] (vr "x"))]
         }),
         simple_env.clone()),
-        Ok(Int(18.to_bigint().unwrap()))
-    )
+        Ok(val!(i 18)));
     
 }
