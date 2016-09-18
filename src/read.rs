@@ -91,18 +91,6 @@ fn read_tokens<'a>(s: &'a str) -> TokenTree<'a> {
 
 
 
-
-macro_rules! tokens {
-    ($($contents:tt)*) => { TokenTree{t: vec![ $(  t_elt!($contents) ),* ] }}
-}
-
-macro_rules! t_elt {
-    ( [ $e:expr ;  $( $list:tt )* ] ) => { Group(n(concat!($e,"[")), SquareBracket, tokens!($($list)*))};
-    ( { $e:expr ;  $( $list:tt )* } ) => { Group(n(concat!($e,"{")), CurlyBracket, tokens!($($list)*))};
-    ( ( $e:expr ;  $( $list:tt )* ) ) => { Group(n(concat!($e,"(")), Paren, tokens!($($list)*))};
-    ($e:expr) => { Simple(n($e)) }
-}
-
 #[test]
 fn simple_reading()  {
     assert_eq!(read_tokens(""), tokens!());

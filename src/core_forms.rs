@@ -36,37 +36,6 @@ use num::bigint;
 use num::bigint::ToBigInt;
 
 
-/* Unpacking `Ast`s into environments is a pain, so here's a macro for it*/
-macro_rules! expect_node {
-    ( ($node:expr ; $form:expr) $env:ident ; $body:expr ) => (
-        // This is tied to the signature of `Custom`
-        if let Node(ref f, ref $env) = $node {
-            if *f == $form { 
-                $body
-            } else {
-               Err(())
-            }
-        } else {
-            Err(())
-        }
-    )
-}
-
-// TODO: this ought to have some MBE support
-macro_rules! destructure_node {
-    ( ($node:expr ; $form:expr) $( $n:ident = $name:expr ),* ; $body:expr ) => (
-        expect_node!( ($node ; $form) env ; {
-            let ( $( $n ),* ) = ( $( env.get_leaf_or_panic(&n($name)) ),* );
-            $body
-        })
-    )
-}
-
-macro_rules! forms_to_form_pat {
-    ( $( $form:expr ),* ) => {
-        form_pat!((alt $( (scope $form) ),* ))
-    }
-}
 
 fn ast_to_atom<'t>(ast: &Ast<'t>) -> Name<'t> {
     match ast { &Atom(n) => n, _ => { panic!("internal error!") } }

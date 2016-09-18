@@ -116,25 +116,3 @@ pub fn env_from_beta<'t, Mode: WalkMode<'t>>(b: &Beta<'t>, parts: &LazyWalkReses
 //fn fold_beta<'t, T>(b: Beta<'t>, over: Assoc<Name<'t>, T>,
 //                    leaf: Fn(&Ast<'t> ) -> S
 
-macro_rules! beta_connector {
-    ( : ) => { Basic };
-    ( = ) => { SameAs }
-}
-
-macro_rules! beta {
-    ( [] ) => { Nothing };
-    ( [* $body:tt ]) => {
-        {
-            let sub = beta!($body);
-            let drivers = sub.names_mentioned();
-            ShadowAll(Box::new(sub), drivers)
-        }
-    };
-    ( [ $name:tt $connector:tt $t:tt
-        $(, $name_cdr:tt $connector_cdr:tt $t_cdr:tt )*
-         ] ) => { 
-        Shadow(Box::new(beta_connector!($connector)(n(expr_ify!($name)), 
-                                                    n(expr_ify!($t)))),
-               Box::new(beta!( [ $( $name_cdr $connector_cdr $t_cdr ),* ] )))
-    }
-}

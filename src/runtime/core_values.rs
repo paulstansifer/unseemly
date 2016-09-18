@@ -22,51 +22,6 @@ pub struct TypedValue<'t> {
 pub fn erase_types<'t>(tv: TypedValue<'t>) -> Value<'t> { tv.val }
 
 
-macro_rules! mk_type {
-    ( $se:expr, [ ( $( $param:tt ),* )  -> $ret_t:tt ] ) => {
-        ast!( { find_form($se, "type", "fn") ; 
-                  "param" => [ $((, mk_type!($se, $param) )),*],
-                  "ret" => (, mk_type!($se, $ret_t))
-        })
-    };
-    ( $se:expr, $n:tt ) => { ast!($n) };
-}
-
-/* Define a typed function */
-macro_rules! tf {
-    ( $se:expr, [ ( $($param_t:tt),* ) -> $ret_t:tt ] , 
-       ( $($param_p:pat),* ) => $body:expr) => {
-        TypedValue {
-            ty: mk_type!($se, [ ( $($param_t),* ) -> $ret_t ] ),
-            val: core_fn!( $($param_p),* => $body)
-        }
-    }
-}
-
-macro_rules! bind_patterns {
-    ( $iter:expr; () => $body:expr ) => { $body };
-    ( $iter:expr; ($p_car:pat, $($p_cdr:pat,)* ) => $body:expr ) => {
-        match $iter.next() {
-            Some($p_car) => {
-                bind_patterns!($iter; ($( $p_cdr, )*) => $body)
-            }
-            None => { panic!("ICE: too few arguments"); }
-            Some(ref other) => { panic!("Type ICE in argument: {:?}", other); }
-        } 
-    }
-}
-
-macro_rules! core_fn {
-    ( $($p:pat),* => $body:expr ) => {
-        BuiltInFunction(BIF(Rc::new(
-            move | args | { 
-                let mut argi = args.into_iter();
-                bind_patterns!(argi; ($( $p, )*) => $body )
-            }
-        )))
-    }
-}
-
 
 pub fn core_typed_values<'t>(se: &SynEnv<'t>) -> Assoc<Name<'t>, TypedValue<'t>> {
     assoc_n!(

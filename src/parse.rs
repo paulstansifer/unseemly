@@ -110,32 +110,6 @@ impl<'t> std::fmt::Debug for SyntaxExtension<'t> {
     }
 }
 
-macro_rules! form_pat {
-    ((lit $e:expr)) => { Literal($e) };
-    ((anyways $a:tt)) => { Anyways(ast!($a)) };
-    (at) => { AnyToken };
-    (aat) => { AnyAtomicToken };
-    (varref) => { VarRef };
-    ((delim $n:expr, $d:expr, $body:tt)) => {
-        Delimited(n($n), ::read::delim($d), Box::new(form_pat!($body)))
-    };
-    ((star $body:tt)) => {  Star(Box::new(form_pat!($body))) };
-    ((alt $($body:tt),* )) => { Alt(vec![ $( form_pat!($body) ),* ] )};
-    ((biased $lhs:tt, $rhs:tt)) => { Biased(Box::new(form_pat!($lhs)), 
-                                            Box::new(form_pat!($rhs))) };
-    ((call $n:expr)) => { Call(n($n)) };
-    ((scope $f:expr)) => { Scope($f) };
-    ((named $n:expr, $body:tt)) => { Named(n($n), Box::new(form_pat!($body))) };
-    ((import $beta:tt, $body:tt)) => { 
-        NameImport(Box::new(form_pat!($body)), beta!($beta))
-    };
-    ((extend $n:expr, $f:expr)) => {
-        SynImport(n($n), SyntaxExtension(Rc::new($f)))
-    };
-    ( [$($body:tt),*] ) => { Seq(vec![ $(form_pat!($body)),* ])}
-}
-
-
 pub type SynEnv<'t> = Assoc<Name<'t>, FormPat<'t>>;
 
 struct FormPatParser<'form, 'tokens: 'form, 't: 'tokens> {

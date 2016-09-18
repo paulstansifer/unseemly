@@ -9,6 +9,8 @@ use std::path::Path;
 use std::fs::File;
 use std::io::Read;
 
+mod macros;
+
 mod name; // should maybe be moved to `util`; `mbe` needs it
 
 mod util;

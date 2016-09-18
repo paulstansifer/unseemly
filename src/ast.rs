@@ -28,44 +28,8 @@ pub enum Ast<'t> {
     ExtendEnv(Box<Ast<'t>>, Beta<'t>)
 }
 
-macro_rules! ast_shape {
-    ($($contents:tt)*) => { Shape(vec![ $(  ast!($contents) ),* ] )};
-}
-
-
 pub use self::Ast::*;
 
-
-macro_rules! ast {
-    ( (import $beta:tt $sub:tt) ) => {
-        ExtendEnv(Box::new(ast!($sub)), beta!($beta))
-    };
-    /* // not sure we'll need this
-    ( (* $env:expr => $new_env:ident / $($n:expr),* ; $($sub_args:tt)*) ) => {
-        {
-            let mut res = vec![];
-            
-            for $new_env in $env.march_all( &vec![$($n),*] ) {
-                res.push(ast!($sub))
-            }
-            res.reverse();
-            Shape(res)
-        }
-    };*/
-    ( (vr $var:expr) ) => { VariableReference(n($var)) };
-    ( (, $interp:expr)) => { $interp };
-    ( ( $( $list:tt )* ) ) => { ast_shape!($($list)*)}; // TODO: maybe we should use commas for consistency
-    ( { - $($mbe_arg:tt)* } ) => {
-        IncompleteNode(mbe!( $($mbe_arg)* ))
-    };
-    ( { $form:expr; [ $($mbe_arg:tt)* ] }) => {
-        ast!( { $form ; $($mbe_arg)* } )
-    };
-    ( { $form:expr; $($mbe_arg:tt)* }) => {
-        Node($form, mbe!( $($mbe_arg)* ))
-    };
-    ($e:expr) => { Atom(n($e))}
-}
 
 
 impl<'t> fmt::Debug for Ast<'t> {
@@ -136,90 +100,6 @@ impl<'t> iter::FromIterator<Ast<'t>> for Ast<'t> {
 
 
 use std::iter::FromIterator;
-
-
-
-/* These macros generate `EnvMBE<Ast>`s, not arbitrary `EnvMBE`s, 
-    which is a little un-abstract, but is the main usage. */
-
-
-
-/*
- * Wait a second, I'm writing in Rust right now! I'll use an MBE macro to implement an MBE literal! 
- */
-macro_rules! mbe_one_name {
-    // `elt` ought to have an interpolation that references `new_env`
-    /* TYPE PUN ALERT: $env has to be something with a `march_all` method;
-        there's no trait enforcing this.
-       
-       But wait, isn't preventing this kind of nonsense the whole point of this project?
-       
-       Well, you know the old saying: 
-        "While the mice are implementing the cat, the mice will play."    
-    */
-    ($k:tt => [* $env:expr =>($($n:expr),*) $new_env:ident : $elt:tt]) => { 
-        {
-            let mut v = vec![];
-            let marchee = vec![$(n($n)),*];
-            for $new_env in $env.march_all(&marchee).into_iter() {
-                v.push( mbe_one_name!($k => $elt));
-            }
-            ::util::mbe::EnvMBE::new_from_anon_repeat(v)            
-        }
-    };
-    ($k:tt => [@ $n:tt $($elt:tt),*]) => {
-        ::util::mbe::EnvMBE::new_from_named_repeat(
-            n(expr_ify!($n)),
-            vec![ $( mbe_one_name!($k => $elt) ),* ]
-        )
-    };
-    
-    ($k:tt => [$($elt:tt),*]) => {
-        ::util::mbe::EnvMBE::new_from_anon_repeat(
-            vec![ $( mbe_one_name!($k => $elt) ),* ])
-    };
-    
-    // since `Ast`s go on the RHS, we have to have a distinctive interpolation syntax
-    ($k:tt => (,seq $e:expr)) => { 
-        {
-            let mut v = vec![];
-            for elt in $e { 
-                v.push(::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => elt)))
-            }
-            ::util::mbe::EnvMBE::new_from_anon_repeat(v)
-        }
-    };
-    
-    ($k:tt => (@ $rep_n:tt ,seq $e:expr)) => { 
-        {
-            let mut v = vec![];
-            for elt in $e { 
-                v.push(::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => elt)))
-            }
-            ::util::mbe::EnvMBE::new_from_named_repeat(n(expr_ify!($rep_n)), v)
-        }
-    };
-    
-    // For parsing reasons, we only accept expressions that are TTs.
-    // It's hard to generalize the `mbe!` interface so that it accepts exprs 
-    // or `[]`-surrounded trees of them.
-    ($k:tt => $leaf:tt) => {
-        ::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => ast!($leaf)))
-    }
-}
-
-
-// Eventually, this ought to support more complex structures
-macro_rules! mbe {
-    ( $( $lhs:tt => $rhs:tt ),* ) => {{
-        let single_name_mbes = vec![ $( mbe_one_name!($lhs => $rhs) ),*];
-        let mut res = ::util::mbe::EnvMBE::new();
-        for m in &single_name_mbes {
-            res = res.merge(m);
-        }
-        res
-    }}
-}
 
 
 
