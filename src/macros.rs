@@ -11,9 +11,12 @@ macro_rules! expr_ify {
 }
 
 macro_rules! assoc_n {
-    () => { Assoc::new() };
+    () => { ::util::assoc::Assoc::new() };
     ( $k:tt => $v:expr $(, $k_cdr:tt => $v_cdr:expr)* ) => {
         assoc_n!( $( $k_cdr => $v_cdr ),* ).set(n(expr_ify!($k)), $v)
+    };
+    ( ($k:expr) => $v:expr $(, $k_cdr:tt => $v_cdr:expr)* ) => {
+        assoc_n!( $( $k_cdr => $v_cdr ),* ).set(n($k), $v)
     };
 }
 
@@ -84,19 +87,19 @@ macro_rules! ast {
             Shape(res)
         }
     };*/
-    ( (vr $var:expr) ) => { VariableReference(n($var)) };
+    ( (vr $var:expr) ) => { ::ast::VariableReference(n($var)) };
     ( (, $interp:expr)) => { $interp };
     ( ( $( $list:tt )* ) ) => { ast_shape!($($list)*)}; // TODO: maybe we should use commas for consistency
     ( { - $($mbe_arg:tt)* } ) => {
-        IncompleteNode(mbe!( $($mbe_arg)* ))
+        ::ast::IncompleteNode(mbe!( $($mbe_arg)* ))
     };
     ( { $form:expr; [ $($mbe_arg:tt)* ] }) => {
         ast!( { $form ; $($mbe_arg)* } )
     };
     ( { $form:expr; $($mbe_arg:tt)* }) => {
-        Node($form, mbe!( $($mbe_arg)* ))
+        ::ast::Node($form, mbe!( $($mbe_arg)* ))
     };
-    ($e:expr) => { Atom(n($e))}
+    ($e:expr) => { ::ast::Atom(n($e))}
 }
 
 
@@ -366,5 +369,161 @@ macro_rules! destructure_node {
 macro_rules! forms_to_form_pat {
     ( $( $form:expr ),* ) => {
         form_pat!((alt $( (scope $form) ),* ))
+    }
+}
+
+
+/* panicking destructor (when the type system should offer protection) */
+
+macro_rules! extract {
+    (($v:expr; $expected:path) ( $( $sub:pat ),* ) => $body:expr) => {
+        match $v {
+            & $expected ( $($sub),* ) => { $body }
+            _ => { panic!("ICE: {:?} isn't a {:?}", $v, stringify!($expected)) }
+        }
+    }
+}
+
+
+
+/* reification */
+
+macro_rules! get_form {
+    ( $nt:expr, $name:expr ) => {
+        ::core_forms::find_form(&::core_forms::make_core_syn_env(), $nt, $name)
+    }
+}
+
+macro_rules! Reifiable {
+    // HACK: everything is parameterized over 't...
+    (() $(pub)* struct $name:ident/*<'t>*/ { $($field:ident : $t:ty),* }) => {
+        impl<'t> ::runtime::reify::Reifiable<'t> for $name {
+            fn ty() -> ::ast::Ast<'static> {
+                ast! ({ get_form!("type", "struct") ;
+                    "component_name" => [@"c" $( 
+                        (, (::ast::Ast::VariableReference(n(stringify!($field))))) ),* ],
+                    "component" => [@"c" $( (, (<$t as ::runtime::reify::Reifiable>::ty())) ),*]
+                })
+            }
+            
+            fn type_name() -> Name<'static> { n(stringify!($name)) }
+            
+            fn reify(&self) -> ::runtime::eval::Value<'t> {
+                ::runtime::eval::Struct(assoc_n!( 
+                    $( (stringify!($field)) => self.$field.reify()),* ))
+            }
+            
+            fn reflect(v: &::runtime::eval::Value<'t>) -> Self {
+                extract!((v; ::runtime::eval::Struct) (ref env) => 
+                    $name {
+                        $( $field : 
+                            <$t as ::runtime::reify::Reifiable>::reflect(
+                                env.find(&n(stringify!($field))).unwrap())),*
+                    })
+            }
+        }
+    }
+}
+
+macro_rules! Reifiable {
+    /* struct */
+    // HACK: everything is parameterized over 't...
+    (() $(pub)* struct $name:ident/*<'t>*/ { $($field:ident : $t:ty),* }) => {
+        impl<'t> ::runtime::reify::Reifiable<'t> for $name {
+            fn ty() -> ::ast::Ast<'static> {
+                ast! ({ get_form!("type", "struct") ;
+                    "component_name" => [@"c" $( 
+                        (, (::ast::Ast::VariableReference(n(stringify!($field))))) ),* ],
+                    "component" => [@"c" $( (, (<$t as ::runtime::reify::Reifiable>::ty())) ),*]
+                })
+            }
+            
+            fn type_name() -> Name<'static> { n(stringify!($name)) }
+            
+            fn reify(&self) -> ::runtime::eval::Value<'t> {
+                ::runtime::eval::Struct(assoc_n!( 
+                    $( (stringify!($field)) => self.$field.reify()),* ))
+            }
+            
+            fn reflect(v: &::runtime::eval::Value<'t>) -> Self {
+                extract!((v; ::runtime::eval::Struct) (ref env) => 
+                    $name {
+                        $( $field : 
+                            <$t as ::runtime::reify::Reifiable>::reflect(
+                                env.find(&n(stringify!($field))).unwrap())),*
+                    })
+            }
+        }
+    };
+    /* enum */
+    (() $(pub)* enum $name:ident/*<'t>*/ { $($choice:ident( $($part:ty),* )),* }) => {
+        impl<'t> ::runtime::reify::Reifiable<'t> for $name {
+            fn ty() -> ::ast::Ast<'static> {
+                ast! ({ get_form!("type", "enum") ;
+                    "name" => [@"c" $( 
+                        (, (::ast::Ast::VariableReference(n(stringify!($choice))))) ),* ],
+                    
+                    "component" => [@"c" $( [ $( 
+                        (, (<$part as ::runtime::reify::Reifiable>::ty()) )),*] ),*]
+                })
+            }
+            
+            fn type_name() -> Name<'static> { n(stringify!($name)) }
+            
+            fn reify(&self) -> ::runtime::eval::Value<'t> {
+                match self { $(
+                    choice_pat!( ($($part),* ) (a b c d e f g h i j k l m n o p q r s t) $name::$choice ; ())
+                    => {
+                        let mut v = vec![];
+                        choice_vec!( ($($part),*) (a b c d e f g h i j k l m n o p q r s t) v);
+                        ::runtime::eval::Value::Enum(n(stringify!($choice)), v)
+                    }
+                ),* }
+            }
+            
+            fn reflect(v: &::runtime::eval::Value<'t>) -> Self {
+                extract!((v; ::runtime::eval::Enum) (ref choice, ref parts) => 
+                    match choice.orig {
+                        $( stringify!($choice) => { 
+                            unpack_parts!( ($($part),*) parts; 0; $name::$choice; ())
+                        }, )* 
+                        _ => { panic!("ICE: invalid enum choice: {:?}", choice) }
+                    })
+            }
+        }
+    }
+}
+
+
+
+/* makes a pattern matching an enum with _n_ components, using the first _n_
+   of the input names (be sure to supply enough names!) */
+macro_rules! choice_pat {
+    ( ($t_car:ty $(, $t_cdr:ty)* ) ($i_car:ident $($i_cdr:ident)*) 
+      $choice:path; ($($accum:ident),*)) => { 
+          choice_pat!( ($($t_cdr),* ) ($($i_cdr)*) $choice; ($i_car $(, $accum)*))
+    };
+
+    ( ( ) ($($i_cdr:ident)*) $choice:path; ( $($accum:ident),* ) ) => {
+        & $choice($(ref $accum),*)
+    };
+}
+
+macro_rules! choice_vec {
+    /* the types are ignored, except for how many of them there are */
+    ( ($t_car:ty $(, $t_cdr:ty)*) ($i_car:ident $($i_cdr:ident)*) $v:expr) => { {
+        choice_vec!( ($($t_cdr),*)  ($($i_cdr)*) $v);
+        $v.push($i_car.reify());
+    } };
+    ( ( ) ($($i_cdr:ident)*) $v:expr) => { {} }
+}
+
+macro_rules! unpack_parts {
+    ( ($t_car:ty $(, $t_cdr:ty)*) $v:expr; $idx:expr; $choice:path; ($($accum:expr),*)) => {
+        unpack_parts!( ( $($t_cdr),* ) $v; ($idx + 1); $choice; ( $($accum, )* 
+                       <$t_car as ::runtime::reify::Reifiable>::reflect(& $v[$idx])))
+    };
+    ( () $v:expr; $idx:expr; $choice:path; ($($accum:expr),*)) => {
+        $choice($($accum),*)
     }
 }

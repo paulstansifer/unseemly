@@ -1,9 +1,12 @@
 #![allow(dead_code,unused_imports)]
+// unstable; only for testing
+//#![feature(log_syntax,trace_macros)]
 
 // unstable; only for testing
 // #[macro_use] extern crate log;
 #[macro_use] extern crate lazy_static;
 extern crate num;
+#[macro_use] extern crate custom_derive;
 
 use std::path::Path;
 use std::fs::File;
@@ -28,6 +31,7 @@ mod ty;
 mod runtime;
 
 mod core_forms;
+
 
 
 

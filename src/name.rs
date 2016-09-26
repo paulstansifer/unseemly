@@ -6,8 +6,9 @@ use std::fmt;
 
 #[derive(PartialEq,Eq,Clone,Copy,Hash)]
 pub struct Name<'t> {
-    orig: &'t str
+    pub orig: &'t str // TODO: not sure if this ought to be pub
 }
+
 
 /// Special name for negative `ast_walk`ing
 // TODO: this should be gensymmed, effectively
@@ -31,9 +32,9 @@ pub fn n<'t>(s: &'t str) -> Name<'t> {
     Name{ orig: s }
 }
 
-
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub struct ContainedName {
-    orig: String
+custom_derive! {
+    #[derive(PartialEq, Eq, Clone, Debug, Reifiable)]
+    pub struct ContainedName {
+        orig: String
+    }
 }
-
