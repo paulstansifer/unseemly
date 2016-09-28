@@ -51,18 +51,17 @@ impl<'t> Reifiable<'t> for BigInt {
     fn reflect(v: &Value<'t>) -> Self { extract!((v; Value::Int) (ref i) => i.clone()) }
 }
 
-impl<'t, T> Reifiable<'t> for Option<T> {
-    fn ty() -> Ast<'static> { panic!("TODO") }
-    
-    fn type_name() -> Name<'static> { n("String") }
-    
-    fn reify(&self) -> Value<'t> { panic!("TODO") }
-    
-    fn reflect(v: &Value<'t>) -> Self { panic!("TODO") }    
+
+Reifiable! {
+    () pub enum Option<T> {
+        None,
+        Some(T)
+    }
 }
 
+
 custom_derive! {
-    #[derive(Debug, PartialEq, Eq, Reifiable)]
+    #[derive(Debug, PartialEq, Eq, Reifiable, Clone)]
     struct BasicStruct {
         a: BigInt, // TODO: change to String to test heterogeneity
         b: BigInt
@@ -70,14 +69,14 @@ custom_derive! {
 }
 
 custom_derive! {
-    #[derive(Debug, PartialEq, Eq, Reifiable)]
+    #[derive(Debug, PartialEq, Eq, Reifiable, Clone)]
     struct NestedStruct {
         x: BasicStruct
     }
 }
 
 custom_derive! {
-    #[derive(Debug, PartialEq, Eq, Reifiable)]
+    #[derive(Debug, PartialEq, Eq, Reifiable, Clone)]
     enum BasicEnum {
         Jefferson(BigInt, BigInt), // TODO: change the first one to String
         Burr(BigInt)
@@ -101,4 +100,9 @@ fn basic_reification() {
     
     assert_eq!(bev0, BasicEnum::reflect(&bev0.reify()));
     assert_eq!(bev1, BasicEnum::reflect(&bev1.reify()));
+
+    //assert_eq!(None, Option::reflect(&None.reify()));
+    assert_eq!(Some(BigInt::from(5)), Option::reflect(&Some(BigInt::from(5)).reify()));
+    assert_eq!(Some(bev1.clone()), Option::reflect(&Some(bev1.clone()).reify()));
+
 }

@@ -385,6 +385,7 @@ macro_rules! extract {
 }
 
 
+// TODO: pull this into a separate file and fix line lengths
 
 /* reification */
 
@@ -456,15 +457,18 @@ macro_rules! Reifiable {
         }
     };
     /* enum */
-    (() $(pub)* enum $name:ident/*<'t>*/ { $($choice:ident( $($part:ty),* )),* }) => {
-        impl<'t> ::runtime::reify::Reifiable<'t> for $name {
+    
+    // The `$((...))*` and `$(<...>)*` patterns deal with the fact that the `()` and `<>` 
+    //  might be completely absent (the `*` matches 0 or 1 times)
+    (() $(pub)* enum $name:ident$(<$($t_p:ident),*>)*/*<'t>*/ { $($choice:ident$(( $($part:ty),* ))*),* }) => {
+        impl<'t $($(, $t_p : Reifiable<'t>)*)*> ::runtime::reify::Reifiable<'t> for $name<$($($t_p),*)*> {
             fn ty() -> ::ast::Ast<'static> {
                 ast! ({ get_form!("type", "enum") ;
                     "name" => [@"c" $( 
                         (, (::ast::Ast::VariableReference(n(stringify!($choice))))) ),* ],
                     
-                    "component" => [@"c" $( [ $( 
-                        (, (<$part as ::runtime::reify::Reifiable>::ty()) )),*] ),*]
+                    "component" => [@"c" $( [ $($( 
+                        (, (<$part as ::runtime::reify::Reifiable>::ty()) )),*)* ] ),*]
                 })
             }
             
@@ -472,27 +476,35 @@ macro_rules! Reifiable {
             
             fn reify(&self) -> ::runtime::eval::Value<'t> {
                 match self { $(
-                    choice_pat!( ($($part),* ) (a b c d e f g h i j k l m n o p q r s t) $name::$choice ; ())
+                    choice_pat!( ( $($($part),*)* ) (a b c d e f g h i j k l m n o p q r s t) $name::$choice ; ())
                     => {
-                        let mut v = vec![];
-                        choice_vec!( ($($part),*) (a b c d e f g h i j k l m n o p q r s t) v);
+                        let mut v = vec![]; // How does this not need to be mut!! TODO!!
+                        choice_vec!( ( $($($part),*)* ) (a b c d e f g h i j k l m n o p q r s t) v);
                         ::runtime::eval::Value::Enum(n(stringify!($choice)), v)
                     }
                 ),* }
             }
             
             fn reflect(v: &::runtime::eval::Value<'t>) -> Self {
+                extract!((v; ::runtime::eval::Enum) (ref choice, ref parts) => {
+                    make_enum_reflect!(choice; parts; $name$(<$($t_p),*>)*/*<'t>*/ 
+                        { $($choice $(( $($part),* ))*),* } )
+                })
+
+                /*
                 extract!((v; ::runtime::eval::Enum) (ref choice, ref parts) => 
                     match choice.orig {
                         $( stringify!($choice) => { 
-                            unpack_parts!( ($($part),*) parts; 0; $name::$choice; ())
+                            unpack_parts!( ( $($($part),*)* ) parts; 0; constructor; ())
                         }, )* 
                         _ => { panic!("ICE: invalid enum choice: {:?}", choice) }
-                    })
+                    })*/
             }
         }
     }
 }
+
+
 
 
 
@@ -504,7 +516,11 @@ macro_rules! choice_pat {
           choice_pat!( ($($t_cdr),* ) ($($i_cdr)*) $choice; ($i_car $(, $accum)*))
     };
 
-    ( ( ) ($($i_cdr:ident)*) $choice:path; ( $($accum:ident),* ) ) => {
+    ( ( ) ($($i_cdr:ident)*) $choice:path; ( ) ) => {
+        & $choice
+    };
+
+    ( ( ) ($($i_cdr:ident)*) $choice:path; ( $($accum:ident),+ ) ) => {
         & $choice($(ref $accum),*)
     };
 }
@@ -518,12 +534,34 @@ macro_rules! choice_vec {
     ( ( ) ($($i_cdr:ident)*) $v:expr) => { {} }
 }
 
-macro_rules! unpack_parts {
-    ( ($t_car:ty $(, $t_cdr:ty)*) $v:expr; $idx:expr; $choice:path; ($($accum:expr),*)) => {
-        unpack_parts!( ( $($t_cdr),* ) $v; ($idx + 1); $choice; ( $($accum, )* 
-                       <$t_car as ::runtime::reify::Reifiable>::reflect(& $v[$idx])))
+// workaround for MBE limitation; need to walk choices, but *not* t_p, 
+//  so we use this to manually walk over the choices
+macro_rules! make_enum_reflect {
+    ($choice_name:ident; $parts_name:ident; $name:ident$(<$($t_p:ident),*>)*/*<'t>*/ { 
+        $choice_car:ident $(( $($part_cars:ty),* ))* $(, $choice_cdr:ident$(( $($part_cdr:ty),* ))*)* }) => {
+            
+        if $choice_name.is(stringify!($choice_car)) {
+            unpack_parts!( $(( $($part_cars),* ))* $parts_name; 0; $name::$choice_car$(::< $($t_p),* >)*; ())
+        } else {
+            make_enum_reflect!($choice_name; $parts_name; $name$(<$($t_p),*>)*/*<'t>*/ {
+                $($choice_cdr $(( $($part_cdr),* ))* ),* })
+        }
     };
-    ( () $v:expr; $idx:expr; $choice:path; ($($accum:expr),*)) => {
-        $choice($($accum),*)
+    ($choice_name:ident; $parts_name:ident; $name:ident$(<$($t_p:ident),*>)*/*<'t>*/ { } ) => {
+        panic!("ICE: invalid enum choice: {:?}", $choice_name)
+    }    
+}
+
+macro_rules! unpack_parts {
+    ( ($t_car:ty $(, $t_cdr:ty)*) $v:expr; $idx:expr; $ctor:expr; ($($accum:expr),*)) => {
+        unpack_parts!( ( $($t_cdr),* ) $v; ($idx + 1); $ctor; 
+            ($($accum, )* 
+             <$t_car as ::runtime::reify::Reifiable>::reflect(& $v[$idx])))
+    };
+    ( () $v:expr; $idx:expr; $ctor:expr; ($($accum:expr),*)) => {
+        $ctor($($accum),*)
+    };
+    ( $v:expr; $idx:expr; $ctor:expr; ()) => {
+        $ctor // special case: a value, not a 0-arg constructor
     }
 }
