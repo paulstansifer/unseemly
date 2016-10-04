@@ -8,6 +8,7 @@ macro_rules! get_form {
 
 macro_rules! Reifiable {
     /* struct */
+    // TODO: This lacks support for type-parameterized `struct`s ... but do we need it?
     // HACK: everything is parameterized over 't...
     (() $(pub)* struct $name:ident/*<'t>*/ { $($field:ident : $t:ty),* }) => {
         impl<'t> ::runtime::reify::Reifiable<'t> for $name {
@@ -19,7 +20,7 @@ macro_rules! Reifiable {
                 })
             }
             
-            fn type_name() -> Name<'static> { n(stringify!($name)) }
+            //fn type_name() -> Name<'static> { n(stringify!($name)) }
             
             fn reify(&self) -> ::runtime::eval::Value<'t> {
                 ::runtime::eval::Struct(assoc_n!( 
@@ -38,13 +39,38 @@ macro_rules! Reifiable {
     };
     /* enum */
     
-    // The `$((...))*` and `$(<...>)*` patterns deal with the fact that the `()` and `<>` 
-    //  might be completely absent (the `*` matches 0 or 1 times)
-    (() $(pub)* enum $name:ident$(<$($t_p:ident),*>)*/*<'t>*/ { 
+    ((lifetime) $(pub)* enum $name:ident<$lifetime:tt> { 
         $($choice:ident$(( $($part:ty),* ))*),* 
     }) => {
-        impl<'t $($(, $t_p : Reifiable<'t>)*)*> ::runtime::reify::Reifiable<'t> 
-                for $name<$($($t_p),*)*> {
+        Reifiable!((internal) enum $name<$lifetime> @ { 
+            $($choice $(( $($part),* ))*),* 
+        });
+    };
+
+    ((lifetime) $(pub)* enum $name:ident<$lifetime:tt $(, $ty_param_ty:ident)*> { 
+        $($choice:ident$(( $($part:ty),* ))*),* 
+    }) => {
+        Reifiable!((internal) enum $name<$lifetime $(, $ty_param_ty)*> @ <$($ty_param_ty),*> { 
+            $($choice $(( $($part),* ))*),* 
+        });
+    };
+    
+    (() $(pub)* enum $name:ident$(<$($ty_param_ty:ident),*>)*  { 
+        $($choice:ident$(( $($part:ty),* ))*),* 
+    }) => {
+        Reifiable!((internal) enum $name$(<$($ty_param_ty),*>)* @ $(<$($ty_param_ty),*>),* { 
+            $($choice$(( $($part),* ))*),* 
+        });
+    };
+    
+    // The `$((...))*` and `$(<...>)*` patterns deal with the fact that the `()` and `<>` 
+    //  might be completely absent (the `*` matches 0 or 1 times)
+    // The second set of type parameters are those that are not lifetime params...
+    ((internal) $(pub)* enum $name:ident$(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* { 
+        $($choice:ident$(( $($part:ty),* ))*),* 
+    }) => {
+        impl<'t $($(, $ty_param_ty : Reifiable<'t>)*)*> ::runtime::reify::Reifiable<'t> 
+                for $name<$($($ty_param),*)*> {
             fn ty() -> ::ast::Ast<'static> {
                 ast! ({ get_form!("type", "enum") ;
                     "name" => [@"c" $( 
@@ -55,7 +81,7 @@ macro_rules! Reifiable {
                 })
             }
             
-            fn type_name() -> Name<'static> { n(stringify!($name)) }
+            //fn type_name() -> Name<'static> { n(stringify!($name)) }
             
             #[allow(unused_mut)] // rustc bug! `v` has to be mutable, but it complains
             fn reify(&self) -> ::runtime::eval::Value<'t> {
@@ -73,12 +99,14 @@ macro_rules! Reifiable {
             
             fn reflect(v: &::runtime::eval::Value<'t>) -> Self {
                 extract!((v; ::runtime::eval::Enum) (ref choice, ref parts) => {
-                    make_enum_reflect!(choice; parts; $name$(<$($t_p),*>)*/*<'t>*/ 
+                    make_enum_reflect!(choice; parts; $name$(<$($ty_param),*>)*/*<'t>*/ 
                         { $($choice $(( $($part),* ))*),* } )
                 })
             }
         }
     }
+    
+
 }
 
 
@@ -111,22 +139,22 @@ macro_rules! choice_vec {
     ( ( ) ($($i_cdr:ident)*) $v:expr) => { {} }
 }
 
-// workaround for MBE limitation; need to walk choices, but *not* t_p, 
+// workaround for MBE limitation; need to walk choices, but *not* ty_param, 
 //  so we use this to manually walk over the choices
 macro_rules! make_enum_reflect {
-    ($choice_name:ident; $parts_name:ident; $name:ident$(<$($t_p:ident),*>)*/*<'t>*/ { 
+    ($choice_name:ident; $parts_name:ident; $name:ident$(<$($ty_param:tt),*>)*/*<'t>*/ { 
         $choice_car:ident $(( $($part_cars:ty),* ))* 
         $(, $choice_cdr:ident$(( $($part_cdr:ty),* ))*)* 
     }) => {    
         if $choice_name.is(stringify!($choice_car)) {
             unpack_parts!( $(( $($part_cars),* ))* $parts_name; 0; 
-                           $name::$choice_car$(::< $($t_p),* >)*; ())
+                           $name::$choice_car$(::< $($ty_param),* >)*; ())
         } else {
-            make_enum_reflect!($choice_name; $parts_name; $name$(<$($t_p),*>)*/*<'t>*/ {
+            make_enum_reflect!($choice_name; $parts_name; $name$(<$($ty_param),*>)*/*<'t>*/ {
                 $($choice_cdr $(( $($part_cdr),* ))* ),* })
         }
     };
-    ($choice_name:ident; $parts_name:ident; $name:ident$(<$($t_p:ident),*>)*/*<'t>*/ { } ) => {
+    ($choice_name:ident; $parts_name:ident; $name:ident$(<$($ty_param:tt),*>)*/*<'t>*/ { } ) => {
         panic!("ICE: invalid enum choice: {:?}", $choice_name)
     }    
 }

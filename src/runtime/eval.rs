@@ -17,7 +17,7 @@ use std;
 pub enum Value<'t> {
     Int(BigInt),
     Bool(bool),
-    Ident(ContainedName), // TODO: should this exist?
+    Ident(Name<'t>), // TODO: is the lifetime okay here?
     Cons(Rc<Value<'t>>, Rc<Value<'t>>), // TODO: switch to a different core sequence type
     Function(Rc<Closure<'t>>), // TODO: unsure if this Rc is needed
     BuiltInFunction(BIF<'t>),

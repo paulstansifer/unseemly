@@ -6,7 +6,7 @@ use std::fmt;
 
 #[derive(PartialEq,Eq,Clone,Copy,Hash)]
 pub struct Name<'t> {
-    pub orig: &'t str // TODO: not sure if this ought to be pub
+    orig: &'t str
 }
 
 
@@ -32,9 +32,15 @@ pub fn n<'t>(s: &'t str) -> Name<'t> {
     Name{ orig: s }
 }
 
-custom_derive! {
-    #[derive(PartialEq, Eq, Clone, Debug, Reifiable)]
-    pub struct ContainedName {
-        orig: String
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct ContainedName {
+    orig: String
+}
+
+impl ContainedName {
+    pub fn from_name<'t>(n: &Name<'t>) -> ContainedName {
+        ContainedName {
+            orig: n.orig.to_string()
+        }
     }
 }
