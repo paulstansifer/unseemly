@@ -372,10 +372,10 @@ macro_rules! forms_to_form_pat {
 /* panicking destructor (when the type system should offer protection) */
 
 macro_rules! extract {
-    (($v:expr; $expected:path) ( $( $sub:pat ),* ) => $body:expr) => {
+    (($v:expr) $( $expected:path = ( $( $sub:pat ),* ) => $body:expr);* ) => {
         match $v {
-            & $expected ( $($sub),* ) => { $body }
-            _ => { panic!("ICE: {:?} isn't a {:?}", $v, stringify!($expected)) }
+            $(& $expected ( $($sub),* ) => { $body } )*
+            _ => { panic!("ICE: {:?} isn't a {:?}", $v, stringify!( $($expected),* )) }
         }
     }
 }

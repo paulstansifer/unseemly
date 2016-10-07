@@ -5,6 +5,7 @@ pub use ast::Ast;
 pub use name::*;
 pub use runtime::eval::Value;
 
+use std::rc::Rc;
 use num::bigint::BigInt;
 
 /** This is for parts of this compiler that can also be represented as object-level values.
@@ -39,7 +40,7 @@ macro_rules! basic_reifiability {
             fn reify(&self) -> Value<'t> { Value::$value_name(self.clone()) }
             
             fn reflect(v: &Value<'t>) -> Self { 
-                extract!((v; Value::$value_name) (ref i) => i.clone()) 
+                extract!((v) Value::$value_name = (ref i) => i.clone())
             }
         }
     }
@@ -53,11 +54,54 @@ impl<'t> Reifiable<'t> for bool {
     
     fn reify(&self) -> Value<'t> { Value::Bool(*self) }
     
-    fn reflect(v: &Value<'t>) -> Self { extract!((v; Value::Bool) (i) => i) }
+    fn reflect(v: &Value<'t>) -> Self { extract!((v) Value::Bool = (i) => i) }
 }
 
-basic_reifiability!(Name<'t>, "integer", Ident);
+basic_reifiability!(Name<'t>, "ident", Ident);
 
+// TODO: when returning traits works, just make functions `Reifiable`
+// TODO: 'static also allows things to be owned instead?!?
+pub fn reify_1ary_function<'t, A: Reifiable<'t> + 'static, R: Reifiable<'t> + 'static>(
+        f: Rc<(Fn(A) -> R)>) -> Value<'t> {
+    let f_c = f.clone();
+    Value::BuiltInFunction(::runtime::eval::BIF(Rc::new(
+        move |args: Vec<Value<'t>>| (f_c(A::reflect(&args[0]))).reify())))
+}
+
+pub fn reflect_1ary_function<'t, A: Reifiable<'t> + 'static, R: Reifiable<'t> + 'static>(
+        f_v: Value<'t>) -> Rc<(Fn(A) -> R) + 't> {
+    Rc::new(move |a: A|
+        extract!((&f_v)
+            Value::BuiltInFunction = (ref bif) => R::reflect(&(*bif.0)(vec![a.reify()]));
+            Value::Function = (ref closure) => {
+                R::reflect(&::runtime::eval::eval(&closure.body,
+                    closure.env.clone().set(closure.params[0], a.reify())).unwrap())
+            }))
+}
+
+
+// I bet there's more of a need for reification than reflection for functions....
+
+pub fn reify_2ary_function<'t, A: Reifiable<'t> + 'static, B: Reifiable<'t> + 'static, 
+                           R: Reifiable<'t> + 'static>(
+        f: Rc<(Fn(A, B) -> R)>) -> Value<'t> {
+    let f_c = f.clone();
+    Value::BuiltInFunction(::runtime::eval::BIF(Rc::new(
+        move |args: Vec<Value<'t>>| (f_c(A::reflect(&args[0]), B::reflect(&args[1]))).reify())))
+}
+
+
+
+
+/*
+impl<'t, A: Reifiable<'t>, R: Reifiable<'t>> Reifiable<'t> for Box<Fn(A) -> R> {
+    fn ty() -> Ast<'static> { panic!("") }
+    
+    fn reify(&self) -> Value<'t> { panic!("") }
+    
+    fn reflect(v: &Value<'t>) -> Self { panic!("") }
+}
+*/
 
 
 
@@ -156,4 +200,13 @@ fn basic_reification() {
     let bleo = BasicLifetimeEnum::Only(n("AlexanderHamilton"));
 
     assert_eq!(bleo, BasicLifetimeEnum::reflect(&bleo.reify()));
+}
+
+#[test]
+fn function_reification() {
+    let f = | a: BigInt | a + BigInt::from(1);
+    
+    let f2 = reflect_1ary_function::<BigInt, BigInt>(reify_1ary_function(Rc::new(f)));
+    
+    assert_eq!(f2(BigInt::from(1776)), BigInt::from(1777))
 }

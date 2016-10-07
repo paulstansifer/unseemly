@@ -28,7 +28,7 @@ macro_rules! Reifiable {
             }
             
             fn reflect(v: &::runtime::eval::Value<'t>) -> Self {
-                extract!((v; ::runtime::eval::Struct) (ref env) => 
+                extract!((v) ::runtime::eval::Struct = (ref env) => 
                     $name {
                         $( $field : 
                             <$t as ::runtime::reify::Reifiable>::reflect(
@@ -98,7 +98,7 @@ macro_rules! Reifiable {
             }
             
             fn reflect(v: &::runtime::eval::Value<'t>) -> Self {
-                extract!((v; ::runtime::eval::Enum) (ref choice, ref parts) => {
+                extract!((v) ::runtime::eval::Enum = (ref choice, ref parts) => {
                     make_enum_reflect!(choice; parts; $name$(<$($ty_param),*>)*/*<'t>*/ 
                         { $($choice $(( $($part),* ))*),* } )
                 })
