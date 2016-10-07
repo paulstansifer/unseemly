@@ -171,6 +171,17 @@ custom_derive! {
 
 #[test]
 fn basic_reification() {
+    assert_eq!(BigInt::from(1800).reify(), val!(i 1800));
+}
+
+#[test]
+fn basic_reflection() {
+    assert_eq!(BigInt::reflect(&val!(i 1800)), BigInt::from(1800));
+}
+
+
+#[test]
+fn basic_r_and_r_roundtrip() {
     assert_eq!(BigInt::from(90), BigInt::reflect(&BigInt::from(90).reify()));
     
     let bsv = BasicStruct{ a: BigInt::from(4), b: BigInt::from(5) };
@@ -203,7 +214,7 @@ fn basic_reification() {
 }
 
 #[test]
-fn function_reification() {
+fn function_r_and_r_roundtrip() {
     let f = | a: BigInt | a + BigInt::from(1);
     
     let f2 = reflect_1ary_function::<BigInt, BigInt>(reify_1ary_function(Rc::new(f)));

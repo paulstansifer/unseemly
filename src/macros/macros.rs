@@ -270,16 +270,21 @@ macro_rules! ambidextrous_typed_form {
 /* Value */
 
 macro_rules! val {
-    (i $i:expr) => { Int($i.to_bigint().unwrap()) };
-    (b $b:expr) => { Bool($b) };
-    (cons $a:tt, $d:tt) => { Cons(Rc::new(val!($a)), Rc::new(val! $d )) };
+    (i $i:expr) => { ::runtime::eval::Value::Int(::num::bigint::BigInt::from($i)) };
+    (b $b:expr) => { ::runtime::eval::Value::Bool($b) };
+    (cons $a:tt, $d:tt) => { ::runtime::eval::Value::Cons(Rc::new(val!($a)), Rc::new(val! $d )) };
     (f $body:tt, $params:expr, $env:tt) => {
-        Function(Rc::new(Closure(ast!($body), $params, assoc_n! $env)))
+        ::runtime::eval::Value::Function(
+            Rc::new(::runtime::eval::Closure(ast!($body), $params, assoc_n! $env)))
     };
-    (bif $f:expr) => { BuiltInFunction(BIF(Rc::new($f))) };
-    (ast $nm:expr, $body:tt) => { AbstractSyntax(n($nm), ast! $body) };
-    (struct $( $k:tt => $v:tt ),* ) => { Struct(assoc_n!( $( $k => val! $v),* ))};
-    (enum $nm:expr, $($v:tt),*) => { Enum(n($nm), vec![ $( val! $v ),* ])}
+    (bif $f:expr) => { 
+        ::runtime::eval::Value::BuiltInFunction(::runtime::eval::BIF(Rc::new($f))) 
+    };
+    (ast $nm:expr, $body:tt) => { ::runtime::eval::Value::AbstractSyntax(n($nm), ast! $body) };
+    (struct $( $k:tt => $v:tt ),* ) => { 
+        ::runtime::eval::Value::Struct(assoc_n!( $( $k => val! $v),* ))
+    };
+    (enum $nm:expr, $($v:tt),*) => { ::runtime::eval::Value::Enum(n($nm), vec![ $( val! $v ),* ])}
 }
 
 
