@@ -10,10 +10,11 @@ use std::fmt;
 // Recursively replace runs of those, too...
 
 // this is a functional data structure; dropping it on the floor is usually bad
-#[must_use] 
+#[must_use]
 pub struct Assoc<K: PartialEq, V> {
     pub n: Option<Rc<AssocNode<K, V>>>
 }
+
 
 impl<K : PartialEq + Clone, V: Clone> Clone for Assoc<K, V> {
     fn clone(&self) -> Assoc<K, V> {
@@ -41,10 +42,10 @@ impl <K : PartialEq + Clone, V: PartialEq> PartialEq for Assoc<K, V> {
 
 impl <K : PartialEq + Clone, V: PartialEq> Eq for Assoc<K, V> {}
 
-
-
+ 
+ 
 #[derive(Clone)]
-pub struct AssocNode<K : PartialEq, V> {
+pub struct AssocNode<K: PartialEq, V> {
     pub k: K,
     pub v: V,
     pub next: Assoc<K,V>

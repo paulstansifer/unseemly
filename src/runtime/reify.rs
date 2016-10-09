@@ -126,7 +126,7 @@ impl<'t, T: Reifiable<'t>> Reifiable<'t> for ::std::boxed::Box<T> {
 }
 
 // Hey, I know how to generate the implementation for this...
-Reifiable!{
+Reifiable! {
     () pub enum Option<T> {
         None,
         Some(T)
@@ -157,7 +157,7 @@ custom_derive! {
     #[derive(Debug, PartialEq, Eq, Reifiable(lifetime), Clone)]
     enum BasicLifetimeEnum<'t> {
         Only(Name<'t>)
-    }    
+    }
 }
 
 
@@ -168,6 +168,10 @@ custom_derive! {
         Burr(BigInt)
     }
 }
+
+// TODO: just write a macro that does a really faky custom_derive by calling `Reifiable!`
+// around something and then putting down its definition.
+
 
 #[test]
 fn basic_reification() {

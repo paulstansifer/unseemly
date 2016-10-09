@@ -8,9 +8,10 @@ macro_rules! get_form {
 
 macro_rules! Reifiable {
     /* struct */
-    // TODO: This lacks support for type-parameterized `struct`s ... but do we need it?
+    // TODO: This lacks support for type-parameterized `struct`s ... 
     // HACK: everything is parameterized over 't...
-    (() $(pub)* struct $name:ident/*<'t>*/ { $($field:ident : $t:ty),* }) => {
+    // TODO: the optional `pub` won't unambiguously parse... more hacks?
+    (() $(pub)* struct $name:ident/*<'t>*/ { $($(pub)* $field:ident : $t:ty),* }) => {
         impl<'t> ::runtime::reify::Reifiable<'t> for $name {
             fn ty() -> ::ast::Ast<'static> {
                 ast! ({ get_form!("type", "struct") ;
