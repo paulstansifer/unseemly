@@ -1,15 +1,17 @@
- TODO:
-  [ ] Kinds
-  [ ] Parametric types, enums, structs, recursive types
-  [ ] Core forms for those types
-  [ ] Prelude types, values, and functions (normal and syntax)
+stea TODO:
+  [ ] Reification for important internal types
+  [ ] Parametric types, recursive types
+  [ ] Core forms for core types
+  [ ] Syntax types, with repetition typing
   [ ] Syntax pattern-matching
+  [ ] Syntax quote
   [ ] Macros (procedural!)
   [ ] Traits  
-  [ ] Syntax quote
   [ ] Fancy bindings
   [ ] Modules
-
+  [ ] Kinds?
+  [ ] Switchable tokenizer
+  [ ] Worry about parse error messages
 
 
 

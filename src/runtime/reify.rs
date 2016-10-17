@@ -141,7 +141,7 @@ custom_derive! {
     #[derive(Debug, PartialEq, Eq, Reifiable, Clone)]
     struct BasicStruct {
         a: BigInt, // TODO: change to String to test heterogeneity
-        b: BigInt
+        pub b: BigInt
     }
 }
 

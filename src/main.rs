@@ -1,6 +1,6 @@
 #![allow(dead_code,unused_imports)]
 // unstable; only for testing
-//#![feature(log_syntax,trace_macros)]
+// #![feature(log_syntax,trace_macros)]
 
 // unstable; only for testing
 // #[macro_use] extern crate log;

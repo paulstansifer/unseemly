@@ -1,5 +1,22 @@
 #![macro_use]
 
+/*
+ This isn't as bad as it looks.
+ I mean, it's pretty bad, don't get me wrong...
+ 
+ The purpose is to generate `Reifiable` `impl`s
+  for any `enum` or `struct`.
+ 
+ Basically, `reify` pattern-matches to destructure the actual Rust value,
+  and then constructs a `Value` of the corresponding shape.
+  
+ And `reflect` does the opposite.
+ 
+ But, in the process, I have to work around
+  what feels like every single limitation of `macro_rules!` in Rust,
+   as if I were aiming for them.
+ */
+
 macro_rules! get_form {
     ( $nt:expr, $name:expr ) => {
         ::core_forms::find_form(&::core_forms::make_core_syn_env(), $nt, $name)
@@ -7,11 +24,38 @@ macro_rules! get_form {
 }
 
 macro_rules! Reifiable {
-    /* struct */
-    // TODO: This lacks support for type-parameterized `struct`s ... 
     // HACK: everything is parameterized over 't...
-    // TODO: the optional `pub` won't unambiguously parse... more hacks?
-    (() $(pub)* struct $name:ident/*<'t>*/ { $($(pub)* $field:ident : $t:ty),* }) => {
+
+
+    /* struct */
+    
+    // TODO: This lacks support for type-parameterized `struct`s ... 
+    
+    // remove `pub`
+    (() $(pub)* struct $name:ident$(<$($ty_param_ty:ident),*>)* { 
+        pub $field_car:ident : $t_car:ty $(, $($cdr:tt)* )* /* $( $(pub)* $field_cdr:ident : $t_cdr:ty),* */ 
+    } $( [ $( $accum:tt )* ] )* ) => {
+        Reifiable!(() struct $name$(<$($ty_param_ty),*>)* { $( $( $cdr )* )*
+    } [ $field_car : $t_car $(, $($accum)* )* ]);
+    };
+    
+    // no `pub` this time
+    (() $(pub)* struct $name:ident$(<$($ty_param_ty:ident),*>)* { 
+        $field_car:ident : $t_car:ty $(, $($cdr:tt)* )* /* $( $(pub)* $field_cdr:ident : $t_cdr:ty),* */ 
+    } $( [ $( $accum:tt )* ] )* ) => {
+        Reifiable!(() struct $name$(<$($ty_param_ty),*>)* { $( $( $cdr )* )*
+    } [ $field_car : $t_car $(, $($accum)* )* ]);
+    };
+
+    // done! Go to `internal`!
+    (() $(pub)* struct $name:ident$(<$($ty_param_ty:ident),*>)* { 
+        $(,)*
+    } $( [ $( $accum:tt )* ] )* ) => {
+        Reifiable!((internal) struct $name$(<$($ty_param_ty),*>)* { $($($accum)*)* } );
+    };
+
+    
+    ((internal) struct $name:ident/*<'t>*/ { $( $field:ident : $t:ty),* }) => {
         impl<'t> ::runtime::reify::Reifiable<'t> for $name {
             fn ty() -> ::ast::Ast<'static> {
                 ast! ({ get_form!("type", "struct") ;
