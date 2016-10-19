@@ -147,3 +147,9 @@ fn star_construction() {
         ast!( { - "x" => [("11" "1"), ("22" "2")] }));
     
 }
+
+// #[test]
+// fn mbe_r_and_r_roundtrip() {
+//     let mbe1 = mbe!( "a" => [@"duo" "1", "2"], "b" => [@"duo" "11", "22"]);
+//     assert_eq!(mbe1, EnvMBE::<Ast>::reflect(&mbe1.reify()));
+// }

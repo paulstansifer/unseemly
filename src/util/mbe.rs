@@ -80,26 +80,28 @@ use std::fmt;
  
 */
 
-// `Clone` needs to traverse the whole `Vec` ):
-#[derive(Eq, Clone)]
-pub struct EnvMBE<'t, T> {
-    /// Non-repeated values
-    leaves: Assoc<Name<'t>, T>,
+custom_derive! {
+    // `Clone` needs to traverse the whole `Vec` ):
+    #[derive(Eq, Clone, Reifiable(lifetime))]
+    pub struct EnvMBE<'t, T> {
+        /// Non-repeated values
+        leaves: Assoc<Name<'t>, T>,
 
-    /// Outer vec holds distinct repetitions 
-    ///  (i.e. differently-named, or entirely unnamed repetitions)
-    /// Note that some of the entries may be obsolete; 
-    ///  deletions are marked by putting `None` in the `Assoc`s 
-    ///   that index into this.
-    repeats: Vec<Rc<Vec<EnvMBE<'t,T>>>>,
-    
-    /// Where in `repeats` to look, if we want to traverse for a particular leaf.
-    /// We use `.unwrap_or(None)` when looking up into this 
-    ///  so we can delete by storing `None`.
-    leaf_locations: Assoc<Name<'t>, Option<usize>>,
-    
-    /// The location in `repeats` that represents a specific repetition name.
-    named_repeats: Assoc<Name<'t>, Option<usize>>,
+        /// Outer vec holds distinct repetitions 
+        ///  (i.e. differently-named, or entirely unnamed repetitions)
+        /// Note that some of the entries may be obsolete; 
+        ///  deletions are marked by putting `None` in the `Assoc`s 
+        ///   that index into this.
+        repeats: Vec<Rc<Vec<EnvMBE<'t,T>>>>,
+        
+        /// Where in `repeats` to look, if we want to traverse for a particular leaf.
+        /// We use `.unwrap_or(None)` when looking up into this 
+        ///  so we can delete by storing `None`.
+        leaf_locations: Assoc<Name<'t>, Option<usize>>,
+        
+        /// The location in `repeats` that represents a specific repetition name.
+        named_repeats: Assoc<Name<'t>, Option<usize>>
+    }
 }
 
 impl <'t, T: PartialEq> PartialEq for EnvMBE<'t, T> {
@@ -458,3 +460,4 @@ fn basic_mbe() {
     assert_eq!(first_sub_mbe.get_leaf(&n("eight")), Some(&(8, 8 - 9000)));
     assert_eq!(first_sub_mbe.get_leaf(&n("x")), None);     
 }
+

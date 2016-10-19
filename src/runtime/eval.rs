@@ -18,7 +18,7 @@ pub enum Value<'t> {
     Int(BigInt),
     Bool(bool),
     Ident(Name<'t>), // TODO: is the lifetime okay here?
-    Cons(Rc<Value<'t>>, Rc<Value<'t>>), // TODO: switch to a different core sequence type
+    Sequence(Vec<Rc<Value<'t>>>), // TODO: switch to a different core sequence type
     Function(Rc<Closure<'t>>), // TODO: unsure if this Rc is needed
     BuiltInFunction(BIF<'t>),
     AbstractSyntax(Name<'t>, Rc<Ast<'t>>), // likewise. Also, I'm not sure `Name` is right...

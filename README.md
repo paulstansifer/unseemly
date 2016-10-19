@@ -1,3 +1,5 @@
+### ≉
+
 In Unseemly, typechecking occurs entirely prior to macro expansion.
 
 Error messages are the user interface of a compiler. 

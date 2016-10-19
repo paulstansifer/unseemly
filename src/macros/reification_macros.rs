@@ -55,22 +55,35 @@ macro_rules! Reifiable {
     // remove `pub`
     ((remove_pub) $(pub)* struct $name:ident
         $(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* { 
-        pub $field_car:ident : $t_car:ty, $($cdr:tt)*  /* $( $(pub)* $field_cdr:ident : $t_cdr:ty),* */ 
+        pub $($contents:tt)*
     } $( [ $( $accum:tt )* ] )* ) => {
         Reifiable!((remove_pub) struct $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)* { 
-            $( $cdr )*
-        } [ $field_car : $t_car $(, $($accum)* )* ]);
+            $( $contents )*
+        } $( [ $($accum)* ] )* );
     };
+
+    // remove attributes (such as `///`!)    
+    ((remove_pub) $(pub)* struct $name:ident
+        $(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* { 
+        #[$($whatever:tt)*] $($contents:tt)* 
+    } $( [ $( $accum:tt )* ] )* ) => {
+        Reifiable!((remove_pub) struct $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)* { 
+            $( $contents )*
+        } $( [ $($accum)* ] )*);
+    };
+
     
     // no `pub` this time
     ((remove_pub) $(pub)* struct $name:ident
         $(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* { 
-        $field_car:ident : $t_car:ty, $($cdr:tt)* /* $( $(pub)* $field_cdr:ident : $t_cdr:ty),* */ 
+        $field_car:ident : $t_car:ty, $($cdr:tt)*
     } $( [ $( $accum:tt )* ] )* ) => {
         Reifiable!((remove_pub) struct $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)* { 
             $( $cdr )*
         } [ $field_car : $t_car $(, $($accum)* )* ]);
     };
+
+
 
     // done! Go to `make_impl`!
     ((remove_pub) $(pub)* struct $name:ident
@@ -83,7 +96,8 @@ macro_rules! Reifiable {
     ((make_impl) struct $name:ident
          $(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)*
          { $( $field:ident : $t:ty),* }) => {
-        impl<'t $($(, $ty_param_ty : Reifiable<'t>)*)*> ::runtime::reify::Reifiable<'t>
+        impl<'t $($(, $ty_param_ty : ::runtime::reify::Reifiable<'t>)*)*> 
+                ::runtime::reify::Reifiable<'t>
                 for $name<$($($ty_param),*)*> {
             fn ty() -> ::ast::Ast<'static> {
                 ast! ({ get_form!("type", "struct") ;
@@ -145,7 +159,8 @@ macro_rules! Reifiable {
     ((make_impl) $(pub)* enum $name:ident$(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* { 
         $($choice:ident$(( $($part:ty),* ))*),* 
     }) => {
-        impl<'t $($(, $ty_param_ty : Reifiable<'t>)*)*> ::runtime::reify::Reifiable<'t> 
+        impl<'t $($(, $ty_param_ty : ::runtime::reify::Reifiable<'t>)*)*>
+                ::runtime::reify::Reifiable<'t> 
                 for $name<$($($ty_param),*)*> {
             fn ty() -> ::ast::Ast<'static> {
                 ast! ({ get_form!("type", "enum") ;
@@ -181,12 +196,7 @@ macro_rules! Reifiable {
             }
         }
     }
-    
-
 }
-
-
-
 
 
 /* makes a pattern matching an enum with _n_ components, using the first _n_

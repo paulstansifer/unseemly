@@ -48,14 +48,19 @@ macro_rules! basic_reifiability {
 
 basic_reifiability!(BigInt, "integer", Int);
 
-
-impl<'t> Reifiable<'t> for bool {
-    fn ty() -> Ast<'static> { ast!("bool") }
+// note: primitives for this type should use `usize` semantics!
+impl<'t> Reifiable<'t> for usize {
+    fn ty() -> Ast<'static> { ast!("rust_usize") }
     
-    fn reify(&self) -> Value<'t> { Value::Bool(*self) }
+    fn reify(&self) -> Value<'t> { Value::Int(BigInt::from(*self)) }
     
-    fn reflect(v: &Value<'t>) -> Self { extract!((v) Value::Bool = (i) => i) }
+    fn reflect(v: &Value<'t>) -> Self {
+        use num::ToPrimitive;
+        extract!((v) Value::Int = (ref i) => i.to_usize().unwrap()) 
+    }
 }
+
+basic_reifiability!(bool, "bool", Bool);
 
 basic_reifiability!(Name<'t>, "ident", Ident);
 
@@ -115,6 +120,20 @@ impl<'t, T: Reifiable<'t>> Reifiable<'t> for ::std::rc::Rc<T> {
     fn reify(&self) -> Value<'t> { (**self).reify() }
     
     fn reflect(v: &Value<'t>) -> Self { ::std::rc::Rc::new(T::reflect(v)) }
+}
+
+impl<'t, T: Reifiable<'t>> Reifiable<'t> for Vec<T> {
+    fn ty() -> Ast<'static> { panic!("please implement parametric types") }
+    
+    fn reify(&self) -> Value<'t> {
+        Value::Sequence(self.iter().map(|elt| Rc::new(elt.reify())).collect())
+    }
+    
+    fn reflect(v: &Value<'t>) -> Self { 
+        extract!((v) Value::Sequence = (ref s) => 
+            s.iter().map(|elt| T::reflect(&elt)).collect()
+        )
+    }
 }
 
 impl<'t, T: Reifiable<'t>> Reifiable<'t> for ::std::boxed::Box<T> {
