@@ -135,13 +135,13 @@ Reifiable! {
 
 
 
-/* for testing */
+/* for testing */ //trace_macros!(true);
 
 custom_derive! {
     #[derive(Debug, PartialEq, Eq, Reifiable, Clone)]
     struct BasicStruct {
-        a: BigInt, // TODO: change to String to test heterogeneity
-        pub b: BigInt
+        pub a: BigInt, // TODO: change to String to test heterogeneity
+        b: BigInt
     }
 }
 
@@ -167,6 +167,13 @@ custom_derive! {
         Jefferson(BigInt, BigInt), // TODO: change the first one to String
         Burr(BigInt)
     }
+}
+
+custom_derive! {
+    #[derive(Debug, PartialEq, Eq, Reifiable(lifetime), Clone)]
+    struct ParameterizedLifetimeStruct<'t, T, S> {
+        pub a: T,  b: S,  c: Name<'t>
+    }     
 }
 
 // TODO: just write a macro that does a really faky custom_derive by calling `Reifiable!`
@@ -215,6 +222,14 @@ fn basic_r_and_r_roundtrip() {
     let bleo = BasicLifetimeEnum::Only(n("AlexanderHamilton"));
 
     assert_eq!(bleo, BasicLifetimeEnum::reflect(&bleo.reify()));
+    
+    let pls = ParameterizedLifetimeStruct::<BigInt, bool>{ 
+        a: BigInt::from(10),
+        b: false,
+        c: n("DuelCommandments")
+    };
+    
+    assert_eq!(pls, ParameterizedLifetimeStruct::<BigInt, bool>::reflect(&pls.reify()));
 }
 
 #[test]

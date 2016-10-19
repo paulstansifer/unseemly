@@ -29,34 +29,62 @@ macro_rules! Reifiable {
 
     /* struct */
     
+    
+    ((lifetime) struct $name:ident<$lifetime:tt> { $($contents:tt)* }) => {
+        Reifiable!((remove_pub) struct $name<$lifetime> @ { $($contents)*, } );
+        // HACK: we add commas to the end of the contents, becuase it's easier to parse
+        // if they end in a comma (this breaks `structs` that already have final commas...)
+    };
+
+    ((lifetime) struct $name:ident<$lifetime:tt $(, $ty_param_ty:ident)*> { $($contents:tt)* }) => {
+        Reifiable!((remove_pub) struct 
+            $name<$lifetime $(, $ty_param_ty)*> @ <$($ty_param_ty),*> 
+            { $($contents)*, } ); 
+    };
+
+    // no lifetime parameter
+    (() struct $name:ident$(<$($ty_param_ty:ident),*>)* { $($contents:tt)* }) => {
+        Reifiable!((remove_pub) struct 
+            $name$(<$($ty_param_ty),*>)* @ $(<$($ty_param_ty),*>)* 
+            { $($contents)*, } );
+    };
+
+    
     // TODO: This lacks support for type-parameterized `struct`s ... 
     
     // remove `pub`
-    (() $(pub)* struct $name:ident$(<$($ty_param_ty:ident),*>)* { 
-        pub $field_car:ident : $t_car:ty $(, $($cdr:tt)* )* /* $( $(pub)* $field_cdr:ident : $t_cdr:ty),* */ 
+    ((remove_pub) $(pub)* struct $name:ident
+        $(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* { 
+        pub $field_car:ident : $t_car:ty, $($cdr:tt)*  /* $( $(pub)* $field_cdr:ident : $t_cdr:ty),* */ 
     } $( [ $( $accum:tt )* ] )* ) => {
-        Reifiable!(() struct $name$(<$($ty_param_ty),*>)* { $( $( $cdr )* )*
-    } [ $field_car : $t_car $(, $($accum)* )* ]);
+        Reifiable!((remove_pub) struct $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)* { 
+            $( $cdr )*
+        } [ $field_car : $t_car $(, $($accum)* )* ]);
     };
     
     // no `pub` this time
-    (() $(pub)* struct $name:ident$(<$($ty_param_ty:ident),*>)* { 
-        $field_car:ident : $t_car:ty $(, $($cdr:tt)* )* /* $( $(pub)* $field_cdr:ident : $t_cdr:ty),* */ 
+    ((remove_pub) $(pub)* struct $name:ident
+        $(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* { 
+        $field_car:ident : $t_car:ty, $($cdr:tt)* /* $( $(pub)* $field_cdr:ident : $t_cdr:ty),* */ 
     } $( [ $( $accum:tt )* ] )* ) => {
-        Reifiable!(() struct $name$(<$($ty_param_ty),*>)* { $( $( $cdr )* )*
-    } [ $field_car : $t_car $(, $($accum)* )* ]);
+        Reifiable!((remove_pub) struct $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)* { 
+            $( $cdr )*
+        } [ $field_car : $t_car $(, $($accum)* )* ]);
     };
 
-    // done! Go to `internal`!
-    (() $(pub)* struct $name:ident$(<$($ty_param_ty:ident),*>)* { 
-        $(,)*
-    } $( [ $( $accum:tt )* ] )* ) => {
-        Reifiable!((internal) struct $name$(<$($ty_param_ty),*>)* { $($($accum)*)* } );
+    // done! Go to `make_impl`!
+    ((remove_pub) $(pub)* struct $name:ident
+        $(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* { }
+        $( [ $( $accum:tt )* ] )* ) => {
+        Reifiable!((make_impl) struct $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)*
+            { $($($accum)*)* } );
     };
 
-    
-    ((internal) struct $name:ident/*<'t>*/ { $( $field:ident : $t:ty),* }) => {
-        impl<'t> ::runtime::reify::Reifiable<'t> for $name {
+    ((make_impl) struct $name:ident
+         $(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)*
+         { $( $field:ident : $t:ty),* }) => {
+        impl<'t $($(, $ty_param_ty : Reifiable<'t>)*)*> ::runtime::reify::Reifiable<'t>
+                for $name<$($($ty_param),*)*> {
             fn ty() -> ::ast::Ast<'static> {
                 ast! ({ get_form!("type", "struct") ;
                     "component_name" => [@"c" $( 
@@ -84,10 +112,13 @@ macro_rules! Reifiable {
     };
     /* enum */
     
+    // `lifetime` means that we need to pull off a lifetime argument.
+    // The whole set of type parameters comes after `name`; 
+    //  we make a just-the-types type parameters after the @.
     ((lifetime) $(pub)* enum $name:ident<$lifetime:tt> { 
         $($choice:ident$(( $($part:ty),* ))*),* 
     }) => {
-        Reifiable!((internal) enum $name<$lifetime> @ { 
+        Reifiable!((make_impl) enum $name<$lifetime> @ { 
             $($choice $(( $($part),* ))*),* 
         });
     };
@@ -95,7 +126,7 @@ macro_rules! Reifiable {
     ((lifetime) $(pub)* enum $name:ident<$lifetime:tt $(, $ty_param_ty:ident)*> { 
         $($choice:ident$(( $($part:ty),* ))*),* 
     }) => {
-        Reifiable!((internal) enum $name<$lifetime $(, $ty_param_ty)*> @ <$($ty_param_ty),*> { 
+        Reifiable!((make_impl) enum $name<$lifetime $(, $ty_param_ty)*> @ <$($ty_param_ty),*> { 
             $($choice $(( $($part),* ))*),* 
         });
     };
@@ -103,7 +134,7 @@ macro_rules! Reifiable {
     (() $(pub)* enum $name:ident$(<$($ty_param_ty:ident),*>)*  { 
         $($choice:ident$(( $($part:ty),* ))*),* 
     }) => {
-        Reifiable!((internal) enum $name$(<$($ty_param_ty),*>)* @ $(<$($ty_param_ty),*>),* { 
+        Reifiable!((make_impl) enum $name$(<$($ty_param_ty),*>)* @ $(<$($ty_param_ty),*>),* { 
             $($choice$(( $($part),* ))*),* 
         });
     };
@@ -111,7 +142,7 @@ macro_rules! Reifiable {
     // The `$((...))*` and `$(<...>)*` patterns deal with the fact that the `()` and `<>` 
     //  might be completely absent (the `*` matches 0 or 1 times)
     // The second set of type parameters are those that are not lifetime params...
-    ((internal) $(pub)* enum $name:ident$(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* { 
+    ((make_impl) $(pub)* enum $name:ident$(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* { 
         $($choice:ident$(( $($part:ty),* ))*),* 
     }) => {
         impl<'t $($(, $ty_param_ty : Reifiable<'t>)*)*> ::runtime::reify::Reifiable<'t> 
