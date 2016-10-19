@@ -30,20 +30,20 @@ macro_rules! Reifiable {
     /* struct */
     
     
-    ((lifetime) struct $name:ident<$lifetime:tt> { $($contents:tt)* }) => {
+    ((lifetime) $(pub)* struct $name:ident<$lifetime:tt> { $($contents:tt)* }) => {
         Reifiable!((remove_pub) struct $name<$lifetime> @ { $($contents)*, } );
         // HACK: we add commas to the end of the contents, becuase it's easier to parse
         // if they end in a comma (this breaks `structs` that already have final commas...)
     };
 
-    ((lifetime) struct $name:ident<$lifetime:tt $(, $ty_param_ty:ident)*> { $($contents:tt)* }) => {
+    ((lifetime) $(pub)* struct $name:ident<$lifetime:tt $(, $ty_param_ty:ident)*> { $($contents:tt)* }) => {
         Reifiable!((remove_pub) struct 
             $name<$lifetime $(, $ty_param_ty)*> @ <$($ty_param_ty),*> 
             { $($contents)*, } ); 
     };
 
     // no lifetime parameter
-    (() struct $name:ident$(<$($ty_param_ty:ident),*>)* { $($contents:tt)* }) => {
+    (() $(pub)* struct $name:ident$(<$($ty_param_ty:ident),*>)* { $($contents:tt)* }) => {
         Reifiable!((remove_pub) struct 
             $name$(<$($ty_param_ty),*>)* @ $(<$($ty_param_ty),*>)* 
             { $($contents)*, } );
@@ -88,7 +88,7 @@ macro_rules! Reifiable {
             fn ty() -> ::ast::Ast<'static> {
                 ast! ({ get_form!("type", "struct") ;
                     "component_name" => [@"c" $( 
-                        (, (::ast::Ast::VariableReference(n(stringify!($field))))) ),* ],
+                        (, (::ast::Ast::VariableReference(::name::n(stringify!($field))))) ),* ],
                     "component" => [@"c" $( (, (<$t as ::runtime::reify::Reifiable>::ty())) ),*]
                 })
             }
@@ -105,7 +105,7 @@ macro_rules! Reifiable {
                     $name {
                         $( $field : 
                             <$t as ::runtime::reify::Reifiable>::reflect(
-                                env.find(&n(stringify!($field))).unwrap())),*
+                                env.find(&::name::n(stringify!($field))).unwrap())),*
                     })
             }
         }
@@ -150,7 +150,7 @@ macro_rules! Reifiable {
             fn ty() -> ::ast::Ast<'static> {
                 ast! ({ get_form!("type", "enum") ;
                     "name" => [@"c" $( 
-                        (, (::ast::Ast::VariableReference(n(stringify!($choice))))) ),* ],
+                        (, (::ast::Ast::VariableReference(::name::n(stringify!($choice))))) ),* ],
                     
                     "component" => [@"c" $( [ $($( 
                         (, (<$part as ::runtime::reify::Reifiable>::ty()) )),*)* ] ),*]
@@ -168,7 +168,7 @@ macro_rules! Reifiable {
                         let mut v = vec![];
                         choice_vec!( ( $($($part),*)* ) (a b c d e f g h i j k l m n o p q r s t) 
                                      v);
-                        ::runtime::eval::Value::Enum(n(stringify!($choice)), v)
+                        ::runtime::eval::Value::Enum(::name::n(stringify!($choice)), v)
                     }
                 ),* }
             }

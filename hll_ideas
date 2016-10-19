@@ -2,3 +2,5 @@
   you've written to avoid writing grotty constructors and constructor-like 
   code. You insert boundaries, and the unit test system tells you which side
   changed (thus, who to blame). Try a few variations on this.
+* a tool for quickly writing templates over cross-products of lists of syntax,
+  for avoiding small-scale repetition.

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use std::clone::Clone;
-
+use runtime::reify::Reifiable;
 use std::fmt;
 
 
@@ -8,13 +8,14 @@ use std::fmt;
 
 // Potential optimization: replace a run of ten nodes with a `HashMap`.
 // Recursively replace runs of those, too...
-
-// this is a functional data structure; dropping it on the floor is usually bad
-#[must_use]
-pub struct Assoc<K: PartialEq, V> {
-    pub n: Option<Rc<AssocNode<K, V>>>
+custom_derive! {
+    // this is a functional data structure; dropping it on the floor is usually bad
+    #[must_use]
+    #[derive(Reifiable)]
+    pub struct Assoc<K, V> {
+        pub n: Option<Rc<AssocNode<K, V>>>
+    }
 }
-
 
 impl<K : PartialEq + Clone, V: Clone> Clone for Assoc<K, V> {
     fn clone(&self) -> Assoc<K, V> {
@@ -42,14 +43,23 @@ impl <K : PartialEq + Clone, V: PartialEq> PartialEq for Assoc<K, V> {
 
 impl <K : PartialEq + Clone, V: PartialEq> Eq for Assoc<K, V> {}
 
- 
- 
-#[derive(Clone)]
-pub struct AssocNode<K: PartialEq, V> {
-    pub k: K,
-    pub v: V,
-    pub next: Assoc<K,V>
+
+custom_derive! {
+    #[derive(Reifiable)]
+    pub struct AssocNode<K, V> {
+        pub k: K,
+        pub v: V,
+        pub next: Assoc<K,V>
+    }
 }
+
+// This would rather be `#[derive(Clone)]`, but that would require `K: PartialEq`
+impl<K: PartialEq + Clone, V: Clone> Clone for AssocNode<K, V> {
+    fn clone(&self) -> AssocNode<K,V> {
+        AssocNode::<K, V> { k: self.k.clone(), v: self.v.clone(), next: self.next.clone() }
+    }
+}
+
 
 impl<K : PartialEq, V> Assoc<K, V> {
     pub fn find<'assoc, 'f>(&'assoc self, target: &'f K) -> Option<&'assoc V> {
@@ -264,4 +274,15 @@ fn assoc_equality() {
     assert_eq!(a2, a2_opposite);
     assert_eq!(a_override, a_override_direct);
     assert!(a2 != a_override);
+}
+
+#[test]
+fn assoc_r_and_r_roundtrip() {
+    use num::BigInt;
+    let mt : Assoc<BigInt, BigInt> = Assoc::new();
+    let a1 = mt.set(BigInt::from(5),BigInt::from(6));
+    let a2 = a1.set(BigInt::from(6),BigInt::from(7));
+
+    assert_eq!(mt, Assoc::<BigInt, BigInt>::reflect(&mt.reify()));
+    assert_eq!(a2, Assoc::<BigInt, BigInt>::reflect(&a2.reify()));
 }

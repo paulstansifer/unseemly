@@ -9,10 +9,10 @@ macro_rules! expr_ify {
 macro_rules! assoc_n {
     () => { ::util::assoc::Assoc::new() };
     ( $k:tt => $v:expr $(, $k_cdr:tt => $v_cdr:expr)* ) => {
-        assoc_n!( $( $k_cdr => $v_cdr ),* ).set(n(expr_ify!($k)), $v)
+        assoc_n!( $( $k_cdr => $v_cdr ),* ).set(::name::n(expr_ify!($k)), $v)
     };
     ( ($k:expr) => $v:expr $(, $k_cdr:tt => $v_cdr:expr)* ) => {
-        assoc_n!( $( $k_cdr => $v_cdr ),* ).set(n($k), $v)
+        assoc_n!( $( $k_cdr => $v_cdr ),* ).set(::name::n($k), $v)
     };
 }
 
@@ -38,8 +38,8 @@ macro_rules! beta {
     ( [ $name:tt $connector:tt $t:tt
         $(, $name_cdr:tt $connector_cdr:tt $t_cdr:tt )*
          ] ) => { 
-        Shadow(Box::new(beta_connector!($connector)(n(expr_ify!($name)), 
-                                                    n(expr_ify!($t)))),
+        Shadow(Box::new(beta_connector!($connector)(::name::n(expr_ify!($name)), 
+                                                    ::name::n(expr_ify!($t)))),
                Box::new(beta!( [ $( $name_cdr $connector_cdr $t_cdr ),* ] )))
     }
 }
@@ -53,10 +53,16 @@ macro_rules! tokens {
 }
 
 macro_rules! t_elt {
-    ( [ $e:expr ;  $( $list:tt )* ] ) => { Group(n(concat!($e,"[")), SquareBracket, tokens!($($list)*))};
-    ( { $e:expr ;  $( $list:tt )* } ) => { Group(n(concat!($e,"{")), CurlyBracket, tokens!($($list)*))};
-    ( ( $e:expr ;  $( $list:tt )* ) ) => { Group(n(concat!($e,"(")), Paren, tokens!($($list)*))};
-    ($e:expr) => { Simple(n($e)) }
+    ( [ $e:expr ;  $( $list:tt )* ] ) => { 
+        Group(::name::n(concat!($e,"[")), SquareBracket, tokens!($($list)*))
+    };
+    ( { $e:expr ;  $( $list:tt )* } ) => { 
+        Group(::name::n(concat!($e,"{")), CurlyBracket, tokens!($($list)*))
+    };
+    ( ( $e:expr ;  $( $list:tt )* ) ) => { 
+        Group(::name::n(concat!($e,"(")), Paren, tokens!($($list)*))
+    };
+    ($e:expr) => { Simple(::name::n($e)) }
 }
 
 
@@ -83,9 +89,10 @@ macro_rules! ast {
             Shape(res)
         }
     };*/
-    ( (vr $var:expr) ) => { ::ast::VariableReference(n($var)) };
+    ( (vr $var:expr) ) => { ::ast::VariableReference(::name::n($var)) };
     ( (, $interp:expr)) => { $interp };
-    ( ( $( $list:tt )* ) ) => { ast_shape!($($list)*)}; // TODO: maybe we should use commas for consistency
+    // TODO: maybe we should use commas for consistency:
+    ( ( $( $list:tt )* ) ) => { ast_shape!($($list)*)}; 
     ( { - $($mbe_arg:tt)* } ) => {
         ::ast::IncompleteNode(mbe!( $($mbe_arg)* ))
     };
@@ -95,7 +102,7 @@ macro_rules! ast {
     ( { $form:expr; $($mbe_arg:tt)* }) => {
         ::ast::Node($form, mbe!( $($mbe_arg)* ))
     };
-    ($e:expr) => { ::ast::Atom(n($e))}
+    ($e:expr) => { ::ast::Atom(::name::n($e))}
 }
 
 
@@ -121,7 +128,7 @@ macro_rules! mbe_one_name {
     ($k:tt => [* $env:expr =>($($n:expr),*) $new_env:ident : $elt:tt]) => { 
         {
             let mut v = vec![];
-            let marchee = vec![$(n($n)),*];
+            let marchee = vec![$(::name::n($n)),*];
             for $new_env in $env.march_all(&marchee).into_iter() {
                 v.push( mbe_one_name!($k => $elt));
             }
@@ -130,7 +137,7 @@ macro_rules! mbe_one_name {
     };
     ($k:tt => [@ $n:tt $($elt:tt),*]) => {
         ::util::mbe::EnvMBE::new_from_named_repeat(
-            n(expr_ify!($n)),
+            ::name::n(expr_ify!($n)),
             vec![ $( mbe_one_name!($k => $elt) ),* ]
         )
     };
@@ -157,7 +164,7 @@ macro_rules! mbe_one_name {
             for elt in $e { 
                 v.push(::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => elt)))
             }
-            ::util::mbe::EnvMBE::new_from_named_repeat(n(expr_ify!($rep_n)), v)
+            ::util::mbe::EnvMBE::new_from_named_repeat(::name::n(expr_ify!($rep_n)), v)
         }
     };
     
@@ -194,20 +201,20 @@ macro_rules! form_pat {
     (aat) => { AnyAtomicToken };
     (varref) => { VarRef };
     ((delim $n:expr, $d:expr, $body:tt)) => {
-        Delimited(n($n), ::read::delim($d), Box::new(form_pat!($body)))
+        Delimited(::name::n($n), ::read::delim($d), Box::new(form_pat!($body)))
     };
     ((star $body:tt)) => {  Star(Box::new(form_pat!($body))) };
     ((alt $($body:tt),* )) => { Alt(vec![ $( form_pat!($body) ),* ] )};
     ((biased $lhs:tt, $rhs:tt)) => { Biased(Box::new(form_pat!($lhs)), 
                                             Box::new(form_pat!($rhs))) };
-    ((call $n:expr)) => { Call(n($n)) };
+    ((call $n:expr)) => { Call(::name::n($n)) };
     ((scope $f:expr)) => { Scope($f) };
-    ((named $n:expr, $body:tt)) => { Named(n($n), Box::new(form_pat!($body))) };
+    ((named $n:expr, $body:tt)) => { Named(::name::n($n), Box::new(form_pat!($body))) };
     ((import $beta:tt, $body:tt)) => { 
         NameImport(Box::new(form_pat!($body)), beta!($beta))
     };
     ((extend $n:expr, $f:expr)) => {
-        SynImport(n($n), SyntaxExtension(Rc::new($f)))
+        SynImport(::name::n($n), SyntaxExtension(Rc::new($f)))
     };
     ( [$($body:tt),*] ) => { Seq(vec![ $(form_pat!($body)),* ])}
 }
@@ -220,7 +227,7 @@ macro_rules! form_pat {
 macro_rules! basic_typed_form {
     ( $p:tt, $gen_type:expr, $eval:expr ) => {
         Rc::new(Form {
-            name: n("unnamed form"),
+            name: ::name::n("unnamed form"),
             grammar: form_pat!($p),
             relative_phase: Assoc::new(),
             synth_type: ::form::Positive($gen_type),
@@ -232,7 +239,7 @@ macro_rules! basic_typed_form {
 macro_rules! typed_form {
     ( $name:expr, $p:tt, $gen_type:expr, $eval:expr ) => {
         Rc::new(Form {
-            name: n($name),
+            name: ::name::n($name),
             grammar: form_pat!($p),
             relative_phase: Assoc::new(),
             synth_type: ::form::Positive($gen_type),
@@ -244,7 +251,7 @@ macro_rules! typed_form {
 macro_rules! negative_typed_form {
     ( $name:expr, $p:tt, $gen_type:expr, $eval:expr ) => {
         Rc::new(Form {
-            name: n($name),
+            name: ::name::n($name),
             grammar: form_pat!($p),
             relative_phase: Assoc::new(),
             synth_type: ::form::Negative($gen_type),
@@ -256,7 +263,7 @@ macro_rules! negative_typed_form {
 macro_rules! ambidextrous_typed_form {
     ( $name:expr, $p:tt, $gen_type:expr, $neg_gen_type:expr, $eval:expr, $neg_eval:expr) => {
         Rc::new(Form {
-            name: n($name),
+            name: ::name::n($name),
             grammar: form_pat!($p),
             relative_phase: Assoc::new(),
             synth_type: ::form::Both($gen_type, $neg_gen_type),
@@ -280,11 +287,15 @@ macro_rules! val {
     (bif $f:expr) => { 
         ::runtime::eval::Value::BuiltInFunction(::runtime::eval::BIF(Rc::new($f))) 
     };
-    (ast $nm:expr, $body:tt) => { ::runtime::eval::Value::AbstractSyntax(n($nm), ast! $body) };
+    (ast $nm:expr, $body:tt) => { 
+        ::runtime::eval::Value::AbstractSyntax(::name::n($nm), ast! $body) 
+    };
     (struct $( $k:tt => $v:tt ),* ) => { 
         ::runtime::eval::Value::Struct(assoc_n!( $( $k => val! $v),* ))
     };
-    (enum $nm:expr, $($v:tt),*) => { ::runtime::eval::Value::Enum(n($nm), vec![ $( val! $v ),* ])}
+    (enum $nm:expr, $($v:tt),*) => { 
+        ::runtime::eval::Value::Enum(::name::n($nm), vec![ $( val! $v ),* ])
+    }
 }
 
 
@@ -361,7 +372,7 @@ macro_rules! expect_node {
 macro_rules! destructure_node {
     ( ($node:expr ; $form:expr) $( $n:ident = $name:expr ),* ; $body:expr ) => (
         expect_node!( ($node ; $form) env ; {
-            let ( $( $n ),* ) = ( $( env.get_leaf_or_panic(&n($name)) ),* );
+            let ( $( $n ),* ) = ( $( env.get_leaf_or_panic(&::name::n($name)) ),* );
             $body
         })
     )
