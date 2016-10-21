@@ -302,7 +302,7 @@ macro_rules! val {
 
 /* core_values stuff */
 
-macro_rules! mk_type {
+macro_rules! mk_type { // TODO: maybe now use find_core_form and un-thread $se?
     ( $se:expr, [ ( $( $param:tt ),* )  -> $ret_t:tt ] ) => {
         ast!( { find_form($se, "type", "fn") ; 
                   "param" => [ $((, mk_type!($se, $param) )),*],

@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![allow(dead_code, non_upper_case_globals)]
 
 /**
  Core forms!
@@ -421,6 +421,15 @@ pub fn find_form<'t>(se: &SynEnv<'t>, nt: &str, form_name: &str)
         .expect(format!("{:?} not found in {:?}", form_name, pat).as_str())
 }
 
+thread_local! {
+    pub static core_forms: SynEnv<'static> = make_core_syn_env();
+}
+
+pub fn find_core_form(nt: &str, name: &str) -> Rc<Form<'static>> {
+    core_forms.with(|cf| find_form(cf, nt, name))
+}
+
+
 
 #[test]
 fn form_grammar() {
@@ -436,10 +445,9 @@ fn form_grammar() {
 
 #[test]
 fn form_expect_node() {
-    let cse = make_core_syn_env();
-    let ast = ast!({ find_form(&cse, "expr", "apply"); 
+    let ast = ast!({ find_core_form("expr", "apply"); 
         ["rand" => [(vr "f")], "rator" => (vr "x")]});
-    let _ = expect_node!( ( ast ; find_form(&cse, "expr", "apply")) env; //expect_f = "rand", expect_x = "rator";
+    let _ = expect_node!( ( ast ; find_core_form("expr", "apply")) env; //expect_f = "rand", expect_x = "rator";
         {
             assert_eq!(env.get_rep_leaf_or_panic(&n("rand")), vec![&ast!((vr "f"))]);
             assert_eq!(env.get_leaf_or_panic(&n("rator")), &ast!((vr "x")));
@@ -449,12 +457,10 @@ fn form_expect_node() {
 
 #[test]
 fn form_type() {
-    let cse = make_core_syn_env();
-    
     let simple_ty_env = assoc_n!("x" => ast!("integer"), "b" => ast!("bool"));
     
-    let lam = find_form(&cse, "expr", "lambda");
-    let fun = find_form(&cse, "type", "fn");
+    let lam = find_core_form("expr", "lambda");
+    let fun = find_core_form("type", "fn");
 
     
     assert_eq!(synth_type(&ast!( (vr "x") ),

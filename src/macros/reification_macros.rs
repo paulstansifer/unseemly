@@ -17,18 +17,11 @@
    as if I were aiming for them.
  */
 
-macro_rules! get_form {
-    ( $nt:expr, $name:expr ) => {
-        ::core_forms::find_form(&::core_forms::make_core_syn_env(), $nt, $name)
-    }
-}
-
 macro_rules! Reifiable {
     // HACK: everything is parameterized over 't...
 
 
     /* struct */
-    
     
     ((lifetime) $(pub)* struct $name:ident<$lifetime:tt> { $($contents:tt)* }) => {
         Reifiable!((remove_pub) struct $name<$lifetime> @ { $($contents)*, } );
@@ -100,7 +93,7 @@ macro_rules! Reifiable {
                 ::runtime::reify::Reifiable<'t>
                 for $name<$($($ty_param),*)*> {
             fn ty() -> ::ast::Ast<'static> {
-                ast! ({ get_form!("type", "struct") ;
+                ast! ({ ::core_forms::find_core_form("type", "struct") ;
                     "component_name" => [@"c" $( 
                         (, (::ast::Ast::VariableReference(::name::n(stringify!($field))))) ),* ],
                     "component" => [@"c" $( (, (<$t as ::runtime::reify::Reifiable>::ty())) ),*]
@@ -163,7 +156,7 @@ macro_rules! Reifiable {
                 ::runtime::reify::Reifiable<'t> 
                 for $name<$($($ty_param),*)*> {
             fn ty() -> ::ast::Ast<'static> {
-                ast! ({ get_form!("type", "enum") ;
+                ast! ({ ::core_forms::find_core_form("type", "enum") ;
                     "name" => [@"c" $( 
                         (, (::ast::Ast::VariableReference(::name::n(stringify!($choice))))) ),* ],
                     
