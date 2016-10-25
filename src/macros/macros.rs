@@ -305,21 +305,21 @@ macro_rules! val {
 /* core_values stuff */
 
 macro_rules! mk_type { // TODO: maybe now use find_core_form and un-thread $se?
-    ( $se:expr, [ ( $( $param:tt ),* )  -> $ret_t:tt ] ) => {
-        ast!( { find_form($se, "type", "fn") ; 
-                  "param" => [ $((, mk_type!($se, $param) )),*],
-                  "ret" => (, mk_type!($se, $ret_t))
+    ( [ ( $( $param:tt ),* )  -> $ret_t:tt ] ) => {
+        ast!( { ::core_forms::find_core_form("type", "fn") ; 
+                  "param" => [ $((, mk_type!($param) )),*],
+                  "ret" => (, mk_type!($ret_t))
         })
     };
-    ( $se:expr, $n:tt ) => { ast!($n) };
+    ( $n:tt ) => { ast!($n) };
 }
 
 /* Define a typed function */
 macro_rules! tf {
-    ( $se:expr, [ ( $($param_t:tt),* ) -> $ret_t:tt ] , 
+    (  [ ( $($param_t:tt),* ) -> $ret_t:tt ] , 
        ( $($param_p:pat),* ) => $body:expr) => {
         TypedValue {
-            ty: mk_type!($se, [ ( $($param_t),* ) -> $ret_t ] ),
+            ty: mk_type!([ ( $($param_t),* ) -> $ret_t ] ),
             val: core_fn!( $($param_p),* => $body)
         }
     }
