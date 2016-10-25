@@ -1,5 +1,3 @@
-#![macro_use]
-
 // Designed for `use reify::*`
 pub use ast::Ast;
 pub use name::*;
@@ -48,7 +46,12 @@ macro_rules! basic_reifiability {
 
 basic_reifiability!(BigInt, "integer", Int);
 
-// note: primitives for this type should use `usize` semantics!
+basic_reifiability!(bool, "bool", Bool);
+
+basic_reifiability!(Name<'t>, "ident", Ident);
+
+
+// note: primitives for these shouldn't have BigInt semantics!
 impl<'t> Reifiable<'t> for usize {
     fn ty() -> Ast<'static> { ast!("rust_usize") }
     
@@ -59,40 +62,65 @@ impl<'t> Reifiable<'t> for usize {
         extract!((v) Value::Int = (ref i) => i.to_usize().unwrap()) 
     }
 }
-
-basic_reifiability!(bool, "bool", Bool);
-
-basic_reifiability!(Name<'t>, "ident", Ident);
-
-// TODO: when returning traits works, just make functions `Reifiable`
-// TODO: 'static also allows things to be owned instead?!?
-pub fn reify_1ary_function<'t, A: Reifiable<'t> + 'static, R: Reifiable<'t> + 'static>(
-        f: Rc<(Fn(A) -> R)>) -> Value<'t> {
-    let f_c = f.clone();
-    Value::BuiltInFunction(::runtime::eval::BIF(Rc::new(
-        move |args: Vec<Value<'t>>| (f_c(A::reflect(&args[0]))).reify())))
+impl<'t> Reifiable<'t> for i32 {
+    fn ty() -> Ast<'static> { ast!("rust_i32") }
+    
+    fn reify(&self) -> Value<'t> { Value::Int(BigInt::from(*self)) }
+    
+    fn reflect(v: &Value<'t>) -> Self {
+        use num::ToPrimitive;
+        extract!((v) Value::Int = (ref i) => i.to_i32().unwrap()) 
+    }
+}
+impl<'t> Reifiable<'t> for () {
+    fn ty() -> Ast<'static> { ast!("unit") }
+    
+    fn reify(&self) -> Value<'t> { Value::Bool(true) }
+    
+    fn reflect(_: &Value<'t>) -> Self { () }
 }
 
-pub fn reflect_1ary_function<'t, A: Reifiable<'t> + 'static, R: Reifiable<'t> + 'static>(
-        f_v: Value<'t>) -> Rc<(Fn(A) -> R) + 't> {
-    Rc::new(move |a: A|
+// This is right, right?
+impl<'t> Reifiable<'t> for Value<'t> {
+    fn ty() -> Ast<'static> { ast!("any") }
+    
+    fn reify(&self) -> Value<'t> { self.clone() }
+    
+    fn reflect(v: &Value<'t>) -> Self { v.clone() }
+}
+
+// TODO: when returning traits works, just make functions `Reifiable`
+// TOUNDERSTAND: 'x also allows things to be owned instead?!?
+pub fn reify_1ary_function<'t, A: Reifiable<'t> + 't, R: Reifiable<'t> + 't>(
+        f: Rc<Box<(Fn(A) -> R) + 't>>) -> Value<'t> {
+    let f_c = f.clone();
+    Value::BuiltInFunction(::runtime::eval::BIF(Rc::new(
+        move |args: Vec<Value<'t>>| ((*f_c)(A::reflect(&args[0]))).reify())))
+}
+
+pub fn reflect_1ary_function<'t, A: Reifiable<'t> + 't, R: Reifiable<'t> + 't>(
+        f_v: Value<'t>) -> Rc<Box<(Fn(A) -> R) + 't>> {
+    Rc::new(Box::new(move |a: A|
         extract!((&f_v)
             Value::BuiltInFunction = (ref bif) => R::reflect(&(*bif.0)(vec![a.reify()]));
             Value::Function = (ref closure) => {
                 R::reflect(&::runtime::eval::eval(&closure.body,
                     closure.env.clone().set(closure.params[0], a.reify())).unwrap())
-            }))
+            })))
 }
 
-
 // I bet there's more of a need for reification than reflection for functions....
-
 pub fn reify_2ary_function<'t, A: Reifiable<'t> + 'static, B: Reifiable<'t> + 'static, 
                            R: Reifiable<'t> + 'static>(
         f: Rc<(Fn(A, B) -> R)>) -> Value<'t> {
     let f_c = f.clone();
     Value::BuiltInFunction(::runtime::eval::BIF(Rc::new(
         move |args: Vec<Value<'t>>| (f_c(A::reflect(&args[0]), B::reflect(&args[1]))).reify())))
+}
+
+pub fn ty_of_1ary_function<'t, A: Reifiable<'t> + 'static, R: Reifiable<'t> + 'static>() 
+         -> Ast<'t> {
+    ast!( "TODO: generate type" )
 }
 
 
@@ -144,6 +172,15 @@ impl<'t, T: Reifiable<'t>> Reifiable<'t> for ::std::boxed::Box<T> {
     fn reflect(v: &Value<'t>) -> Self { ::std::boxed::Box::new(T::reflect(v)) }
 }
 
+// The roundtrip will de-alias the cell, sadly.
+impl<'t, T: Reifiable<'t>> Reifiable<'t> for ::std::cell::RefCell<T> {
+    fn ty() -> Ast<'static> { ast!( "rust_RefCell") }
+    
+    fn reify(&self) -> Value<'t> { self.borrow().reify() }
+    
+    fn reflect(v: &Value<'t>) -> Self { ::std::cell::RefCell::<T>::new(T::reflect(v)) }
+}
+
 // Hey, I know how to generate the implementation for this...
 Reifiable! {
     () pub enum Option<T> {
@@ -151,7 +188,12 @@ Reifiable! {
         Some(T)
     }
 }
-
+Reifiable! {
+    () pub enum Result<T, E> {
+        Ok(T),
+        Err(E),
+    }
+}
 
 
 /* for testing */
@@ -191,7 +233,7 @@ custom_derive! {
 custom_derive! {
     #[derive(Debug, PartialEq, Eq, Reifiable(lifetime), Clone)]
     struct ParameterizedLifetimeStruct<'t, T, S> {
-        pub a: T,  b: S,  c: Name<'t>
+        pub a: T, b: S, c: Name<'t>
     }     
 }
 
@@ -255,7 +297,7 @@ fn basic_r_and_r_roundtrip() {
 fn function_r_and_r_roundtrip() {
     let f = | a: BigInt | a + BigInt::from(1);
     
-    let f2 = reflect_1ary_function::<BigInt, BigInt>(reify_1ary_function(Rc::new(f)));
+    let f2 = reflect_1ary_function::<BigInt, BigInt>(reify_1ary_function(Rc::new(Box::new(f))));
     
-    assert_eq!(f2(BigInt::from(1776)), BigInt::from(1777))
+    assert_eq!((*f2)(BigInt::from(1776)), BigInt::from(1777));
 }

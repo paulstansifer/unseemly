@@ -195,7 +195,7 @@ macro_rules! mbe {
 /* FormPat */
 
 macro_rules! form_pat {
-    ((lit $e:expr)) => { Literal($e) };
+    ((lit $e:expr)) => { Literal(::name::n($e)) };
     ((anyways $a:tt)) => { Anyways(ast!($a)) };
     (at) => { AnyToken };
     (aat) => { AnyAtomicToken };
@@ -214,7 +214,7 @@ macro_rules! form_pat {
         NameImport(Box::new(form_pat!($body)), beta!($beta))
     };
     ((extend $n:expr, $f:expr)) => {
-        SynImport(::name::n($n), SyntaxExtension(Rc::new($f)))
+        SynImport(::name::n($n), SyntaxExtension(Rc::new(Box::new($f))))
     };
     ( [$($body:tt),*] ) => { Seq(vec![ $(form_pat!($body)),* ])}
 }
@@ -278,6 +278,7 @@ macro_rules! ambidextrous_typed_form {
 
 macro_rules! val {
     (i $i:expr) => { ::runtime::eval::Value::Int(::num::bigint::BigInt::from($i)) };
+    (ident $n:expr) => { ::runtime::eval::Value::Ident($n) };
     (b $b:expr) => { ::runtime::eval::Value::Bool($b) };
     (cons $a:tt, $d:tt) => { ::runtime::eval::Value::Cons(Rc::new(val!($a)), Rc::new(val! $d )) };
     (f $body:tt, $params:expr, $env:tt) => {
@@ -295,7 +296,8 @@ macro_rules! val {
     };
     (enum $nm:expr, $($v:tt),*) => { 
         ::runtime::eval::Value::Enum(::name::n($nm), vec![ $( val! $v ),* ])
-    }
+    };
+    (, $interpolate:expr) => { $interpolate }
 }
 
 
@@ -397,3 +399,19 @@ macro_rules! extract {
 }
 
 
+/* Reification helper (doesn't work on parameterized types...) */
+
+macro_rules! cop_out_reifiability {
+    ( $underlying_type:ty, $ty_name:tt ) => {
+        impl<'t> Reifiable<'t> for $underlying_type {
+            fn ty() -> Ast<'static> { ast!($ty_name) }
+     
+            fn reify(&self) -> Value<'t> { Value::Smuggled(self.clone()) }
+            
+            fn reflect(v: &Value<'t>) -> Self { 
+                extract!((v) Value::Smuggled = (ref s) => 
+                    s.downcast_ref::<Self>().expect("Smuggling has gone terribly wrong!").clone())
+            }
+        }
+    }
+}

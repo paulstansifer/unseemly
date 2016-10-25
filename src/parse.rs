@@ -36,71 +36,87 @@ impl<'t> Token<'t> {
 }
 
 
-
-/**
-  FormPat is a grammar for syntax forms.
-
-  Most kinds of grammar nodes produce an `Ast` of either `Shape` or `Env`,
-   but `Named` and `Scope` are special:
-   everything outside of a `Named` (up to a `Scope`, if any) is discarded,
-    and `Scope` produces a `Node`, which maps names to what they got.
- */
-#[derive(Debug, Clone)]
-pub enum FormPat<'t> {
-    /// Matches 0 tokens, produces the argument
-    Anyways(Ast<'t>),
-
-    Literal(&'t str),
-    AnyToken,
-    AnyAtomicToken,
-    VarRef,
-    Delimited(Name<'t>, DelimChar, Box<FormPat<'t>>),
-    Seq(Vec<FormPat<'t>>),
-    Star(Box<FormPat<'t>>),
-    Alt(Vec<FormPat<'t>>),
-    Biased(Box<FormPat<'t>>, Box<FormPat<'t>>),
-
-    // TODO: there should be an explicit `FormNode` pattern that wraps the result in a 
-    // Node indicating the `Form`. (Some `Form`s might only exist for parsing,
-    // and don't want to be on the `Ast`.) Also, `SynEnv` can go back to containing
-    // a single `FormPat`, so we can use `Biased` if necessary.
-
+custom_derive! {
     /**
-     * Lookup a nonterminal in the current syntactic environment.
-     */ 
-    Call(Name<'t>),
-    /** 
-     * This is where syntax gets reflective.
-     * Evaluates its body (one phase up)
-     *  as a function from the current `SynEnv` to a new one, 
-     *  and names the result in the current scope. 
-     */
-    ComputeSyntax(Name<'t>, Box<FormPat<'t>>),
+      FormPat is a grammar for syntax forms.
 
-    /** Makes a node and limits the region where names are meaningful. */
-    Scope(Rc<Form<'t>>), 
-    Named(Name<'t>, Box<FormPat<'t>>),
+      Most kinds of grammar nodes produce an `Ast` of either `Shape` or `Env`,
+       but `Named` and `Scope` are special:
+       everything outside of a `Named` (up to a `Scope`, if any) is discarded,
+        and `Scope` produces a `Node`, which maps names to what they got.
+     */
+    #[derive(Debug, Clone, Reifiable(lifetime))]
+    pub enum FormPat<'t> {
+        /// Matches 0 tokens, produces the argument
+        Anyways(Ast<'t>),
 
-    /**
-     * This is where syntax gets extensible.
-     * Parses its body in the named syntactic environment.
-     * TODO: do we need both this and `ComputeSyntax`?
-     */
-    SynImport(Name<'t>, SyntaxExtension<'t>),
-    /**
-     * FOOTGUN:  NameImport(Named(...), ...) is almost always wrong.
-     * (write Named(NameImport(..., ...)) instead) 
-     * TODO: make this better
-     */
-    NameImport(Box<FormPat<'t>>, Beta<'t>),
-    //NameExport(Beta<'t>, Box<FormPat<'t>>) // This might want to go on some existing pattern
+        Literal(Name<'t>),
+        AnyToken,
+        AnyAtomicToken,
+        VarRef,
+        Delimited(Name<'t>, DelimChar, Box<FormPat<'t>>),
+        Seq(Vec<FormPat<'t>>),
+        Star(Box<FormPat<'t>>),
+        Alt(Vec<FormPat<'t>>),
+        Biased(Box<FormPat<'t>>, Box<FormPat<'t>>),
+
+        // TODO: there should be an explicit `FormNode` pattern that wraps the result in a 
+        // Node indicating the `Form`. (Some `Form`s might only exist for parsing,
+        // and don't want to be on the `Ast`.) Also, `SynEnv` can go back to containing
+        // a single `FormPat`, so we can use `Biased` if necessary.
+
+        /**
+         * Lookup a nonterminal in the current syntactic environment.
+         */ 
+        Call(Name<'t>),
+        /** 
+         * This is where syntax gets reflective.
+         * Evaluates its body (one phase up)
+         *  as a function from the current `SynEnv` to a new one, 
+         *  and names the result in the current scope. 
+         */
+        ComputeSyntax(Name<'t>, Box<FormPat<'t>>),
+
+        /** Makes a node and limits the region where names are meaningful. */
+        Scope(Rc<Form<'t>>), 
+        Named(Name<'t>, Box<FormPat<'t>>),
+
+        /**
+         * This is where syntax gets extensible.
+         * Parses its body in the named syntactic environment.
+         * TODO: do we need both this and `ComputeSyntax`?
+         */
+        SynImport(Name<'t>, SyntaxExtension<'t>),
+        /**
+         * FOOTGUN:  NameImport(Named(...), ...) is almost always wrong.
+         * (write Named(NameImport(..., ...)) instead) 
+         * TODO: make this better
+         */
+        NameImport(Box<FormPat<'t>>, Beta<'t>),
+        //NameExport(Beta<'t>, Box<FormPat<'t>>) // This might want to go on some existing pattern
+    }
 }
-
-pub struct SyntaxExtension<'t>(pub Rc<Fn(&SynEnv<'t>) -> SynEnv<'t> + 't>);
+pub struct SyntaxExtension<'t>(pub Rc<Box<(Fn(SynEnv<'t>) -> SynEnv<'t>) + 't>>);
 
 impl<'t> Clone for SyntaxExtension<'t> {
     fn clone(&self) -> SyntaxExtension<'t> {
         SyntaxExtension(self.0.clone())
+    }
+}
+
+// This kind of struct is theoretically possible to add to the `Reifiable!` macro,
+// but I don't feel like doing it right now
+impl<'t> ::runtime::reify::Reifiable<'t> for SyntaxExtension<'t> {
+    fn ty() -> Ast<'static> { ast!("syntax_extension") } 
+    
+    fn reify(&self) -> ::runtime::eval::Value<'t> { 
+        ::runtime::reify::reify_1ary_function(self.0.clone())
+        //panic!("")
+    }
+    
+    fn reflect(v: &::runtime::eval::Value<'t>) -> Self {
+        SyntaxExtension(::runtime::reify::reflect_1ary_function(v.clone()))
+        //panic!("")
     }
 }
 
@@ -184,8 +200,8 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
                 combine::value(ast.clone()).parse_lazy(inp)
             }
             &Literal(exp_tok) => {
-                combine::satisfy(|tok: &'tokens Token<'t>| {tok.is_just(exp_tok)}).parse_state(inp)
-                    .map(ast_ify)
+                combine::satisfy(|tok: &'tokens Token<'t>| {tok == &Simple(exp_tok)})
+                    .parse_state(inp).map(ast_ify)
             }
             &AnyToken => { combine::any().parse_state(inp).map(ast_ify) }
             &AnyAtomicToken => {
@@ -275,7 +291,7 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
             }
             
             &SynImport(ref name, ref f) => {
-                let new_se = f.0(&self.se);
+                let new_se = f.0(self.se.clone());
                 self.extend(new_se.find_or_panic(&name), new_se.clone()).parse_state(inp)
             }
         }
@@ -288,18 +304,19 @@ use self::FormPat::*;
 fn basic_parsing() {    
     assert_eq!(parse_top(&Seq(vec![AnyToken]), &tokens!("asdf")).unwrap(), ast_shape!("asdf"));
     
-    assert_eq!(parse_top(&Seq(vec![AnyToken, Literal("fork"), AnyToken]),
+    assert_eq!(parse_top(&Seq(vec![AnyToken, Literal(n("fork")), AnyToken]),
                &tokens!("asdf" "fork" "asdf")).unwrap(),
                ast_shape!("asdf" "fork" "asdf"));
                
-    assert_eq!(parse_top(&Seq(vec![AnyToken, Literal("fork"), AnyToken]),
+    assert_eq!(parse_top(&Seq(vec![AnyToken, Literal(n("fork")), AnyToken]),
                &tokens!("asdf" "fork" "asdf")).unwrap(),
                ast_shape!("asdf" "fork" "asdf"));
                
-    parse_top(&Seq(vec![AnyToken, Literal("fork"), AnyToken]),
+    parse_top(&Seq(vec![AnyToken, Literal(n("fork")), AnyToken]),
           &tokens!("asdf" "knife" "asdf")).unwrap_err();
           
-    assert_eq!(parse_top(&Seq(vec![Star(Box::new(Named(n("c"), Box::new(Literal("*"))))), Literal("X")]),
+    assert_eq!(parse_top(&Seq(vec![Star(Box::new(Named(n("c"), Box::new(Literal(n("*")))))),
+                                   Literal(n("X"))]),
                      &tokens!("*" "*" "*" "*" "*" "X")).unwrap(),
                ast_shape!({- "c" => ["*", "*", "*", "*", "*"] } "X"));
 }
@@ -345,8 +362,7 @@ fn advanced_parsing() {
 #[test]
 fn extensible_parsing() {
     
-    fn synex<'t>(s: &SynEnv<'t>) -> SynEnv<'t> {
-        
+    fn synex<'t>(s: SynEnv<'t>) -> SynEnv<'t> {
         assoc_n!(
             "a" => form_pat!((star (named "c", (alt (lit "AA"), [(lit "Back"), (call "o"), (lit ".")])))),
             "b" => form_pat!((lit "BB"))

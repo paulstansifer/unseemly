@@ -13,28 +13,34 @@ use runtime::eval::{Evaluate, NegativeEvaluate};
 
 pub type NMap<'t, T> = Assoc<Name<'t>, T>;
 
-/// Unseemly language form
-pub struct Form<'t> {
-    /// The name of the form. Mainly for internal use.
-    pub name: Name<'t>,
-    /** The grammar the programmer should use to invoke this form. 
-     * This contains information about bindings and syntax extension; this is where it belongs!
-     */
-    pub grammar: FormPat<'t>,
-    /** From a type environment, construct the type of this term. */
-    pub synth_type: EitherPN<WalkRule<'t, SynthesizeType>, WalkRule<'t, NegativeSynthesizeType>>,
-    /** From a value environment, evaluate this term.*/
-    pub eval: EitherPN<WalkRule<'t, Evaluate>, WalkRule<'t, NegativeEvaluate>>,
-    pub relative_phase: Assoc<Name<'t>, i32>, /* 2^31 macro phases ought to be enough for anybody */
+custom_derive! {
+    /// Unseemly language form
+    #[derive(Reifiable(lifetime))]
+    pub struct Form<'t> {
+        /// The name of the form. Mainly for internal use.
+        pub name: Name<'t>,
+        /** The grammar the programmer should use to invoke this form. 
+         * This contains information about bindings and syntax extension; this is where it belongs!
+         */
+        pub grammar: FormPat<'t>,
+        /** From a type environment, construct the type of this term. */
+        pub synth_type: EitherPN<WalkRule<'t, SynthesizeType>, WalkRule<'t, NegativeSynthesizeType>>,
+        /** From a value environment, evaluate this term.*/
+        pub eval: EitherPN<WalkRule<'t, Evaluate>, WalkRule<'t, NegativeEvaluate>>,
+        pub relative_phase: Assoc<Name<'t>, i32> /* 2^31 macro phases ought to be enough for anybody */
+    }
 }
 
-/**
- * The distinction between `Form`s with positive and negative walks is documented at `Mode`.
- */
-pub enum EitherPN<L, R> {
-    Positive(L),
-    Negative(R),
-    Both(L, R)
+custom_derive! {
+    /**
+     * The distinction between `Form`s with positive and negative walks is documented at `Mode`.
+     */
+    #[derive(Reifiable)]
+    pub enum EitherPN<L, R> {
+        Positive(L),
+        Negative(R),
+        Both(L, R)
+    }
 }
 pub use self::EitherPN::*;
 

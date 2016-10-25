@@ -13,19 +13,21 @@ use form::Form;
 use parse::FormPat;
 use ast_walk::WalkRule;
 
-#[derive(Clone, PartialEq)]
-pub enum Ast<'t> {
-    Trivial,
-    Atom(Name<'t>),
-    VariableReference(Name<'t>),
-    Shape(Vec<Ast<'t>>),
-    
-    /// A meaningful chunk of syntax, governed by a form, containing an environment
-    Node(Rc<Form<'t>>, EnvMBE<'t, Ast<'t>>),
-    IncompleteNode(EnvMBE<'t, Ast<'t>>),
-    
-    /// Variable binding
-    ExtendEnv(Box<Ast<'t>>, Beta<'t>)
+custom_derive! {
+    #[derive(Clone, PartialEq, Reifiable(lifetime))]
+    pub enum Ast<'t> {
+        Trivial,
+        Atom(Name<'t>),
+        VariableReference(Name<'t>),
+        Shape(Vec<Ast<'t>>),
+        
+        /// A meaningful chunk of syntax, governed by a form, containing an environment
+        Node(Rc<Form<'t>>, EnvMBE<'t, Ast<'t>>),
+        IncompleteNode(EnvMBE<'t, Ast<'t>>),
+        
+        /// Variable binding
+        ExtendEnv(Box<Ast<'t>>, Beta<'t>)
+    }
 }
 
 pub use self::Ast::*;
@@ -148,8 +150,10 @@ fn star_construction() {
     
 }
 
-// #[test]
-// fn mbe_r_and_r_roundtrip() {
-//     let mbe1 = mbe!( "a" => [@"duo" "1", "2"], "b" => [@"duo" "11", "22"]);
-//     assert_eq!(mbe1, EnvMBE::<Ast>::reflect(&mbe1.reify()));
-// }
+#[test]
+fn mbe_r_and_r_roundtrip() {
+    use runtime::reify::Reifiable;
+    let mbe1 = mbe!( "a" => [@"duo" "1", "2"], "b" => [@"duo" "11", "22"]);
+    assert_eq!(mbe1, EnvMBE::<Ast>::reflect(&mbe1.reify()));
+}
+

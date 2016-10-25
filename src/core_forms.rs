@@ -41,6 +41,9 @@ fn ast_to_atom<'t>(ast: &Ast<'t>) -> Name<'t> {
     match ast { &Atom(n) => n, _ => { panic!("internal error!") } }
 }
 
+macro_rules! cust_rc_box {
+    ($contents:expr) => { Custom(Rc::new(Box::new($contents))) }
+}
 
 /* Note that both types and terms are represented as Ast<'t> */
 
@@ -80,27 +83,27 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                 (named "body",
                     (import [* ["param" : "p_t"]], (call "expr")))]),
             /* type */
-            Custom(Box::new( move | part_types | {
+            cust_rc_box!( move | part_types | {
                 let lambda_type : Ast<'t> = 
                     ast!({ fn_type_1.clone() ;
                          "param" => [* part_types =>("param") part_types :
                                        (, part_types.get_term(&n("p_t")))],
                          "ret" => (, try!(part_types.get_res(&n("body"))))});
-                Ok(lambda_type)})),
+                Ok(lambda_type)}),
             /* evaluation */
-            Custom(Box::new( move | part_values | {
+            cust_rc_box!( move | part_values | {
                 Ok(Function(Rc::new(Closure {
                     body: part_values.get_term(&n("body")),
                     params: 
                     part_values.get_rep_term(&n("param")).iter().map(ast_to_atom).collect(),
                     env: part_values.env
                 })))
-            }))),
+            })),
         
         typed_form!("apply",
             [(named "rator", (call "expr")), 
              (star (named "rand", (call "expr")))],
-            Custom(Box::new(move | part_types |
+            cust_rc_box!(move | part_types |
                 expect_node!( (try!(part_types.get_res(&n("rator"))) ; 
                                fn_type_0)
                     env;
@@ -113,8 +116,8 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                     
                         Ok(env.get_leaf_or_panic(&n("ret")).clone())
                     }
-                ))),
-            Custom(Box::new( move | part_values | {
+                )),
+            cust_rc_box!( move | part_values | {
                 match try!(part_values.get_res(&n("rator"))) {
                     Function(clos) => {
 
@@ -146,7 +149,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                         as if it were a function", other)
                     }
                 }
-            }))),
+            })),
         // Need to get imports of pats working first!
         typed_form!("match",
             [(lit "match"), (named "scrutinee", (call "expr")),
@@ -154,7 +157,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                  (star [(named "p", (call "pat")), (lit "=>"),
                         (named "arm", (import ["p" = "scrutinee"], (call "expr")))]))],
             /* Typesynth: */
-            Custom(Box::new(move | part_types | {
+            cust_rc_box!(move | part_types | {
                 let mut res = None;
                 for arm_part_types in part_types.march_parts(&vec![n("arm")]) {
                     let arm_res = try!(arm_part_types.get_res(&n("arm")));
@@ -170,9 +173,9 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                 }
                 
                 Ok(res.expect("Type error: no arms!"))                
-            })),
+            }),
             /* Evaluation: */
-            Custom(Box::new( move | part_values | {
+            cust_rc_box!( move | part_values | {
                 for arm_values in part_values.march_all(&vec![n("arm")]) {
                     match arm_values.get_res(&n("arm")) {
                         Ok(res) => { return Ok(res); }
@@ -180,7 +183,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                     }
                 }
                 panic!("No arms matched! This ought to be a type error, but isn't.");
-            }))
+            })
         ),
             
         typed_form!("enum_expr",
@@ -188,7 +191,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
              (delim "(", "(", /*))*/ [(star (named "component", (call "pat")))]),
              (lit ":"), (named "t", (call "type"))],
             /* Typesynth: */
-            Custom(Box::new( move | part_types | {
+            cust_rc_box!( move | part_types | {
                 let res = part_types.get_term(&n("t"));
                 expect_node!( (res ; enum_type_1)
                     enum_type_parts; 
@@ -216,23 +219,23 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                             part_types.get_term(&n("name")), res)
                     }        
                 )            
-            })),
+            }),
             /* Evaluate: */
-            Custom(Box::new( move | part_values | {
+            cust_rc_box!( move | part_values | {
                 Ok(Enum(ast_to_atom(&part_values.get_term(&n("name"))),
                     try!(part_values.get_rep_res(&n("component")))))
-            }))),
+            })),
         typed_form!("struct_expr",
             (delim "{", "{", /*}}*/ 
                 (star [(named "component_name", aat), (lit ":"), 
                        (named "component", (call "expr"))])),
-            Custom(Box::new( move | part_types | {
+            cust_rc_box!( move | part_types | {
                 Ok(ast!({ struct_type_1.clone() ;
                     "component_name" => (@"c" ,seq part_types.get_rep_term(&n("component_name"))),
                     "component" => (@"c" ,seq try!(part_types.get_rep_res(&n("component"))))
                 }))
-            })),
-            Custom(Box::new( move | part_values | {
+            }),
+            cust_rc_box!( move | part_values | {
                 let mut res = Assoc::new();
                 
                 for component_parts in part_values.march_parts(&vec![n("component")]) {
@@ -241,7 +244,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                 }
                 
                 Ok(Struct(res))
-            })))
+            }))
 
         /*,
             
@@ -257,7 +260,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
             [(named "name", aat), 
              (delim "(", "(", /*))*/ [(star (named "component", (call "pat")))])],
             /* (Negatively) Typecheck: */
-            Custom(Box::new( move | part_types |
+            cust_rc_box!( move | part_types |
                 expect_node!( (*part_types.context_elt() ; enum_type_0)
                     enum_type_parts;
                     {
@@ -282,9 +285,9 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                         }
                         panic!("Type error: enum branch not found");
                 }
-            ))),
+            )),
             /* (Negatively) Evaluate: */
-            Custom(Box::new( move | part_values | {
+            cust_rc_box!( move | part_values | {
                 match part_values.context_elt() /* : Value<'t> */ {
                     &Enum(ref name, ref elts) => {
                         // "Try another branch"
@@ -302,13 +305,13 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                     }
                     _ => panic!("Type ICE: non-enum")
                 }            
-            }))),
+            })),
         negative_typed_form!("struct_pat",
             [(delim "{", "{", /*}}*/ 
                  (star [(named "component_name", aat), (lit ":"), 
                         (named "component", (call "pat"))]))],
             /* (Negatively) typesynth: */
-            Custom(Box::new( move | part_types | 
+            cust_rc_box!( move | part_types | 
                 expect_node!( (*part_types.context_elt() ; struct_type_0)
                     struct_type_parts;
                     {
@@ -337,8 +340,8 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                             }
                         }
                         Ok(res)
-                    }))),
-            Custom(Box::new( move | part_values | {
+                    })),
+            cust_rc_box!( move | part_values | {
                 match part_values.context_elt() {
                     &Struct(ref contents) => {
                         let mut res = Assoc::new();
@@ -357,7 +360,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                     }
                     _ => panic!("Type ICE: non-struct")
                 }
-            })))];
+            }))];
 
     assoc_n!(
         "pat" => Biased(Box::new(main_pat_forms), Box::new(VarRef)),

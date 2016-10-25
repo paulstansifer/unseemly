@@ -37,18 +37,50 @@ use ast::Ast::*;
 use beta::*;
 use parse::FormPat::AnyToken; // for making simple forms for testing
 use std::fmt::Debug;
+use runtime::{reify, eval};
+use runtime::reify::Reifiable;
+
 
 pub enum WalkRule<'t, Mode: WalkMode<'t>> {
     /** 
      * A function from the types/values of the *parts* of this form
      *  to the type/value of this form.
      * Note that the environment is not directly accessible! */
-    Custom(Box<(Fn(LazyWalkReses<'t, Mode>) -> Result<Mode::Out, ()>) + 't>),
+    Custom(Rc<Box<(Fn(LazyWalkReses<'t, Mode>) -> Result<Mode::Out, ()>) + 't>>),
     /** "this form has the same type/value as one of its subforms" */
     Body(Name<'t>), 
     /** this form should not ever be typed/evaluated */
     NotWalked 
 }
+
+// trait bounds on parameters and functions are not yet supported by `Reifiable!`
+impl<'t, Mode: WalkMode<'t> + 't> reify::Reifiable<'t> for WalkRule<'t, Mode> {
+    // doesn't need to be parameterized because it will be opaque. I think!?
+    fn ty() -> Ast<'static> { ast!("walk_rule") }
+
+    fn reify(&self) -> eval::Value<'t> { 
+        match self {
+            &NotWalked => val!(enum "NotWalked",),
+            &Body(ref n) => val!(enum "Body", (ident n.clone())),
+            &Custom(ref lwr_to_out) => val!(enum "Custom", (, 
+                reify::reify_1ary_function(lwr_to_out.clone())))
+        }
+    }
+    
+    fn reflect(v: &eval::Value<'t>) -> Self { 
+        extract!((v) eval::Value::Enum = (ref choice, ref parts) =>
+            if choice.is("NotWalked") {
+                WalkRule::NotWalked
+            } else if choice.is("Body") {
+                WalkRule::Body(Name::<'t>::reflect(&parts[0]))
+            } else if choice.is("Custom") {
+                WalkRule::Custom(reify::reflect_1ary_function(parts[0].clone()))
+            } else {
+                panic!("ICE in WalkRule reflection")
+            })
+    }
+}
+
 
 pub use self::WalkRule::*;
 
@@ -60,6 +92,25 @@ pub struct LazilyWalkedTerm<'t, Mode: WalkMode<'t>> {
     pub term: Ast<'t>,
     pub res: RefCell<Option<Result<Mode::Out, ()>>>
 }
+
+// trait bounds on parameters are not yet supported by `Reifiable!`
+impl<'t, Mode: WalkMode<'t>> reify::Reifiable<'t> for LazilyWalkedTerm<'t, Mode> {
+    // doesn't need to be parameterized because it will be opaque. I think!?
+    fn ty() -> Ast<'static> { ast!("lazily_walked_term") }
+
+    fn reify(&self) -> eval::Value<'t> {
+        val!(struct "term" => (, self.term.reify()), "res" => (, self.res.reify()))
+    }
+    fn reflect(v: &eval::Value<'t>) -> Self { 
+        extract!((v) eval::Value::Struct = (ref contents) =>
+            LazilyWalkedTerm { term: Ast::<'t>::reflect(contents.find_or_panic(&n("term"))), 
+                               res: RefCell::<Option<Result<Mode::Out, ()>>>::reflect(
+                                   contents.find_or_panic(&n("res"))) })
+    }
+}
+
+
+
 
 // We only implement this because lazy-rust is unstable 
 impl<'t, Mode : WalkMode<'t>> LazilyWalkedTerm<'t, Mode> {
@@ -93,6 +144,25 @@ pub struct LazyWalkReses<'t, Mode: WalkMode<'t>> {
     pub parts: EnvMBE<'t, Rc<LazilyWalkedTerm<'t, Mode>>>,
     pub env: ResEnv<'t, Mode::Elt>,
 }
+
+// trait bounds on parameters are not yet supported by `Reifiable!`
+impl<'t, Mode: WalkMode<'t>> reify::Reifiable<'t> for LazyWalkReses<'t, Mode> {
+    // doesn't need to be parameterized because it will be opaque. I think!?
+    fn ty() -> Ast<'static> { ast!("lazy_walked_reses") }
+
+    fn reify(&self) -> eval::Value<'t> {
+        val!(struct "parts" => (, self.parts.reify()), "env" => (, self.env.reify()))
+    }
+    fn reflect(v: &eval::Value<'t>) -> Self { 
+        extract!((v) eval::Value::Struct = (ref contents) =>
+            LazyWalkReses { parts: EnvMBE::<'t, Rc<LazilyWalkedTerm<'t, Mode>>>::reflect(
+                                contents.find_or_panic(&n("parts"))),
+                            env: ResEnv::<'t, Mode::Elt>::reflect(
+                                contents.find_or_panic(&n("env"))) })
+    }
+}
+
+
 
 impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
     pub fn new(env: ResEnv<'t, Mode::Elt>, 
@@ -258,15 +328,15 @@ pub fn walk<'t, Mode: WalkMode<'t>>(expr: &Ast<'t>, cur_node_contents: &LazyWalk
  *  but they conceptually are mostly relying on the special value.
  */
 
-pub trait WalkMode<'t> : Debug + Copy {
+pub trait WalkMode<'t> : Debug + Copy + Reifiable<'t> {
     /** The output of the walking process.
      *
      * Negated walks produce an environment of Self::Elt, positive walks produce Self::Elt.
      */
-    type Out : Clone + Debug;
+    type Out : Clone + Debug + Reifiable<'t>;
     
     /** The object type for the environment to walk in. */
-    type Elt : Clone + Debug; 
+    type Elt : Clone + Debug + Reifiable<'t>;
     
     type Negative : WalkMode<'t, Elt=Self::Elt>;
     

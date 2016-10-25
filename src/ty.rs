@@ -30,8 +30,10 @@ use std::rc::Rc;
 // maybe should do this, to be clear
 // pub type Type<'t> = Ast<'t>;
 
-#[derive(Clone, Copy, Debug)]
-pub struct SynthesizeType {}
+custom_derive! {
+    #[derive(Clone, Copy, Debug, Reifiable)]
+    pub struct SynthesizeType {}
+}
 
 impl<'t> WalkMode<'t> for SynthesizeType {
     type Out = Ast<'t>;
@@ -56,8 +58,10 @@ impl<'t> WalkMode<'t> for SynthesizeType {
     fn positive() -> bool { true }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct NegativeSynthesizeType {} 
+custom_derive! {
+    #[derive(Clone, Copy, Debug, Reifiable)]
+    pub struct NegativeSynthesizeType {} 
+}
 
 impl<'t> WalkMode<'t> for NegativeSynthesizeType {
     type Out = Assoc<Name<'t>, Ast<'t>>;
@@ -123,7 +127,7 @@ fn basic_type_synth() {
                Ok(ast!("integer")));
                
     assert_eq!(synth_type(&ast!(
-            {basic_typed_form!(at, Custom(Box::new(|_| Ok(ast!("string")))),
+            {basic_typed_form!(at, Custom(Rc::new(Box::new(|_| Ok(ast!("string"))))),
                                NotWalked) ; []}),
             simple_ty_env.clone()),
         Ok(ast!("string")));

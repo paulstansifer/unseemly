@@ -5,8 +5,10 @@ extern crate regex;
 
 use name::*;
 
-#[derive(Debug,PartialEq,Eq,Clone,Copy)]
-pub enum DelimChar { Paren, SquareBracket, CurlyBracket }
+custom_derive! {
+    #[derive(Debug,PartialEq,Eq,Clone,Copy,Reifiable)]
+    pub enum DelimChar { Paren, SquareBracket, CurlyBracket }
+}
 
 use self::DelimChar::*;
 

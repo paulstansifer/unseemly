@@ -21,21 +21,23 @@ use ast::{Ast, Atom};
  The leaf nodes, `Basic` and `SameAs`
  */
 
-#[derive(PartialEq, Eq, Clone)]
-pub enum Beta<'t> {
-    /// Both of these `Name`s refer to named terms in the current `Scope` (or `ResEnv`, for `Ast`s).
-    /// The first is the identifier to import, and the second the syntax for its type.
-    Basic(Name<'t>, Name<'t>),
-    /// Like `Basic`, but here the second part is another expression 
-    /// which should be typechecked, and whose type the new name gets.
-    /// (This can be used write `let` without requiring a type annotation.)
-    SameAs(Name<'t>, Name<'t>),
-    /// Shadow the names from two `Beta`s.
-    Shadow(Box<Beta<'t>>, Box<Beta<'t>>),
-    /// Shadow the names from a `Beta`, repeated.
-    /// The `Vec` should always be equal to `names_mentioned(...)` of the `Beta`.
-    ShadowAll(Box<Beta<'t>>, Vec<Name<'t>>),
-    Nothing
+custom_derive! {
+    #[derive(PartialEq, Eq, Clone, Reifiable(lifetime))]
+    pub enum Beta<'t> {
+        /// Both of these `Name`s refer to named terms in the current `Scope` (or `ResEnv`, for `Ast`s).
+        /// The first is the identifier to import, and the second the syntax for its type.
+        Basic(Name<'t>, Name<'t>),
+        /// Like `Basic`, but here the second part is another expression 
+        /// which should be typechecked, and whose type the new name gets.
+        /// (This can be used write `let` without requiring a type annotation.)
+        SameAs(Name<'t>, Name<'t>),
+        /// Shadow the names from two `Beta`s.
+        Shadow(Box<Beta<'t>>, Box<Beta<'t>>),
+        /// Shadow the names from a `Beta`, repeated.
+        /// The `Vec` should always be equal to `names_mentioned(...)` of the `Beta`.
+        ShadowAll(Box<Beta<'t>>, Vec<Name<'t>>),
+        Nothing
+    }
 }
 
 pub use self::Beta::*;

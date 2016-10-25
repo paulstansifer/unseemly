@@ -35,7 +35,7 @@ pub struct Closure<'t> {
     pub env: Assoc<Name<'t>, Value<'t>>
 }
 
-pub struct BIF<'t>(pub Rc<(Fn(Vec<Value<'t>>) -> Value<'t>)>);
+pub struct BIF<'t>(pub Rc<(Fn(Vec<Value<'t>>) -> Value<'t>) + 't>);
 
 impl<'t> PartialEq for BIF<'t> {
     fn eq(&self, other: &BIF<'t>) -> bool {
@@ -55,9 +55,10 @@ impl<'t> std::fmt::Debug for BIF<'t> {
     }
 }
 
-
-#[derive(Clone, Copy, Debug)]
-pub struct Evaluate {}
+custom_derive! {
+    #[derive(Clone, Copy, Debug, Reifiable)]
+    pub struct Evaluate {}
+}
 
 impl<'t> WalkMode<'t> for Evaluate {
     type Out = Value<'t>;
@@ -86,8 +87,10 @@ impl<'t> WalkMode<'t> for Evaluate {
     fn positive() -> bool { true }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct NegativeEvaluate{}
+custom_derive! {
+    #[derive(Clone, Copy, Debug, Reifiable)]
+    pub struct NegativeEvaluate{}
+}
 
 impl<'t> WalkMode<'t> for NegativeEvaluate {
     type Out = Assoc<Name<'t>, Value<'t>>;
@@ -127,5 +130,4 @@ pub fn neg_eval<'t>(pat: &Ast<'t>, env: Assoc<Name<'t>, Value<'t>>)
     walk::<NegativeEvaluate>(pat, 
         &LazyWalkReses::<NegativeEvaluate>::new(env, ::util::mbe::EnvMBE::new()))
 }
-
 
