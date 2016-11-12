@@ -165,7 +165,7 @@ pub fn parse<'fun, 't: 'fun>(f: &'fun FormPat<'t>, se: SynEnv<'t>, tt: &'fun Tok
         -> Result<Ast<'t>, ParseError<SliceStream<'fun, Token<'t>>>> {
     let (res, consumed) = 
         try!(FormPatParser{f: f, se: se, token_phantom: PhantomData}.parse_tokens(&tt.t)
-            .map_err(|consumed| consumed.into_inner()));        
+            .map_err(|consumed| consumed.into_inner()));
     // TODO: this seems to lead to bad error messages 
     //  (Essentially, asking the user why they didn't end the file
     //    right after the last thing that did parse correctly)
@@ -319,6 +319,31 @@ fn basic_parsing() {
                                    Literal(n("X"))]),
                      &tokens!("*" "*" "*" "*" "*" "X")).unwrap(),
                ast_shape!({- "c" => ["*", "*", "*", "*", "*"] } "X"));
+}
+
+#[test]
+fn alternation() {
+    assert_eq!(parse_top(&form_pat!((alt (lit "A"), (lit "B"))), &tokens!("A")), 
+               Ok(ast!("A")));
+    assert_eq!(parse_top(&form_pat!((alt (lit "A"), (lit "B"))), &tokens!("B")), 
+               Ok(ast!("B")));
+
+    assert_eq!(parse_top(
+        &form_pat!((alt (lit "A"), (lit "B"), [(lit "X"), (lit "B")])),
+            &tokens!("X" "B")), 
+                Ok(ast!(("X" "B"))));
+
+    assert_eq!(parse_top(
+        &form_pat!((alt [(lit "A"), (lit "X")], (lit "B"), [(lit "A"), (lit "B")])),
+            &tokens!("A" "B")), 
+                Ok(ast!(("A" "B"))));
+    /* //TODO: I'm not sure I can fix this with a combinator parser.
+    assert_eq!(parse_top(
+        &form_pat!((alt (lit "A"), (lit "B"), [(lit "A"), (lit "B")])),
+            &tokens!("A" "B")), 
+               Ok(ast!(("A" "B"))));
+    */
+
 }
 
 #[test]
