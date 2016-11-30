@@ -1,4 +1,4 @@
-#![allow(dead_code,unused_imports)]
+#![allow(dead_code,non_snake_case)]
 // unstable; only for testing
 // #![feature(log_syntax,trace_macros)]
 // trace_macros!(true);

@@ -1,6 +1,5 @@
 
 /*
-
 We often need to walk an `Ast` while maintaining an environment.
 So far, this is used both for typechecking and for evaluation.
 
@@ -21,10 +20,10 @@ Subterms are walked lazily, since not all of them are even evaluable/typeable,
 TODO: generalize to handle patterns, which are negated expressions.
 
 Some forms are positive, and some are negative. 
-Positive forms are walked in an environment, and produce a value.
-Negative forms still can access their environment, 
-but primarily they look at one special result in it, and when they are walked, 
-they produce an environment from that special result.
+Positive forms (e.g. expressions) are walked in an environment, and produce a value.
+Negative forms (e.g. patterns) still can access their environment,
+ but primarily they look at one special "result" in it, and when they are walked,
+  they produce an environment from that special result.
 */
 use form::Form;
 use std::rc::Rc; 
@@ -35,7 +34,6 @@ use util::mbe::EnvMBE;
 use ast::Ast;
 use ast::Ast::*;
 use beta::*;
-use parse::FormPat::AnyToken; // for making simple forms for testing
 use std::fmt::Debug;
 use runtime::{reify, eval};
 use runtime::reify::Reifiable;
@@ -276,7 +274,6 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
 
 /**
  * Make a `Mode::Out` by walking `expr` in the environment `env`.
- * TODO: remove the `env` environment, just use cur_node_contents
  */
 pub fn walk<'t, Mode: WalkMode<'t>>(expr: &Ast<'t>, cur_node_contents: &LazyWalkReses<'t, Mode>)
         -> Result<Mode::Out, ()> {

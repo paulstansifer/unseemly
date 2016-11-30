@@ -1,17 +1,12 @@
 #![macro_use]
 
-use util::assoc::Assoc;
 use util::mbe::EnvMBE;
 use name::*;
 use beta::Beta;
 use std::iter;
-use std::cmp::PartialEq;
 use std::fmt;
 use std::rc::Rc;
 use form::Form;
-
-use parse::FormPat;
-use ast_walk::WalkRule;
 
 custom_derive! {
     #[derive(Clone, PartialEq, Reifiable(lifetime))]

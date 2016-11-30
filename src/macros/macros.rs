@@ -195,28 +195,30 @@ macro_rules! mbe {
 /* FormPat */
 
 macro_rules! form_pat {
-    ((lit $e:expr)) => { Literal(::name::n($e)) };
-    ((anyways $a:tt)) => { Anyways(ast!($a)) };
-    (at) => { AnyToken };
-    (aat) => { AnyAtomicToken };
-    (varref) => { VarRef };
+    ((lit $e:expr)) => { ::parse::FormPat::Literal(::name::n($e)) };
+    ((anyways $a:tt)) => { ::parse::FormPat::Anyways(ast!($a)) };
+    (at) => { ::parse::FormPat::AnyToken };
+    (aat) => { ::parse::FormPat::AnyAtomicToken };
+    (varref) => { ::parse::FormPat::VarRef };
     ((delim $n:expr, $d:expr, $body:tt)) => {
-        Delimited(::name::n($n), ::read::delim($d), Box::new(form_pat!($body)))
+        ::parse::FormPat::Delimited(::name::n($n), ::read::delim($d), Box::new(form_pat!($body)))
     };
-    ((star $body:tt)) => {  Star(Box::new(form_pat!($body))) };
-    ((alt $($body:tt),* )) => { Alt(vec![ $( form_pat!($body) ),* ] )};
-    ((biased $lhs:tt, $rhs:tt)) => { Biased(Box::new(form_pat!($lhs)), 
-                                            Box::new(form_pat!($rhs))) };
-    ((call $n:expr)) => { Call(::name::n($n)) };
-    ((scope $f:expr)) => { Scope($f) };
-    ((named $n:expr, $body:tt)) => { Named(::name::n($n), Box::new(form_pat!($body))) };
+    ((star $body:tt)) => { ::parse::FormPat::Star(Box::new(form_pat!($body))) };
+    ((alt $($body:tt),* )) => { ::parse::FormPat::Alt(vec![ $( form_pat!($body) ),* ] )};
+    ((biased $lhs:tt, $rhs:tt)) => { ::parse::FormPat::Biased(Box::new(form_pat!($lhs)),
+                                                              Box::new(form_pat!($rhs))) };
+    ((call $n:expr)) => { ::parse::FormPat::Call(::name::n($n)) };
+    ((scope $f:expr)) => { ::parse::FormPat::Scope($f) };
+    ((named $n:expr, $body:tt)) => {
+        ::parse::FormPat::Named(::name::n($n), Box::new(form_pat!($body)))
+    };
     ((import $beta:tt, $body:tt)) => { 
-        NameImport(Box::new(form_pat!($body)), beta!($beta))
+        ::parse::FormPat::NameImport(Box::new(form_pat!($body)), beta!($beta))
     };
     ((extend $n:expr, $f:expr)) => {
-        SynImport(::name::n($n), SyntaxExtension(Rc::new(Box::new($f))))
+        ::parse::FormPat::SynImport(::name::n($n), ::parse::SyntaxExtension(Rc::new(Box::new($f))))
     };
-    ( [$($body:tt),*] ) => { Seq(vec![ $(form_pat!($body)),* ])}
+    ( [$($body:tt),*] ) => { ::parse::FormPat::Seq(vec![ $(form_pat!($body)),* ])}
 }
 
 

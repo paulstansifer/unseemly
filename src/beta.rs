@@ -4,7 +4,7 @@ use std::fmt;
 use name::*;
 use ast_walk::{ResEnv, LazyWalkReses, LazilyWalkedTerm, WalkMode};
 use util::assoc::Assoc;
-use ast::{Ast, Atom};
+use ast::{Atom};
 
 
 /**

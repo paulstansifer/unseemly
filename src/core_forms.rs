@@ -1,29 +1,25 @@
+// This virtual machine kills cyber-fascists.
+
 #![allow(dead_code, non_upper_case_globals)]
 
-/**
- Core forms!
-
-
- Expr @ S -> T ::=  '[ [ ,[x : Name @ T], : ,[t : Type], ]
-                         -> ,[ bind(body <-- x : t)bind : Expr @ S], ] ]'
- Expr @ T ::= '[ ( ,[rator : Expr @ S -> T],   ,[rand : Expr @ S], ) ]'
- Expr @ T ::= x : Name @ T
-
- // Ths has a bunch of tricky ambiguity and quoting stuff not worked out yet
- SynQuote ::= ''[ '[ ,,[content : QuoteContents],, ]' ]''
- QuoteContents ::= ''[ ,[ ,,[n : Name @ T],, : ,,[t : Type],, ], ]'' exports (n : t)
- QuoteContents ::= '[ ...[,[t : TokenTree],]...  ]'
-
-
+/*
+ * Core forms!
+ *
+ * This is the definition of Unseemly, the bizarre boiled-down programming language.
+ *
+ * Unseemly programs have expressions and types (and probably kinds, too).
+ *
+ * The type theory for this is largely swiped from the "Types and Programming Languages" by Pierce.
+ * I've agressively copied the formally-elegant but non-ergonomic theory
+ *  whenever I think that the ergonomic way of doing things is just syntax sugar over it.
+ * After all, syntax sugar is the point of Unseemly!
+ *
  */
 
 
 use name::*;
-use std::collections::HashMap;
-use parse::{SynEnv, parse, FormPat};
+use parse::{SynEnv, FormPat};
 use parse::FormPat::*;
-use read::DelimChar::*;
-use read::{Token, TokenTree, DelimChar, Group, Simple, delim};
 use form::{Form, simple_form};
 use util::assoc::Assoc;
 use ast::*;
@@ -32,10 +28,7 @@ use ty::*;
 use runtime::eval::*;
 use beta::*;
 use ast_walk::WalkRule::*;
-use num::bigint;
 use num::bigint::ToBigInt;
-
-
 
 fn ast_to_atom<'t>(ast: &Ast<'t>) -> Name<'t> {
     match ast { &Atom(n) => n, _ => { panic!("internal error!") } }
@@ -100,7 +93,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                 })))
             })),
         
-        typed_form!("apply",
+        typed_form!("apply", /* function application*/
             [(named "rator", (call "expr")), 
              (star (named "rand", (call "expr")))],
             cust_rc_box!(move | part_types |
@@ -120,8 +113,6 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
             cust_rc_box!( move | part_values | {
                 match try!(part_values.get_res(&n("rator"))) {
                     Function(clos) => {
-
-                        
                         // Evaluate arguments into a fake LazyWalkReses,
                         //  making a dummy form that has the actual arguments and the body together
                         let mut params = vec![];
@@ -150,7 +141,6 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                     }
                 }
             })),
-        // Need to get imports of pats working first!
         typed_form!("match",
             [(lit "match"), (named "scrutinee", (call "expr")),
              (delim "{", "{", 
@@ -185,7 +175,9 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                 panic!("No arms matched! This ought to be a type error, but isn't.");
             })
         ),
-            
+        /* Note that we inconveniently require the user to specify the type.
+           "real" languages infer the type from the (required-to-be-unique)
+           component name. */
         typed_form!("enum_expr",
             [(named "name", aat), 
              (delim "(", "(", /*))*/ [(star (named "component", (call "pat")))]),

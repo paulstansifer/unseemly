@@ -1,25 +1,18 @@
 /*
-
 Type synthesis is a recursive traversal of an abstract syntax tree. 
 It is compositional,
  except for binding, which is indicated by ExtendTypeEnv nodes. 
-These nodes  may depend on 
- the result of synthesizing sibling AST nodes
+These nodes may depend on
+ the result of type-synthesizing sibling AST nodes
  or the actual value of AST nodes corresponding to types 
   (i.e., type annotations).
-
-
-
-
 */
 
 use beta::*;
-use parse::FormPat::AnyToken; // for making simple forms for testing
 use ast_walk::{walk, LazyWalkReses, WalkMode, WalkRule};
 use ast_walk::WalkRule::*;
 use form::Form;
 use util::assoc::Assoc;
-use util::mbe::EnvMBE;
 use ast::*;
 
 // for macros

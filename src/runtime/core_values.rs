@@ -1,14 +1,10 @@
 
 use ast::Ast;
-use ast::Ast::*;
 use runtime::eval::{Value, BIF, eval};
 use runtime::eval::Value::*;
-use parse::SynEnv;
-use core_forms::{find_form, make_core_syn_env};
 use util::assoc::Assoc;
 use name::*;
 use std::rc::Rc;
-use std::ops::{Add,Sub,Mul};
 
 
 use num::{BigInt};

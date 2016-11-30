@@ -1,12 +1,9 @@
 #![macro_use]
 
-use read::{Token, TokenTree, DelimChar, Group, Simple, delim};
+use read::{Token, TokenTree, DelimChar, Group, Simple};
 use name::*;
 use form::{Form, simple_form};
-use std::collections::HashMap;
 use std::boxed::Box;
-use std::option::Option;
-use std::iter;
 use std::clone::Clone;
 use ast::Ast;
 use ast::Ast::*;
@@ -20,7 +17,7 @@ use std;
 extern crate combine;
 
 use self::combine::{Parser, ParseResult, ParseError};
-use self::combine::primitives::{State, SliceStream, Positioner, Consumed, Error};
+use self::combine::primitives::{State, SliceStream, Positioner};
 use self::combine::combinator::ParserExt;
 
 

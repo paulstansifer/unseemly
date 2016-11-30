@@ -1,10 +1,8 @@
 #![macro_use]
 
 use parse::FormPat;
-use parse::FormPat::Scope;
 use name::*;
 use std::fmt::{Debug,Formatter,Error};
-use ast::Ast;
 use util::assoc::Assoc;
 use std::rc::Rc;
 use ast_walk::WalkRule;
@@ -13,6 +11,9 @@ use runtime::eval::{Evaluate, NegativeEvaluate};
 
 pub type NMap<'t, T> = Assoc<Name<'t>, T>;
 
+
+// `Form` appears to be invariant (rather than covariant) over its lifetime parameter,
+//  and I don't know why ) :
 custom_derive! {
     /// Unseemly language form
     #[derive(Reifiable(lifetime))]
@@ -40,6 +41,7 @@ custom_derive! {
         Positive(L),
         Negative(R),
         Both(L, R)
+        // Maybe instead of WalkRule::NotWalked, we need EitherPN::Neither
     }
 }
 pub use self::EitherPN::*;
