@@ -205,12 +205,12 @@ macro_rules! form_pat {
     };
     ((star $body:tt)) => { ::parse::FormPat::Star(Box::new(form_pat!($body))) };
     ((alt $($body:tt),* )) => { ::parse::FormPat::Alt(vec![ $( form_pat!($body) ),* ] )};
-    ((biased $lhs:tt, $rhs:tt)) => { ::parse::FormPat::Biased(Box::new(form_pat!($lhs)),
+    ((biased $lhs:tt, $rhs:tt)) => { ::parse::FormPat::Biased(Box::new(form_pat!($lhs)), 
                                                               Box::new(form_pat!($rhs))) };
     ((call $n:expr)) => { ::parse::FormPat::Call(::name::n($n)) };
     ((scope $f:expr)) => { ::parse::FormPat::Scope($f) };
     ((named $n:expr, $body:tt)) => {
-        ::parse::FormPat::Named(::name::n($n), Box::new(form_pat!($body)))
+        ::parse::FormPat::Named(::name::n($n), Box::new(form_pat!($body))) 
     };
     ((import $beta:tt, $body:tt)) => { 
         ::parse::FormPat::NameImport(Box::new(form_pat!($body)), beta!($beta))
@@ -249,6 +249,7 @@ macro_rules! typed_form {
         })
     }
 }
+
 
 macro_rules! negative_typed_form {
     ( $name:expr, $p:tt, $gen_type:expr, $eval:expr ) => {

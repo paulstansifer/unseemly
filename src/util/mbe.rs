@@ -138,7 +138,6 @@ impl <'t, T: PartialEq> PartialEq for EnvMBE<'t, T> {
    }    
 }
 
-
 impl<'t, T: Clone + fmt::Debug> fmt::Debug for EnvMBE<'t, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.leaves.empty() && self.repeats.len() == 0 {
@@ -162,7 +161,6 @@ impl<'t, T: Clone + fmt::Debug> fmt::Debug for EnvMBE<'t, T> {
         }
     }
 }
-
 
 impl<'t, T: Clone> EnvMBE<'t, T> {
     pub fn new() -> EnvMBE<'t, T> {
@@ -287,6 +285,17 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
         self.leaves.find(n)
     }
     
+    pub fn get_rep_leaf(&self, n: &Name<'t>) -> Option<Vec<&T>> {
+        let mut res = vec![];
+        for r in &*self.repeats[self.leaf_locations.find_or_panic(n).unwrap()] {
+            match r.get_leaf(n) {
+                Some(leaf) => { res.push(leaf) }
+                None => { return None; }
+            }
+        }
+        Some(res)
+    }
+    
 
     /// Extend with a non-repeated thing     
     pub fn add_leaf(&mut self, n: Name<'t>, v: T) {
@@ -346,10 +355,7 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
             leaf_locations: self.leaf_locations.clone(),
             named_repeats: self.named_repeats.clone()
         }
-    }
-    
-    
-    
+    }    
     
     fn update_leaf_locs(&mut self, idx: usize, sub: &Vec<EnvMBE<'t, T>>) {
         let mut already_placed_leaves = ::std::collections::HashSet::<Name<'t>>::new();
@@ -372,6 +378,36 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
         }
     } 
 }
+
+impl<'t, T: Clone, E: Clone> EnvMBE<'t, Result<T, E>> {
+    // Is `lift` the right term?
+    pub fn lift_result(&self) -> Result<EnvMBE<'t, T>, E> {
+        // There's probably a nice and elegant way to do this with Result::from_iter, but not today
+        let mut leaves : Assoc<Name<'t>, T> = Assoc::new();
+        for (k,v) in self.leaves.iter_pairs() {
+            leaves = leaves.set(*k,try!((*v).clone()));
+        }
+
+        let mut repeats = vec![];
+        for rep in &self.repeats {
+            let mut items = vec![];
+            for item in &**rep {
+                items.push(try!(item.lift_result()));
+            }
+            repeats.push(Rc::new(items));
+        }
+        
+        
+        Ok(EnvMBE {
+            leaves: leaves,
+            repeats: repeats,
+            leaf_locations: self.leaf_locations.clone(),
+            named_repeats: self.named_repeats.clone()
+        })
+    }
+
+}
+
 
 impl<'t, T: Clone + fmt::Debug> EnvMBE<'t, T> {
     pub fn get_leaf_or_panic(&self, n: &Name<'t>) -> &T {
@@ -398,6 +434,8 @@ fn basic_mbe() {
     mbe.add_leaf(n("eight"), 8 as i32);
     mbe.add_leaf(n("nine"), 9);
     
+    assert!(mbe != EnvMBE::new());
+    assert!(EnvMBE::new() != mbe);
     
     let teens_mbe = vec![
         EnvMBE::new_from_leaves(assoc_n!("t" => 11)),
@@ -451,6 +489,21 @@ fn basic_mbe() {
             assert_eq!(sub_sub_mbe.get_leaf(&n("y")), Some(&big));
         }
     }
+    
+    assert_eq!(mbe, mbe);
+    assert!(mbe != mbe.map(&|x| x - 1));
+    assert_eq!(mbe, mbe.map(&|x| x - 0));
+    assert!(mbe != EnvMBE::new());
+    assert!(EnvMBE::new() != mbe);
+    
+    
+    assert_eq!(
+        Err(()), 
+        mbe.clone().map(&|x| if x == 12     { Err(()) } else { Ok(x)} ).lift_result());
+    assert_eq!(
+        Ok(mbe.clone()), 
+        mbe.clone().map(&|x| if x == 121212 { Err(()) } else { Ok(x)} ).lift_result());
+
     
     let mapped_mbe = mbe.map(&|x| (x, x - 9000));
     

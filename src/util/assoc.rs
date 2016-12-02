@@ -32,7 +32,7 @@ impl <K : PartialEq + Clone, V: PartialEq> PartialEq for Assoc<K, V> {
         }
         
         for (other_k, other_v) in other.iter_pairs() {
-            if let Some(v) = other.find(other_k) {
+            if let Some(v) = self.find(other_k) {
                 if !(v == other_v) { return false; }
             } else { return false; }
         }
@@ -270,6 +270,7 @@ fn assoc_equality() {
     assert_eq!(mt, Assoc::new());
     assert_eq!(a1, a1);
     assert!(a1 != mt);
+    assert!(mt != a1);
     assert_eq!(a2, a2);
     assert_eq!(a2, a2_opposite);
     assert_eq!(a_override, a_override_direct);
