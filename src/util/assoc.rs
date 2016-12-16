@@ -157,6 +157,24 @@ impl<K : PartialEq + Clone, V : Clone> Assoc<K, V> {
         }
     }
     
+    pub fn unset(&self, k: &K) -> Assoc<K, V> {
+        match self.n {
+            None => Assoc{ n: None },
+            Some(ref node) => {
+                let v = node.v.clone();
+                if &node.k != k {
+                    Assoc{
+                        n: Some(Rc::new(AssocNode {
+                            k: node.k.clone(), v: v, 
+                            next: node.next.unset(k)
+                        }))
+                    }
+                } else {
+                    node.next.unset(k)
+                }
+            }
+        }        
+    }    
     /* This isn't right without deduplication before hand...
     pub fn filter(&self, f: &Fn(&V) -> bool) -> Assoc<K, V> {
         match self.n {
@@ -254,6 +272,15 @@ fn basic_assoc() {
     assert_eq!(a2.find(&5), Some(&6));
     assert_eq!(a_override.find(&5), Some(&500));
     assert_eq!(a_override.find(&6), Some(&7));
+    
+    assert_eq!(a_override.unset(&5).find(&5), None);
+    assert_eq!(a_override.unset(&6).find(&6), None);
+
+    assert_eq!(a_override.unset(&6).find(&5), Some(&500));
+    assert_eq!(a_override.unset(&5).find(&6), Some(&7));
+
+    assert_eq!(a_override.unset(&-111).find(&5), Some(&500));
+
 }
 
 

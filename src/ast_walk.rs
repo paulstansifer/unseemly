@@ -327,13 +327,12 @@ pub fn walk<'t, Mode: WalkMode<'t>>(expr: &Ast<'t>, cur_node_contents: &LazyWalk
                 &LiteralLike => {
                     let rebuilt = Node(f.clone(),
                         try!(parts.map(
-                            &|p| walk(&p, cur_node_contents)
-                                .map(Mode::out_to_ast)).lift_result()));
+                            &|p| match p {
+                                Node(_, _) => walk(&p, cur_node_contents),
+                                _ => Ok(Mode::ast_to_out(p))
+                            }.map(Mode::out_to_ast)).lift_result()));
                             
-                    // HACK: I don't want to add yet another converter, `ast_to_out`, to Mode... 
-                    Mode::var_to_out(&n("the_only"), 
-                                     &assoc_n!("the_only" => 
-                                         Mode::ast_to_elt(rebuilt, cur_node_contents)))
+                    Ok(Mode::ast_to_out(rebuilt))
                 }
                 
                 &NotWalked => { panic!( "{:?} should not be walked at all!", expr ) }
@@ -400,6 +399,10 @@ pub trait WalkMode<'t> : Debug + Copy + Reifiable<'t> {
     fn automatically_extend_env() -> bool { false }
     
     fn ast_to_elt(a: Ast<'t>, _: &LazyWalkReses<'t, Self>) -> Self::Elt {
+        panic!("not implemented: {:?} cannot be converted", a)
+    }
+    
+    fn ast_to_out(a: Ast<'t>) -> Self::Out {
         panic!("not implemented: {:?} cannot be converted", a)
     }
     

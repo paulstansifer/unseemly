@@ -93,10 +93,11 @@ pub fn env_from_beta<'t, Mode: WalkMode<'t>>(b: &Beta<'t>, parts: &LazyWalkReses
         &Basic(ref name_source, ref ty_source) => {
             if let LazilyWalkedTerm {term: Atom(ref name), ..} 
                     = **parts.parts.get_leaf_or_panic(name_source) {
-                let LazilyWalkedTerm {term: ref ty_stx, ..}
-                    = **parts.parts.get_leaf_or_panic(ty_source);
+                //let LazilyWalkedTerm {term: ref ty_stx, ..}
+                //    = **parts.parts.get_leaf_or_panic(ty_source);
+                let ty_stx = try!(parts.get_res(ty_source));
                         
-                Ok(Assoc::new().set(*name, Mode::ast_to_elt((*ty_stx).clone(), parts)))        
+                Ok(Assoc::new().set(*name, Mode::out_to_elt(ty_stx.clone())))    
             } else {
                 panic!("{:?} is supposed to supply names, but is not an Atom.", 
                     parts.parts.get_leaf_or_panic(name_source).term)

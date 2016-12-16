@@ -365,10 +365,13 @@ macro_rules! expect_node {
             if *f == $form { 
                 $body
             } else {
-               Err(())
+                // TODO: make it possible to specify which one
+                panic!("ICE or type error: Expected a {:?} node, got {:?}, which is {:?}.", 
+                       $form, $node, *f)
             }
         } else {
-            Err(())
+            panic!("ICE or type error: Expected a {:?} node, got {:?}, which isn't a node.",
+                   $form, $node)
         }
     )
 }

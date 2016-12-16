@@ -42,6 +42,8 @@ impl<'t> WalkMode<'t> for SynthesizeType {
     
     fn ast_to_elt(a: Ast<'t>, _: &LazyWalkReses<'t, Self>) -> Self::Elt { a }
     
+    fn ast_to_out(a: Ast<'t>) -> Self::Out { a }
+    
     fn out_to_elt(o: Self::Out) -> Self::Elt { o }
     
     fn out_to_ast(o: Self::Out) -> Ast<'t> { o }
@@ -100,30 +102,37 @@ pub fn neg_synth_type<'t>(pat: &Ast<'t>, env: Assoc<Name<'t>, Ast<'t>>)
 #[test]
 fn basic_type_synth() {
     let mt_ty_env = Assoc::new();
-    let simple_ty_env = mt_ty_env.set(n("x"), ast!("integer"));
+    let int_ty = ast!({ ::core_forms::find_core_form("type", "int") ; });
+    let bool_ty = ast!({ ::core_forms::find_core_form("type", "bool") ; });
+    
+    let simple_ty_env = mt_ty_env.set(n("x"), int_ty.clone());
     
     let body = basic_typed_form!(at, Body(n("body")), NotWalked);
     let untypeable = basic_typed_form!(at, NotWalked, NotWalked);
     
     assert_eq!(synth_type(&ast!((vr "x")), simple_ty_env.clone()),
-               Ok(ast!("integer")));
+               Ok(int_ty.clone()));
                
     assert_eq!(synth_type(&ast!({body.clone() ; 
                                      ["irrelevant" => {untypeable.clone() ; },
                                       "body" => (vr "x")]}),
                           simple_ty_env.clone()),
-               Ok(ast!("integer")));
+               Ok(int_ty.clone()));
 
     assert_eq!(synth_type(&ast!({body.clone() ;
-                                     "type_of_new_var" => "integer",
+                                     "type_of_new_var" => (, int_ty.clone()),
                                      "new_var" => "y",
                                      "body" => (import ["new_var" : "type_of_new_var"] (vr "y"))}),
                           simple_ty_env.clone()),
-               Ok(ast!("integer")));
+               Ok(int_ty.clone()));
                
-    assert_eq!(synth_type(&ast!(
-            {basic_typed_form!(at, Custom(Rc::new(Box::new(|_| Ok(ast!("string"))))),
-                               NotWalked) ; []}),
+    assert_eq!(synth_type(
+        &ast!(
+            {basic_typed_form!(
+                at, 
+                Custom(Rc::new(Box::new(
+                    |_| Ok(ast!({ ::core_forms::find_core_form("type", "bool") ; }))))),
+                NotWalked) ; []}),
             simple_ty_env.clone()),
-        Ok(ast!("string")));
+        Ok(bool_ty.clone()));
 }
