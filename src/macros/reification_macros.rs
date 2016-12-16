@@ -15,6 +15,8 @@
  But, in the process, I have to work around
   what feels like every single limitation of `macro_rules!` in Rust,
    as if I were aiming for them.
+ 
+ Who wrote that piece of junk, anyway?
  */
 
 macro_rules! Reifiable {

@@ -1,4 +1,4 @@
-// This virtual machine kills cyber-fascists.
+/* This virtual machine kills cyber-fascists. */
 
 #![allow(dead_code, non_upper_case_globals)]
 
@@ -13,7 +13,9 @@
  * I've agressively copied the formally-elegant but non-ergonomic theory 
  *  whenever I think that the ergonomic way of doing things is just syntax sugar over it.
  * After all, syntax sugar is the point of Unseemly!
- *
+ * 
+ * I didn't think that I could survive making a system out of + and × types, though,
+ *  so there are `struct`s and `enum`s.
  */
 
 
@@ -54,7 +56,7 @@ fn type_defn<'t>(form_name: &'t str, p: FormPat<'t>) -> Rc<Form<'t>> {
 
 /// This is the Unseemly language.
 pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
-        /* Regarding the value/type/kind hierarchy, Benjamin Pierce generously assures us that 
+    /* Regarding the value/type/kind hierarchy, Benjamin Pierce generously assures us that 
         "For programming languages ... three levels have proved sufficient." */
     
     /* kinds */

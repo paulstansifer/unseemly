@@ -6,7 +6,8 @@ pub use runtime::eval::Value;
 use std::rc::Rc;
 use num::bigint::BigInt;
 
-/** This is for parts of this compiler that can also be represented as object-level values.
+/** This is for parts of this compiler that need to be represented as object-level values.
+ * Almost all of it, turns out!
  * 
  * Since this language is extensible, we need to connect the Rust code in the compiler
  *  with the Unseemly code that actually gets evaluated.

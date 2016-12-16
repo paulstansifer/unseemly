@@ -1,6 +1,5 @@
-stea TODO:
+TODO:
   [ ] Reification for important internal types
-  [ ] Parametric types, recursive types
   [ ] Core forms for core types
   [ ] Syntax types, with repetition typing
   [ ] Syntax pattern-matching
@@ -46,11 +45,31 @@ stea TODO:
   It should be possible to derive type synthesis for macros! 
   Synthesize a type for the macro body, and it'll tell you what you get.
   I think.
+  If not, there's not much point to making this language.
   
   Type synthesis and evaluation are both driven by ast_walk.rs.
 
 [Evaluate] eval.rs
-  Evaluation is a tree traversal, suprisingly similar to type synthesis.
+  Evaluation is a tree traversal, surprisingly similar to type synthesis.
+  
+  Maybe at some point, this will be translation into some other language
+    (like Rust?),
+   but it's probably faster to interpret 
+    the many small programs that macros are.
+    
+[↩ (Reflection)] reify.rs
+  Macros are programs that manipulate `Ast`s 
+   (they can also access environments).
+  We need to reflect internal `Ast`s into Unseemly values
+   and reify them back out.
+  
+  Fun fact: `Ast` transitively includes  
+   almost every type in the compiler.
+  So we use a macro (see reification_macros.rs) 
+    to generate the reification/reflection, 
+   rather than do it by hand.
+  
+  
 
 Crucial data structures:
 
@@ -67,7 +86,7 @@ Crucial data structures:
     Everything one needs to know about a language form. Contains:
      * `grammar : FormPat` [Parse] -- grammar (how we know the user used the form)
        Also contains:
-       * binding information
+       * how things should bind
        * grammar "binding" information (syntax extension)
        * TODO: phase information
      * `synth_type : WalkRule` [TypeSynth] -- typechecking rule
@@ -76,10 +95,17 @@ Crucial data structures:
 
   `Ast` ast.rs
     Syntax, in its logical structure.
+  
+  `Beta` beta.rs
+    How terms bind. Surprisingly important!
 
   `SynEnv` parse.rs
     Indicates what the grammar is at a particular point. 
     [Map from [named grammar nodes] to `FormPat`]
+    
+  `EnvMBE` util/mbe.rs
+    Ergonomic (...in a sense) representation for the contents of `Ast` nodes
+     which have parts that can repeat `n` times.
 
 
 
