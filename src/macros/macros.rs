@@ -105,7 +105,13 @@ macro_rules! ast {
     ($e:expr) => { ::ast::Atom(::name::n($e))}
 }
 
+/* Ty */
 
+// Note that interpolations into this have to be `Ast`, not `Ty`.
+// This isn't ideal, but the macrology involved in fixing that is a bridge too far for me
+macro_rules! ty {
+    ( $($contents:tt)* ) => { ::ty::Ty(ast!($($contents)*)) }
+}
 
 /* EnvMBE*/
 
@@ -167,7 +173,7 @@ macro_rules! mbe_one_name {
             ::util::mbe::EnvMBE::new_from_named_repeat(::name::n(expr_ify!($rep_n)), v)
         }
     };
-    
+
     // For parsing reasons, we only accept expressions that are TTs.
     // It's hard to generalize the `mbe!` interface so that it accepts exprs 
     // or `[]`-surrounded trees of them.

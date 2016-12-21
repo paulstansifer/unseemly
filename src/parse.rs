@@ -404,9 +404,6 @@ fn extensible_parsing() {
             &tokens!("O" "O" "Extend" "AA" "AA" "Back" "O" "." "AA" "." "O")).unwrap(),
         ast!({- "c" => ["O", "O", ("Extend" {- "c" => ["AA", "AA", ("Back" {- "c" => ["O"]} "."), "AA"]} "."), "O"]}));
 
-    print!("{:?}\n", parse(&form_pat!((call "o")), orig.clone(),
-        &tokens!("O" "O" "Extend" "AA" "AA" "Back" "AA" "." "AA" "." "O")));
-
     assert_eq!(
         parse(&form_pat!((call "o")), orig.clone(),
             &tokens!("O" "O" "Extend" "AA" "AA" "Back" "AA" "." "AA" "." "O")).is_err(),

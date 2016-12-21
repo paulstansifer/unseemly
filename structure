@@ -25,7 +25,7 @@ TODO:
 [Read] read.rs
   The reader is very simple.
   Tokens boundaries are whitespace and the inside boundaries of ()[]{}. 
-  If a token ends with ([{, 
+  If a token ends with ([{,
    it should match a token that is identical
     except for starting with )]} instead.
 

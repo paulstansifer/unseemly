@@ -20,8 +20,23 @@ use name::*;
 use std::rc::Rc;
 
 
-// maybe should do this, to be clear
-// pub type Type<'t> = Ast<'t>;
+#[derive(Clone, PartialEq)]
+pub struct Ty<'t>(pub Ast<'t>);
+
+impl<'t> ::std::fmt::Debug for Ty<'t> {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "[TYPE {:?}]", self.0)
+    }
+}
+
+impl<'t> ::runtime::reify::Reifiable<'t> for Ty<'t> {
+    // TODO: this definitely will need to be transparent
+    fn ty() -> Ast<'static> { ast!("type") }
+    
+    fn reify(&self) -> ::runtime::eval::Value<'t> { self.0.reify() }
+    
+    fn reflect(v: &::runtime::eval::Value<'t>) -> Self { Ty(Ast::<'t>::reflect(v))}
+}
 
 custom_derive! {
     #[derive(Clone, Copy, Debug, Reifiable)]
@@ -29,8 +44,9 @@ custom_derive! {
 }
 
 impl<'t> WalkMode<'t> for SynthesizeType {
-    type Out = Ast<'t>;
-    type Elt = Ast<'t>;
+    //TODO: these should be a newtype to prevent bugs
+    type Out = Ty<'t>;
+    type Elt = Ty<'t>;
     
     type Negative = NegativeSynthesizeType;
     
@@ -40,13 +56,13 @@ impl<'t> WalkMode<'t> for SynthesizeType {
     
     fn automatically_extend_env() -> bool { true }
     
-    fn ast_to_elt(a: Ast<'t>, _: &LazyWalkReses<'t, Self>) -> Self::Elt { a }
+    fn ast_to_elt(a: Ast<'t>, _: &LazyWalkReses<'t, Self>) -> Self::Elt { Ty(a) }
     
-    fn ast_to_out(a: Ast<'t>) -> Self::Out { a }
+    fn ast_to_out(a: Ast<'t>) -> Self::Out { Ty(a) }
     
     fn out_to_elt(o: Self::Out) -> Self::Elt { o }
     
-    fn out_to_ast(o: Self::Out) -> Ast<'t> { o }
+    fn out_to_ast(o: Self::Out) -> Ast<'t> { o.0 }
     
     fn var_to_out(n: &Name<'t>, env: &Assoc<Name<'t>, Self::Elt>) -> Result<Self::Out, ()> {
         ::ast_walk::var_lookup(n, env)
@@ -61,8 +77,8 @@ custom_derive! {
 }
 
 impl<'t> WalkMode<'t> for NegativeSynthesizeType {
-    type Out = Assoc<Name<'t>, Ast<'t>>;
-    type Elt = Ast<'t>;
+    type Out = Assoc<Name<'t>, Ty<'t>>;
+    type Elt = Ty<'t>;
     
     type Negative = SynthesizeType;
     
@@ -72,7 +88,7 @@ impl<'t> WalkMode<'t> for NegativeSynthesizeType {
     
     fn automatically_extend_env() -> bool { true }
     
-    fn ast_to_elt(a: Ast<'t>, _: &LazyWalkReses<'t, Self>) -> Self::Elt { a }
+    fn ast_to_elt(a: Ast<'t>, _: &LazyWalkReses<'t, Self>) -> Self::Elt { Ty(a) }
     
     fn var_to_out(n: &Name<'t>, env: &Assoc<Name<'t>, Self::Elt>) -> Result<Self::Out, ()> {
         ::ast_walk::var_bind(n, env)
@@ -85,16 +101,16 @@ impl<'t> WalkMode<'t> for NegativeSynthesizeType {
 
 
 
-pub fn synth_type_top<'t>(expr: &Ast<'t>) ->  Result<Ast<'t>, ()> {
+pub fn synth_type_top<'t>(expr: &Ast<'t>) ->  Result<Ty<'t>, ()> {
     walk::<SynthesizeType>(expr, &LazyWalkReses::new_wrapper(Assoc::new()))
 }
 
-pub fn synth_type<'t>(expr: &Ast<'t>, env: Assoc<Name<'t>, Ast<'t>>) -> Result<Ast<'t>, ()> {
+pub fn synth_type<'t>(expr: &Ast<'t>, env: Assoc<Name<'t>, Ty<'t>>) -> Result<Ty<'t>, ()> {
     walk::<SynthesizeType>(expr, &LazyWalkReses::new_wrapper(env))
 }
 
-pub fn neg_synth_type<'t>(pat: &Ast<'t>, env: Assoc<Name<'t>, Ast<'t>>)
-        -> Result<Assoc<Name<'t>, Ast<'t>>, ()> {
+pub fn neg_synth_type<'t>(pat: &Ast<'t>, env: Assoc<Name<'t>, Ty<'t>>)
+        -> Result<Assoc<Name<'t>, Ty<'t>>, ()> {
     walk::<NegativeSynthesizeType>(pat, &LazyWalkReses::new_wrapper(env))
 }
 
@@ -102,8 +118,8 @@ pub fn neg_synth_type<'t>(pat: &Ast<'t>, env: Assoc<Name<'t>, Ast<'t>>)
 #[test]
 fn basic_type_synth() {
     let mt_ty_env = Assoc::new();
-    let int_ty = ast!({ ::core_forms::find_core_form("type", "int") ; });
-    let bool_ty = ast!({ ::core_forms::find_core_form("type", "bool") ; });
+    let int_ty = ty!({ ::core_forms::find_core_form("type", "int") ; });
+    let bool_ty = ty!({ ::core_forms::find_core_form("type", "bool") ; });
     
     let simple_ty_env = mt_ty_env.set(n("x"), int_ty.clone());
     
@@ -120,7 +136,7 @@ fn basic_type_synth() {
                Ok(int_ty.clone()));
 
     assert_eq!(synth_type(&ast!({body.clone() ;
-                                     "type_of_new_var" => (, int_ty.clone()),
+                                     "type_of_new_var" => (, int_ty.0.clone()),
                                      "new_var" => "y",
                                      "body" => (import ["new_var" : "type_of_new_var"] (vr "y"))}),
                           simple_ty_env.clone()),
@@ -131,7 +147,7 @@ fn basic_type_synth() {
             {basic_typed_form!(
                 at, 
                 Custom(Rc::new(Box::new(
-                    |_| Ok(ast!({ ::core_forms::find_core_form("type", "bool") ; }))))),
+                    |_| Ok(ty!({ ::core_forms::find_core_form("type", "bool") ; }))))),
                 NotWalked) ; []}),
             simple_ty_env.clone()),
         Ok(bool_ty.clone()));
