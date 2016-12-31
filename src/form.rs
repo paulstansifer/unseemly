@@ -12,8 +12,8 @@ use runtime::eval::{Evaluate, NegativeEvaluate};
 pub type NMap<'t, T> = Assoc<Name<'t>, T>;
 
 
-// `Form` appears to be invariant (rather than covariant) over its lifetime parameter,
-//  and I don't know why ) :
+// `Form` appears to be invariant (rather than covariant) over its lifetime parameter
+//  because the function inside WalkRule is invariant over it. ) :
 custom_derive! {
     /// Unseemly language form
     #[derive(Reifiable(lifetime))]
@@ -67,10 +67,17 @@ impl<L, R> EitherPN<L, R> {
 
 
 impl<'t> PartialEq for Form<'t> {
-    fn eq(&self, other: &Form<'t>) -> bool {
+    /// pointer equality on the underlying structure!
+    fn eq(&self, other: &Form<'t>) -> bool { 
         self as *const Form == other as *const Form
     }
 }
+
+// HACK: I think this means that we need to just get rid of the pervasive lifetime parameters
+pub fn same_form<'a, 'b>(a: &Rc<Form<'a>>, b: &Rc<Form<'b>>) -> bool {
+    a.name.is_name(b.name)
+}
+
 
 impl<'t> Debug for Form<'t> {
     fn fmt(&self, formatter: &mut Formatter) -> Result<(), Error> {

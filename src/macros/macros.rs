@@ -102,6 +102,10 @@ macro_rules! ast {
     ( { $form:expr; $($mbe_arg:tt)* }) => {
         ::ast::Node($form, mbe!( $($mbe_arg)* ))
     };
+    ( { $nt:tt $form:tt : $($mbe_arg:tt)* }) => {
+        ::ast::Node(::core_forms::find_core_form($nt, $form), mbe!( $($mbe_arg)* ))
+    };
+
     ($e:expr) => { ::ast::Atom(::name::n($e))}
 }
 
@@ -416,7 +420,7 @@ macro_rules! extract {
 macro_rules! cop_out_reifiability {
     ( $underlying_type:ty, $ty_name:tt ) => {
         impl<'t> Reifiable<'t> for $underlying_type {
-            fn ty() -> Ast<'static> { ast!($ty_name) }
+            fn ty_name() -> Name<'static> { n(stringify!($ty_name)) }
      
             fn reify(&self) -> Value<'t> { Value::Smuggled(self.clone()) }
             

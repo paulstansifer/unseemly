@@ -94,14 +94,28 @@ macro_rules! Reifiable {
                 ::runtime::reify::Reifiable<'t>
                 for $name<$($($ty_param),*)*> {
             fn ty() -> ::ast::Ast<'static> {
-                ast! ({ ::core_forms::find_core_form("type", "struct") ;
-                    "component_name" => [@"c" $( 
-                        (, (::ast::Ast::VariableReference(::name::n(stringify!($field))))) ),* ],
-                    "component" => [@"c" $( (, (<$t as ::runtime::reify::Reifiable>::ty())) ),*]
+                type_defn_wrapper!($(<$($ty_param_ty),*>)* => { "type" "struct" :
+                   "component_name" => [@"c" $( 
+                       (, ::ast::Ast::Atom(::name::n(stringify!($field)))) ),* ],
+                   "component" =>
+                   // TODO: unless we specify arguments with the same name as parameters,
+                   //  we get bogus results
+                   // (we get 
+                   //   ∀ K V. μ Assoc. struct{ n: Option<[AssocNode<[ident rust_usize]<]< }
+                   //  rather than
+                   //   ∀ K V. μ Assoc. struct{ n: Option<[AssocNode<[K V]<]< }
+                   [@"c" $( (, <$t as ::runtime::reify::Reifiable>::ty_invocation() ) ),*]
                 })
             }
             
-            //fn type_name() -> Name<'static> { n(stringify!($name)) }
+            fn ty_name() -> ::name::Name<'static> { ::name::n(stringify!($name)) }
+            
+            fn ty_invocation() -> ::ast::Ast<'static> {
+                ast!({ "type" "type_apply" :
+                    "type_name" => (, ::ast::Ast::Atom( Self::ty_name() ) ),
+                    "arg" => [ $( $( (, $ty_param_ty ::ty_invocation() ) ),* )* ]
+                })
+            }
             
             fn reify(&self) -> ::runtime::eval::Value<'t> {
                 ::runtime::eval::Struct(assoc_n!( 
@@ -175,17 +189,25 @@ macro_rules! Reifiable {
         impl<'t $($(, $ty_param_ty : ::runtime::reify::Reifiable<'t>)*)*>
                 ::runtime::reify::Reifiable<'t> 
                 for $name<$($($ty_param),*)*> {
-            fn ty() -> ::ast::Ast<'static> {
-                ast! ({ ::core_forms::find_core_form("type", "enum") ;
-                    "name" => [@"c" $( 
-                        (, (::ast::Ast::VariableReference(::name::n(stringify!($choice))))) ),* ],
                     
+            fn ty() -> ::ast::Ast<'static> {
+                type_defn_wrapper!($(<$($ty_param_ty),*>)* => { "type" "enum" :
+                    "name" => [@"c" $(
+                        (, ::ast::Ast::Atom(::name::n(stringify!($choice)))) ),* ],
                     "component" => [@"c" $( [ $($( 
-                        (, (<$part as ::runtime::reify::Reifiable>::ty()) )),*)* ] ),*]
+                        (, <$part as ::runtime::reify::Reifiable>::ty_invocation() )
+                    ),*)*]),*]
                 })
             }
             
-            //fn type_name() -> Name<'static> { n(stringify!($name)) }
+            fn ty_name() -> ::name::Name<'static> { ::name::n(stringify!($name)) }
+            
+            fn ty_invocation() -> ::ast::Ast<'static> {
+                ast!({ "type" "type_apply" :
+                    "type_name" => (, ::ast::Ast::Atom( Self::ty_name() ) ),
+                    "arg" => [ $( $( (, $ty_param_ty ::ty_invocation() ) ),* )* ]
+                })
+            }
             
             #[allow(unused_mut)] // rustc bug! `v` has to be mutable, but it complains
             fn reify(&self) -> ::runtime::eval::Value<'t> {
@@ -271,4 +293,45 @@ macro_rules! unpack_parts {
     ( $v:expr; $idx:expr; $ctor:expr; ()) => {
         $ctor // special case: a value, not a 0-arg constructor
     }
+}
+
+// For `ty`
+macro_rules! type_defn_wrapper {
+    ( $(<$($ty_param_ty:ident),*>)* => $body:tt ) => {
+        // All types will be ∀, even if in Rust they have no parameters;
+        //  this is safe, but a nuisance.
+        // All types will be μ. I think this is the way things work in most languages.
+        ast!({"type" "forall_type" :
+            "param" => [ $($(
+                (, ::ast::Ast::Atom(::name::n(stringify!($ty_param_ty))))
+            ),*)*],
+            "body" => {"type" "mu_type" :
+                 "param" => (, ::ast::Ast::Atom(Self::ty_name())),
+                 "body" => $body
+             }
+        })
+    }
+}
+
+
+macro_rules! refer_to_type {
+    ($name:tt < $( $arg:ty ),* >) => {
+        ast!({ "type" "type_apply" : 
+            "type_name" => (, ::ast::Ast::Atom(::name::n(stringify!($name))) ),
+            "arg" => [ (, $( refer_to_type!($arg)),* )]
+        })
+    };
+    ($name:tt) => {
+        ast!({ "type" "type_apply" :
+            "type_name" => (, ::ast::Ast::Atom(::name::n(stringify!($name))) ),
+            "arg" => []
+        })
+    }
+}
+
+/// Refer to the reification of T by name
+pub fn tbn<'t, T: ::runtime::reify::Reifiable<'t>>() -> ::ast::Ast<'static> {
+    ast!({ "type" "type_by_name" :
+        "name" => (, ::ast::Ast::Atom(<T as ::runtime::reify::Reifiable>::ty_name()))
+    })
 }

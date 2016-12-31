@@ -18,6 +18,7 @@ custom_derive! {
         
         /// A meaningful chunk of syntax, governed by a form, containing an environment
         Node(Rc<Form<'t>>, EnvMBE<'t, Ast<'t>>),
+        /// (Only appears during parsing)
         IncompleteNode(EnvMBE<'t, Ast<'t>>),
         
         /// Variable binding

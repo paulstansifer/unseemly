@@ -5,6 +5,7 @@ pub use runtime::eval::Value;
 
 use std::rc::Rc;
 use num::bigint::BigInt;
+use util::assoc::Assoc;
 
 /** This is for parts of this compiler that need to be represented as object-level values.
  * Almost all of it, turns out!
@@ -18,7 +19,36 @@ use num::bigint::BigInt;
 
 pub trait Reifiable<'t> {
     /// The Unseemly type that corresponds to Self.
-    fn ty() -> Ast<'static>;
+    /// Suitable for type definition, so any parameters will be abstract.
+    /// e.g. `∀ A. Pair <[A int]<`
+    /// TODO: this should return `Ty`
+    fn ty() -> Ast<'static> {
+        // By default, this is an opaque primitive.
+        Ast::Node(Rc::new(::form::Form { 
+            name: Self::ty_name(),
+            grammar: ::parse::FormPat::Impossible,
+            relative_phase: ::util::assoc::Assoc::new(),
+            synth_type: ::form::Positive(::ast_walk::WalkRule::LiteralLike),
+            eval: ::form::Positive(::ast_walk::WalkRule::NotWalked),
+        }),
+        ::util::mbe::EnvMBE::new())
+    }
+    
+    /// A name for that type, so that recursive types are okay.
+    /// e.g. `Annotated_with_int`
+    fn ty_name() -> Name<'static>;
+
+    /// How to refer to this type, given an environment in which 
+    ///  `ty_name()` is defined to be `ty()`.
+    /// Parameters will be concrete.
+    /// e.g. `Annotated_with_int<[nat]<`
+    /// (Types using this type will use this, rather than `ty`)
+    /// This must be customized if `ty` is, I think...
+    fn ty_invocation() -> Ast<'static> {
+        ast!({ "type" "type_by_name" : 
+            "name" => (, Ast::Atom(Self::ty_name()))
+        })
+    }
         
     /// The Unseemly value that corresponds to a value.
     fn reify(&self) -> Value<'t>;
@@ -32,7 +62,7 @@ pub trait Reifiable<'t> {
 macro_rules! basic_reifiability {
     ( $underlying_type:ty, $ty_name:tt, $value_name:ident ) => {
         impl<'t> Reifiable<'t> for $underlying_type {
-            fn ty() -> Ast<'static> { ast!($ty_name) }
+            fn ty_name() -> Name<'static> { n($ty_name) }
 
             // TODO: can we remove these clones? are they even bad?
             // They seem redundant in the `Name<'t>` case, at least             
@@ -54,7 +84,7 @@ basic_reifiability!(Name<'t>, "ident", Ident);
 
 // note: primitives for these shouldn't have BigInt semantics!
 impl<'t> Reifiable<'t> for usize {
-    fn ty() -> Ast<'static> { ast!("rust_usize") }
+    fn ty_name() -> Name<'static> { n("rust_usize") }
     
     fn reify(&self) -> Value<'t> { Value::Int(BigInt::from(*self)) }
     
@@ -64,7 +94,7 @@ impl<'t> Reifiable<'t> for usize {
     }
 }
 impl<'t> Reifiable<'t> for i32 {
-    fn ty() -> Ast<'static> { ast!("rust_i32") }
+    fn ty_name() -> Name<'static> { n("rust_i32") }
     
     fn reify(&self) -> Value<'t> { Value::Int(BigInt::from(*self)) }
     
@@ -74,7 +104,7 @@ impl<'t> Reifiable<'t> for i32 {
     }
 }
 impl<'t> Reifiable<'t> for () {
-    fn ty() -> Ast<'static> { ast!("unit") }
+    fn ty_name() -> Name<'static> { n("unit") }
     
     fn reify(&self) -> Value<'t> { Value::Bool(true) }
     
@@ -83,7 +113,7 @@ impl<'t> Reifiable<'t> for () {
 
 // This is right, right?
 impl<'t> Reifiable<'t> for Value<'t> {
-    fn ty() -> Ast<'static> { ast!("any") }
+    fn ty_name() -> Name<'static> { n("any") }
     
     fn reify(&self) -> Value<'t> { self.clone() }
     
@@ -124,7 +154,42 @@ pub fn ty_of_1ary_function<'t, A: Reifiable<'t> + 'static, R: Reifiable<'t> + 's
     ast!( "TODO: generate type" )
 }
 
+macro_rules! reify_types {
+    ( $($t:ty),* ) => {{
+        let mut res = Assoc::new();
+        $( 
+           res = res.set(<$t as Reifiable>::ty_name(), ::ty::Ty(<$t as Reifiable>::ty()));    
+        )*
+        res
+    }}
+}
 
+macro_rules! fake_reifiability {
+    ( $underlying_type:ty ) => {
+        impl<'t> Reifiable<'t> for $underlying_type {
+            fn ty_name() -> Name<'static> { n(stringify!($underlying_type)) }
+            fn reify(&self) -> Value<'t> { panic!() }
+            fn reflect(_: &Value<'t>) -> Self { panic!() }
+        }
+    }
+}
+
+/*
+ * This is unhygienic as heck, but the only way I've found to make `ty` make sense.
+ * The problem is that, in Rust, there's no such thing as associated methods on
+ *  `Assoc`, just `Assoc<K, V>` (not that would make sense anyways)
+ * The other problem is that ihavenoideawhatimdoing.jpg
+ */
+
+struct K {}
+fake_reifiability!(K);
+struct V {}
+fake_reifiability!(V);
+
+
+pub fn make_reified_ty_env<'t>() -> Assoc<Name<'static>, ::ty::Ty<'static>> {
+    reify_types!(Ast<'t>, Assoc<K, V>)
+}
 
 
 /*
@@ -146,13 +211,28 @@ impl<'t, A: Reifiable<'t>, R: Reifiable<'t>> Reifiable<'t> for Box<Fn(A) -> R> {
 impl<'t, T: Reifiable<'t>> Reifiable<'t> for ::std::rc::Rc<T> {
     fn ty() -> Ast<'static> { T::ty() }
     
+    fn ty_name() -> Name<'static> { T::ty_name() }
+    
+    fn ty_invocation() -> Ast<'static> { T::ty_invocation() }
+    
     fn reify(&self) -> Value<'t> { (**self).reify() }
     
     fn reflect(v: &Value<'t>) -> Self { ::std::rc::Rc::new(T::reflect(v)) }
 }
 
 impl<'t, T: Reifiable<'t>> Reifiable<'t> for Vec<T> {
-    fn ty() -> Ast<'static> { panic!("please implement parametric types") }
+    fn ty() -> Ast<'static> { 
+        panic!("TODO")
+    }
+
+    fn ty_name() -> Name<'static> { n("Sequence") }
+
+    fn ty_invocation() -> Ast<'static> { 
+        ast!({ "type" "type_apply" : 
+            "type_name" => "Sequence",
+            "arg" => [(, T::ty_invocation() )]
+        })
+    }
     
     fn reify(&self) -> Value<'t> {
         Value::Sequence(self.iter().map(|elt| Rc::new(elt.reify())).collect())
@@ -168,6 +248,10 @@ impl<'t, T: Reifiable<'t>> Reifiable<'t> for Vec<T> {
 impl<'t, T: Reifiable<'t>> Reifiable<'t> for ::std::boxed::Box<T> {
     fn ty() -> Ast<'static> { T::ty() }
     
+    fn ty_name() -> Name<'static> { T::ty_name() }
+
+    fn ty_invocation() -> Ast<'static> { T::ty_invocation() }
+    
     fn reify(&self) -> Value<'t> { (**self).reify() }
     
     fn reflect(v: &Value<'t>) -> Self { ::std::boxed::Box::new(T::reflect(v)) }
@@ -175,7 +259,7 @@ impl<'t, T: Reifiable<'t>> Reifiable<'t> for ::std::boxed::Box<T> {
 
 // The roundtrip will de-alias the cell, sadly.
 impl<'t, T: Reifiable<'t>> Reifiable<'t> for ::std::cell::RefCell<T> {
-    fn ty() -> Ast<'static> { ast!( "rust_RefCell") }
+    fn ty_name() -> Name<'static> { n("rust_RefCell") }
     
     fn reify(&self) -> Value<'t> { self.borrow().reify() }
     
@@ -301,4 +385,46 @@ fn function_r_and_r_roundtrip() {
     let f2 = reflect_1ary_function::<BigInt, BigInt>(reify_1ary_function(Rc::new(Box::new(f))));
     
     assert_eq!((*f2)(BigInt::from(1776)), BigInt::from(1777));
+}
+
+struct T {}
+fake_reifiability!(T);
+struct S {}
+fake_reifiability!(S);
+
+
+#[test]
+fn reified_types() {
+    fn tbn(nm: &'static str) -> ::ast::Ast<'static> {
+        ast!( { "type" "type_by_name" : "name" => (, ::ast::Ast::Atom(n(nm))) } )
+    }
+
+    //"ParameterizedLifetimeStruct<[Option<[rust_usize]< integer]<"
+    assert_eq!(
+        ParameterizedLifetimeStruct::<'static, Option<usize>, BigInt>::ty_invocation(),
+        ast!({"type" "type_apply" : 
+            "type_name" => "ParameterizedLifetimeStruct",
+            "arg" => [
+                {"type" "type_apply" :
+                    "type_name" => "Option",
+                    "arg" => [ (, tbn("rust_usize")) ]
+                },
+                (, tbn("integer"))]
+        }));
+        
+    
+    assert_eq!(
+        ParameterizedLifetimeStruct::<'static, T, S>::ty(),
+        ast!({"type" "forall_type" :
+            "param" => ["T", "S"],
+            "body" => {"type" "mu_type" :
+                "param" => "ParameterizedLifetimeStruct",
+                "body" => {"type" "struct" :
+                    // TODO: why did the order of fields get reversed?
+                    "component_name" => [@"c" "c", "b", "a"],
+                    "component" => [@"c" (, tbn("ident")), (, tbn("S")), (, tbn("T"))]
+                    
+            }
+        }
+    }))
 }

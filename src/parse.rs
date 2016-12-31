@@ -46,6 +46,8 @@ custom_derive! {
     pub enum FormPat<'t> {
         /// Matches 0 tokens, produces the argument
         Anyways(Ast<'t>),
+        /// Never matches
+        Impossible,
 
         Literal(Name<'t>),
         AnyToken,
@@ -104,16 +106,14 @@ impl<'t> Clone for SyntaxExtension<'t> {
 // This kind of struct is theoretically possible to add to the `Reifiable!` macro,
 // but I don't feel like doing it right now
 impl<'t> ::runtime::reify::Reifiable<'t> for SyntaxExtension<'t> {
-    fn ty() -> Ast<'static> { ast!("syntax_extension") } 
+    fn ty_name() -> Name<'static> { n("syntax_extension") } 
     
     fn reify(&self) -> ::runtime::eval::Value<'t> { 
         ::runtime::reify::reify_1ary_function(self.0.clone())
-        //panic!("")
     }
     
     fn reflect(v: &::runtime::eval::Value<'t>) -> Self {
         SyntaxExtension(::runtime::reify::reflect_1ary_function(v.clone()))
-        //panic!("")
     }
 }
 
@@ -195,6 +195,9 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
         match self.f {
             &Anyways(ref ast) => {
                 combine::value(ast.clone()).parse_lazy(inp)
+            }
+            &Impossible => {
+                combine::unexpected("impossible").parse_state(inp).map(|_| panic!(""))
             }
             &Literal(exp_tok) => {
                 combine::satisfy(|tok: &'tokens Token<'t>| {tok == &Simple(exp_tok)})

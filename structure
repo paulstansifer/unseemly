@@ -13,6 +13,28 @@ TODO:
   [ ] Worry about parse error messages
 
 
+Like a normal language implementation, we have 
+ a reader that turns text into tokens,
+ a parser that turns tokens into AST,
+ a typechecker that validates an AST,
+ a macro expander that transforms
+  an AST with user-defined forms
+  into an AST in a core language,
+ and an evaluator that turns ASTs into behavior.
+Unlike a normal language implementation,
+ the typechecker runs before the macro expander.
+This means that the typechecker has to operate on
+ user-defined AST nodes,
+  which is possible,
+   because (I think) one can derive a typechecker for forms
+    from the type of its definition.
+The weirdness of this language implementation starts with the AST.
+
+Well, the parser and tokenizer are weird, but in a sort of optional way.
+ 
+
+
+
 
  Pipeline:
                              ⋮              ⋮

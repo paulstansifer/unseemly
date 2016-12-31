@@ -32,7 +32,7 @@ use beta::*;
 use ast_walk::WalkRule::*;
 use num::bigint::ToBigInt;
 
-fn ast_to_atom<'t>(ast: &Ast<'t>) -> Name<'t> {
+pub fn ast_to_atom<'t>(ast: &Ast<'t>) -> Name<'t> {
     match ast { &Atom(n) => n, _ => { panic!("internal error!") } }
 }
 
@@ -51,8 +51,6 @@ fn type_defn<'t>(form_name: &'t str, p: FormPat<'t>) -> Rc<Form<'t>> {
         eval: ::form::Positive(NotWalked) 
     })
 }
-
-/* Note that both types and terms are represented as Ast<'t> */
 
 /// This is the Unseemly language.
 pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
@@ -200,6 +198,9 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
             }
         }),
         NotWalked);
+        
+        
+        
         
     // Unseemly expressions
     let main_expr_forms = forms_to_form_pat![

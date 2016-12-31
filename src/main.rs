@@ -1,4 +1,7 @@
-#![allow(dead_code,non_snake_case)]
+#![allow(dead_code,non_snake_case,unused_imports)]
+// dead_code is a hopefully temporary allowance
+// non_snake_case is stylistic, unused_imports is inaccurate because of macros
+
 // unstable; only for testing
 // #![feature(log_syntax,trace_macros)]
 // trace_macros!(true);
@@ -34,7 +37,7 @@ mod runtime;
 mod core_forms;
 
 
-
+use runtime::reify::Reifiable;
 
 fn main() {
     let mut raw_input = String::new();
@@ -43,6 +46,5 @@ fn main() {
         .expect("Error opening file")
         .read_to_string(&mut raw_input)
         .expect("Error reading file");
-        
 }
 

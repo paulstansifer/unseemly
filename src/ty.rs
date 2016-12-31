@@ -19,7 +19,8 @@ use ast::*;
 use name::*;
 use std::rc::Rc;
 
-
+// TODO: we should validate that types don't have unexpected names in them 
+// (i.e. `∀ X. List<X>` is okay, but `X` is not a type; it's just syntax)
 #[derive(Clone, PartialEq)]
 pub struct Ty<'t>(pub Ast<'t>);
 
@@ -29,9 +30,99 @@ impl<'t> ::std::fmt::Debug for Ty<'t> {
     }
 }
 
+// this kinda belongs in core_forms.rs
+impl<'t> ::std::fmt::Display for Ty<'t> {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        use core_forms::{find_core_form, ast_to_atom};
+        match self.0 {
+            // Not used, right? Maybe it should be...
+            //VariableReference(ref n) => { write!(f, "{}", n) },
+            Node(ref form, ref env) => {
+                if ::form::same_form(form, &find_core_form("type", "ident")) {
+                    write!(f, "ident")
+                } else if ::form::same_form(form, &find_core_form("type", "int")) {
+                    write!(f, "int")                    
+                } else if ::form::same_form(form, &find_core_form("type", "nat")) {
+                    write!(f, "nat")                    
+                } else if ::form::same_form(form, &find_core_form("type", "float")) {
+                    write!(f, "float")                    
+                } else if ::form::same_form(form, &find_core_form("type", "bool")) {
+                    write!(f, "bool")                    
+                } else if ::form::same_form(form, &find_core_form("type", "fn")) {
+                    try!(write!(f, "["));
+                    let mut first = true;
+                    for p in env.get_rep_leaf_or_panic(&n("param")) {
+                        // TODO: use commas in the grammar
+                        if !first { try!(write!(f, " ")); } first = false;
+                        
+                        try!(write!(f, "{}", Ty(p.clone())));
+                    }
+                    write!(f, " -> {}]", Ty(env.get_leaf_or_panic(&n("ret")).clone()))
+                } else if ::form::same_form(form, &find_core_form("type", "enum")) {
+                    try!(write!(f, "enum{{"));
+                    for subenv in env.march_all(&vec![n("name")]) {
+                        try!(write!(f, " {}("/*)*/, 
+                            ast_to_atom(&subenv.get_leaf_or_panic(&n("name")))));
+                        if let Some(comps) = subenv.get_rep_leaf(&n("component")) {
+                            let mut first = true;
+                            for comp in comps {
+                                if !first { try!(write!(f, " "))} first = false;
+                                
+                                try!(write!(f, "{}", Ty(comp.clone())));
+                            }
+                        }
+                        try!(write!(f, /*(*/")"));
+                    }
+                    write!(f, "}}")
+                } else if ::form::same_form(form, &find_core_form("type", "struct")) {
+                    try!(write!(f, "struct{{"));
+                    for subenv in env.march_all(&vec![n("component_name")]) {
+                        try!(write!(f, " {}: {}", 
+                            ast_to_atom(&subenv.get_leaf_or_panic(&n("component_name"))),
+                            Ty(subenv.get_leaf_or_panic(&n("component")).clone())));
+                    }
+                    write!(f, " }}")
+                } else if ::form::same_form(form, &find_core_form("type", "forall_type")) {
+                    // This isn't the input syntax... maybe it should be when our parser is better
+                    try!(write!(f, "∀"));
+                    if let Some(args) = env.get_rep_leaf(&n("param")) {
+                        for name in args {
+                            try!(write!(f, " {}", ast_to_atom(name)));
+                        }
+                    }
+                    write!(f, ". {}", Ty(env.get_leaf_or_panic(&n("body")).clone()))
+                } else if ::form::same_form(form, &find_core_form("type", "mu_type")) {
+                    write!(f, "μ {}. {}", 
+                        ast_to_atom(env.get_leaf_or_panic(&n("param"))),
+                        Ty(env.get_leaf_or_panic(&n("body")).clone()))
+                } else if ::form::same_form(form, &find_core_form("type", "type_by_name")) {
+                    write!(f, "{}", ast_to_atom(env.get_leaf_or_panic(&n("name"))))
+                } else if ::form::same_form(form, &find_core_form("type", "type_apply")) {
+                    try!(write!(f, "{}<[", ast_to_atom(env.get_leaf_or_panic(&n("type_name")))));
+                    let mut first = true;
+                    if let Some(args) = env.get_rep_leaf(&n("arg")) {
+                        for arg in args {
+                            if !first { try!(write!(f, " ")); }
+                            first = false;
+                            try!(write!(f, "{}", Ty(arg.clone())));
+                        }
+                    }
+                    write!(f, "]<")
+                } else {
+                    panic!("{:?} is not a well-formed type", self.0);
+                }
+            }
+            _ => { panic!("{:?} is not a well-formed type", self.0); }
+        }
+    }
+}
+
 impl<'t> ::runtime::reify::Reifiable<'t> for Ty<'t> {
-    // TODO: this definitely will need to be transparent
-    fn ty() -> Ast<'static> { ast!("type") }
+    fn ty() -> Ast<'static> { Ast::ty() }
+
+    fn ty_name() -> Name<'static> { n("Type") }
+    
+    fn ty_invocation() -> Ast<'static> { Ast::ty_invocation() }
     
     fn reify(&self) -> ::runtime::eval::Value<'t> { self.0.reify() }
     

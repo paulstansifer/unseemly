@@ -56,7 +56,7 @@ pub enum WalkRule<'t, Mode: WalkMode<'t>> {
 // trait bounds on parameters and functions are not yet supported by `Reifiable!`
 impl<'t, Mode: WalkMode<'t> + 't> reify::Reifiable<'t> for WalkRule<'t, Mode> {
     // doesn't need to be parameterized because it will be opaque. I think!?
-    fn ty() -> Ast<'static> { ast!("walk_rule") }
+    fn ty_name() -> Name<'static> { n("walk_rule") }
 
     fn reify(&self) -> eval::Value<'t> { 
         match self {
@@ -99,7 +99,7 @@ pub struct LazilyWalkedTerm<'t, Mode: WalkMode<'t>> {
 // trait bounds on parameters are not yet supported by `Reifiable!`
 impl<'t, Mode: WalkMode<'t>> reify::Reifiable<'t> for LazilyWalkedTerm<'t, Mode> {
     // doesn't need to be parameterized because it will be opaque. I think!?
-    fn ty() -> Ast<'static> { ast!("lazily_walked_term") }
+    fn ty_name() -> Name<'static> { n("lazily_walked_term") }
 
     fn reify(&self) -> eval::Value<'t> {
         val!(struct "term" => (, self.term.reify()), "res" => (, self.res.reify()))
@@ -153,7 +153,7 @@ pub struct LazyWalkReses<'t, Mode: WalkMode<'t>> {
 // trait bounds on parameters are not yet supported by `Reifiable!`
 impl<'t, Mode: WalkMode<'t>> reify::Reifiable<'t> for LazyWalkReses<'t, Mode> {
     // doesn't need to be parameterized because it will be opaque. I think!?
-    fn ty() -> Ast<'static> { ast!("lazy_walked_reses") }
+    fn ty_name() -> Name<'static> { n("lazy_walked_reses") }
 
     fn reify(&self) -> eval::Value<'t> {
         val!(struct "parts" => (, self.parts.reify()), "env" => (, self.env.reify()), 

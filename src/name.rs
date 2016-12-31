@@ -22,9 +22,19 @@ impl<'t> fmt::Debug for Name<'t> {
     }
 }
 
+impl<'t> fmt::Display for Name<'t> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.orig)
+    }
+}
+
 impl<'t> Name<'t> {
     pub fn is(&self, s: &'t str) -> bool {
         self.orig == s
+    }
+    
+    pub fn is_name<'tt>(&self, n: Name<'tt>) -> bool {
+        self.orig == n.orig
     }
 }
 

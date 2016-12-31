@@ -287,7 +287,10 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
     
     pub fn get_rep_leaf(&self, n: &Name<'t>) -> Option<Vec<&T>> {
         let mut res = vec![];
-        for r in &*self.repeats[self.leaf_locations.find_or_panic(n).unwrap()] {
+        let leaf_loc = match self.leaf_locations.find(n) {
+            Some(ll) => ll, None => { return None; }
+        };
+        for r in &*self.repeats[leaf_loc.unwrap()] {
             match r.get_leaf(n) {
                 Some(leaf) => { res.push(leaf) }
                 None => { return None; }

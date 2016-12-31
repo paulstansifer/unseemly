@@ -119,16 +119,31 @@ impl<K: PartialEq + fmt::Debug, V: fmt::Debug> Assoc<K, V> {
 
 impl<K : PartialEq + fmt::Debug, V : fmt::Debug> fmt::Debug for Assoc<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(write!(f, "<|"));
+        try!(write!(f, "⟦"));
         let mut cur = &self.n;
         let mut first = true;
         while let &Some(ref node) = cur {
             if !first { try!(write!(f, ", ")); }
-            try!(write!(f, "{:?} => {:?}", node.k, node.v));
+            try!(write!(f, "{:?} ⇒ {:?}", node.k, node.v));
             first = false;
             cur = &node.next.n;
         }
-        write!(f, "|>")
+        write!(f, "⟧")
+    }
+}
+
+impl<K : PartialEq + fmt::Display, V : fmt::Display> fmt::Display for Assoc<K, V> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        try!(write!(f, "⟦"));
+        let mut cur = &self.n;
+        let mut first = true;
+        while let &Some(ref node) = cur {
+            if !first { try!(write!(f, ",\n ")); }
+            try!(write!(f, "{} ⇒ {}", node.k, node.v));
+            first = false;
+            cur = &node.next.n;
+        }
+        write!(f, "⟧")
     }
 }
 
