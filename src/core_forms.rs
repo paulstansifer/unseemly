@@ -8,16 +8,7 @@
  * This is the definition of Unseemly, the bizarre boiled-down programming language.
  *
  * Unseemly programs have expressions and types (and probably kinds, too).
- * 
- * The type theory for this is largely swiped from the "Types and Programming Languages" by Pierce.
- * I've agressively copied the formally-elegant but non-ergonomic theory 
- *  whenever I think that the ergonomic way of doing things is just syntax sugar over it.
- * After all, syntax sugar is the point of Unseemly!
- * 
- * I didn't think that I could survive making a system out of + and × types, though,
- *  so there are `struct`s and `enum`s.
  */
-
 
 use name::*;
 use parse::{SynEnv, FormPat};
@@ -31,176 +22,26 @@ use runtime::eval::*;
 use beta::*;
 use ast_walk::WalkRule::*;
 use num::bigint::ToBigInt;
+use core_type_forms::*; // type forms are kinda bulky
 
 pub fn ast_to_atom<'t>(ast: &Ast<'t>) -> Name<'t> {
     match ast { &Atom(n) => n, _ => { panic!("internal error!") } }
 }
 
-macro_rules! cust_rc_box {
-    ($contents:expr) => { Custom(Rc::new(Box::new($contents))) }
-}
-
-fn type_defn<'t>(form_name: &'t str, p: FormPat<'t>) -> Rc<Form<'t>> {
-    Rc::new(Form {
-        name: n(form_name),
-        grammar: p,
-        relative_phase: Assoc::new(),
-        // How do kinds fit into this? Recall that `eval` must produce a `Value`, so 
-        // `synth_type` has to produce a type even though we are "evaluating" to a type
-        synth_type: ::form::Positive(LiteralLike),
-        eval: ::form::Positive(NotWalked) 
-    })
-}
-
 /// This is the Unseemly language.
 pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
-    /* Regarding the value/type/kind hierarchy, Benjamin Pierce generously assures us that 
-        "For programming languages ... three levels have proved sufficient." */
     
-    /* kinds */
-    let _type_kind = simple_form("type", form_pat!((lit "*")));
-    let _higher_kind = simple_form("higher", form_pat!(
-        (delim "k[", "[", /*]]*/ 
-            [ (star (named "param", (call "kind"))), (lit "->"), (named "res", (call "kind"))])));
+    let ctf : SynEnv<'t> = make_core_syn_env_types();
     
-    
-    /* types */
-    let fn_type =
-        type_defn("fn", 
-            /* Friggin' Atom bracket matching doesn't ignore strings or comments. */
-            form_pat!((delim "[", "[", /*]]*/
-                [ (star (named "param", (call "type"))), (lit "->"), 
-                  (named "ret", (call "type") ) ])));
-                  
-    let enum_type = 
-        type_defn("enum", form_pat!([(lit "enum"),
-            (delim "{", "{", /*}}*/ (star [(named "name", aat), 
-                (delim "(", "(", /*))*/ [(star (named "component", (call "type")))])]))]));
-                
-    let struct_type =
-        type_defn("struct", form_pat!(
-            [(lit "struct"),
-             (delim "{", "{", /*}}*/ (star [(named "component_name", aat), (lit ":"), 
-                                            (named "component", (call "type"))]))]));
-    
-    let forall_type = 
-        type_defn("forall_type", form_pat!(
-            [(lit "forall_type"), (star (named "param", aat)), (lit "."), 
-                // // This isn't part of the grammar from the user's point of view!
-                // // We just need the type kind for the RHS of the beta, 
-                // //  since the parameters are always plain types.
-                // // (but is this even right? Is it an enviornment of types specifically, or 
-                // //  whatever-is-one-level-up-from-the-LHS)
-                // (named "type_kind_stx", (anyways "*")),
-                
-                // It seems like there ought to be an import of "param" here,
-                //  but the binding has to be done manually. 
-                // Maybe there's something we can add to `beta` for this case...
-                (delim "forall[", "[", /*]]*/ (named "body", (call "type")))]));
-    
-    /* This behaves slightly differently than the `mu` from Pierce's book,
-     *  because we need to support mutual recursion.
-     * In particular, it relies on having a binding for `param` in the environment!
-     * The only thing that `mu` actually does is suppress substitution,
-     *  to prevent the attempted generation of an infinite type.
-     */
-    let mu_type = typed_form!("mu_type",
-            [(lit "mu_type"), (star (named "param", aat)), (lit "."), 
-             (named "body", (call "type"))],
-        cust_rc_box!(move |mu_parts| {
-            // This probably ought to eventually be a feature of betas...
-            let without_param = mu_parts.with_environment(mu_parts.env.unset(
-                &ast_to_atom(&mu_parts.get_term(&n("param")))));
-                            
-            // Like LiteralLike, but with the above environment-mucking
-            Ok(ty!({ mu_parts.this_form.clone() ; 
-                "param" => (, mu_parts.get_term(&n("param"))),
-                "body" => (, try!(without_param.get_res(&n("body"))).0 )}))
-         }),
-         NotWalked);
-         
-    
-    // Like a variable reference (but `LiteralLike` typing prevents us from doing that)
-    let type_by_name = typed_form!("type_by_name", (named "name", aat),
-        cust_rc_box!(move |tbn_part| {
-            let name = tbn_part.get_term(&n("name"));
-            match tbn_part.env.find(&ast_to_atom(&name)) {
-                None => // This is fine; e.g. we might be at the `X` in `forall X. List<[X]<`.
-                    Ok(ty!({ tbn_part.this_form ; "name" => (, name) })),
-                Some(ty) => Ok(ty.clone())
-            }
-        }),
-        NotWalked);
-
     /* This seems to be necessary to get separate `Rc`s into the closures. */
-    let fn_type_0 = fn_type.clone();
-    let fn_type_1 = fn_type.clone();
-    let enum_type_0 = enum_type.clone();
-    let enum_type_1 = enum_type.clone();
-    let struct_type_0 = struct_type.clone();
-    let struct_type_1 = struct_type.clone();
-    let forall_type_0 = forall_type.clone();
-    let mu_type_0 = mu_type.clone();
-    let mu_type_1 = mu_type.clone();
-    
-   /* [Type theory alert!]
-    * Pierce's notion of type application is an expression, not a type; 
-    *  you just take an expression whose type is a `forall`, and then give it some arguments.
-    * Instead, we will just make the type system unify `forall` types with more specific types.
-    * But sometimes the user wants to write a more specific type, and they use this.
-    *
-    * This is, at the type level, like function application.
-    * We restrict the LHS to being a name, because that's "normal". Should we?
-    */    
-    let type_apply = typed_form!("type_apply",
-        // The technical term for `<[...]<` is "fish X-ray"
-        [(lit "tbn"), (named "type_name", aat), 
-         (delim "<[", "[", /*]]*/ (star [(named "arg", (call "type")), (lit ",")]))],
-        cust_rc_box!(move |tapp_parts| {
-            let arg_res = try!(tapp_parts.get_rep_res(&n("arg")));
-            match tapp_parts.env.find(&ast_to_atom(&tapp_parts.get_term(&n("type_name")))) {
-                None => { // e.g. `X<[int, Y]<` underneath `mu X. ...`
-                    // Rebuild a type_by_name, but evaulate its arguments
-                    // This kind of this is necessary because 
-                    //  we wish to avoid aliasing problems at the type level.
-                    // In System F, this is avoided by capture-avoiding substitution.
-                    let mut new__tapp_parts = ::util::mbe::EnvMBE::new_from_leaves(
-                        assoc_n!("type_name" => tapp_parts.get_term(&n("type_name"))));
-
-                    let mut args = vec![];
-                    for individual__arg_res in arg_res {
-                        args.push(::util::mbe::EnvMBE::new_from_leaves(
-                            assoc_n!("arg" => individual__arg_res.0)));
-                    }
-                    new__tapp_parts.add_anon_repeat(args);
-                    
-                    Ok(Ty(Node(tapp_parts.this_form, new__tapp_parts)))
-                }
-                Some(defined_type) => {
-                    // This might ought to be done by a specialized `beta`...
-                    expect_node!( (defined_type.0 ; forall_type_0.clone())
-                        forall_type__parts;
-                        {
-                            let params = forall_type__parts.get_rep_leaf_or_panic(&n("param"));
-                            if params.len() != arg_res.len() {
-                                panic!("Kind error: wrong number of arguments");
-                            }
-                            let mut new__ty_env = tapp_parts.env.clone();
-                            for (name, actual_type) in params.iter().zip(arg_res) {
-                                new__ty_env 
-                                    = new__ty_env.set(ast_to_atom(name), actual_type);
-                            }
-                            
-                            synth_type(&forall_type__parts.get_leaf_or_panic(&n("body")), 
-                                       new__ty_env)
-                        })
-                }
-            }
-        }),
-        NotWalked);
-        
-        
-        
+    let ctf_0 = ctf.clone();
+    let ctf_1 = ctf.clone();
+    let ctf_2 = ctf.clone();
+    let ctf_3 = ctf.clone();
+    let ctf_4 = ctf.clone();
+    let ctf_5 = ctf.clone();
+    let ctf_6 = ctf.clone();
+    let ctf_7 = ctf.clone();
         
     // Unseemly expressions
     let main_expr_forms = forms_to_form_pat![
@@ -214,7 +55,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
             /* type */
             cust_rc_box!( move | part_types | {
                 let lambda_type : Ty<'t> = 
-                    ty!({ fn_type_1.clone() ;
+                    ty!({ find_type(&ctf_0, "fn") ;
                          "param" => [* part_types =>("param") part_types :
                                        (, try!(part_types.get_res(&n("p_t"))).0)],
                          "ret" => (, try!(part_types.get_res(&n("body"))).0)});
@@ -234,7 +75,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
              (star (named "rand", (call "expr")))],
             cust_rc_box!(move | part_types |
                 expect_node!( (try!(part_types.get_res(&n("rator"))).0 ; 
-                               fn_type_0)
+                               find_type(&ctf_1, "fn"))
                     env;
                     {
                         for (input, expected) in env.get_rep_leaf_or_panic(&n("param")).iter().zip(
@@ -323,7 +164,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
             /* Typesynth: */
             cust_rc_box!( move | part_types | {
                 let res : Ty<'t> = try!(part_types.get_res(&n("t")));
-                expect_node!( (res.0 ; enum_type_1)
+                expect_node!( (res.0 ; find_type(&ctf_2, "enum"))
                     enum_type_parts; 
                     {
                         for enum_type_part in enum_type_parts.march_all(&vec![n("name")]) {
@@ -360,7 +201,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                 (star [(named "component_name", aat), (lit ":"), 
                        (named "component", (call "expr"))])),
             cust_rc_box!( move | part_types | {
-                Ok(ty!({ struct_type_1.clone() ;
+                Ok(ty!({ find_type(&ctf_3, "struct") ;
                     "component_name" => (@"c" ,seq part_types.get_rep_term(&n("component_name"))),
                     "component" => (@"c" ,seq try!(part_types.get_rep_res(&n("component")))
                         .into_iter().map(|c : Ty<'t>| c.0))
@@ -408,7 +249,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
 
                 // (also, the fact that we're pulling out a piece of a `Ty` and re-synthing it
                 //   feels funny)
-                expect_node!( (mu_typed.0.clone() ; mu_type_0) 
+                expect_node!( (mu_typed.0.clone() ; find_type(&ctf_4, "mu_type") ) 
                     mu_parts;
                     {
                         synth_type(
@@ -431,7 +272,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                 let goal_type = try!(fold_parts.get_res(&n("t")));
                 // TODO: I can't figure out how to pull this out into a function 
                 //  to invoke both here and above, since `mu_type_0` needs cloning...
-                let folded_goal = expect_node!( (goal_type.0.clone() ; mu_type_1) 
+                let folded_goal = expect_node!( (goal_type.0.clone() ; find_type(&ctf_5, "mu_type")) 
                     mu_parts;
                     {
                         try!(synth_type(
@@ -498,7 +339,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
              (delim "(", "(", /*))*/ [(star (named "component", (call "pat")))])],
             /* (Negatively) Typecheck: */
             cust_rc_box!( move | part_types |
-                expect_node!( (part_types.context_elt().0 ; enum_type_0)
+                expect_node!( (part_types.context_elt().0 ; find_type(&ctf_6, "enum"))
                     enum_type_parts;
                     {
                         for enum_type_part in enum_type_parts.march_all(&vec![n("name")]) {
@@ -549,7 +390,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                         (named "component", (call "pat"))]))],
             /* (Negatively) typesynth: */
             cust_rc_box!( move | part_types | 
-                expect_node!( (part_types.context_elt().0 ; struct_type_0)
+                expect_node!( (part_types.context_elt().0 ; find_type(&ctf_7, "struct"))
                     struct_type_parts;
                     {
                         let mut res = Assoc::new();
@@ -601,22 +442,8 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
 
     assoc_n!(
         "pat" => Biased(Box::new(main_pat_forms), Box::new(VarRef)),
-        "expr" => Biased(Box::new(main_expr_forms), Box::new(VarRef)),
-        "type" => Biased(Box::new(forms_to_form_pat![
-            fn_type.clone(),
-            type_defn("ident", form_pat!((lit "ident"))),
-            type_defn("int", form_pat!((lit "int"))),
-            type_defn("nat", form_pat!((lit "nat"))),
-            type_defn("float", form_pat!((lit "float"))),
-            type_defn("bool", form_pat!((lit "bool"))),
-            enum_type.clone(),
-            struct_type.clone(),
-            forall_type.clone(),
-            mu_type.clone(),
-            type_apply.clone(),
-            type_by_name.clone()
-            ]), Box::new(VarRef))
-    )
+        "expr" => Biased(Box::new(main_expr_forms), Box::new(VarRef))
+    ).set_assoc(&ctf) /* throw in the types! */
 }
 
 
@@ -658,6 +485,10 @@ pub fn find_form<'t>(se: &SynEnv<'t>, nt: &str, form_name: &str)
     
     find_form_rec(pat, form_name)
         .expect(format!("{:?} not found in {:?}", form_name, pat).as_str())
+}
+
+fn find_type<'t>(se: &SynEnv<'t>, form_name: &str) -> Rc<Form<'t>> {
+    find_form(se, "type", form_name)
 }
 
 thread_local! {
@@ -936,61 +767,7 @@ fn alg_eval() {
         Ok(val!(i 18)));
     
 }
-#[test]
-fn parametric_types() {
-    let ident_ty = ty!( { find_core_form("type", "ident") ; });
-    let nat_ty = ty!( { find_core_form("type", "nat") ; });
-    
-    fn tbn(nm: &'static str) -> Ty<'static> {
-        ty!( { find_core_form("type", "type_by_name") ; "name" => (, ::ast::Ast::Atom(n(nm))) } )
-    }
 
-    let mt_ty_env = Assoc::new();    
-    let para_ty_env = assoc_n!(
-        "unary" => ty!({ find_core_form("type", "forall_type") ;
-            "param" => ["t"],
-            "body" => { find_core_form("type", "fn") ;
-                "param" => [ (, nat_ty.0.clone()) ],
-                "ret" => (, tbn("t").0) }}),
-        "binary" => ty!({ find_core_form("type", "forall_type") ;
-            "param" => ["t", "u"],
-            "body" => { find_core_form("type", "fn") ;
-                "param" => [ (, tbn("t").0), (, tbn("u").0) ],
-                "ret" => (, nat_ty.0.clone()) }}));
-
-    // If `unary` is undefined, `unary <[ ident ]<` can't be simplified.
-    assert_eq!(synth_type(
-        &ast!( { find_core_form("type", "type_apply") ;
-            "type_name" => "unary",
-            "arg" => [ (, ident_ty.0.clone()) ]}),
-        mt_ty_env.clone()),
-        Ok(ty!({ find_core_form("type", "type_apply") ;
-            "type_name" => "unary",
-            "arg" => [ (, ident_ty.0.clone()) ]})));
-
-    // If `unary` is undefined, `unary <[ [nat -> nat] ]<` can't be simplified.
-    assert_eq!(synth_type(
-        &ast!( { find_core_form("type", "type_apply") ;
-            "type_name" => "unary",
-            "arg" => [ { find_core_form("type", "fn") ; 
-                "param" => [(, nat_ty.0.clone())], "ret" => (, nat_ty.0.clone())} ]}),
-        mt_ty_env.clone()),
-        Ok(ty!({ find_core_form("type", "type_apply") ;
-            "type_name" => "unary",
-            "arg" => [ { find_core_form("type", "fn") ; 
-                "param" => [(, nat_ty.0.clone())], "ret" => (, nat_ty.0.clone())} ]})));
-                
-    // Expand the definition of `unary`.
-    assert_eq!(synth_type(
-        &ast!( { find_core_form("type", "type_apply") ;
-            "type_name" => "unary",
-            "arg" => [ (, ident_ty.0.clone()) ]}),
-        para_ty_env),
-        Ok(ty!({ find_core_form("type", "fn") ;
-            "param" => [(, nat_ty.0)],
-            "ret" => (, ident_ty.0.clone())})));
-    
-}
 
 #[test]
 fn recursive_types() {

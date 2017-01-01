@@ -233,15 +233,22 @@ macro_rules! form_pat {
 
 
 
-/* Form */
+/* utility, for core_forms and core_type_forms */
 
+macro_rules! cust_rc_box {
+    ($contents:expr) => { Custom(Rc::new(Box::new($contents))) }
+}
+
+
+
+/* Form */
 
 macro_rules! basic_typed_form {
     ( $p:tt, $gen_type:expr, $eval:expr ) => {
         Rc::new(Form {
             name: ::name::n("unnamed form"),
             grammar: form_pat!($p),
-            relative_phase: Assoc::new(),
+            relative_phase: ::util::assoc::Assoc::new(),
             synth_type: ::form::Positive($gen_type),
             eval: ::form::Positive($eval)
         })
@@ -253,7 +260,7 @@ macro_rules! typed_form {
         Rc::new(Form {
             name: ::name::n($name),
             grammar: form_pat!($p),
-            relative_phase: Assoc::new(),
+            relative_phase: ::util::assoc::Assoc::new(),
             synth_type: ::form::Positive($gen_type),
             eval: ::form::Positive($eval)
         })
@@ -266,7 +273,7 @@ macro_rules! negative_typed_form {
         Rc::new(Form {
             name: ::name::n($name),
             grammar: form_pat!($p),
-            relative_phase: Assoc::new(),
+            relative_phase: ::util::assoc::Assoc::new(),
             synth_type: ::form::Negative($gen_type),
             eval: ::form::Negative($eval)
         })
@@ -278,7 +285,7 @@ macro_rules! ambidextrous_typed_form {
         Rc::new(Form {
             name: ::name::n($name),
             grammar: form_pat!($p),
-            relative_phase: Assoc::new(),
+            relative_phase: ::util::assoc::Assoc::new(),
             synth_type: ::form::Both($gen_type, $neg_gen_type),
             eval: ::form::Both($eval, $neg_eval)
         })
