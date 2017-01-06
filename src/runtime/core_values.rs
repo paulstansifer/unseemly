@@ -10,16 +10,16 @@ use std::rc::Rc;
 use num::{BigInt};
 
 #[derive(Debug,Clone,PartialEq)]
-pub struct TypedValue<'t> {
-    pub ty: Ast<'t>,
-    pub val: Value<'t>
+pub struct TypedValue {
+    pub ty: Ast,
+    pub val: Value
 }
 
-pub fn erase_types<'t>(tv: &TypedValue<'t>) -> Value<'t> { tv.val.clone() }
+pub fn erase_types(tv: &TypedValue) -> Value { tv.val.clone() }
 
 
 
-pub fn core_typed_values() -> Assoc<Name, TypedValue<'static>> {
+pub fn core_typed_values() -> Assoc<Name, TypedValue> {
     assoc_n!(
         "plus" =>
         tf!([( "integer", "integer" ) -> "integer"],

@@ -90,10 +90,10 @@ macro_rules! Reifiable {
     ((make_impl) struct $name:ident
          $(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)*
          { $( $field:ident : $t:ty),* }) => {
-        impl<'t $($(, $ty_param_ty : ::runtime::reify::Reifiable<'t>)*)*> 
-                ::runtime::reify::Reifiable<'t>
+        impl<'t $($(, $ty_param_ty : ::runtime::reify::Reifiable)*)*> 
+                ::runtime::reify::Reifiable
                 for $name<$($($ty_param),*)*> {
-            fn ty() -> ::ast::Ast<'static> {
+            fn ty() -> ::ast::Ast {
                 type_defn_wrapper!($(<$($ty_param_ty),*>)* => { "type" "struct" :
                    "component_name" => [@"c" $( 
                        (, ::ast::Ast::Atom(::name::n(stringify!($field)))) ),* ],
@@ -110,20 +110,20 @@ macro_rules! Reifiable {
             
             fn ty_name() -> ::name::Name { ::name::n(stringify!($name)) }
             
-            fn ty_invocation() -> ::ast::Ast<'static> {
+            fn ty_invocation() -> ::ast::Ast {
                 ast!({ "type" "type_apply" :
                     "type_name" => (, ::ast::Ast::Atom( Self::ty_name() ) ),
                     "arg" => [ $( $( (, $ty_param_ty ::ty_invocation() ) ),* )* ]
                 })
             }
             
-            fn reify(&self) -> ::runtime::eval::Value<'t> {
+            fn reify(&self) -> ::runtime::eval::Value {
                 ::runtime::eval::Struct(assoc_n!( 
                     $( (stringify!($field)) => self.$field.reify()),* ))
             }
             
             #[allow(unused_variables)]
-            fn reflect(v: &::runtime::eval::Value<'t>) -> Self {
+            fn reflect(v: &::runtime::eval::Value) -> Self {
                 extract!((v) ::runtime::eval::Struct = (ref env) => 
                     $name {
                         $( $field : 
@@ -186,11 +186,11 @@ macro_rules! Reifiable {
     ((make_impl) enum $name:ident$(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* { 
         $($choice:ident$(( $($part:ty),* ))* ,)* 
     }) => {
-        impl<'t $($(, $ty_param_ty : ::runtime::reify::Reifiable<'t>)*)*>
-                ::runtime::reify::Reifiable<'t> 
+        impl<'t $($(, $ty_param_ty : ::runtime::reify::Reifiable)*)*>
+                ::runtime::reify::Reifiable 
                 for $name<$($($ty_param),*)*> {
                     
-            fn ty() -> ::ast::Ast<'static> {
+            fn ty() -> ::ast::Ast {
                 type_defn_wrapper!($(<$($ty_param_ty),*>)* => { "type" "enum" :
                     "name" => [@"c" $(
                         (, ::ast::Ast::Atom(::name::n(stringify!($choice)))) ),* ],
@@ -202,7 +202,7 @@ macro_rules! Reifiable {
             
             fn ty_name() -> ::name::Name { ::name::n(stringify!($name)) }
             
-            fn ty_invocation() -> ::ast::Ast<'static> {
+            fn ty_invocation() -> ::ast::Ast {
                 ast!({ "type" "type_apply" :
                     "type_name" => (, ::ast::Ast::Atom( Self::ty_name() ) ),
                     "arg" => [ $( $( (, $ty_param_ty ::ty_invocation() ) ),* )* ]
@@ -210,7 +210,7 @@ macro_rules! Reifiable {
             }
             
             #[allow(unused_mut)] // rustc bug! `v` has to be mutable, but it complains
-            fn reify(&self) -> ::runtime::eval::Value<'t> {
+            fn reify(&self) -> ::runtime::eval::Value {
                 match self { $(
                     choice_pat!( ( $($($part),*)* ) (a b c d e f g h i j k l m n o p q r s t) 
                                  $name::$choice ; ())
@@ -224,9 +224,9 @@ macro_rules! Reifiable {
             }
             
             #[allow(unused_variables)]
-            fn reflect(v: &::runtime::eval::Value<'t>) -> Self {
+            fn reflect(v: &::runtime::eval::Value) -> Self {
                 extract!((v) ::runtime::eval::Enum = (ref choice, ref parts) => {
-                    make_enum_reflect!(choice; parts; $name$(<$($ty_param),*>)*/*<'t>*/ 
+                    make_enum_reflect!(choice; parts; $name$(<$($ty_param),*>)*/**/ 
                         { $($choice $(( $($part),* ))*),* } )
                 })
             }
@@ -264,7 +264,7 @@ macro_rules! choice_vec {
 // workaround for MBE limitation; need to walk choices, but *not* ty_param, 
 //  so we use this to manually walk over the choices
 macro_rules! make_enum_reflect {
-    ($choice_name:ident; $parts_name:ident; $name:ident$(<$($ty_param:tt),*>)*/*<'t>*/ { 
+    ($choice_name:ident; $parts_name:ident; $name:ident$(<$($ty_param:tt),*>)*/**/ { 
         $choice_car:ident $(( $($part_cars:ty),* ))* 
         $(, $choice_cdr:ident$(( $($part_cdr:ty),* ))*)* 
     }) => {    
@@ -272,11 +272,11 @@ macro_rules! make_enum_reflect {
             unpack_parts!( $(( $($part_cars),* ))* $parts_name; 0; 
                            $name::$choice_car$(::< $($ty_param),* >)*; ())
         } else {
-            make_enum_reflect!($choice_name; $parts_name; $name$(<$($ty_param),*>)*/*<'t>*/ {
+            make_enum_reflect!($choice_name; $parts_name; $name$(<$($ty_param),*>)*/**/ {
                 $($choice_cdr $(( $($part_cdr),* ))* ),* })
         }
     };
-    ($choice_name:ident; $parts_name:ident; $name:ident$(<$($ty_param:tt),*>)*/*<'t>*/ { } ) => {
+    ($choice_name:ident; $parts_name:ident; $name:ident$(<$($ty_param:tt),*>)*/**/ { } ) => {
         panic!("ICE: invalid enum choice: {:?}", $choice_name)
     }    
 }
@@ -330,7 +330,7 @@ macro_rules! refer_to_type {
 }
 
 /// Refer to the reification of T by name
-pub fn tbn<'t, T: ::runtime::reify::Reifiable<'t>>() -> ::ast::Ast<'static> {
+pub fn tbn< T: ::runtime::reify::Reifiable>() -> ::ast::Ast {
     ast!({ "type" "type_by_name" :
         "name" => (, ::ast::Ast::Atom(<T as ::runtime::reify::Reifiable>::ty_name()))
     })

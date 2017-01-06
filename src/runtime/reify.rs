@@ -17,12 +17,12 @@ use util::assoc::Assoc;
  * This is also where ICEs can happen, so make sure that ::ty() is consistent with ::reify().
  */
 
-pub trait Reifiable<'t> {
+pub trait Reifiable {
     /// The Unseemly type that corresponds to Self.
     /// Suitable for type definition, so any parameters will be abstract.
     /// e.g. `∀ A. Pair <[A int]<`
     /// TODO: this should return `Ty`
-    fn ty() -> Ast<'static> {
+    fn ty() -> Ast {
         // By default, this is an opaque primitive.
         Ast::Node(Rc::new(::form::Form { 
             name: Self::ty_name(),
@@ -46,31 +46,31 @@ pub trait Reifiable<'t> {
     /// e.g. `Annotated_with_int<[nat]<`
     /// (Types using this type will use this, rather than `ty`)
     /// This must be customized if `ty` is, I think...
-    fn ty_invocation() -> Ast<'static> {
+    fn ty_invocation() -> Ast {
         ast!({ "type" "type_by_name" : 
             "name" => (, Ast::Atom(Self::ty_name()))
         })
     }
         
     /// The Unseemly value that corresponds to a value.
-    fn reify(&self) -> Value<'t>;
+    fn reify(&self) -> Value;
     
     /// Get a value from an Unseemly value
-    fn reflect(&Value<'t>) -> Self;
+    fn reflect(&Value) -> Self;
 }
 
 /* Core values */
 
 macro_rules! basic_reifiability {
     ( $underlying_type:ty, $ty_name:tt, $value_name:ident ) => {
-        impl<'t> Reifiable<'t> for $underlying_type {
+        impl Reifiable for $underlying_type {
             fn ty_name() -> Name { n($ty_name) }
 
             // TODO: can we remove these clones? are they even bad?
             // They seem redundant in the `Name` case, at least             
-            fn reify(&self) -> Value<'t> { Value::$value_name(self.clone()) }
+            fn reify(&self) -> Value { Value::$value_name(self.clone()) }
             
-            fn reflect(v: &Value<'t>) -> Self { 
+            fn reflect(v: &Value) -> Self { 
                 extract!((v) Value::$value_name = (ref i) => i.clone())
             }
         }
@@ -85,54 +85,54 @@ basic_reifiability!(Name, "ident", Ident);
 
 
 // note: primitives for these shouldn't have BigInt semantics!
-impl<'t> Reifiable<'t> for usize {
+impl Reifiable for usize {
     fn ty_name() -> Name { n("rust_usize") }
     
-    fn reify(&self) -> Value<'t> { Value::Int(BigInt::from(*self)) }
+    fn reify(&self) -> Value { Value::Int(BigInt::from(*self)) }
     
-    fn reflect(v: &Value<'t>) -> Self {
+    fn reflect(v: &Value) -> Self {
         use num::ToPrimitive;
         extract!((v) Value::Int = (ref i) => i.to_usize().unwrap()) 
     }
 }
-impl<'t> Reifiable<'t> for i32 {
+impl Reifiable for i32 {
     fn ty_name() -> Name { n("rust_i32") }
     
-    fn reify(&self) -> Value<'t> { Value::Int(BigInt::from(*self)) }
+    fn reify(&self) -> Value { Value::Int(BigInt::from(*self)) }
     
-    fn reflect(v: &Value<'t>) -> Self {
+    fn reflect(v: &Value) -> Self {
         use num::ToPrimitive;
         extract!((v) Value::Int = (ref i) => i.to_i32().unwrap()) 
     }
 }
-impl<'t> Reifiable<'t> for () {
+impl Reifiable for () {
     fn ty_name() -> Name { n("unit") }
     
-    fn reify(&self) -> Value<'t> { Value::Bool(true) }
+    fn reify(&self) -> Value { Value::Bool(true) }
     
-    fn reflect(_: &Value<'t>) -> Self { () }
+    fn reflect(_: &Value) -> Self { () }
 }
 
 // This is right, right?
-impl<'t> Reifiable<'t> for Value<'t> {
+impl Reifiable for Value {
     fn ty_name() -> Name { n("any") }
     
-    fn reify(&self) -> Value<'t> { self.clone() }
+    fn reify(&self) -> Value { self.clone() }
     
-    fn reflect(v: &Value<'t>) -> Self { v.clone() }
+    fn reflect(v: &Value) -> Self { v.clone() }
 }
 
 // TODO: when returning traits works, just make functions `Reifiable`
 // TOUNDERSTAND: 'x also allows things to be owned instead?!?
-pub fn reify_1ary_function<'t, A: Reifiable<'t> + 't, R: Reifiable<'t> + 't>(
-        f: Rc<Box<(Fn(A) -> R) + 't>>) -> Value<'t> {
+pub fn reify_1ary_function<A: Reifiable + 'static, R: Reifiable + 'static>(
+        f: Rc<Box<(Fn(A) -> R)>>) -> Value {
     let f_c = f.clone();
     Value::BuiltInFunction(::runtime::eval::BIF(Rc::new(
-        move |args: Vec<Value<'t>>| ((*f_c)(A::reflect(&args[0]))).reify())))
+        move |args: Vec<Value>| ((*f_c)(A::reflect(&args[0]))).reify())))
 }
 
-pub fn reflect_1ary_function<'t, A: Reifiable<'t> + 't, R: Reifiable<'t> + 't>(
-        f_v: Value<'t>) -> Rc<Box<(Fn(A) -> R) + 't>> {
+pub fn reflect_1ary_function<A: Reifiable + 'static, R: Reifiable + 'static>(
+        f_v: Value) -> Rc<Box<(Fn(A) -> R)>> {
     Rc::new(Box::new(move |a: A|
         extract!((&f_v)
             Value::BuiltInFunction = (ref bif) => R::reflect(&(*bif.0)(vec![a.reify()]));
@@ -143,16 +143,16 @@ pub fn reflect_1ary_function<'t, A: Reifiable<'t> + 't, R: Reifiable<'t> + 't>(
 }
 
 // I bet there's more of a need for reification than reflection for functions....
-pub fn reify_2ary_function<'t, A: Reifiable<'t> + 'static, B: Reifiable<'t> + 'static, 
-                           R: Reifiable<'t> + 'static>(
-        f: Rc<(Fn(A, B) -> R)>) -> Value<'t> {
+pub fn reify_2ary_function<A: Reifiable + 'static, B: Reifiable + 'static, 
+                           R: Reifiable + 'static>(
+        f: Rc<(Fn(A, B) -> R)>) -> Value {
     let f_c = f.clone();
     Value::BuiltInFunction(::runtime::eval::BIF(Rc::new(
-        move |args: Vec<Value<'t>>| (f_c(A::reflect(&args[0]), B::reflect(&args[1]))).reify())))
+        move |args: Vec<Value>| (f_c(A::reflect(&args[0]), B::reflect(&args[1]))).reify())))
 }
 
-pub fn ty_of_1ary_function<'t, A: Reifiable<'t> + 'static, R: Reifiable<'t> + 'static>() 
-         -> Ast<'t> {
+pub fn ty_of_1ary_function<A: Reifiable + 'static, R: Reifiable + 'static>() 
+         -> Ast {
     ast!( "TODO: generate type" )
 }
 
@@ -168,10 +168,10 @@ macro_rules! reify_types {
 
 macro_rules! fake_reifiability {
     ( $underlying_type:ty ) => {
-        impl<'t> Reifiable<'t> for $underlying_type {
+        impl Reifiable for $underlying_type {
             fn ty_name() -> Name { n(stringify!($underlying_type)) }
-            fn reify(&self) -> Value<'t> { panic!() }
-            fn reflect(_: &Value<'t>) -> Self { panic!() }
+            fn reify(&self) -> Value { panic!() }
+            fn reflect(_: &Value) -> Self { panic!() }
         }
     }
 }
@@ -189,18 +189,18 @@ struct V {}
 fake_reifiability!(V);
 
 
-pub fn make_reified_ty_env<'t>() -> Assoc<Name, ::ty::Ty<'static>> {
-    reify_types!(Ast<'t>, Assoc<K, V>)
+pub fn make_reified_ty_env() -> Assoc<Name, ::ty::Ty> {
+    reify_types!(Ast, Assoc<K, V>)
 }
 
 
 /*
-impl<'t, A: Reifiable<'t>, R: Reifiable<'t>> Reifiable<'t> for Box<Fn(A) -> R> {
-    fn ty() -> Ast<'static> { panic!("") }
+impl<A: Reifiable, R: Reifiable> Reifiable for Box<Fn(A) -> R> {
+    fn ty() -> Ast { panic!("") }
     
-    fn reify(&self) -> Value<'t> { panic!("") }
+    fn reify(&self) -> Value { panic!("") }
     
-    fn reflect(v: &Value<'t>) -> Self { panic!("") }
+    fn reflect(v: &Value) -> Self { panic!("") }
 }
 */
 
@@ -210,62 +210,62 @@ impl<'t, A: Reifiable<'t>, R: Reifiable<'t>> Reifiable<'t> for Box<Fn(A) -> R> {
 
 // This feels a little awkward, just dropping the `Rc`ness on the floor.
 // But I think `Value` has enouch `Rc` inside that nothing can go wrong... right?
-impl<'t, T: Reifiable<'t>> Reifiable<'t> for ::std::rc::Rc<T> {
-    fn ty() -> Ast<'static> { T::ty() }
+impl<T: Reifiable> Reifiable for ::std::rc::Rc<T> {
+    fn ty() -> Ast { T::ty() }
     
     fn ty_name() -> Name { T::ty_name() }
     
-    fn ty_invocation() -> Ast<'static> { T::ty_invocation() }
+    fn ty_invocation() -> Ast { T::ty_invocation() }
     
-    fn reify(&self) -> Value<'t> { (**self).reify() }
+    fn reify(&self) -> Value { (**self).reify() }
     
-    fn reflect(v: &Value<'t>) -> Self { ::std::rc::Rc::new(T::reflect(v)) }
+    fn reflect(v: &Value) -> Self { ::std::rc::Rc::new(T::reflect(v)) }
 }
 
-impl<'t, T: Reifiable<'t>> Reifiable<'t> for Vec<T> {
-    fn ty() -> Ast<'static> { 
+impl<T: Reifiable> Reifiable for Vec<T> {
+    fn ty() -> Ast { 
         panic!("TODO")
     }
 
     fn ty_name() -> Name { n("Sequence") }
 
-    fn ty_invocation() -> Ast<'static> { 
+    fn ty_invocation() -> Ast { 
         ast!({ "type" "type_apply" : 
             "type_name" => "Sequence",
             "arg" => [(, T::ty_invocation() )]
         })
     }
     
-    fn reify(&self) -> Value<'t> {
+    fn reify(&self) -> Value {
         Value::Sequence(self.iter().map(|elt| Rc::new(elt.reify())).collect())
     }
     
-    fn reflect(v: &Value<'t>) -> Self { 
+    fn reflect(v: &Value) -> Self { 
         extract!((v) Value::Sequence = (ref s) => 
             s.iter().map(|elt| T::reflect(&elt)).collect()
         )
     }
 }
 
-impl<'t, T: Reifiable<'t>> Reifiable<'t> for ::std::boxed::Box<T> {
-    fn ty() -> Ast<'static> { T::ty() }
+impl<T: Reifiable> Reifiable for ::std::boxed::Box<T> {
+    fn ty() -> Ast { T::ty() }
     
     fn ty_name() -> Name { T::ty_name() }
 
-    fn ty_invocation() -> Ast<'static> { T::ty_invocation() }
+    fn ty_invocation() -> Ast { T::ty_invocation() }
     
-    fn reify(&self) -> Value<'t> { (**self).reify() }
+    fn reify(&self) -> Value { (**self).reify() }
     
-    fn reflect(v: &Value<'t>) -> Self { ::std::boxed::Box::new(T::reflect(v)) }
+    fn reflect(v: &Value) -> Self { ::std::boxed::Box::new(T::reflect(v)) }
 }
 
 // The roundtrip will de-alias the cell, sadly.
-impl<'t, T: Reifiable<'t>> Reifiable<'t> for ::std::cell::RefCell<T> {
+impl<T: Reifiable> Reifiable for ::std::cell::RefCell<T> {
     fn ty_name() -> Name { n("rust_RefCell") }
     
-    fn reify(&self) -> Value<'t> { self.borrow().reify() }
+    fn reify(&self) -> Value { self.borrow().reify() }
     
-    fn reflect(v: &Value<'t>) -> Self { ::std::cell::RefCell::<T>::new(T::reflect(v)) }
+    fn reflect(v: &Value) -> Self { ::std::cell::RefCell::<T>::new(T::reflect(v)) }
 }
 
 // Hey, I know how to generate the implementation for this...
@@ -308,12 +308,12 @@ fn new_oldname<'t>(nm: Name) -> OldName<'t> {
     }
 }
 
-impl<'t> Reifiable<'t> for OldName<'t> {
+impl<'t> Reifiable for OldName<'t> {
     fn ty_name() -> Name { n("OldName") }
     
-    fn reify(&self) -> Value<'t> { Value::Ident(self.actual) }
+    fn reify(&self) -> Value { Value::Ident(self.actual) }
     
-    fn reflect(v: &Value<'t>) -> Self { 
+    fn reflect(v: &Value) -> Self { 
         extract!((v) Value::Ident = (nm) => new_oldname(nm) ) 
     }
 }
@@ -415,7 +415,7 @@ fake_reifiability!(S);
 
 #[test]
 fn reified_types() {
-    fn tbn(nm: &'static str) -> ::ast::Ast<'static> {
+    fn tbn(nm: &'static str) -> ::ast::Ast {
         ast!( { "type" "type_by_name" : "name" => (, ::ast::Ast::Atom(n(nm))) } )
     }
 

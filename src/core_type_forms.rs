@@ -19,7 +19,7 @@ use core_forms::ast_to_atom;
 use ty::{Ty, synth_type};
 use ast::*;
 
-fn type_defn<'t>(form_name: &'t str, p: FormPat<'t>) -> Rc<Form<'t>> {
+fn type_defn(form_name: &str, p: FormPat) -> Rc<Form> {
     Rc::new(Form {
         name: n(form_name),
         grammar: p,
@@ -32,7 +32,7 @@ fn type_defn<'t>(form_name: &'t str, p: FormPat<'t>) -> Rc<Form<'t>> {
     })
 }
 
-pub fn make_core_syn_env_types<'t>() -> SynEnv<'t> {
+pub fn make_core_syn_env_types() -> SynEnv {
     /* Regarding the value/type/kind hierarchy, Benjamin Pierce generously assures us that 
         "For programming languages ... three levels have proved sufficient." */
     
@@ -190,7 +190,7 @@ fn parametric_types() {
     let ident_ty = ty!( { "type" "ident" : });
     let nat_ty = ty!( { "type" "nat" : });
     
-    fn tbn(nm: &'static str) -> Ty<'static> {
+    fn tbn(nm: &'static str) -> Ty {
         ty!( { "type" "type_by_name" : "name" => (, ::ast::Ast::Atom(n(nm))) } )
     }
 

@@ -9,20 +9,20 @@ use std::rc::Rc;
 use form::Form;
 
 custom_derive! {
-    #[derive(Clone, PartialEq, Reifiable(lifetime))]
-    pub enum Ast<'t> {
+    #[derive(Clone, PartialEq, Reifiable)]
+    pub enum Ast {
         Trivial,
         Atom(Name),
         VariableReference(Name),
-        Shape(Vec<Ast<'t>>),
+        Shape(Vec<Ast>),
         
         /// A meaningful chunk of syntax, governed by a form, containing an environment
-        Node(Rc<Form<'t>>, EnvMBE<Ast<'t>>),
+        Node(Rc<Form>, EnvMBE<Ast>),
         /// (Only appears during parsing)
-        IncompleteNode(EnvMBE<Ast<'t>>),
+        IncompleteNode(EnvMBE<Ast>),
         
         /// Variable binding
-        ExtendEnv(Box<Ast<'t>>, Beta)
+        ExtendEnv(Box<Ast>, Beta)
     }
 }
 
@@ -30,7 +30,7 @@ pub use self::Ast::*;
 
 
 
-impl<'t> fmt::Debug for Ast<'t> {
+impl fmt::Debug for Ast {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Trivial => { write!(f, "⨉") },
@@ -62,9 +62,9 @@ impl<'t> fmt::Debug for Ast<'t> {
 
 
 
-impl<'t> Ast<'t> {
+impl Ast {
     // TODO: this ought to at least warn if we're losing anything other than `Shape`
-    pub fn flatten(&self) -> EnvMBE<Ast<'t>> {
+    pub fn flatten(&self) -> EnvMBE<Ast> {
         match *self {
             Trivial => EnvMBE::new(),
             Atom(_) => EnvMBE::new(),
@@ -88,8 +88,8 @@ impl<'t> Ast<'t> {
 }
 
 // This is used by combine::many, which is used by the Star parser
-impl<'t> iter::FromIterator<Ast<'t>> for Ast<'t> {
-    fn from_iter<I: IntoIterator<Item=Ast<'t>>>(i: I) -> Self {
+impl iter::FromIterator<Ast> for Ast {
+    fn from_iter<I: IntoIterator<Item=Ast>>(i: I) -> Self {
         IncompleteNode(
             EnvMBE::new_from_anon_repeat(
                 i.into_iter().map(|a| a.flatten()).collect()))

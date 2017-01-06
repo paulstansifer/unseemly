@@ -9,27 +9,27 @@ use ast_walk::WalkRule;
 use ty::{SynthesizeType, NegativeSynthesizeType};
 use runtime::eval::{Evaluate, NegativeEvaluate, Quasiquote, NegativeQuasiquote};
 
-pub type NMap<'t, T> = Assoc<Name, T>;
+pub type NMap<T> = Assoc<Name, T>;
 
 
 // `Form` appears to be invariant (rather than covariant) over its lifetime parameter
 //  because the function inside WalkRule is invariant over it. ) :
 custom_derive! {
     /// Unseemly language form
-    #[derive(Reifiable(lifetime))]
-    pub struct Form<'t> {
+    #[derive(Reifiable)]
+    pub struct Form {
         /// The name of the form. Mainly for internal use.
         pub name: Name,
         /** The grammar the programmer should use to invoke this form. 
          * This contains information about bindings and syntax extension; this is where it belongs!
          */
-        pub grammar: FormPat<'t>,
+        pub grammar: FormPat,
         /** From a type environment, construct the type of this term. */
-        pub synth_type: EitherPN<WalkRule<'t, SynthesizeType>, WalkRule<'t, NegativeSynthesizeType>>,
+        pub synth_type: EitherPN<WalkRule<SynthesizeType>, WalkRule<NegativeSynthesizeType>>,
         /** From a value environment, evaluate this term.*/
-        pub eval: EitherPN<WalkRule<'t, Evaluate>, WalkRule<'t, NegativeEvaluate>>,
+        pub eval: EitherPN<WalkRule<Evaluate>, WalkRule<NegativeEvaluate>>,
         /** Treat everything as quoted except `unquote`s */
-        pub quasiquote: EitherPN<WalkRule<'t, Quasiquote>, WalkRule<'t, NegativeQuasiquote>>,
+        pub quasiquote: EitherPN<WalkRule<Quasiquote>, WalkRule<NegativeQuasiquote>>,
         pub relative_phase: Assoc<Name, i32> /* 2^31 macro phases ought to be enough for anybody */
     }
 }
@@ -68,27 +68,27 @@ impl<L, R> EitherPN<L, R> {
 }
 
 
-impl<'t> PartialEq for Form<'t> {
+impl PartialEq for Form {
     /// pointer equality on the underlying structure!
-    fn eq(&self, other: &Form<'t>) -> bool { 
+    fn eq(&self, other: &Form) -> bool { 
         self as *const Form == other as *const Form
     }
 }
 
 // HACK: I think this means that we need to just get rid of the pervasive lifetime parameters
-pub fn same_form<'a, 'b>(a: &Rc<Form<'a>>, b: &Rc<Form<'b>>) -> bool {
+pub fn same_form(a: &Rc<Form>, b: &Rc<Form>) -> bool {
     a.name.is_name(&b.name)
 }
 
 
-impl<'t> Debug for Form<'t> {
+impl Debug for Form {
     fn fmt(&self, formatter: &mut Formatter) -> Result<(), Error> {
         formatter.write_str(format!("[FORM {:?}]", self.name).as_str())
     }
 }
 
 
-pub fn simple_form<'t>(form_name: &'t str, p: FormPat<'t>) -> Rc<Form<'t>> {
+pub fn simple_form(form_name: &str, p: FormPat) -> Rc<Form> {
     Rc::new(Form {
             name: n(form_name),
             grammar: p,

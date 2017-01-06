@@ -24,13 +24,13 @@ use ast_walk::WalkRule::*;
 use num::bigint::ToBigInt;
 use core_type_forms::*; // type forms are kinda bulky
 
-pub fn ast_to_atom<'t>(ast: &Ast<'t>) -> Name {
+pub fn ast_to_atom(ast: &Ast) -> Name {
     match ast { &Atom(n) => n, _ => { panic!("internal error!") } }
 }
 
 // This form isn't part of any nt! Instead, it's inserted into nts by `quote`.
-fn unquote<'t, Mode: ::ast_walk::WalkMode<'t>>(nt : Name, ctf: SynEnv<'t>, pos: bool)
-        -> Rc<Form<'t>> {
+fn unquote<Mode: ::ast_walk::WalkMode>(nt : Name, ctf: SynEnv, pos: bool)
+        -> Rc<Form> {
     Rc::new(Form {
         name: n("unquote"), // maybe add the `nt` to the name?
         grammar: 
@@ -87,16 +87,16 @@ fn unquote<'t, Mode: ::ast_walk::WalkMode<'t>>(nt : Name, ctf: SynEnv<'t>, pos: 
 
 
 /*
-fn eval_quoted_stx<'t>(a: Ast<'t>, env: Assoc<Name, Value<'t>>) -> Ast<'t> {
+fn eval_quoted_stx(a: Ast, env: Assoc<Name, Value>) -> Ast {
     match a {
         Trivial | Atom(_) | VariableReference(_)
     }
 }
 */
 /// This is the Unseemly language.
-pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
+pub fn make_core_syn_env() -> SynEnv {
     
-    let ctf : SynEnv<'t> = make_core_syn_env_types();
+    let ctf : SynEnv = make_core_syn_env_types();
     
     /* This seems to be necessary to get separate `Rc`s into the closures. */
     let ctf_0 = ctf.clone();
@@ -120,7 +120,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                     (import [* ["param" : "p_t"]], (call "expr")))]),
             /* type */
             cust_rc_box!( move | part_types | {
-                let lambda_type : Ty<'t> = 
+                let lambda_type : Ty = 
                     ty!({ find_type(&ctf_0, "fn") ;
                          "param" => [* part_types =>("param") part_types :
                                        (, try!(part_types.get_res(&n("p_t"))).0)],
@@ -193,7 +193,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                         (named "arm", (import ["p" = "scrutinee"], (call "expr")))]))],
             /* Typesynth: */
             cust_rc_box!(move | part_types | {
-                let mut res : Option<Ty<'t>> = None;
+                let mut res : Option<Ty> = None;
                 for arm_part_types in part_types.march_parts(&vec![n("arm")]) {
                     let arm_res = try!(arm_part_types.get_res(&n("arm")));
 
@@ -229,7 +229,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
              (lit ":"), (named "t", (call "type"))],
             /* Typesynth: */
             cust_rc_box!( move | part_types | {
-                let res : Ty<'t> = try!(part_types.get_res(&n("t")));
+                let res : Ty = try!(part_types.get_res(&n("t")));
                 expect_node!( (res.0 ; find_type(&ctf_2, "enum"))
                     enum_type_parts; 
                     {
@@ -239,7 +239,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                                 continue; // not the right arm
                             }
                             
-                            let component_types : Vec<Ty<'t>> = 
+                            let component_types : Vec<Ty> = 
                                 enum_type_part.get_rep_leaf_or_panic(&n("component"))
                                     .iter().map(|a| Ty((*a).clone())).collect();
                                     
@@ -270,7 +270,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                 Ok(ty!({ find_type(&ctf_3, "struct") ;
                     "component_name" => (@"c" ,seq part_types.get_rep_term(&n("component_name"))),
                     "component" => (@"c" ,seq try!(part_types.get_rep_res(&n("component")))
-                        .into_iter().map(|c : Ty<'t>| c.0))
+                        .into_iter().map(|c : Ty| c.0))
                 }))
             }),
             cust_rc_box!( move | part_values | {
@@ -395,7 +395,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                                 continue; // not the right arm
                             }
                         
-                            let component_types : Vec<Ty<'t>> = 
+                            let component_types : Vec<Ty> = 
                                 enum_type_part.get_rep_leaf_or_panic(&n("component"))
                                     .iter().map(|a| Ty((*a).clone())).collect();
                            
@@ -412,7 +412,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
             )),
             /* (Negatively) Evaluate: */
             cust_rc_box!( move | part_values | {
-                match part_values.context_elt() /* : Value<'t> */ {
+                match part_values.context_elt() /* : Value */ {
                     &Enum(ref name, ref elts) => {
                         // "Try another branch"
                         if name != &ast_to_atom(&part_values.get_term(&n("name"))) {
@@ -501,10 +501,10 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
  * Mostly for testing purposes, this looks up forms by name.
  * In the "real world", programmers look up forms by syntax, using a parser. 
  */
-pub fn find_form<'t>(se: &SynEnv<'t>, nt: &str, form_name: &str)
-         -> Rc<Form<'t>> {             
+pub fn find_form(se: &SynEnv, nt: &str, form_name: &str)
+         -> Rc<Form> {             
 
-    fn find_form_rec<'t>(f: &FormPat<'t>, form_name: &str) -> Option<Rc<Form<'t>>> {
+    fn find_form_rec(f: &FormPat, form_name: &str) -> Option<Rc<Form>> {
         match f {
             &Scope(ref f) => {
                 if f.name.is(form_name) {
@@ -533,15 +533,15 @@ pub fn find_form<'t>(se: &SynEnv<'t>, nt: &str, form_name: &str)
         .expect(format!("{:?} not found in {:?}", form_name, pat).as_str())
 }
 
-fn find_type<'t>(se: &SynEnv<'t>, form_name: &str) -> Rc<Form<'t>> {
+fn find_type(se: &SynEnv, form_name: &str) -> Rc<Form> {
     find_form(se, "type", form_name)
 }
 
 thread_local! {
-    pub static core_forms: SynEnv<'static> = make_core_syn_env();
+    pub static core_forms: SynEnv = make_core_syn_env();
 }
 
-pub fn find_core_form(nt: &str, name: &str) -> Rc<Form<'static>> {
+pub fn find_core_form(nt: &str, name: &str) -> Rc<Form> {
     core_forms.with(|cf| find_form(cf, nt, name))
 }
 
@@ -817,7 +817,7 @@ fn alg_eval() {
 
 #[test]
 fn recursive_types() {
-    fn tbn(nm: &'static str) -> Ty<'static> {
+    fn tbn(nm: &'static str) -> Ty {
         ty!( { find_core_form("type", "type_by_name") ; "name" => (, ::ast::Ast::Atom(n(nm))) } )
     }
     

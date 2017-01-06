@@ -104,7 +104,7 @@ custom_derive! {
     }
 }
 
-impl <'t, T: PartialEq> PartialEq for EnvMBE<T> {
+impl < T: PartialEq> PartialEq for EnvMBE<T> {
    fn eq(&self, other: &EnvMBE<T>) -> bool {
        fn assoc_eq_modulo_none<K : PartialEq + Clone, V: PartialEq>
                (lhs: &Assoc<K, Option<V>>, rhs: &Assoc<K, Option<V>>)
@@ -138,7 +138,7 @@ impl <'t, T: PartialEq> PartialEq for EnvMBE<T> {
    }    
 }
 
-impl<'t, T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
+impl<T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.leaves.empty() && self.repeats.len() == 0 {
             write!(f, "MBE∅")
@@ -162,7 +162,7 @@ impl<'t, T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
     }
 }
 
-impl<'t, T: Clone> EnvMBE<T> {
+impl<T: Clone> EnvMBE<T> {
     pub fn new() -> EnvMBE<T> {
         EnvMBE {
             leaves: Assoc::new(),
@@ -425,7 +425,7 @@ impl<'t, T: Clone> EnvMBE<T> {
     } 
 }
 
-impl<'t, T: Clone, E: Clone> EnvMBE<Result<T, E>> {
+impl<T: Clone, E: Clone> EnvMBE<Result<T, E>> {
     // Is `lift` the right term?
     pub fn lift_result(&self) -> Result<EnvMBE<T>, E> {
         // There's probably a nice and elegant way to do this with Result::from_iter, but not today
@@ -455,7 +455,7 @@ impl<'t, T: Clone, E: Clone> EnvMBE<Result<T, E>> {
 }
 
 
-impl<'t, T: Clone + fmt::Debug> EnvMBE<T> {
+impl<T: Clone + fmt::Debug> EnvMBE<T> {
     pub fn get_leaf_or_panic(&self, n: &Name) -> &T {
         match self.leaves.find(n) {
             Some(v) => { v }

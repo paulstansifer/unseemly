@@ -42,7 +42,7 @@ custom_derive! {
 
 pub use self::Beta::*;
 
-impl<'t> fmt::Debug for Beta {
+impl fmt::Debug for Beta {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Nothing => { write!(f, "∅") },
@@ -58,7 +58,7 @@ impl<'t> fmt::Debug for Beta {
     }
 }
 
-impl<'t> Beta {
+impl Beta {
     pub fn names_mentioned(&self) -> Vec<Name> {
         match self {
             &Nothing => { vec![] }
@@ -75,8 +75,8 @@ impl<'t> Beta {
     }
 }
 
-pub fn env_from_beta<'t, Mode: WalkMode<'t>>(b: &Beta, parts: &LazyWalkReses<'t, Mode>)
-         -> Result<ResEnv<'t, Mode::Elt>, ()> {
+pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
+         -> Result<ResEnv<Mode::Elt>, ()> {
     match b {
         &Nothing => { Ok(Assoc::new()) }
         &Shadow(ref lhs, ref rhs) => {
@@ -116,6 +116,6 @@ pub fn env_from_beta<'t, Mode: WalkMode<'t>>(b: &Beta, parts: &LazyWalkReses<'t,
     }
 }
 
-//fn fold_beta<'t, T>(b: Beta, over: Assoc<Name, T>,
-//                    leaf: Fn(&Ast<'t> ) -> S
+//fn fold_beta<T>(b: Beta, over: Assoc<Name, T>,
+//                    leaf: Fn(&Ast ) -> S
 

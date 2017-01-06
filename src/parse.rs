@@ -21,8 +21,8 @@ use self::combine::primitives::{State, SliceStream, Positioner};
 use self::combine::combinator::ParserExt;
 
 
-impl<'t> Token {
-    fn to_ast(&self) -> Ast<'t> {
+impl Token {
+    fn to_ast(&self) -> Ast {
         match *self {
             Simple(ref s) => Atom(s.clone()),
             Group(ref _s, ref _delim, ref body) => {
@@ -42,10 +42,10 @@ custom_derive! {
        everything outside of a `Named` (up to a `Scope`, if any) is discarded,
         and `Scope` produces a `Node`, which maps names to what they got.
      */
-    #[derive(Debug, Clone, Reifiable(lifetime))]
-    pub enum FormPat<'t> {
+    #[derive(Debug, Clone, Reifiable)]
+    pub enum FormPat {
         /// Matches 0 tokens, produces the argument
-        Anyways(Ast<'t>),
+        Anyways(Ast),
         /// Never matches
         Impossible,
 
@@ -53,11 +53,11 @@ custom_derive! {
         AnyToken,
         AnyAtomicToken,
         VarRef,
-        Delimited(Name, DelimChar, Box<FormPat<'t>>),
-        Seq(Vec<FormPat<'t>>),
-        Star(Box<FormPat<'t>>),
-        Alt(Vec<FormPat<'t>>),
-        Biased(Box<FormPat<'t>>, Box<FormPat<'t>>),
+        Delimited(Name, DelimChar, Box<FormPat>),
+        Seq(Vec<FormPat>),
+        Star(Box<FormPat>),
+        Alt(Vec<FormPat>),
+        Biased(Box<FormPat>, Box<FormPat>),
 
         // TODO: there should be an explicit `FormNode` pattern that wraps the result in a 
         // Node indicating the `Form`. (Some `Form`s might only exist for parsing,
@@ -74,83 +74,84 @@ custom_derive! {
          *  as a function from the current `SynEnv` to a new one, 
          *  and names the result in the current scope. 
          */
-        ComputeSyntax(Name, Box<FormPat<'t>>),
+        ComputeSyntax(Name, Box<FormPat>),
 
         /** Makes a node and limits the region where names are meaningful. */
-        Scope(Rc<Form<'t>>), 
-        Named(Name, Box<FormPat<'t>>),
+        Scope(Rc<Form>), 
+        Named(Name, Box<FormPat>),
 
         /**
          * This is where syntax gets extensible.
          * Parses its body in the named syntactic environment.
          * TODO: do we need both this and `ComputeSyntax`?
          */
-        SynImport(Name, SyntaxExtension<'t>),
+        SynImport(Name, SyntaxExtension),
         /**
          * FOOTGUN:  NameImport(Named(...), ...) is almost always wrong.
          * (write Named(NameImport(..., ...)) instead) 
          * TODO: make this better
          */
-        NameImport(Box<FormPat<'t>>, Beta),
-        //NameExport(Beta, Box<FormPat<'t>>) // This might want to go on some existing pattern
+        NameImport(Box<FormPat>, Beta),
+        //NameExport(Beta, Box<FormPat>) // This might want to go on some existing pattern
     }
 }
-pub struct SyntaxExtension<'t>(pub Rc<Box<(Fn(SynEnv<'t>) -> SynEnv<'t>) + 't>>);
+pub struct SyntaxExtension(pub Rc<Box<(Fn(SynEnv) -> SynEnv)>>);
 
-impl<'t> Clone for SyntaxExtension<'t> {
-    fn clone(&self) -> SyntaxExtension<'t> {
+impl Clone for SyntaxExtension {
+    fn clone(&self) -> SyntaxExtension {
         SyntaxExtension(self.0.clone())
     }
 }
 
 // This kind of struct is theoretically possible to add to the `Reifiable!` macro,
 // but I don't feel like doing it right now
-impl<'t> ::runtime::reify::Reifiable<'t> for SyntaxExtension<'t> {
+impl ::runtime::reify::Reifiable for SyntaxExtension {
     fn ty_name() -> Name { n("syntax_extension") } 
     
-    fn reify(&self) -> ::runtime::eval::Value<'t> { 
+    fn reify(&self) -> ::runtime::eval::Value { 
         ::runtime::reify::reify_1ary_function(self.0.clone())
     }
     
-    fn reflect(v: &::runtime::eval::Value<'t>) -> Self {
+    fn reflect(v: &::runtime::eval::Value) -> Self {
         SyntaxExtension(::runtime::reify::reflect_1ary_function(v.clone()))
     }
 }
 
-impl<'t> std::fmt::Debug for SyntaxExtension<'t> {
+impl std::fmt::Debug for SyntaxExtension {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         formatter.write_str("[syntax extension]")
     }
 }
 
-pub type SynEnv<'t> = Assoc<Name, FormPat<'t>>;
+pub type SynEnv = Assoc<Name, FormPat>;
 
-struct FormPatParser<'form, 'tokens: 'form, 't: 'tokens> {
-    f: &'form FormPat<'t>,
-    se: SynEnv<'t>,
+struct FormPatParser<'form, 'tokens: 'form> {
+    f: &'form FormPat,
+    se: SynEnv,
     token_phantom: PhantomData<&'tokens usize>
 }
 
-impl<'t> Positioner for Token {
+impl Positioner for Token {
     type Position = usize;
     fn start() -> usize { 0 }
     fn update(&self, position: &mut usize) { *position += 1 as usize }
 }
 
-impl<'form, 'tokens, 't: 'form> FormPatParser<'form, 'tokens, 't> {
+//TODO: I think this can be simplified, now that `Name<'t>` is gone
+impl<'form, 'tokens> FormPatParser<'form, 'tokens> {
     fn parse_tokens(&'form mut self, ts: &'tokens Vec<Token>)
-            -> ParseResult<Ast<'t>, SliceStream<'tokens, Token>> {
+            -> ParseResult<Ast, SliceStream<'tokens, Token>> {
         
         self.parse_state(State::new(SliceStream::<'tokens, Token>(ts.as_slice())))
     }
 
-    fn descend<'subform>(&self, f: &'subform FormPat<'t>)
-            -> FormPatParser<'subform, 'tokens, 't> {
+    fn descend<'subform>(&self, f: &'subform FormPat)
+            -> FormPatParser<'subform, 'tokens> {
         FormPatParser{f: f, se: self.se.clone(), token_phantom: PhantomData}
     }
     
-    fn extend<'subform>(&self, f: &'subform FormPat<'t>, se: SynEnv<'t>)
-            -> FormPatParser<'subform, 'tokens, 't> {
+    fn extend<'subform>(&self, f: &'subform FormPat, se: SynEnv)
+            -> FormPatParser<'subform, 'tokens> {
         FormPatParser{f: f, se: se, token_phantom: PhantomData}
     }
 
@@ -158,8 +159,8 @@ impl<'form, 'tokens, 't: 'form> FormPatParser<'form, 'tokens, 't> {
 
 /** Parse `tt` with the grammar `f` in the environment `se`.
   The environment is used for lookup when `Call` patterns are reached. */
-pub fn parse<'fun, 't: 'fun>(f: &'fun FormPat<'t>, se: SynEnv<'t>, tt: &'fun TokenTree)
-        -> Result<Ast<'t>, ParseError<SliceStream<'fun, Token>>> {
+pub fn parse<'fun, 't: 'fun>(f: &'fun FormPat, se: SynEnv, tt: &'fun TokenTree)
+        -> Result<Ast, ParseError<SliceStream<'fun, Token>>> {
     let (res, consumed) = 
         try!(FormPatParser{f: f, se: se, token_phantom: PhantomData}.parse_tokens(&tt.t)
             .map_err(|consumed| consumed.into_inner()));
@@ -174,20 +175,20 @@ pub fn parse<'fun, 't: 'fun>(f: &'fun FormPat<'t>, se: SynEnv<'t>, tt: &'fun Tok
 
 /** Parse `tt` with the grammar `f` in an empty syntactic environment.
  `Call` patterns are errors. */
-pub fn parse_top<'fun, 't>(f: &'fun FormPat<'t>, tt: &'fun TokenTree)
-        -> Result<Ast<'t>, ParseError<SliceStream<'fun, Token>>> {
+pub fn parse_top<'fun, 't>(f: &'fun FormPat, tt: &'fun TokenTree)
+        -> Result<Ast, ParseError<SliceStream<'fun, Token>>> {
         
     parse(f, Assoc::new(), tt)
 }
 
-impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
+impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens> {
     type Input = SliceStream<'tokens, Token>;
-    type Output = Ast<'t>;
+    type Output = Ast;
     
-    fn parse_state<'f>(self: &'f mut FormPatParser<'form, 'tokens, 't>, inp: State<Self::Input>)
+    fn parse_state<'f>(self: &'f mut FormPatParser<'form, 'tokens>, inp: State<Self::Input>)
           -> ParseResult<Self::Output, Self::Input> {
 
-        fn ast_ify<'t, I>(res : (&Token, I)) -> (Ast<'t>, I) {
+        fn ast_ify<I>(res : (&Token, I)) -> (Ast, I) {
             let (got, inp) = res;
             (got.to_ast(), inp)
         }
@@ -387,7 +388,7 @@ fn advanced_parsing() {
 #[test]
 fn extensible_parsing() {
     
-    fn synex<'t>(s: SynEnv<'t>) -> SynEnv<'t> {
+    fn synex(s: SynEnv) -> SynEnv {
         assoc_n!(
             "a" => form_pat!((star (named "c", (alt (lit "AA"), [(lit "Back"), (call "o"), (lit ".")])))),
             "b" => form_pat!((lit "BB"))

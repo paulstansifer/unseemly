@@ -14,42 +14,42 @@ use std;
  */
 
 #[derive(Debug,Clone,PartialEq)]
-pub enum Value<'t> {
+pub enum Value {
     Int(BigInt),
     Bool(bool),
-    Ident(Name), // TODO: is the lifetime okay here?
-    Sequence(Vec<Rc<Value<'t>>>), // TODO: switch to a different core sequence type
-    Function(Rc<Closure<'t>>), // TODO: unsure if this Rc is needed
-    BuiltInFunction(BIF<'t>),
-    AbstractSyntax(Name, Rc<Ast<'t>>), // likewise. Also, I'm not sure `Name` is right...
-    Struct(Assoc<Name, Value<'t>>),
-    Enum(Name, Vec<Value<'t>>) // A real compiler would probably tag with numbers...
+    Ident(Name),
+    Sequence(Vec<Rc<Value>>), // TODO: switch to a different core sequence type
+    Function(Rc<Closure>), // TODO: unsure if this Rc is needed
+    BuiltInFunction(BIF),
+    AbstractSyntax(Name, Rc<Ast>), // likewise. Also, I'm not sure `Name` is right...
+    Struct(Assoc<Name, Value>),
+    Enum(Name, Vec<Value>) // A real compiler would probably tag with numbers...
 }
 
 pub use self::Value::*;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Closure<'t> {
-    pub body: Ast<'t>,
+pub struct Closure {
+    pub body: Ast,
     pub params: Vec<Name>,
-    pub env: Assoc<Name, Value<'t>>
+    pub env: Assoc<Name, Value>
 }
 
-pub struct BIF<'t>(pub Rc<(Fn(Vec<Value<'t>>) -> Value<'t>) + 't>);
+pub struct BIF(pub Rc<(Fn(Vec<Value>) -> Value)>);
 
-impl<'t> PartialEq for BIF<'t> {
-    fn eq(&self, other: &BIF<'t>) -> bool {
-        self as *const BIF<'t> == other as *const BIF<'t>
+impl PartialEq for BIF {
+    fn eq(&self, other: &BIF) -> bool {
+        self as *const BIF == other as *const BIF
     }
 }
 
-impl<'t> Clone for BIF<'t> {
-    fn clone(&self) -> BIF<'t> {
+impl Clone for BIF {
+    fn clone(&self) -> BIF {
         BIF(self.0.clone())
     }
 }
 
-impl<'t> std::fmt::Debug for BIF<'t> {
+impl std::fmt::Debug for BIF {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         formatter.write_str("[built-in function]")
     }
@@ -60,13 +60,13 @@ custom_derive! {
     pub struct Evaluate {}
 }
 
-impl<'t> WalkMode<'t> for Evaluate {
-    type Out = Value<'t>;
-    type Elt = Value<'t>;
+impl WalkMode for Evaluate {
+    type Out = Value;
+    type Elt = Value;
     
     type Negative = NegativeEvaluate;
     
-    fn get_walk_rule<'f>(f: &'f Form<'t>) -> &'f WalkRule<'t, Self> {
+    fn get_walk_rule<'f>(f: &'f Form) -> &'f WalkRule<Self> {
         f.eval.pos()
     }
 
@@ -74,11 +74,11 @@ impl<'t> WalkMode<'t> for Evaluate {
     // at the point it's written down in code.
     fn automatically_extend_env() -> bool { false }
     
-    fn ast_to_elt(a: Ast<'t>, parts: &LazyWalkReses<'t, Self>) -> Self::Elt { 
+    fn ast_to_elt(a: Ast, parts: &LazyWalkReses<Self>) -> Self::Elt { 
         walk::<Evaluate>(&a, parts).unwrap() //TODO: this should probably return a result
     }
     
-    fn var_to_out(n: &Name, env: &Assoc<Name, Value<'t>>) -> Result<Value<'t>, ()> {
+    fn var_to_out(n: &Name, env: &Assoc<Name, Value>) -> Result<Value, ()> {
         ::ast_walk::var_lookup(n, env)
     }
     
@@ -92,13 +92,13 @@ custom_derive! {
     pub struct NegativeEvaluate {}
 }
 
-impl<'t> WalkMode<'t> for NegativeEvaluate {
-    type Out = Assoc<Name, Value<'t>>;
-    type Elt = Value<'t>;
+impl WalkMode for NegativeEvaluate {
+    type Out = Assoc<Name, Value>;
+    type Elt = Value;
     
     type Negative = Evaluate;
     
-    fn get_walk_rule<'f>(f: &'f Form<'t>) -> &'f WalkRule<'t, Self> {
+    fn get_walk_rule<'f>(f: &'f Form) -> &'f WalkRule<Self> {
         &f.eval.neg()
     }
 
@@ -106,8 +106,8 @@ impl<'t> WalkMode<'t> for NegativeEvaluate {
     // at the point it's written down in code.
     fn automatically_extend_env() -> bool { false }
     
-    fn var_to_out(n: &Name, env: &Assoc<Name, Value<'t>>) 
-            -> Result<Assoc<Name, Value<'t>>, ()> {
+    fn var_to_out(n: &Name, env: &Assoc<Name, Value>) 
+            -> Result<Assoc<Name, Value>, ()> {
         ::ast_walk::var_bind(n, env)
     }
     
@@ -122,29 +122,29 @@ custom_derive! {
     pub struct Quasiquote {}
 }
 
-impl<'t> WalkMode<'t> for Quasiquote {
-    type Out = Value<'t>;
-    type Elt = Value<'t>;
+impl WalkMode for Quasiquote {
+    type Out = Value;
+    type Elt = Value;
     
     type Negative = NegativeQuasiquote;
     
-    fn get_walk_rule<'f>(f: &'f Form<'t>) -> &'f WalkRule<'t, Self> {
+    fn get_walk_rule<'f>(f: &'f Form) -> &'f WalkRule<Self> {
         f.quasiquote.pos()
     }
     
     fn automatically_extend_env() -> bool { true } // but will it get the right phase?
     
-    fn ast_to_elt(a: Ast<'t>, _: &LazyWalkReses<'t, Self>) -> Self::Elt {
+    fn ast_to_elt(a: Ast, _: &LazyWalkReses<Self>) -> Self::Elt {
         Value::AbstractSyntax(n("<unknown>"), Rc::new(a))
     }
     
-    fn ast_to_out(a: Ast<'t>) -> Self::Out {
+    fn ast_to_out(a: Ast) -> Self::Out {
         Value::AbstractSyntax(n("<unknown>"), Rc::new(a))
     }
     
     fn out_to_elt(o: Self::Out) -> Self::Elt { o }
     
-    fn out_to_ast(o: Self::Out) -> Ast<'t> {
+    fn out_to_ast(o: Self::Out) -> Ast {
         match o {
             Value::AbstractSyntax(_, a) => (*a).clone(),
             _ => panic!("ICE: messed-up syntax")
@@ -163,19 +163,19 @@ custom_derive! {
     pub struct NegativeQuasiquote {}
 }
 
-impl<'t> WalkMode<'t> for NegativeQuasiquote {
-    type Out = Assoc<Name, Value<'t>>;
-    type Elt = Value<'t>;
+impl WalkMode for NegativeQuasiquote {
+    type Out = Assoc<Name, Value>;
+    type Elt = Value;
     
     type Negative = Quasiquote;
     
-    fn get_walk_rule<'f>(f: &'f Form<'t>) -> &'f WalkRule<'t, Self> {
+    fn get_walk_rule<'f>(f: &'f Form) -> &'f WalkRule<Self> {
         f.quasiquote.neg()
     }
     
     fn automatically_extend_env() -> bool { true } // but will it get the right phase?
     
-    fn ast_to_elt(a: Ast<'t>, _: &LazyWalkReses<'t, Self>) -> Self::Elt {
+    fn ast_to_elt(a: Ast, _: &LazyWalkReses<Self>) -> Self::Elt {
         Value::AbstractSyntax(n("<unknown>"), Rc::new(a))
     }
     
@@ -189,16 +189,16 @@ impl<'t> WalkMode<'t> for NegativeQuasiquote {
     fn positive() -> bool { false }
 }
 
-pub fn eval_top<'t>(expr: &Ast<'t>) -> Result<Value<'t>, ()> {
+pub fn eval_top(expr: &Ast) -> Result<Value, ()> {
     eval(expr, Assoc::new())
 }
 
-pub fn eval<'t>(expr: &Ast<'t>, env: Assoc<Name, Value<'t>>) -> Result<Value<'t>, ()> {
+pub fn eval(expr: &Ast, env: Assoc<Name, Value>) -> Result<Value, ()> {
     walk::<Evaluate>(expr, &LazyWalkReses::new_wrapper(env))
 }
 
-pub fn neg_eval<'t>(pat: &Ast<'t>, env: Assoc<Name, Value<'t>>)
-        -> Result<Assoc<Name, Value<'t>>,()> {
+pub fn neg_eval(pat: &Ast, env: Assoc<Name, Value>)
+        -> Result<Assoc<Name, Value>,()> {
     walk::<NegativeEvaluate>(pat, 
         &LazyWalkReses::<NegativeEvaluate>::new_wrapper(env))
 }
