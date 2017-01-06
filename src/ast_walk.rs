@@ -17,13 +17,18 @@ Subterms are walked lazily, since not all of them are even evaluable/typeable,
 
 
 /*
-TODO: generalize to handle patterns, which are negated expressions.
-
 Some forms are positive, and some are negative. 
 Positive forms (e.g. expressions) are walked in an environment, and produce a value.
 Negative forms (e.g. patterns) still can access their environment, 
  but primarily they look at one special "result" in it, and when they are walked, 
   they produce an environment from that special result.
+  
+For example, suppose that `five` has type `nat` and `hello` has type `string`:
+  - the expression `struct{a: five, b: hello}` produces the type `struct{a: nat, b: string}`
+  - the pattern `struct{a: aa, b: bb}` produces 
+     the envirnonment where `aa` is `nat` and `bb` is `string`.
+
+At runtime, something similar happens with values and value environments.
 */
 use form::Form;
 use std::rc::Rc; 
@@ -117,8 +122,8 @@ impl<'t, Mode: WalkMode<'t>> reify::Reifiable<'t> for LazilyWalkedTerm<'t, Mode>
 
 // We only implement this because lazy-rust is unstable 
 impl<'t, Mode : WalkMode<'t>> LazilyWalkedTerm<'t, Mode> {
-    pub fn new(t: Ast<'t>) -> Rc<LazilyWalkedTerm<'t, Mode>> {
-        Rc::new(LazilyWalkedTerm { term: t, res: RefCell::new(None) }) 
+    pub fn new(t: &Ast<'t>) -> Rc<LazilyWalkedTerm<'t, Mode>> {
+        Rc::new(LazilyWalkedTerm { term: t.clone(), res: RefCell::new(None) }) 
     }
         
     /** Get the result of walking this term (memoized) */
@@ -240,8 +245,8 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
         LazyWalkReses::<'t, NewMode> { 
             env: self.env.clone(),
             parts: self.parts.map(
-                &|part: Rc<LazilyWalkedTerm<'t, Mode>>| 
-                    LazilyWalkedTerm::<'t, NewMode>::new((*part).term.clone())),
+                &|part: &Rc<LazilyWalkedTerm<'t, Mode>>| 
+                    LazilyWalkedTerm::<'t, NewMode>::new(&part.term)),
             this_form:  self.this_form.clone()
         }
     }
@@ -303,8 +308,8 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
 }
 
 /**
- * Make a `Mode::Out` by walking `expr` 
- *  in the environment (and, when appropriate, other context from) `env`.
+ * Make a `Mode::Out` by walking `expr` in the environment from `cur_node_contents`.
+ * HACK: The parts in `cur_node_contents` are ignored; it's just an environment to us.
  */
 pub fn walk<'t, Mode: WalkMode<'t>>(expr: &Ast<'t>, cur_node_contents: &LazyWalkReses<'t, Mode>)
         -> Result<Mode::Out, ()> {
@@ -325,14 +330,59 @@ pub fn walk<'t, Mode: WalkMode<'t>>(expr: &Ast<'t>, cur_node_contents: &LazyWalk
                 }
                 
                 &LiteralLike => {
-                    let rebuilt = Node(f.clone(),
-                        try!(parts.map(
-                            &|p| match p {
-                                Node(_, _) => walk(&p, cur_node_contents),
-                                _ => Ok(Mode::ast_to_out(p))
-                            }.map(Mode::out_to_ast)).lift_result()));
+                    if Mode::positive() {
+                        // rebuild the node around a recursive descent
+                        let rebuilt = Node(f.clone(),
+                            try!(parts.map(
+                                &|p| match *p {
+                                    Node(_, _) => walk(p, cur_node_contents),
+                                    _ => Ok(Mode::ast_to_out(p.clone()))
+                                }.map(Mode::out_to_ast)).lift_result()));
+                                
+                        Ok(Mode::ast_to_out(rebuilt))
+                    } else {
+                        let ctxt = cur_node_contents.context_elt();
+                        // HACK: I don't want to add yet another thing to all the modes:
+                        let ctxt = Mode::out_to_ast(
+                            Mode::var_to_out(&n("only"),
+                                &assoc_n!("only" => ctxt.clone())).unwrap());
+                                
+                        //type Res<'t, Mode: WalkMode<'t>> = Result<Assoc<Name<'t>, Mode::Elt>, ()>;
+
+                        // break apart the node, and walk it element-wise
+                        if let Node(ref f_actual, ref parts_actual) = ctxt {
+                            // TODO: wouldn't it be nice to have match failures that 
+                            //  contained useful `diff`-like information for debugging,
+                            //   when a match was expected to succeed?
+                            // (I really like using pattern-matching in unit tests!)
+                            if f != f_actual { return Err(()); /* match failure */ }
                             
-                    Ok(Mode::ast_to_out(rebuilt))
+                            fn combine<'t, 'f, Mode: WalkMode<'t>>(result: &'f Result<Assoc<Name<'t>, Mode::Elt>, ()>, next: &'f Result<Assoc<Name<'t>, Mode::Elt>, ()>) -> Result<Assoc<Name<'t>, Mode::Elt>, ()> {
+                                Ok(try!(result.clone()).set_assoc(&try!(next.clone())))
+                            }
+                            
+                            // TODO: this continues walking after a subterm fails to match;
+                            //  it should bail out immediately
+                            let res = parts.map_reduce_with::<Result<Assoc<Name<'t>, Mode::Elt>, ()>>(&parts_actual,
+                                &|model: &Ast<'t>, actual: &Ast<'t>| {
+                                    walk(model, 
+                                        &cur_node_contents.with_context(
+                                            Mode::ast_to_elt(actual.clone(), cur_node_contents)))
+                                        .map(Mode::out_to_env)
+                                },
+                                &|result, next| {
+                                    let r: Assoc<Name<'t>, Mode::Elt> = try!(result.clone());
+                                    let n: Assoc<Name<'t>, Mode::Elt> = try!(next.clone());
+                                    Ok(r.set_assoc(&n))
+                                },
+                                //panic!("I don't understand lifetimes enough to make this work!"),
+                                Ok(cur_node_contents.env.clone()));
+                            
+                            res.map(Mode::env_to_out)
+                        } else {
+                            Err(()) /* match failure */
+                        }
+                    }
                 }
                 
                 &NotWalked => { panic!( "{:?} should not be walked at all!", expr ) }
@@ -408,6 +458,10 @@ pub trait WalkMode<'t> : Debug + Copy + Reifiable<'t> {
     
     fn out_to_env(o: Self::Out) -> Assoc<Name<'t>, Self::Elt> {
         panic!("not implemented: {:?} cannot be converted", o)
+    }
+    
+    fn env_to_out(e: Assoc<Name<'t>, Self::Elt>) -> Self::Out {
+        panic!("not implemented: {:?} cannot be converted", e)        
     }
     
     fn out_to_elt(o: Self::Out) -> Self::Elt {

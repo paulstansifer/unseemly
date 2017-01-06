@@ -7,7 +7,7 @@ use util::assoc::Assoc;
 use std::rc::Rc;
 use ast_walk::WalkRule;
 use ty::{SynthesizeType, NegativeSynthesizeType};
-use runtime::eval::{Evaluate, NegativeEvaluate};
+use runtime::eval::{Evaluate, NegativeEvaluate, Quasiquote, NegativeQuasiquote};
 
 pub type NMap<'t, T> = Assoc<Name<'t>, T>;
 
@@ -28,6 +28,8 @@ custom_derive! {
         pub synth_type: EitherPN<WalkRule<'t, SynthesizeType>, WalkRule<'t, NegativeSynthesizeType>>,
         /** From a value environment, evaluate this term.*/
         pub eval: EitherPN<WalkRule<'t, Evaluate>, WalkRule<'t, NegativeEvaluate>>,
+        /** Treat everything as quoted except `unquote`s */
+        pub quasiquote: EitherPN<WalkRule<'t, Quasiquote>, WalkRule<'t, NegativeQuasiquote>>,
         pub relative_phase: Assoc<Name<'t>, i32> /* 2^31 macro phases ought to be enough for anybody */
     }
 }
@@ -92,6 +94,7 @@ pub fn simple_form<'t>(form_name: &'t str, p: FormPat<'t>) -> Rc<Form<'t>> {
             grammar: p,
             relative_phase: Assoc::new(), 
             synth_type: ::form::Positive(WalkRule::NotWalked),
-            eval: ::form::Positive(WalkRule::NotWalked)
+            eval: ::form::Positive(WalkRule::NotWalked),
+            quasiquote: ::form::Both(WalkRule::LiteralLike, WalkRule::LiteralLike)
         })
 }

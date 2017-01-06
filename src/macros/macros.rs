@@ -250,6 +250,8 @@ macro_rules! basic_typed_form {
             grammar: form_pat!($p),
             relative_phase: ::util::assoc::Assoc::new(),
             synth_type: ::form::Positive($gen_type),
+            quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike,
+                                     ::ast_walk::WalkRule::LiteralLike),
             eval: ::form::Positive($eval)
         })
     }
@@ -262,6 +264,8 @@ macro_rules! typed_form {
             grammar: form_pat!($p),
             relative_phase: ::util::assoc::Assoc::new(),
             synth_type: ::form::Positive($gen_type),
+            quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike,
+                                     ::ast_walk::WalkRule::LiteralLike),
             eval: ::form::Positive($eval)
         })
     }
@@ -275,6 +279,8 @@ macro_rules! negative_typed_form {
             grammar: form_pat!($p),
             relative_phase: ::util::assoc::Assoc::new(),
             synth_type: ::form::Negative($gen_type),
+            quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike,
+                                     ::ast_walk::WalkRule::LiteralLike),
             eval: ::form::Negative($eval)
         })
     }
@@ -287,6 +293,8 @@ macro_rules! ambidextrous_typed_form {
             grammar: form_pat!($p),
             relative_phase: ::util::assoc::Assoc::new(),
             synth_type: ::form::Both($gen_type, $neg_gen_type),
+            quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike,
+                                     ::ast_walk::WalkRule::LiteralLike),
             eval: ::form::Both($eval, $neg_eval)
         })
     }

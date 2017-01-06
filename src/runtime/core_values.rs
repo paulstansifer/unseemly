@@ -15,7 +15,7 @@ pub struct TypedValue<'t> {
     pub val: Value<'t>
 }
 
-pub fn erase_types<'t>(tv: TypedValue<'t>) -> Value<'t> { tv.val }
+pub fn erase_types<'t>(tv: &TypedValue<'t>) -> Value<'t> { tv.val.clone() }
 
 
 

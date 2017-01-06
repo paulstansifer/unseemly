@@ -19,7 +19,7 @@ custom_derive! {
 
 impl<K : PartialEq + Clone, V: Clone> Clone for Assoc<K, V> {
     fn clone(&self) -> Assoc<K, V> {
-        self.map(&|rc| rc)
+        self.map(&|rc| rc.clone())
     }
 }
 
@@ -92,6 +92,14 @@ impl<K : PartialEq, V> Assoc<K, V> {
         PairIter{ seen: Assoc::new(), cur: self }
     }
     
+    pub fn reduce<Out>(&self, red: &Fn(&K, &V, Out) -> Out, base: Out) -> Out {
+        match self.n {
+            None => base,
+            Some(ref node) => {
+                red(&node.k, &node.v, node.next.reduce(red, base))
+            }
+        }
+    }
 } 
 
 impl<K: PartialEq + Clone, V> Assoc<K,V> {
@@ -103,6 +111,37 @@ impl<K: PartialEq + Clone, V> Assoc<K,V> {
 impl<K: PartialEq + Clone, V: Clone> Assoc<K,V> {
     pub fn iter_values<'assoc>(&'assoc self) -> Box<Iterator<Item=V> + 'assoc> {
         Box::new(self.iter_pairs().map(|p| (*p.1).clone()))
+    }
+    
+    pub fn map<NewV>(&self, f: &Fn(&V) -> NewV) -> Assoc<K, NewV> {
+        match self.n {
+            None => Assoc{ n: None },
+            Some(ref node) => {
+                Assoc { 
+                    n: Some(Rc::new(AssocNode {
+                        k: node.k.clone(), v: f(&node.v), 
+                        next: node.next.map(f)
+                    }))
+                }
+            }
+        }
+    }
+    
+    pub fn map_with<NewV>(&self, other: &Assoc<K, V>, f: &Fn(&V, &V) -> NewV)
+            -> Assoc<K, NewV> {
+        match self.n {
+            None => Assoc{ n: None },
+            Some(ref node) => {
+                Assoc {
+                    n: Some(Rc::new(AssocNode {
+                        k: node.k.clone(),
+                        // Should we rewuire `K` and `V` to be `Debug` to use `find_or_panic`?
+                        v: f(&node.v, other.find(&node.k).unwrap()),
+                        next: node.next.map_with(other, f)
+                    }))
+                }
+            }
+        }
     }
 }
 
@@ -154,20 +193,6 @@ impl<K : PartialEq + Clone, V : Clone> Assoc<K, V> {
             None => (*self).clone(),
             Some(ref node) => {
                 self.set_assoc(&node.next).set(node.k.clone(), node.v.clone())
-            }
-        }
-    }
-    
-    pub fn map<NewV>(&self, f: &Fn(V) -> NewV) -> Assoc<K, NewV> {
-        match self.n {
-            None => Assoc{ n: None },
-            Some(ref node) => {
-                Assoc{ 
-                    n: Some(Rc::new(AssocNode {
-                        k: node.k.clone(), v: f(node.v.clone()), 
-                        next: node.next.map(f)
-                    }))
-                }
             }
         }
     }
@@ -328,4 +353,23 @@ fn assoc_r_and_r_roundtrip() {
 
     assert_eq!(mt, Assoc::<BigInt, BigInt>::reflect(&mt.reify()));
     assert_eq!(a2, Assoc::<BigInt, BigInt>::reflect(&a2.reify()));
+}
+
+#[test]
+fn assoc_map() {
+    let a1 = assoc_n!("x" => 1, "y" => 2, "z" => 3);
+    assert_eq!(a1.map(&|a| a+1), assoc_n!("x" => 2, "y" => 3, "z" => 4));
+    
+    let a2 = assoc_n!("y" => -2, "z" => -3, "x" => -1);
+    assert_eq!(a1.map_with(&a2, &|a, b| a+b),
+       assoc_n!("x" => 0, "y" => 0, "z" => 0));
+}
+
+#[test]
+fn assoc_reduce() {
+    let a1 = assoc_n!("x" => 1, "y" => 2, "z" => 3);
+    assert_eq!(a1.reduce(&|_key, a, b| a+b, 0), 6);
+    
+    let a1 = assoc_n!("x" => 1, "y" => 2, "z" => 3);
+    assert_eq!(a1.reduce(&|key, a, b| if key.is("y") { b } else { a+b }, 0), 4);
 }

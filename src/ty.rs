@@ -186,6 +186,7 @@ impl<'t> WalkMode<'t> for NegativeSynthesizeType {
     }
     
     fn out_to_env(o: Self::Out) -> Assoc<Name<'t>, Self::Elt> { o }
+    fn env_to_out(e: Assoc<Name<'t>, Self::Elt>) -> Self::Out { e }
     
     fn positive() -> bool { false }
 }

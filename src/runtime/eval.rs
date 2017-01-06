@@ -89,7 +89,7 @@ impl<'t> WalkMode<'t> for Evaluate {
 
 custom_derive! {
     #[derive(Clone, Copy, Debug, Reifiable)]
-    pub struct NegativeEvaluate{}
+    pub struct NegativeEvaluate {}
 }
 
 impl<'t> WalkMode<'t> for NegativeEvaluate {
@@ -112,10 +112,82 @@ impl<'t> WalkMode<'t> for NegativeEvaluate {
     }
     
     fn out_to_env(o: Self::Out) -> Assoc<Name<'t>, Self::Elt> { o }
-    
+    fn env_to_out(e: Assoc<Name<'t>, Self::Elt>) -> Self::Out { e }
+
     fn positive() -> bool { false }
 }
 
+custom_derive! {
+    #[derive(Clone, Copy, Debug, Reifiable)]
+    pub struct Quasiquote {}
+}
+
+impl<'t> WalkMode<'t> for Quasiquote {
+    type Out = Value<'t>;
+    type Elt = Value<'t>;
+    
+    type Negative = NegativeQuasiquote;
+    
+    fn get_walk_rule<'f>(f: &'f Form<'t>) -> &'f WalkRule<'t, Self> {
+        f.quasiquote.pos()
+    }
+    
+    fn automatically_extend_env() -> bool { true } // but will it get the right phase?
+    
+    fn ast_to_elt(a: Ast<'t>, _: &LazyWalkReses<'t, Self>) -> Self::Elt {
+        Value::AbstractSyntax(n("<unknown>"), Rc::new(a))
+    }
+    
+    fn ast_to_out(a: Ast<'t>) -> Self::Out {
+        Value::AbstractSyntax(n("<unknown>"), Rc::new(a))
+    }
+    
+    fn out_to_elt(o: Self::Out) -> Self::Elt { o }
+    
+    fn out_to_ast(o: Self::Out) -> Ast<'t> {
+        match o {
+            Value::AbstractSyntax(_, a) => (*a).clone(),
+            _ => panic!("ICE: messed-up syntax")
+        }
+    }
+    
+    fn var_to_out(n: &Name<'t>, env: &Assoc<Name<'t>, Self::Elt>) -> Result<Self::Out, ()> {
+        ::ast_walk::var_lookup(n, env)
+    }
+    
+    fn positive() -> bool { true }
+}
+
+custom_derive! {
+    #[derive(Clone, Copy, Debug, Reifiable)]
+    pub struct NegativeQuasiquote {}
+}
+
+impl<'t> WalkMode<'t> for NegativeQuasiquote {
+    type Out = Assoc<Name<'t>, Value<'t>>;
+    type Elt = Value<'t>;
+    
+    type Negative = Quasiquote;
+    
+    fn get_walk_rule<'f>(f: &'f Form<'t>) -> &'f WalkRule<'t, Self> {
+        f.quasiquote.neg()
+    }
+    
+    fn automatically_extend_env() -> bool { true } // but will it get the right phase?
+    
+    fn ast_to_elt(a: Ast<'t>, _: &LazyWalkReses<'t, Self>) -> Self::Elt {
+        Value::AbstractSyntax(n("<unknown>"), Rc::new(a))
+    }
+    
+    fn var_to_out(n: &Name<'t>, env: &Assoc<Name<'t>, Self::Elt>) -> Result<Self::Out, ()> {
+        ::ast_walk::var_bind(n, env)
+    }
+    
+    fn out_to_env(o: Self::Out) -> Assoc<Name<'t>, Self::Elt> { o }
+    fn env_to_out(e: Assoc<Name<'t>, Self::Elt>) -> Self::Out { e }
+    
+    fn positive() -> bool { false }
+}
 
 pub fn eval_top<'t>(expr: &Ast<'t>) -> Result<Value<'t>, ()> {
     eval(expr, Assoc::new())

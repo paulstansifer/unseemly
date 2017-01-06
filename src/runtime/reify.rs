@@ -29,6 +29,8 @@ pub trait Reifiable<'t> {
             grammar: ::parse::FormPat::Impossible,
             relative_phase: ::util::assoc::Assoc::new(),
             synth_type: ::form::Positive(::ast_walk::WalkRule::LiteralLike),
+            quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike, 
+                                     ::ast_walk::WalkRule::LiteralLike),
             eval: ::form::Positive(::ast_walk::WalkRule::NotWalked),
         }),
         ::util::mbe::EnvMBE::new())

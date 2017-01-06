@@ -13,7 +13,7 @@
 use name::*;
 use parse::{SynEnv, FormPat};
 use parse::FormPat::*;
-use form::{Form, simple_form};
+use form::{Form, simple_form, Positive, Negative};
 use util::assoc::Assoc;
 use ast::*;
 use std::rc::Rc;
@@ -28,6 +28,71 @@ pub fn ast_to_atom<'t>(ast: &Ast<'t>) -> Name<'t> {
     match ast { &Atom(n) => n, _ => { panic!("internal error!") } }
 }
 
+// This form isn't part of any nt! Instead, it's inserted into nts by `quote`.
+fn unquote<'t, Mode: ::ast_walk::WalkMode<'t>>(nt : Name<'t>, ctf: SynEnv<'t>, pos: bool)
+        -> Rc<Form<'t>> {
+    Rc::new(Form {
+        name: n("unquote"), // maybe add the `nt` to the name?
+        grammar: 
+            if pos {
+                form_pat!([(delim ",[", "[", /*]]*/ (named "body", (call "expr")))])             
+            } else {
+                form_pat!([(delim ",[", "[", /*]]*/ (named "body", (call "pat")))])
+            },
+        synth_type: 
+            // imagine: ` '[{expr} .[a : int . ,[body], ]. ]' `
+            if pos {
+                Positive(
+                    // suppose that this is an expr, and `body` has the type `expr <[string]<`:
+                    cust_rc_box!( move | unquote_parts | {
+                        let interpolate_type = try!(unquote_parts.get_res(&n("body")));
+                        expect_node!( (interpolate_type.0 ; find_type(&ctf, "type_apply"))
+                            apply_parts;
+                            {
+                                if ast_to_atom(apply_parts.get_leaf_or_panic(&n("type_name"))) != nt {
+                                    panic!("Type error: tried to interpolate {} at a {} node", 
+                                        interpolate_type, nt);
+                                }
+                                let args = apply_parts.get_rep_leaf_or_panic(&n("arg"));
+                                if args.len() != 1 {
+                                    panic!("Kind error: expected one argument, got {:?}", args)
+                                }
+                                Ok(Ty(args[0].clone()))
+                })}))
+            } else {
+                Negative(
+                    // suppose that this is a pat, 
+                    // and the whole thing has type `expr <[ [int -> string] ]<`
+                    cust_rc_box!( move | _unquote_parts | {
+                        panic!("")
+                    })
+                )
+            },
+            
+            // Also, let's suppose that we have something like:
+            //   let some_pattern : pat <[int]< = ...
+            //   let s = '[{pat} struct { a: ,[ some_pattern ],  b: b_var} ]'
+            // ...what then?
+        eval: // should be both
+            Positive(cust_rc_box!( move | _unquote_parts | {
+                panic!("");
+            })),
+        quasiquote: //should be both
+            Positive(cust_rc_box!( move | _unquote_parts | {
+                panic!("");
+            })),
+        relative_phase: Assoc::new()
+    }
+)}
+
+
+/*
+fn eval_quoted_stx<'t>(a: Ast<'t>, env: Assoc<Name<'t>, Value<'t>>) -> Ast<'t> {
+    match a {
+        Trivial | Atom(_) | VariableReference(_)
+    }
+}
+*/
 /// This is the Unseemly language.
 pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
     
@@ -42,7 +107,8 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
     let ctf_5 = ctf.clone();
     let ctf_6 = ctf.clone();
     let ctf_7 = ctf.clone();
-        
+    let ctf_8 = ctf.clone();
+            
     // Unseemly expressions
     let main_expr_forms = forms_to_form_pat![
         typed_form!("lambda",
@@ -141,7 +207,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                     }
                 }
                 
-                Ok(res.expect("Type error: no arms!"))                
+                Ok(res.expect("Type error: no arms!"))
             }),
             /* Evaluation: */
             cust_rc_box!( move | part_values | {
@@ -159,7 +225,7 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
            component name. */
         typed_form!("enum_expr",
             [(named "name", aat), 
-             (delim "(", "(", /*))*/ [(star (named "component", (call "pat")))]),
+             (delim "(", "(", /*))*/ [(star (named "component", (call "expr")))]),
              (lit ":"), (named "t", (call "type"))],
             /* Typesynth: */
             cust_rc_box!( move | part_types | {
@@ -290,48 +356,28 @@ pub fn make_core_syn_env<'t>() -> SynEnv<'t> {
                 }
                 Ok(goal_type)
             }),
-            Body(n("body")))
-            
-            /*
-        // We have isorecursive types: the user has to explicitly `unfold_type`
-        //   to "get past" type_by_name.
-        // In the environment from the above `let_type`, if `p` has type `pair <[int, int]<`:  
-        //  .[x : {l: int, r: int} .  ??? ]. p
-        // ...is ill-typed, but
-        //  .[x : {l: int, r: int} .  ??? ]. (unfold_type p)
-        // ...is well-typed.
-        typed_form!("unfold_type",
-            [(delim "(", "(", /*))*/ [ (lit "unfold_type"), (named "body", (call "type"))])],
-            cust_rc_box!( move | unfld_ty_parts | {
-                // We are being applied to a type like
-                //  `pair <[int, int]<`
-                // expect, in our environment, to find something like
-                //  `pair <[lhs, rhs]< = {l: lhs, r: rhs}`
-                // 
-                
-                expect_node!( (try!(unfld_ty_parts.get_res(&n("body"))) ; type_by_name_0)
-                    _env; {
-                        // e.g. `pair <[lhs, rhs]< `
-                        /*
-                        let mut res : Ast<'t> = unfld_ty_parts.env.find_or_panic(
-                            &ast_to_atom(env.get_leaf_or_panic(&n("type_name")))).clone();
-                        for(p, t) in unfld_ty_parts.get_term(&n("arg"))*/
-                        //Ok(res)
-                        panic!("");
-                    }
-               
-           )
-           }
-           ),
-           Body(n("body")) 
-    
-    
+            Body(n("body"))),
+
+
+        typed_form!("quote",
+            [(delim "`[", "[", /*]]*/ [/* TODO, maybe after the parser is improved */])],
+            cust_rc_box!( move | quote_parts | {
+                //TODO put variables in phases!!! !!!!! !!!!!!!!!!!!
+                Ok(ty!({ find_type(&ctf_8, "type_apply") ;
+                    "type_name" => (, quote_parts.get_term(&n("nt")) ),
+                    "arg" => [ (, try!(quote_parts.get_res(&n("body"))).0 )]
+                }))
+            }),
+            cust_rc_box!( move | _quote_values | {
+                panic!("TODO")
+                // Traverse the body, form 
+            })
         )
-*/
 
         // The first use for syntax quotes will be in macro definitions.
         // But we will someday need them as expressions.                    
     ];
+    
     
     let main_pat_forms = forms_to_form_pat![
         negative_typed_form!("enum_pat",
