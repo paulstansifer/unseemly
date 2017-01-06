@@ -108,7 +108,7 @@ macro_rules! Reifiable {
                 })
             }
             
-            fn ty_name() -> ::name::Name<'static> { ::name::n(stringify!($name)) }
+            fn ty_name() -> ::name::Name { ::name::n(stringify!($name)) }
             
             fn ty_invocation() -> ::ast::Ast<'static> {
                 ast!({ "type" "type_apply" :
@@ -200,7 +200,7 @@ macro_rules! Reifiable {
                 })
             }
             
-            fn ty_name() -> ::name::Name<'static> { ::name::n(stringify!($name)) }
+            fn ty_name() -> ::name::Name { ::name::n(stringify!($name)) }
             
             fn ty_invocation() -> ::ast::Ast<'static> {
                 ast!({ "type" "type_apply" :

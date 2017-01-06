@@ -120,7 +120,7 @@ impl<'t> ::std::fmt::Display for Ty<'t> {
 impl<'t> ::runtime::reify::Reifiable<'t> for Ty<'t> {
     fn ty() -> Ast<'static> { Ast::ty() }
 
-    fn ty_name() -> Name<'static> { n("Type") }
+    fn ty_name() -> Name { n("Type") }
     
     fn ty_invocation() -> Ast<'static> { Ast::ty_invocation() }
     
@@ -155,7 +155,7 @@ impl<'t> WalkMode<'t> for SynthesizeType {
     
     fn out_to_ast(o: Self::Out) -> Ast<'t> { o.0 }
     
-    fn var_to_out(n: &Name<'t>, env: &Assoc<Name<'t>, Self::Elt>) -> Result<Self::Out, ()> {
+    fn var_to_out(n: &Name, env: &Assoc<Name, Self::Elt>) -> Result<Self::Out, ()> {
         ::ast_walk::var_lookup(n, env)
     }
     
@@ -168,7 +168,7 @@ custom_derive! {
 }
 
 impl<'t> WalkMode<'t> for NegativeSynthesizeType {
-    type Out = Assoc<Name<'t>, Ty<'t>>;
+    type Out = Assoc<Name, Ty<'t>>;
     type Elt = Ty<'t>;
     
     type Negative = SynthesizeType;
@@ -181,12 +181,12 @@ impl<'t> WalkMode<'t> for NegativeSynthesizeType {
     
     fn ast_to_elt(a: Ast<'t>, _: &LazyWalkReses<'t, Self>) -> Self::Elt { Ty(a) }
     
-    fn var_to_out(n: &Name<'t>, env: &Assoc<Name<'t>, Self::Elt>) -> Result<Self::Out, ()> {
+    fn var_to_out(n: &Name, env: &Assoc<Name, Self::Elt>) -> Result<Self::Out, ()> {
         ::ast_walk::var_bind(n, env)
     }
     
-    fn out_to_env(o: Self::Out) -> Assoc<Name<'t>, Self::Elt> { o }
-    fn env_to_out(e: Assoc<Name<'t>, Self::Elt>) -> Self::Out { e }
+    fn out_to_env(o: Self::Out) -> Assoc<Name, Self::Elt> { o }
+    fn env_to_out(e: Assoc<Name, Self::Elt>) -> Self::Out { e }
     
     fn positive() -> bool { false }
 }
@@ -197,12 +197,12 @@ pub fn synth_type_top<'t>(expr: &Ast<'t>) ->  Result<Ty<'t>, ()> {
     walk::<SynthesizeType>(expr, &LazyWalkReses::new_wrapper(Assoc::new()))
 }
 
-pub fn synth_type<'t>(expr: &Ast<'t>, env: Assoc<Name<'t>, Ty<'t>>) -> Result<Ty<'t>, ()> {
+pub fn synth_type<'t>(expr: &Ast<'t>, env: Assoc<Name, Ty<'t>>) -> Result<Ty<'t>, ()> {
     walk::<SynthesizeType>(expr, &LazyWalkReses::new_wrapper(env))
 }
 
-pub fn neg_synth_type<'t>(pat: &Ast<'t>, env: Assoc<Name<'t>, Ty<'t>>)
-        -> Result<Assoc<Name<'t>, Ty<'t>>, ()> {
+pub fn neg_synth_type<'t>(pat: &Ast<'t>, env: Assoc<Name, Ty<'t>>)
+        -> Result<Assoc<Name, Ty<'t>>, ()> {
     walk::<NegativeSynthesizeType>(pat, &LazyWalkReses::new_wrapper(env))
 }
 

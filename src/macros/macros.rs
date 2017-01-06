@@ -435,7 +435,7 @@ macro_rules! extract {
 macro_rules! cop_out_reifiability {
     ( $underlying_type:ty, $ty_name:tt ) => {
         impl<'t> Reifiable<'t> for $underlying_type {
-            fn ty_name() -> Name<'static> { n(stringify!($ty_name)) }
+            fn ty_name() -> Name { n(stringify!($ty_name)) }
      
             fn reify(&self) -> Value<'t> { Value::Smuggled(self.clone()) }
             

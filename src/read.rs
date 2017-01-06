@@ -13,17 +13,17 @@ custom_derive! {
 use self::DelimChar::*;
 
 #[derive(Debug,PartialEq,Eq)]
-pub struct TokenTree<'a> {
-    pub t: Vec<Token<'a>>
+pub struct TokenTree {
+    pub t: Vec<Token>
 }
 
 #[derive(Debug,PartialEq,Eq)]
-pub enum Token<'a> {
-    Simple(Name<'a>),
-    Group(Name<'a>, DelimChar, TokenTree<'a>)
+pub enum Token {
+    Simple(Name),
+    Group(Name, DelimChar, TokenTree)
 }
 
-impl<'a> Token<'a> {
+impl<'a> Token {
     pub fn is_just(&self, s: &str) -> bool {
         match self {
             &Simple(ref x) if x.is(s) => { true }
@@ -50,7 +50,7 @@ pub fn delim(s: &str) -> DelimChar {
     }
 }
 
-fn read_tokens<'a>(s: &'a str) -> TokenTree<'a> {
+fn read_tokens<'a>(s: &'a str) -> TokenTree {
     lazy_static! {
         static ref token : regex::Regex =
             regex::Regex::new(format!(r"(?P<open_all>(?P<main_o>{nd}*)(?P<open>{o}))|((?P<close>{c})(?P<main_c>{nd}*))|(?P<normal>{nd}+)",
@@ -60,7 +60,7 @@ fn read_tokens<'a>(s: &'a str) -> TokenTree<'a> {
     let mut flat_tokens = token.captures_iter(s);
 
     fn read_token_tree<'a>(flat_tokens: &mut regex::FindCaptures<'a, 'a>)
-            -> (TokenTree<'a>, Option<(DelimChar, &'a str)>) {
+            -> (TokenTree, Option<(DelimChar, &'a str)>) {
         let mut this_level : Vec<Token> = vec![];
         loop{
             match flat_tokens.next() {

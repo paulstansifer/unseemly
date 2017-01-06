@@ -9,7 +9,7 @@ use ast_walk::WalkRule;
 use ty::{SynthesizeType, NegativeSynthesizeType};
 use runtime::eval::{Evaluate, NegativeEvaluate, Quasiquote, NegativeQuasiquote};
 
-pub type NMap<'t, T> = Assoc<Name<'t>, T>;
+pub type NMap<'t, T> = Assoc<Name, T>;
 
 
 // `Form` appears to be invariant (rather than covariant) over its lifetime parameter
@@ -19,7 +19,7 @@ custom_derive! {
     #[derive(Reifiable(lifetime))]
     pub struct Form<'t> {
         /// The name of the form. Mainly for internal use.
-        pub name: Name<'t>,
+        pub name: Name,
         /** The grammar the programmer should use to invoke this form. 
          * This contains information about bindings and syntax extension; this is where it belongs!
          */
@@ -30,7 +30,7 @@ custom_derive! {
         pub eval: EitherPN<WalkRule<'t, Evaluate>, WalkRule<'t, NegativeEvaluate>>,
         /** Treat everything as quoted except `unquote`s */
         pub quasiquote: EitherPN<WalkRule<'t, Quasiquote>, WalkRule<'t, NegativeQuasiquote>>,
-        pub relative_phase: Assoc<Name<'t>, i32> /* 2^31 macro phases ought to be enough for anybody */
+        pub relative_phase: Assoc<Name, i32> /* 2^31 macro phases ought to be enough for anybody */
     }
 }
 
@@ -77,7 +77,7 @@ impl<'t> PartialEq for Form<'t> {
 
 // HACK: I think this means that we need to just get rid of the pervasive lifetime parameters
 pub fn same_form<'a, 'b>(a: &Rc<Form<'a>>, b: &Rc<Form<'b>>) -> bool {
-    a.name.is_name(b.name)
+    a.name.is_name(&b.name)
 }
 
 

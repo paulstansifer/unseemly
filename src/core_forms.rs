@@ -24,12 +24,12 @@ use ast_walk::WalkRule::*;
 use num::bigint::ToBigInt;
 use core_type_forms::*; // type forms are kinda bulky
 
-pub fn ast_to_atom<'t>(ast: &Ast<'t>) -> Name<'t> {
+pub fn ast_to_atom<'t>(ast: &Ast<'t>) -> Name {
     match ast { &Atom(n) => n, _ => { panic!("internal error!") } }
 }
 
 // This form isn't part of any nt! Instead, it's inserted into nts by `quote`.
-fn unquote<'t, Mode: ::ast_walk::WalkMode<'t>>(nt : Name<'t>, ctf: SynEnv<'t>, pos: bool)
+fn unquote<'t, Mode: ::ast_walk::WalkMode<'t>>(nt : Name, ctf: SynEnv<'t>, pos: bool)
         -> Rc<Form<'t>> {
     Rc::new(Form {
         name: n("unquote"), // maybe add the `nt` to the name?
@@ -87,7 +87,7 @@ fn unquote<'t, Mode: ::ast_walk::WalkMode<'t>>(nt : Name<'t>, ctf: SynEnv<'t>, p
 
 
 /*
-fn eval_quoted_stx<'t>(a: Ast<'t>, env: Assoc<Name<'t>, Value<'t>>) -> Ast<'t> {
+fn eval_quoted_stx<'t>(a: Ast<'t>, env: Assoc<Name, Value<'t>>) -> Ast<'t> {
     match a {
         Trivial | Atom(_) | VariableReference(_)
     }
@@ -666,7 +666,7 @@ fn alg_type() {
             "name" => "Jefferson",
             "component" => [(vr "abc"), (vr "def")]
         }),
-        mt_ty_env.set(negative_ret_val, my_enum.clone())),
+        mt_ty_env.set(negative_ret_val(), my_enum.clone())),
         Ok(Assoc::new().set(n("abc"), ty!("integer")).set(n("def"), ty!("bool"))));
     
     /* Typecheck enum expression */
@@ -697,7 +697,7 @@ fn alg_type() {
                 "component_name" => [@"c" "y", "x"],
                 "component" => [@"c" (vr "yy"), (vr "xx")]
             }),
-            mt_ty_env.set(negative_ret_val, my_struct.clone())),
+            mt_ty_env.set(negative_ret_val(), my_struct.clone())),
         Ok(assoc_n!("yy" => ty!("float"), "xx" => ty!("integer"))));
         
     /* Typecheck struct expression */ 
@@ -756,7 +756,7 @@ fn alg_eval() {
             "name" => "choice1",
             "component" => [(vr "abc"), (vr "def")]
         }),
-        mt_env.set(negative_ret_val, val!(enum "choice1", (i 9006), (b true)))),
+        mt_env.set(negative_ret_val(), val!(enum "choice1", (i 9006), (b true)))),
         Ok(assoc_n!("abc" => val!(i 9006), "def" => val!(b true))));
             
     assert_eq!(neg_eval(&ast!(
@@ -764,7 +764,7 @@ fn alg_eval() {
             "name" => "choice1",
             "component" => [(vr "abc"), (vr "def")]
         }),
-        mt_env.set(negative_ret_val, val!(enum "choice0", (i 12321)))),
+        mt_env.set(negative_ret_val(), val!(enum "choice0", (i 12321)))),
         Err(()));
 
     /* Evaluate enum expression */
@@ -795,7 +795,7 @@ fn alg_eval() {
             "component_name" => [@"c" "x", "y"],
             "component" => [@"c" (vr "xx"), (vr "yy")]
         }),
-        mt_env.set(negative_ret_val,
+        mt_env.set(negative_ret_val(),
                    Struct(assoc_n!("x" => val!(i 0), "y" => val!(b true))))),
         Ok(assoc_n!("xx" => val!(i 0), "yy" => val!(b true))));
     

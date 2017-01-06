@@ -82,30 +82,30 @@ use std::fmt;
 
 custom_derive! {
     // `Clone` needs to traverse the whole `Vec` ):
-    #[derive(Eq, Clone, Reifiable(lifetime))]
-    pub struct EnvMBE<'t, T> {
+    #[derive(Eq, Clone, Reifiable)]
+    pub struct EnvMBE<T> {
         /// Non-repeated values
-        leaves: Assoc<Name<'t>, T>,
+        leaves: Assoc<Name, T>,
 
         /// Outer vec holds distinct repetitions 
         ///  (i.e. differently-named, or entirely unnamed repetitions)
         /// Note that some of the entries may be obsolete; 
         ///  deletions are marked by putting `None` in the `Assoc`s 
         ///   that index into this.
-        repeats: Vec<Rc<Vec<EnvMBE<'t,T>>>>,
+        repeats: Vec<Rc<Vec<EnvMBE<T>>>>,
         
         /// Where in `repeats` to look, if we want to traverse for a particular leaf.
         /// We use `.unwrap_or(None)` when looking up into this 
         ///  so we can delete by storing `None`.
-        leaf_locations: Assoc<Name<'t>, Option<usize>>,
+        leaf_locations: Assoc<Name, Option<usize>>,
         
         /// The location in `repeats` that represents a specific repetition name.
-        named_repeats: Assoc<Name<'t>, Option<usize>>
+        named_repeats: Assoc<Name, Option<usize>>
     }
 }
 
-impl <'t, T: PartialEq> PartialEq for EnvMBE<'t, T> {
-   fn eq(&self, other: &EnvMBE<'t, T>) -> bool {
+impl <'t, T: PartialEq> PartialEq for EnvMBE<T> {
+   fn eq(&self, other: &EnvMBE<T>) -> bool {
        fn assoc_eq_modulo_none<K : PartialEq + Clone, V: PartialEq>
                (lhs: &Assoc<K, Option<V>>, rhs: &Assoc<K, Option<V>>)
                -> bool {
@@ -138,7 +138,7 @@ impl <'t, T: PartialEq> PartialEq for EnvMBE<'t, T> {
    }    
 }
 
-impl<'t, T: Clone + fmt::Debug> fmt::Debug for EnvMBE<'t, T> {
+impl<'t, T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.leaves.empty() && self.repeats.len() == 0 {
             write!(f, "MBE∅")
@@ -162,8 +162,8 @@ impl<'t, T: Clone + fmt::Debug> fmt::Debug for EnvMBE<'t, T> {
     }
 }
 
-impl<'t, T: Clone> EnvMBE<'t, T> {
-    pub fn new() -> EnvMBE<'t, T> {
+impl<'t, T: Clone> EnvMBE<T> {
+    pub fn new() -> EnvMBE<T> {
         EnvMBE {
             leaves: Assoc::new(),
             repeats: vec![],
@@ -173,7 +173,7 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
     }
     
     /// Creates an `EnvMBE` without any repetition
-    pub fn new_from_leaves(l: Assoc<Name<'t>, T>) -> EnvMBE<'t, T> {
+    pub fn new_from_leaves(l: Assoc<Name, T>) -> EnvMBE<T> {
         EnvMBE {
             leaves: l,
             repeats: vec![],
@@ -183,14 +183,14 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
     }
     
     /// Creates an `EnvMBE` containing a single anonymous repeat
-    pub fn new_from_anon_repeat(r: Vec<EnvMBE<'t, T>>) -> EnvMBE<'t, T> {
+    pub fn new_from_anon_repeat(r: Vec<EnvMBE<T>>) -> EnvMBE<T> {
         let mut res = EnvMBE::new();
         res.add_anon_repeat(r);
         res
     }
     
     /// Creates an `EnvMBE` containing a single named repeat
-    pub fn new_from_named_repeat(n: Name<'t>, r: Vec<EnvMBE<'t, T>>) -> EnvMBE<'t, T> {
+    pub fn new_from_named_repeat(n: Name, r: Vec<EnvMBE<T>>) -> EnvMBE<T> {
         let mut res = EnvMBE::new();
         res.add_named_repeat(n, r);
         res        
@@ -200,7 +200,7 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
     /// or just overwrite the contents of the previous one.
     /// This should maybe not be `pub` if we can avoid it.
     /// Note: ideally, the larger one should be on the LHS.
-    pub fn combine_overriding(&self, rhs: &EnvMBE<'t,T>) -> EnvMBE<'t, T> {
+    pub fn combine_overriding(&self, rhs: &EnvMBE<T>) -> EnvMBE<T> {
         let adjust_rhs_by = self.repeats.len();
         
         let mut new_repeats = self.repeats.clone();
@@ -219,7 +219,7 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
     /// Combine two `EnvMBE`s whose leaves should be disjoint, but which can contain
     /// named repeats with the same name. This should make sense for combining the results of
     /// matching two different chunks of a patern.
-    pub fn merge(&self, rhs: &EnvMBE<'t, T>) -> EnvMBE<'t, T> {
+    pub fn merge(&self, rhs: &EnvMBE<T>) -> EnvMBE<T> {
         let mut res = self.clone();
         
         let mut rhs_idx_is_named : Vec<bool> = rhs.repeats.iter().map(|_| false).collect();
@@ -251,8 +251,8 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
     /// 
     /// This takes a `Vec` of `Name` instead of just one because a particular name might
     /// not be transcribed at all here, and thus can't tell us how to repeat.
-    pub fn march_all(&self, driving_names: &Vec<Name<'t>>) -> Vec<EnvMBE<'t, T>> {
-        let mut first_march : Option<(usize, Name<'t>)> = None;
+    pub fn march_all(&self, driving_names: &Vec<Name>) -> Vec<EnvMBE<T>> {
+        let mut first_march : Option<(usize, Name)> = None;
         
         for &n in driving_names {
             match (first_march, self.leaf_locations.find(&n).unwrap_or(&None)) {
@@ -281,11 +281,11 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
     }
     
     /// Get a non-repeated thing in the enviornment
-    pub fn get_leaf(&self, n: &Name<'t>) -> Option<&T> {
+    pub fn get_leaf(&self, n: &Name) -> Option<&T> {
         self.leaves.find(n)
     }
     
-    pub fn get_rep_leaf(&self, n: &Name<'t>) -> Option<Vec<&T>> {
+    pub fn get_rep_leaf(&self, n: &Name) -> Option<Vec<&T>> {
         let mut res = vec![];
         let leaf_loc = match self.leaf_locations.find(n) {
             Some(ll) => ll, None => { return None; }
@@ -301,11 +301,11 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
     
 
     /// Extend with a non-repeated thing     
-    pub fn add_leaf(&mut self, n: Name<'t>, v: T) {
+    pub fn add_leaf(&mut self, n: Name, v: T) {
         self.leaves = self.leaves.set(n, v);
     }
     
-    pub fn add_named_repeat(&mut self, n: Name<'t>, sub: Vec<EnvMBE<'t, T>>) {
+    pub fn add_named_repeat(&mut self, n: Name, sub: Vec<EnvMBE<T>>) {
         if sub.len() == 0 { return; } // no-op-ish, but keep the repeats clean (good for `eq`)
         
         match self.named_repeats.find(&n).unwrap_or(&None) {
@@ -333,7 +333,7 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
         }
     }
     
-    pub fn add_anon_repeat(&mut self, sub: Vec<EnvMBE<'t, T>>) {
+    pub fn add_anon_repeat(&mut self, sub: Vec<EnvMBE<T>>) {
         if sub.len() == 0 { return; } // no-op-ish, but keep the repeats clean (good for `eq`)
 
         let new_index = self.repeats.len();
@@ -342,33 +342,33 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
         self.repeats.push(Rc::new(sub));
     }
     
-    pub fn anonimize_repeat(&mut self, n: Name<'t>) {
+    pub fn anonimize_repeat(&mut self, n: Name) {
         // Now you can't find me!
         self.named_repeats = self.named_repeats.set(n, None);
     }
     
     
-    pub fn map<NewT>(&self, f: &Fn(&T) -> NewT) -> EnvMBE<'t, NewT> {
+    pub fn map<NewT>(&self, f: &Fn(&T) -> NewT) -> EnvMBE<NewT> {
         EnvMBE {
             leaves: self.leaves.map(f),
             repeats: self.repeats.iter().map(
-                &|rc_vec_mbe : &Rc<Vec<EnvMBE<'t, T>>>| Rc::new(rc_vec_mbe.iter().map(
-                    &|mbe : &EnvMBE<'t, T>| mbe.map(f)
+                &|rc_vec_mbe : &Rc<Vec<EnvMBE<T>>>| Rc::new(rc_vec_mbe.iter().map(
+                    &|mbe : &EnvMBE<T>| mbe.map(f)
                 ).collect())).collect(),
             leaf_locations: self.leaf_locations.clone(),
             named_repeats: self.named_repeats.clone()
         }
     }
 
-    pub fn map_with<NewT: Clone>(&self, other: &EnvMBE<'t, T>, f: &Fn(&T, &T) -> NewT)
-            -> EnvMBE<'t, NewT> {
+    pub fn map_with<NewT: Clone>(&self, other: &EnvMBE<T>, f: &Fn(&T, &T) -> NewT)
+            -> EnvMBE<NewT> {
         EnvMBE {
             leaves: self.leaves.map_with(&other.leaves, f),
             repeats: self.repeats.iter().zip(other.repeats.iter()).map(
                 &|(rc_vec_mbe, other_rc_vec_mbe) 
-                        : (&Rc<Vec<EnvMBE<'t, T>>>, &Rc<Vec<EnvMBE<'t, T>>>) | 
+                        : (&Rc<Vec<EnvMBE<T>>>, &Rc<Vec<EnvMBE<T>>>) | 
                     Rc::new(rc_vec_mbe.iter().zip(other_rc_vec_mbe.iter()).map(
-                    &|(mbe, other_mbe) : (&EnvMBE<'t, T>, &EnvMBE<'t, T>)|
+                    &|(mbe, other_mbe) : (&EnvMBE<T>, &EnvMBE<T>)|
                         mbe.map_with(&other_mbe, f)
                 ).collect())).collect(),
             leaf_locations: self.leaf_locations.clone(),
@@ -377,7 +377,7 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
     }
     
     
-    pub fn map_reduce_with<NewT: Clone>(&self,  other: &EnvMBE<'t, T>, 
+    pub fn map_reduce_with<NewT: Clone>(&self,  other: &EnvMBE<T>, 
             f: &Fn(&T, &T) -> NewT, red: &Fn(&NewT, &NewT) -> NewT, base: NewT) -> NewT {
         // TODO: this panics all over the place if anything goes wrong
         let mut reduced : NewT = self.leaves.map_with(&other.leaves, f)
@@ -403,9 +403,9 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
         reduced        
     }
     
-    fn update_leaf_locs(&mut self, idx: usize, sub: &Vec<EnvMBE<'t, T>>) {
-        let mut already_placed_leaves = ::std::collections::HashSet::<Name<'t>>::new();
-        let mut already_placed_repeats = ::std::collections::HashSet::<Name<'t>>::new();
+    fn update_leaf_locs(&mut self, idx: usize, sub: &Vec<EnvMBE<T>>) {
+        let mut already_placed_leaves = ::std::collections::HashSet::<Name>::new();
+        let mut already_placed_repeats = ::std::collections::HashSet::<Name>::new();
 
         for sub_mbe in sub {
             for leaf_name in sub_mbe.leaf_locations.iter_keys()
@@ -425,11 +425,11 @@ impl<'t, T: Clone> EnvMBE<'t, T> {
     } 
 }
 
-impl<'t, T: Clone, E: Clone> EnvMBE<'t, Result<T, E>> {
+impl<'t, T: Clone, E: Clone> EnvMBE<Result<T, E>> {
     // Is `lift` the right term?
-    pub fn lift_result(&self) -> Result<EnvMBE<'t, T>, E> {
+    pub fn lift_result(&self) -> Result<EnvMBE<T>, E> {
         // There's probably a nice and elegant way to do this with Result::from_iter, but not today
-        let mut leaves : Assoc<Name<'t>, T> = Assoc::new();
+        let mut leaves : Assoc<Name, T> = Assoc::new();
         for (k,v) in self.leaves.iter_pairs() {
             leaves = leaves.set(*k,try!((*v).clone()));
         }
@@ -455,15 +455,15 @@ impl<'t, T: Clone, E: Clone> EnvMBE<'t, Result<T, E>> {
 }
 
 
-impl<'t, T: Clone + fmt::Debug> EnvMBE<'t, T> {
-    pub fn get_leaf_or_panic(&self, n: &Name<'t>) -> &T {
+impl<'t, T: Clone + fmt::Debug> EnvMBE<T> {
+    pub fn get_leaf_or_panic(&self, n: &Name) -> &T {
         match self.leaves.find(n) {
             Some(v) => { v }
             None => { panic!(" {:?} not found in {:?} (perhaps it is still repeated?)", n, self) }
         }
     }
     
-    pub fn get_rep_leaf_or_panic(&self, n: &Name<'t>) -> Vec<&T> {
+    pub fn get_rep_leaf_or_panic(&self, n: &Name) -> Vec<&T> {
         let mut res = vec![];
         for r in &*self.repeats[self.leaf_locations.find_or_panic(n).unwrap()] {
             res.push(r.get_leaf_or_panic(n))
@@ -543,7 +543,7 @@ fn basic_mbe() {
         assert_eq!(sub_mbe.get_leaf(&n("t")), Some(&0));
         assert_eq!(sub_mbe.get_leaf(&n("nt")), Some(&0));
 
-        for (sub_sub_mbe, big) in sub_mbe.march_all(&vec![n("y"), n("eight")]).iter().zip(vec![9001, 9002]) {
+        for (sub_sub_mbe, _) in sub_mbe.march_all(&vec![n("y"), n("eight")]).iter().zip(vec![9001, 9002]) {
             assert_eq!(sub_sub_mbe.get_leaf(&n("eight")), Some(&0));
             assert_eq!(sub_sub_mbe.get_leaf(&n("nine")), Some(&0));
             assert_eq!(sub_sub_mbe.get_leaf(&n("t")), Some(&0));

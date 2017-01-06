@@ -12,17 +12,17 @@ custom_derive! {
     #[derive(Clone, PartialEq, Reifiable(lifetime))]
     pub enum Ast<'t> {
         Trivial,
-        Atom(Name<'t>),
-        VariableReference(Name<'t>),
+        Atom(Name),
+        VariableReference(Name),
         Shape(Vec<Ast<'t>>),
         
         /// A meaningful chunk of syntax, governed by a form, containing an environment
-        Node(Rc<Form<'t>>, EnvMBE<'t, Ast<'t>>),
+        Node(Rc<Form<'t>>, EnvMBE<Ast<'t>>),
         /// (Only appears during parsing)
-        IncompleteNode(EnvMBE<'t, Ast<'t>>),
+        IncompleteNode(EnvMBE<Ast<'t>>),
         
         /// Variable binding
-        ExtendEnv(Box<Ast<'t>>, Beta<'t>)
+        ExtendEnv(Box<Ast<'t>>, Beta)
     }
 }
 
@@ -64,7 +64,7 @@ impl<'t> fmt::Debug for Ast<'t> {
 
 impl<'t> Ast<'t> {
     // TODO: this ought to at least warn if we're losing anything other than `Shape`
-    pub fn flatten(&self) -> EnvMBE<'t, Ast<'t>> {
+    pub fn flatten(&self) -> EnvMBE<Ast<'t>> {
         match *self {
             Trivial => EnvMBE::new(),
             Atom(_) => EnvMBE::new(),

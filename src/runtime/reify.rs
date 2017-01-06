@@ -38,7 +38,7 @@ pub trait Reifiable<'t> {
     
     /// A name for that type, so that recursive types are okay.
     /// e.g. `Annotated_with_int`
-    fn ty_name() -> Name<'static>;
+    fn ty_name() -> Name;
 
     /// How to refer to this type, given an environment in which 
     ///  `ty_name()` is defined to be `ty()`.
@@ -64,10 +64,10 @@ pub trait Reifiable<'t> {
 macro_rules! basic_reifiability {
     ( $underlying_type:ty, $ty_name:tt, $value_name:ident ) => {
         impl<'t> Reifiable<'t> for $underlying_type {
-            fn ty_name() -> Name<'static> { n($ty_name) }
+            fn ty_name() -> Name { n($ty_name) }
 
             // TODO: can we remove these clones? are they even bad?
-            // They seem redundant in the `Name<'t>` case, at least             
+            // They seem redundant in the `Name` case, at least             
             fn reify(&self) -> Value<'t> { Value::$value_name(self.clone()) }
             
             fn reflect(v: &Value<'t>) -> Self { 
@@ -81,12 +81,12 @@ basic_reifiability!(BigInt, "integer", Int);
 
 basic_reifiability!(bool, "bool", Bool);
 
-basic_reifiability!(Name<'t>, "ident", Ident);
+basic_reifiability!(Name, "ident", Ident);
 
 
 // note: primitives for these shouldn't have BigInt semantics!
 impl<'t> Reifiable<'t> for usize {
-    fn ty_name() -> Name<'static> { n("rust_usize") }
+    fn ty_name() -> Name { n("rust_usize") }
     
     fn reify(&self) -> Value<'t> { Value::Int(BigInt::from(*self)) }
     
@@ -96,7 +96,7 @@ impl<'t> Reifiable<'t> for usize {
     }
 }
 impl<'t> Reifiable<'t> for i32 {
-    fn ty_name() -> Name<'static> { n("rust_i32") }
+    fn ty_name() -> Name { n("rust_i32") }
     
     fn reify(&self) -> Value<'t> { Value::Int(BigInt::from(*self)) }
     
@@ -106,7 +106,7 @@ impl<'t> Reifiable<'t> for i32 {
     }
 }
 impl<'t> Reifiable<'t> for () {
-    fn ty_name() -> Name<'static> { n("unit") }
+    fn ty_name() -> Name { n("unit") }
     
     fn reify(&self) -> Value<'t> { Value::Bool(true) }
     
@@ -115,7 +115,7 @@ impl<'t> Reifiable<'t> for () {
 
 // This is right, right?
 impl<'t> Reifiable<'t> for Value<'t> {
-    fn ty_name() -> Name<'static> { n("any") }
+    fn ty_name() -> Name { n("any") }
     
     fn reify(&self) -> Value<'t> { self.clone() }
     
@@ -169,7 +169,7 @@ macro_rules! reify_types {
 macro_rules! fake_reifiability {
     ( $underlying_type:ty ) => {
         impl<'t> Reifiable<'t> for $underlying_type {
-            fn ty_name() -> Name<'static> { n(stringify!($underlying_type)) }
+            fn ty_name() -> Name { n(stringify!($underlying_type)) }
             fn reify(&self) -> Value<'t> { panic!() }
             fn reflect(_: &Value<'t>) -> Self { panic!() }
         }
@@ -189,7 +189,7 @@ struct V {}
 fake_reifiability!(V);
 
 
-pub fn make_reified_ty_env<'t>() -> Assoc<Name<'static>, ::ty::Ty<'static>> {
+pub fn make_reified_ty_env<'t>() -> Assoc<Name, ::ty::Ty<'static>> {
     reify_types!(Ast<'t>, Assoc<K, V>)
 }
 
@@ -213,7 +213,7 @@ impl<'t, A: Reifiable<'t>, R: Reifiable<'t>> Reifiable<'t> for Box<Fn(A) -> R> {
 impl<'t, T: Reifiable<'t>> Reifiable<'t> for ::std::rc::Rc<T> {
     fn ty() -> Ast<'static> { T::ty() }
     
-    fn ty_name() -> Name<'static> { T::ty_name() }
+    fn ty_name() -> Name { T::ty_name() }
     
     fn ty_invocation() -> Ast<'static> { T::ty_invocation() }
     
@@ -227,7 +227,7 @@ impl<'t, T: Reifiable<'t>> Reifiable<'t> for Vec<T> {
         panic!("TODO")
     }
 
-    fn ty_name() -> Name<'static> { n("Sequence") }
+    fn ty_name() -> Name { n("Sequence") }
 
     fn ty_invocation() -> Ast<'static> { 
         ast!({ "type" "type_apply" : 
@@ -250,7 +250,7 @@ impl<'t, T: Reifiable<'t>> Reifiable<'t> for Vec<T> {
 impl<'t, T: Reifiable<'t>> Reifiable<'t> for ::std::boxed::Box<T> {
     fn ty() -> Ast<'static> { T::ty() }
     
-    fn ty_name() -> Name<'static> { T::ty_name() }
+    fn ty_name() -> Name { T::ty_name() }
 
     fn ty_invocation() -> Ast<'static> { T::ty_invocation() }
     
@@ -261,7 +261,7 @@ impl<'t, T: Reifiable<'t>> Reifiable<'t> for ::std::boxed::Box<T> {
 
 // The roundtrip will de-alias the cell, sadly.
 impl<'t, T: Reifiable<'t>> Reifiable<'t> for ::std::cell::RefCell<T> {
-    fn ty_name() -> Name<'static> { n("rust_RefCell") }
+    fn ty_name() -> Name { n("rust_RefCell") }
     
     fn reify(&self) -> Value<'t> { self.borrow().reify() }
     
@@ -300,11 +300,29 @@ custom_derive! {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+struct OldName<'t> { actual: Name, pd: ::std::marker::PhantomData<&'t u32> }
+fn new_oldname<'t>(nm: Name) -> OldName<'t> {
+    OldName { 
+        actual: nm, pd: ::std::marker::PhantomData 
+    }
+}
+
+impl<'t> Reifiable<'t> for OldName<'t> {
+    fn ty_name() -> Name { n("OldName") }
+    
+    fn reify(&self) -> Value<'t> { Value::Ident(self.actual) }
+    
+    fn reflect(v: &Value<'t>) -> Self { 
+        extract!((v) Value::Ident = (nm) => new_oldname(nm) ) 
+    }
+}
+
 
 custom_derive! {
     #[derive(Debug, PartialEq, Eq, Reifiable(lifetime), Clone)]
     enum BasicLifetimeEnum<'t> {
-        Only(Name<'t>)
+        Only(OldName<'t>)
     }
 }
 
@@ -320,7 +338,7 @@ custom_derive! {
 custom_derive! {
     #[derive(Debug, PartialEq, Eq, Reifiable(lifetime), Clone)]
     struct ParameterizedLifetimeStruct<'t, T, S> {
-        pub a: T, b: S, c: Name<'t>
+        pub a: T, b: S, c: OldName<'t>
     }     
 }
 
@@ -367,14 +385,14 @@ fn basic_r_and_r_roundtrip() {
     assert_eq!(::std::boxed::Box::new(bev0.clone()), 
         ::std::boxed::Box::reflect(&::std::boxed::Box::new(bev0.clone()).reify()));
     
-    let bleo = BasicLifetimeEnum::Only(n("AlexanderHamilton"));
+    let bleo = BasicLifetimeEnum::Only(new_oldname(n("AlexanderHamilton")));
 
     assert_eq!(bleo, BasicLifetimeEnum::reflect(&bleo.reify()));
     
     let pls = ParameterizedLifetimeStruct::<BigInt, bool>{ 
         a: BigInt::from(10),
         b: false,
-        c: n("DuelCommandments")
+        c: new_oldname(n("DuelCommandments"))
     };
     
     assert_eq!(pls, ParameterizedLifetimeStruct::<BigInt, bool>::reflect(&pls.reify()));
@@ -424,7 +442,7 @@ fn reified_types() {
                 "body" => {"type" "struct" :
                     // TODO: why did the order of fields get reversed?
                     "component_name" => [@"c" "c", "b", "a"],
-                    "component" => [@"c" (, tbn("ident")), (, tbn("S")), (, tbn("T"))]
+                    "component" => [@"c" (, tbn("OldName")), (, tbn("S")), (, tbn("T"))]
                     
             }
         }

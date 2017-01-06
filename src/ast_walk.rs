@@ -51,7 +51,7 @@ pub enum WalkRule<'t, Mode: WalkMode<'t>> {
      * Note that the environment is not directly accessible! */
     Custom(Rc<Box<(Fn(LazyWalkReses<'t, Mode>) -> Result<Mode::Out, ()>) + 't>>),
     /** "this form has the same type/value as one of its subforms" */
-    Body(Name<'t>),
+    Body(Name),
     /** "traverse the subterms, and rebuild this syntax around them" */
     LiteralLike,
     /** this form should not ever be typed/evaluated */
@@ -61,7 +61,7 @@ pub enum WalkRule<'t, Mode: WalkMode<'t>> {
 // trait bounds on parameters and functions are not yet supported by `Reifiable!`
 impl<'t, Mode: WalkMode<'t> + 't> reify::Reifiable<'t> for WalkRule<'t, Mode> {
     // doesn't need to be parameterized because it will be opaque. I think!?
-    fn ty_name() -> Name<'static> { n("walk_rule") }
+    fn ty_name() -> Name { n("walk_rule") }
 
     fn reify(&self) -> eval::Value<'t> { 
         match self {
@@ -78,7 +78,7 @@ impl<'t, Mode: WalkMode<'t> + 't> reify::Reifiable<'t> for WalkRule<'t, Mode> {
             if choice.is("NotWalked") {
                 WalkRule::NotWalked
             } else if choice.is("Body") {
-                WalkRule::Body(Name::<'t>::reflect(&parts[0]))
+                WalkRule::Body(Name::reflect(&parts[0]))
             } else if choice.is("Custom") {
                 WalkRule::Custom(reify::reflect_1ary_function(parts[0].clone()))
             } else if choice.is("LiteralLike") {
@@ -93,7 +93,7 @@ impl<'t, Mode: WalkMode<'t> + 't> reify::Reifiable<'t> for WalkRule<'t, Mode> {
 pub use self::WalkRule::*;
 
 /** An environment of walked things. */
-pub type ResEnv<'t, Elt> = Assoc<Name<'t>, Elt>;
+pub type ResEnv<'t, Elt> = Assoc<Name, Elt>;
 
 #[derive(Debug)]
 pub struct LazilyWalkedTerm<'t, Mode: WalkMode<'t>> {
@@ -104,7 +104,7 @@ pub struct LazilyWalkedTerm<'t, Mode: WalkMode<'t>> {
 // trait bounds on parameters are not yet supported by `Reifiable!`
 impl<'t, Mode: WalkMode<'t>> reify::Reifiable<'t> for LazilyWalkedTerm<'t, Mode> {
     // doesn't need to be parameterized because it will be opaque. I think!?
-    fn ty_name() -> Name<'static> { n("lazily_walked_term") }
+    fn ty_name() -> Name { n("lazily_walked_term") }
 
     fn reify(&self) -> eval::Value<'t> {
         val!(struct "term" => (, self.term.reify()), "res" => (, self.res.reify()))
@@ -149,7 +149,7 @@ impl<'t, Mode : WalkMode<'t>> LazilyWalkedTerm<'t, Mode> {
 #[derive(Debug, Clone)]
 pub struct LazyWalkReses<'t, Mode: WalkMode<'t>> {
     /// Things that we have walked and that we might walk
-    pub parts: EnvMBE<'t, Rc<LazilyWalkedTerm<'t, Mode>>>,
+    pub parts: EnvMBE<Rc<LazilyWalkedTerm<'t, Mode>>>,
     /// The environment of the overall walk.
     pub env: ResEnv<'t, Mode::Elt>,
     pub this_form: Rc<Form<'t>> // Seems to be needed to close a loop ) :
@@ -158,7 +158,7 @@ pub struct LazyWalkReses<'t, Mode: WalkMode<'t>> {
 // trait bounds on parameters are not yet supported by `Reifiable!`
 impl<'t, Mode: WalkMode<'t>> reify::Reifiable<'t> for LazyWalkReses<'t, Mode> {
     // doesn't need to be parameterized because it will be opaque. I think!?
-    fn ty_name() -> Name<'static> { n("lazy_walked_reses") }
+    fn ty_name() -> Name { n("lazy_walked_reses") }
 
     fn reify(&self) -> eval::Value<'t> {
         val!(struct "parts" => (, self.parts.reify()), "env" => (, self.env.reify()), 
@@ -166,7 +166,7 @@ impl<'t, Mode: WalkMode<'t>> reify::Reifiable<'t> for LazyWalkReses<'t, Mode> {
     }
     fn reflect(v: &eval::Value<'t>) -> Self { 
         extract!((v) eval::Value::Struct = (ref contents) =>
-            LazyWalkReses { parts: EnvMBE::<'t, Rc<LazilyWalkedTerm<'t, Mode>>>::reflect(
+            LazyWalkReses { parts: EnvMBE::<Rc<LazilyWalkedTerm<'t, Mode>>>::reflect(
                                 contents.find_or_panic(&n("parts"))),
                             env: ResEnv::<'t, Mode::Elt>::reflect(
                                 contents.find_or_panic(&n("env"))),
@@ -179,7 +179,7 @@ impl<'t, Mode: WalkMode<'t>> reify::Reifiable<'t> for LazyWalkReses<'t, Mode> {
 
 impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
     pub fn new(env: ResEnv<'t, Mode::Elt>, 
-               parts_unwalked: EnvMBE<'t, Ast<'t>>,
+               parts_unwalked: EnvMBE<Ast<'t>>,
                this_form: Rc<Form<'t>>)
             -> LazyWalkReses<'t, Mode> {
         LazyWalkReses {
@@ -198,40 +198,40 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
     }
     
     /** The result of walking the subform named `part_name`. This is memoized. */
-    pub fn get_res(&self, part_name: &Name<'t>) -> Result<Mode::Out, ()> {
+    pub fn get_res(&self, part_name: &Name) -> Result<Mode::Out, ()> {
         self.parts.get_leaf_or_panic(part_name).get_res(self)
     }
 
     /** Like `get_res`, but for subforms that are repeated at depth 1. Sort of a hack. */
-    pub fn get_rep_res(&self, part_name: &Name<'t>) -> Result<Vec<Mode::Out>, ()> {
+    pub fn get_rep_res(&self, part_name: &Name) -> Result<Vec<Mode::Out>, ()> {
         self.parts.get_rep_leaf_or_panic(part_name)
             .iter().map( |&lwt| lwt.get_res(self)).collect()
     }
     
     /*/** Like `get_rep_res`, but doesn't panic if the name is absent. */
-    pub fn maybe_get_rep_res(&self, part_name: &Name<'t>) -> Option<Result<Vec<Mode::Out>, ()>> {
+    pub fn maybe_get_rep_res(&self, part_name: &Name) -> Option<Result<Vec<Mode::Out>, ()>> {
         self.parts.get_rep_leaf(part_name).map(|parts| 
             parts.iter().map( |&lwt| lwt.get_res(self)).collect())
     }*/
     
     /** The subform named `part_name`, without any processing. */
-    pub fn get_term(&self, part_name: &Name<'t>) -> Ast<'t> {
+    pub fn get_term(&self, part_name: &Name) -> Ast<'t> {
         self.parts.get_leaf_or_panic(part_name).term.clone()
     }
     
-    pub fn get_rep_term(&self, part_name: &Name<'t>) -> Vec<Ast<'t>> {
+    pub fn get_rep_term(&self, part_name: &Name) -> Vec<Ast<'t>> {
         self.parts.get_rep_leaf_or_panic(part_name)
             .iter().map( |&lwt| lwt.term.clone()).collect()
     }
     
     /** Only sensible for negative walks */
     pub fn context_elt<'f>(&'f self) -> &'f Mode::Elt {
-        self.env.find(&negative_ret_val).unwrap()
+        self.env.find(&negative_ret_val()).unwrap()
     }
     
     /** Change the context. Only sensible for negative walks. */
     pub fn with_context(&self, e: Mode::Elt) -> LazyWalkReses<'t, Mode> {
-        LazyWalkReses { env: self.env.set(negative_ret_val, e), .. (*self).clone() }
+        LazyWalkReses { env: self.env.set(negative_ret_val(), e), .. (*self).clone() }
     }
     
     /** Change the whole environment */
@@ -254,7 +254,7 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
     /** March by example, turning a repeated set of part names into one LWR per repetition.
      * Keeps the same environment.
      */
-    pub fn march_parts(&self, driving_names: &Vec<Name<'t>>) -> Vec<LazyWalkReses<'t, Mode>> {
+    pub fn march_parts(&self, driving_names: &Vec<Name>) -> Vec<LazyWalkReses<'t, Mode>> {
         let marched  = self.parts.march_all(driving_names);
         let mut res = vec![];
         for marched_parts in marched.into_iter() {
@@ -270,20 +270,20 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
      * the same way. But I don't like having the same interface for them in general; I find it
      * confusing. So don't use this ): 
      */
-    pub fn march_all(&self, driving_names: &Vec<Name<'t>>) -> Vec<LazyWalkReses<'t, Mode>> {
+    pub fn march_all(&self, driving_names: &Vec<Name>) -> Vec<LazyWalkReses<'t, Mode>> {
         self.march_parts(driving_names)
     }
     
     /** Combines `march_parts` and `with_context`. `new_contexts` should have the same length
      * as the repetition marched. 
      */ 
-    pub fn march_parts_with(&self, driving_names: &Vec<Name<'t>>, new_contexts: Vec<Mode::Elt>)
+    pub fn march_parts_with(&self, driving_names: &Vec<Name>, new_contexts: Vec<Mode::Elt>)
              -> Option<Vec<LazyWalkReses<'t, Mode>>> {
         let marched  = self.parts.march_all(driving_names);
         if marched.len() != new_contexts.len() { return None; }
         let mut res = vec![];
         for (marched_parts, ctx) in marched.into_iter().zip(new_contexts.into_iter()) {
-            res.push(LazyWalkReses{env: self.env.set(negative_ret_val, ctx), 
+            res.push(LazyWalkReses{env: self.env.set(negative_ret_val(), ctx), 
                                    parts: marched_parts,
                                    this_form: self.this_form.clone()});
         }
@@ -291,7 +291,7 @@ impl<'t, Mode: WalkMode<'t>> LazyWalkReses<'t, Mode> {
     }
     
     /** Like `get_rep_res`, but with a different context for each repetition */
-    pub fn get_rep_res_with(&self, n: &Name<'t>, new_contexts: Vec<Mode::Elt>)
+    pub fn get_rep_res_with(&self, n: &Name, new_contexts: Vec<Mode::Elt>)
             -> Result<Vec<Mode::Out>, ()> {
         if let Some(sub_parts) = self.march_parts_with(&vec![*n], new_contexts) {
             //Some(sub_parts.iter().map(|sp| sp.get_res(n)).collect())
@@ -347,7 +347,7 @@ pub fn walk<'t, Mode: WalkMode<'t>>(expr: &Ast<'t>, cur_node_contents: &LazyWalk
                             Mode::var_to_out(&n("only"),
                                 &assoc_n!("only" => ctxt.clone())).unwrap());
                                 
-                        //type Res<'t, Mode: WalkMode<'t>> = Result<Assoc<Name<'t>, Mode::Elt>, ()>;
+                        //type Res<'t, Mode: WalkMode<'t>> = Result<Assoc<Name, Mode::Elt>, ()>;
 
                         // break apart the node, and walk it element-wise
                         if let Node(ref f_actual, ref parts_actual) = ctxt {
@@ -357,13 +357,13 @@ pub fn walk<'t, Mode: WalkMode<'t>>(expr: &Ast<'t>, cur_node_contents: &LazyWalk
                             // (I really like using pattern-matching in unit tests!)
                             if f != f_actual { return Err(()); /* match failure */ }
                             
-                            fn combine<'t, 'f, Mode: WalkMode<'t>>(result: &'f Result<Assoc<Name<'t>, Mode::Elt>, ()>, next: &'f Result<Assoc<Name<'t>, Mode::Elt>, ()>) -> Result<Assoc<Name<'t>, Mode::Elt>, ()> {
+                            fn combine<'t, 'f, Mode: WalkMode<'t>>(result: &'f Result<Assoc<Name, Mode::Elt>, ()>, next: &'f Result<Assoc<Name, Mode::Elt>, ()>) -> Result<Assoc<Name, Mode::Elt>, ()> {
                                 Ok(try!(result.clone()).set_assoc(&try!(next.clone())))
                             }
                             
                             // TODO: this continues walking after a subterm fails to match;
                             //  it should bail out immediately
-                            let res = parts.map_reduce_with::<Result<Assoc<Name<'t>, Mode::Elt>, ()>>(&parts_actual,
+                            let res = parts.map_reduce_with::<Result<Assoc<Name, Mode::Elt>, ()>>(&parts_actual,
                                 &|model: &Ast<'t>, actual: &Ast<'t>| {
                                     walk(model, 
                                         &cur_node_contents.with_context(
@@ -371,8 +371,8 @@ pub fn walk<'t, Mode: WalkMode<'t>>(expr: &Ast<'t>, cur_node_contents: &LazyWalk
                                         .map(Mode::out_to_env)
                                 },
                                 &|result, next| {
-                                    let r: Assoc<Name<'t>, Mode::Elt> = try!(result.clone());
-                                    let n: Assoc<Name<'t>, Mode::Elt> = try!(next.clone());
+                                    let r: Assoc<Name, Mode::Elt> = try!(result.clone());
+                                    let n: Assoc<Name, Mode::Elt> = try!(next.clone());
                                     Ok(r.set_assoc(&n))
                                 },
                                 //panic!("I don't understand lifetimes enough to make this work!"),
@@ -456,11 +456,11 @@ pub trait WalkMode<'t> : Debug + Copy + Reifiable<'t> {
         panic!("not implemented: {:?} cannot be converted", a)
     }
     
-    fn out_to_env(o: Self::Out) -> Assoc<Name<'t>, Self::Elt> {
+    fn out_to_env(o: Self::Out) -> Assoc<Name, Self::Elt> {
         panic!("not implemented: {:?} cannot be converted", o)
     }
     
-    fn env_to_out(e: Assoc<Name<'t>, Self::Elt>) -> Self::Out {
+    fn env_to_out(e: Assoc<Name, Self::Elt>) -> Self::Out {
         panic!("not implemented: {:?} cannot be converted", e)        
     }
     
@@ -472,19 +472,19 @@ pub trait WalkMode<'t> : Debug + Copy + Reifiable<'t> {
         panic!("not implemented: {:?} cannot be converted", o)
     }
     
-    fn var_to_out(var: &Name<'t>, env: &ResEnv<'t, Self::Elt>) -> Result<Self::Out, ()>;
+    fn var_to_out(var: &Name, env: &ResEnv<'t, Self::Elt>) -> Result<Self::Out, ()>;
     
     fn positive() -> bool;
 }
 
 /** var_to_out, for positive walks where Out == Elt */
-pub fn var_lookup<'t, Elt: Debug + Clone>(n: &Name<'t>, env: &Assoc<Name<'t>, Elt>) 
+pub fn var_lookup<'t, Elt: Debug + Clone>(n: &Name, env: &Assoc<Name, Elt>) 
         -> Result<Elt, ()> {
     Ok((*env.find(n).expect(format!("Name {:?} unbound in {:?}", n, env).as_str())).clone())
 }
 
-/** var_to_out, for negative walks where Out == Assoc<Name<'t>, Elt> */
-pub fn var_bind<'t, Elt: Debug + Clone>(n: &Name<'t>, env: &Assoc<Name<'t>, Elt>) 
-        -> Result<Assoc<Name<'t>, Elt>, ()> {
-    Ok(Assoc::new().set(*n, env.find(&negative_ret_val).unwrap().clone()))
+/** var_to_out, for negative walks where Out == Assoc<Name, Elt> */
+pub fn var_bind<'t, Elt: Debug + Clone>(n: &Name, env: &Assoc<Name, Elt>) 
+        -> Result<Assoc<Name, Elt>, ()> {
+    Ok(Assoc::new().set(n.clone(), env.find(&negative_ret_val()).unwrap().clone()))
 }

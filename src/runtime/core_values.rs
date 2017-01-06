@@ -19,7 +19,7 @@ pub fn erase_types<'t>(tv: &TypedValue<'t>) -> Value<'t> { tv.val.clone() }
 
 
 
-pub fn core_typed_values() -> Assoc<Name<'static>, TypedValue<'static>> {
+pub fn core_typed_values() -> Assoc<Name, TypedValue<'static>> {
     assoc_n!(
         "plus" =>
         tf!([( "integer", "integer" ) -> "integer"],

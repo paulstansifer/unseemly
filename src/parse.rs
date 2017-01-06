@@ -21,7 +21,7 @@ use self::combine::primitives::{State, SliceStream, Positioner};
 use self::combine::combinator::ParserExt;
 
 
-impl<'t> Token<'t> {
+impl<'t> Token {
     fn to_ast(&self) -> Ast<'t> {
         match *self {
             Simple(ref s) => Atom(s.clone()),
@@ -49,11 +49,11 @@ custom_derive! {
         /// Never matches
         Impossible,
 
-        Literal(Name<'t>),
+        Literal(Name),
         AnyToken,
         AnyAtomicToken,
         VarRef,
-        Delimited(Name<'t>, DelimChar, Box<FormPat<'t>>),
+        Delimited(Name, DelimChar, Box<FormPat<'t>>),
         Seq(Vec<FormPat<'t>>),
         Star(Box<FormPat<'t>>),
         Alt(Vec<FormPat<'t>>),
@@ -67,32 +67,32 @@ custom_derive! {
         /**
          * Lookup a nonterminal in the current syntactic environment.
          */ 
-        Call(Name<'t>),
+        Call(Name),
         /** 
          * This is where syntax gets reflective.
          * Evaluates its body (one phase up)
          *  as a function from the current `SynEnv` to a new one, 
          *  and names the result in the current scope. 
          */
-        ComputeSyntax(Name<'t>, Box<FormPat<'t>>),
+        ComputeSyntax(Name, Box<FormPat<'t>>),
 
         /** Makes a node and limits the region where names are meaningful. */
         Scope(Rc<Form<'t>>), 
-        Named(Name<'t>, Box<FormPat<'t>>),
+        Named(Name, Box<FormPat<'t>>),
 
         /**
          * This is where syntax gets extensible.
          * Parses its body in the named syntactic environment.
          * TODO: do we need both this and `ComputeSyntax`?
          */
-        SynImport(Name<'t>, SyntaxExtension<'t>),
+        SynImport(Name, SyntaxExtension<'t>),
         /**
          * FOOTGUN:  NameImport(Named(...), ...) is almost always wrong.
          * (write Named(NameImport(..., ...)) instead) 
          * TODO: make this better
          */
-        NameImport(Box<FormPat<'t>>, Beta<'t>),
-        //NameExport(Beta<'t>, Box<FormPat<'t>>) // This might want to go on some existing pattern
+        NameImport(Box<FormPat<'t>>, Beta),
+        //NameExport(Beta, Box<FormPat<'t>>) // This might want to go on some existing pattern
     }
 }
 pub struct SyntaxExtension<'t>(pub Rc<Box<(Fn(SynEnv<'t>) -> SynEnv<'t>) + 't>>);
@@ -106,7 +106,7 @@ impl<'t> Clone for SyntaxExtension<'t> {
 // This kind of struct is theoretically possible to add to the `Reifiable!` macro,
 // but I don't feel like doing it right now
 impl<'t> ::runtime::reify::Reifiable<'t> for SyntaxExtension<'t> {
-    fn ty_name() -> Name<'static> { n("syntax_extension") } 
+    fn ty_name() -> Name { n("syntax_extension") } 
     
     fn reify(&self) -> ::runtime::eval::Value<'t> { 
         ::runtime::reify::reify_1ary_function(self.0.clone())
@@ -123,7 +123,7 @@ impl<'t> std::fmt::Debug for SyntaxExtension<'t> {
     }
 }
 
-pub type SynEnv<'t> = Assoc<Name<'t>, FormPat<'t>>;
+pub type SynEnv<'t> = Assoc<Name, FormPat<'t>>;
 
 struct FormPatParser<'form, 'tokens: 'form, 't: 'tokens> {
     f: &'form FormPat<'t>,
@@ -131,17 +131,17 @@ struct FormPatParser<'form, 'tokens: 'form, 't: 'tokens> {
     token_phantom: PhantomData<&'tokens usize>
 }
 
-impl<'t> Positioner for Token<'t> {
+impl<'t> Positioner for Token {
     type Position = usize;
     fn start() -> usize { 0 }
     fn update(&self, position: &mut usize) { *position += 1 as usize }
 }
 
 impl<'form, 'tokens, 't: 'form> FormPatParser<'form, 'tokens, 't> {
-    fn parse_tokens(&'form mut self, ts: &'tokens Vec<Token<'t>>)
-            -> ParseResult<Ast<'t>, SliceStream<'tokens, Token<'t>>> {
+    fn parse_tokens(&'form mut self, ts: &'tokens Vec<Token>)
+            -> ParseResult<Ast<'t>, SliceStream<'tokens, Token>> {
         
-        self.parse_state(State::new(SliceStream::<'tokens, Token<'t>>(ts.as_slice())))
+        self.parse_state(State::new(SliceStream::<'tokens, Token>(ts.as_slice())))
     }
 
     fn descend<'subform>(&self, f: &'subform FormPat<'t>)
@@ -158,8 +158,8 @@ impl<'form, 'tokens, 't: 'form> FormPatParser<'form, 'tokens, 't> {
 
 /** Parse `tt` with the grammar `f` in the environment `se`.
   The environment is used for lookup when `Call` patterns are reached. */
-pub fn parse<'fun, 't: 'fun>(f: &'fun FormPat<'t>, se: SynEnv<'t>, tt: &'fun TokenTree<'t>)
-        -> Result<Ast<'t>, ParseError<SliceStream<'fun, Token<'t>>>> {
+pub fn parse<'fun, 't: 'fun>(f: &'fun FormPat<'t>, se: SynEnv<'t>, tt: &'fun TokenTree)
+        -> Result<Ast<'t>, ParseError<SliceStream<'fun, Token>>> {
     let (res, consumed) = 
         try!(FormPatParser{f: f, se: se, token_phantom: PhantomData}.parse_tokens(&tt.t)
             .map_err(|consumed| consumed.into_inner()));
@@ -174,20 +174,20 @@ pub fn parse<'fun, 't: 'fun>(f: &'fun FormPat<'t>, se: SynEnv<'t>, tt: &'fun Tok
 
 /** Parse `tt` with the grammar `f` in an empty syntactic environment.
  `Call` patterns are errors. */
-pub fn parse_top<'fun, 't>(f: &'fun FormPat<'t>, tt: &'fun TokenTree<'t>)
-        -> Result<Ast<'t>, ParseError<SliceStream<'fun, Token<'t>>>> {
+pub fn parse_top<'fun, 't>(f: &'fun FormPat<'t>, tt: &'fun TokenTree)
+        -> Result<Ast<'t>, ParseError<SliceStream<'fun, Token>>> {
         
     parse(f, Assoc::new(), tt)
 }
 
 impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
-    type Input = SliceStream<'tokens, Token<'t>>;
+    type Input = SliceStream<'tokens, Token>;
     type Output = Ast<'t>;
     
     fn parse_state<'f>(self: &'f mut FormPatParser<'form, 'tokens, 't>, inp: State<Self::Input>)
           -> ParseResult<Self::Output, Self::Input> {
 
-        fn ast_ify<'t, I>(res : (&Token<'t>, I)) -> (Ast<'t>, I) {
+        fn ast_ify<'t, I>(res : (&Token, I)) -> (Ast<'t>, I) {
             let (got, inp) = res;
             (got.to_ast(), inp)
         }
@@ -200,12 +200,12 @@ impl<'form, 'tokens, 't> combine::Parser for FormPatParser<'form, 'tokens, 't> {
                 combine::unexpected("impossible").parse_state(inp).map(|_| panic!(""))
             }
             &Literal(exp_tok) => {
-                combine::satisfy(|tok: &'tokens Token<'t>| {tok == &Simple(exp_tok)})
+                combine::satisfy(|tok: &'tokens Token| {tok == &Simple(exp_tok)})
                     .parse_state(inp).map(ast_ify)
             }
             &AnyToken => { combine::any().parse_state(inp).map(ast_ify) }
             &AnyAtomicToken => {
-                combine::satisfy(|tok: &'tokens Token<'t>| { 
+                combine::satisfy(|tok: &'tokens Token| { 
                     match *tok { Simple(_) => true, _ => false } }).parse_state(inp).map(ast_ify)
             }
             &VarRef => {

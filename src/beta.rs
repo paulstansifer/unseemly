@@ -22,27 +22,27 @@ use ast::{Atom};
  */
 
 custom_derive! {
-    #[derive(PartialEq, Eq, Clone, Reifiable(lifetime))]
-    pub enum Beta<'t> {
+    #[derive(PartialEq, Eq, Clone, Reifiable)]
+    pub enum Beta {
         /// Both of these `Name`s refer to named terms in the current `Scope` (or `ResEnv`, for `Ast`s).
         /// The first is the identifier to import, and the second the syntax for its type.
-        Basic(Name<'t>, Name<'t>),
+        Basic(Name, Name),
         /// Like `Basic`, but here the second part is another expression 
         /// which should be typechecked, and whose type the new name gets.
         /// (This can be used write `let` without requiring a type annotation.)
-        SameAs(Name<'t>, Name<'t>),
+        SameAs(Name, Name),
         /// Shadow the names from two `Beta`s.
-        Shadow(Box<Beta<'t>>, Box<Beta<'t>>),
+        Shadow(Box<Beta>, Box<Beta>),
         /// Shadow the names from a `Beta`, repeated.
         /// The `Vec` should always be equal to `names_mentioned(...)` of the `Beta`.
-        ShadowAll(Box<Beta<'t>>, Vec<Name<'t>>),
+        ShadowAll(Box<Beta>, Vec<Name>),
         Nothing
     }
 }
 
 pub use self::Beta::*;
 
-impl<'t> fmt::Debug for Beta<'t> {
+impl<'t> fmt::Debug for Beta {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Nothing => { write!(f, "∅") },
@@ -58,8 +58,8 @@ impl<'t> fmt::Debug for Beta<'t> {
     }
 }
 
-impl<'t> Beta<'t> {
-    pub fn names_mentioned(&self) -> Vec<Name<'t>> {
+impl<'t> Beta {
+    pub fn names_mentioned(&self) -> Vec<Name> {
         match self {
             &Nothing => { vec![] }
             &Shadow(ref lhs, ref rhs) => { 
@@ -69,13 +69,13 @@ impl<'t> Beta<'t> {
                 res
             }
             &ShadowAll(_, ref drivers) => { drivers.clone() }
-            &Basic(ref n, ref v) => { vec![*n, *v] }
-            &SameAs(ref n, ref v_source) => { vec![*n, *v_source] }
+            &Basic(ref n, ref v) => { vec![n.clone(), *v] }
+            &SameAs(ref n, ref v_source) => { vec![n.clone(), *v_source] }
         }
     }
 }
 
-pub fn env_from_beta<'t, Mode: WalkMode<'t>>(b: &Beta<'t>, parts: &LazyWalkReses<'t, Mode>)
+pub fn env_from_beta<'t, Mode: WalkMode<'t>>(b: &Beta, parts: &LazyWalkReses<'t, Mode>)
          -> Result<ResEnv<'t, Mode::Elt>, ()> {
     match b {
         &Nothing => { Ok(Assoc::new()) }
@@ -116,6 +116,6 @@ pub fn env_from_beta<'t, Mode: WalkMode<'t>>(b: &Beta<'t>, parts: &LazyWalkReses
     }
 }
 
-//fn fold_beta<'t, T>(b: Beta<'t>, over: Assoc<Name<'t>, T>,
+//fn fold_beta<'t, T>(b: Beta, over: Assoc<Name, T>,
 //                    leaf: Fn(&Ast<'t> ) -> S
 

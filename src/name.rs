@@ -1,56 +1,67 @@
 #![macro_use]
-
 #![allow(non_upper_case_globals)]
 
+extern crate lalrpop_intern;
+
 use std::fmt;
+use std::string::String;
 
 #[derive(PartialEq,Eq,Clone,Copy,Hash)]
-pub struct Name<'t> {
-    orig: &'t str
+pub struct Name {
+    id: lalrpop_intern::InternedString
 }
 
+// only available on nightly:
+// impl !Send for Name {}
+
+impl Name {
+    fn sp(&self) -> String { self.id.to_string() }
+}
 
 /// Special name for negative `ast_walk`ing
-// TODO: this should be gensymmed, effectively
-// This has to be here for `orig` to be private.
-// And then this gets included in `name::*`; very sad.
-pub const negative_ret_val : Name<'static> = Name { orig: "⋅" };
+// TODO: move to `ast_walk`
 
-impl<'t> fmt::Debug for Name<'t> {
+// TODO: this interner doesn't support `gensym`...
+pub fn negative_ret_val() -> Name {
+    Name { id: lalrpop_intern::intern("☾⋅☽")}
+}
+
+
+impl fmt::Debug for Name {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "«{}»", self.orig)
+        write!(f, "«{}»", self.sp())
     }
 }
 
-impl<'t> fmt::Display for Name<'t> {
+impl fmt::Display for Name {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.orig)
+        write!(f, "{}", self.sp())
     }
 }
 
-impl<'t> Name<'t> {
-    pub fn is(&self, s: &'t str) -> bool {
-        self.orig == s
+impl Name {
+    pub fn is(&self, s: &str) -> bool {
+        &self.sp() == s
     }
     
-    pub fn is_name<'tt>(&self, n: Name<'tt>) -> bool {
-        self.orig == n.orig
+    pub fn is_name(&self, n: &Name) -> bool {
+        self.sp() == n.sp()
     }
 }
 
-pub fn n<'t>(s: &'t str) -> Name<'t> {
-    Name{ orig: s }
+pub fn n(s: &str) -> Name {
+    Name{ id: lalrpop_intern::intern(s) }
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ContainedName {
-    orig: String
+    spelling: String
 }
 
 impl ContainedName {
-    pub fn from_name<'t>(n: &Name<'t>) -> ContainedName {
+    pub fn from_name(n: &Name) -> ContainedName {
         ContainedName {
-            orig: n.orig.to_string()
+            spelling: n.sp()
         }
     }
 }
