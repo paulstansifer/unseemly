@@ -28,6 +28,49 @@ pub fn ast_to_atom(ast: &Ast) -> Name {
     match ast { &Atom(n) => n, _ => { panic!("internal error!") } }
 }
 
+/*
+ * A brief digression about types and syntax quotation...
+ * Expressions are "positive", and are traversed leaf-to-root in an environment, producing a type.
+ * Patterns are "negative", and are traversed root-to-leave from a type, producing an environment.
+ * (`match` and `lambda` are examples of interactions between expressions and patterns.)
+ * Syntax quotation and unquotation embeds expressions/patterns
+ *  (at a different phase, which matters suprisingly little)
+ *  inside expressions/patterns.
+ *
+ * This looks like:
+ *                     pattern outside | expression outside      <-- (provides context)
+ *                   --------------------------------------
+ * pattern inside    | ok              | needs annotation
+ * expression inside | bonus check     | ok
+ *
+ * Examples of needed annotation:
+ *
+ *   optimize_pat '[{Pat<[List<[Int]<]<} cons a b]'
+ * In this case, we need to know the type of the syntax quote,
+ *  but the pattern wants to know its type so that it can tell us its environment.
+ *
+ *   match stx { '[{Pat} 1 + 5 * ,[{Expr<[Nat]<} stx_num], ]' => ... }
+ * In this case (looking at the expression interpolation),
+ *  we need to know the type of the interpolated expression syntax (a pattern)
+ *   in order to type-synthesize the arithmetic.
+ *
+ *
+ * Examples of when we get to do a bonus typecheck:
+ *
+ *   match stx { '[{Expr} f x]' => ... }
+ * In this case, we can check that the type of the scrutinee
+ *  (which equals the type of the syntax quotation pattern)
+ *   equals Expr<[ (whatever `f` returns) ]<.
+ *
+ *   optimize_expr '[{Expr} match stx { ,[{Pat} my_pat], => ... } ]'
+ * In this case (looking at the Pat interpolation),
+ *  we can check that the type of the quoted scrutinee is the same as
+ *   the type of `my_pat` (after peeling off its `Pat<[]<`).
+ *
+ * Note that it doesn't matter whether the boundary is a quotation or an unquotation!
+ * Like I said, the phase doesn't matter much.
+ */
+
 // This form isn't part of any nt! Instead, it's inserted into nts by `quote`.
 fn unquote<Mode: ::ast_walk::WalkMode>(nt : Name, ctf: SynEnv, pos: bool)
         -> Rc<Form> {
