@@ -38,17 +38,17 @@ impl ::std::fmt::Display for Ty {
             // Not used, right? Maybe it should be...
             //VariableReference(ref n) => { write!(f, "{}", n) },
             Node(ref form, ref env) => {
-                if ::form::same_form(form, &find_core_form("type", "ident")) {
+                if form == &find_core_form("type", "ident") {
                     write!(f, "ident")
-                } else if ::form::same_form(form, &find_core_form("type", "int")) {
+                } else if form == &find_core_form("type", "int") {
                     write!(f, "int")                    
-                } else if ::form::same_form(form, &find_core_form("type", "nat")) {
+                } else if form == &find_core_form("type", "nat") {
                     write!(f, "nat")                    
-                } else if ::form::same_form(form, &find_core_form("type", "float")) {
+                } else if form == &find_core_form("type", "float") {
                     write!(f, "float")                    
-                } else if ::form::same_form(form, &find_core_form("type", "bool")) {
+                } else if form == &find_core_form("type", "bool") {
                     write!(f, "bool")                    
-                } else if ::form::same_form(form, &find_core_form("type", "fn")) {
+                } else if form == &find_core_form("type", "fn") {
                     try!(write!(f, "["));
                     let mut first = true;
                     for p in env.get_rep_leaf_or_panic(&n("param")) {
@@ -58,7 +58,7 @@ impl ::std::fmt::Display for Ty {
                         try!(write!(f, "{}", Ty(p.clone())));
                     }
                     write!(f, " -> {}]", Ty(env.get_leaf_or_panic(&n("ret")).clone()))
-                } else if ::form::same_form(form, &find_core_form("type", "enum")) {
+                } else if form == &find_core_form("type", "enum") {
                     try!(write!(f, "enum{{"));
                     for subenv in env.march_all(&vec![n("name")]) {
                         try!(write!(f, " {}("/*)*/, 
@@ -74,7 +74,7 @@ impl ::std::fmt::Display for Ty {
                         try!(write!(f, /*(*/")"));
                     }
                     write!(f, "}}")
-                } else if ::form::same_form(form, &find_core_form("type", "struct")) {
+                } else if form == &find_core_form("type", "struct") {
                     try!(write!(f, "struct{{"));
                     for subenv in env.march_all(&vec![n("component_name")]) {
                         try!(write!(f, " {}: {}", 
@@ -82,7 +82,7 @@ impl ::std::fmt::Display for Ty {
                             Ty(subenv.get_leaf_or_panic(&n("component")).clone())));
                     }
                     write!(f, " }}")
-                } else if ::form::same_form(form, &find_core_form("type", "forall_type")) {
+                } else if form == &find_core_form("type", "forall_type") {
                     // This isn't the input syntax... maybe it should be when our parser is better
                     try!(write!(f, "∀"));
                     if let Some(args) = env.get_rep_leaf(&n("param")) {
@@ -91,13 +91,13 @@ impl ::std::fmt::Display for Ty {
                         }
                     }
                     write!(f, ". {}", Ty(env.get_leaf_or_panic(&n("body")).clone()))
-                } else if ::form::same_form(form, &find_core_form("type", "mu_type")) {
+                } else if form == &find_core_form("type", "mu_type") {
                     write!(f, "μ {}. {}", 
                         ast_to_atom(env.get_leaf_or_panic(&n("param"))),
                         Ty(env.get_leaf_or_panic(&n("body")).clone()))
-                } else if ::form::same_form(form, &find_core_form("type", "type_by_name")) {
+                } else if form == &find_core_form("type", "type_by_name") {
                     write!(f, "{}", ast_to_atom(env.get_leaf_or_panic(&n("name"))))
-                } else if ::form::same_form(form, &find_core_form("type", "type_apply")) {
+                } else if form == &find_core_form("type", "type_apply") {
                     try!(write!(f, "{}<[", ast_to_atom(env.get_leaf_or_panic(&n("type_name")))));
                     let mut first = true;
                     if let Some(args) = env.get_rep_leaf(&n("arg")) {

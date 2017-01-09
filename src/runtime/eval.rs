@@ -106,8 +106,7 @@ impl WalkMode for NegativeEvaluate {
     // at the point it's written down in code.
     fn automatically_extend_env() -> bool { false }
     
-    fn var_to_out(n: &Name, env: &Assoc<Name, Value>) 
-            -> Result<Assoc<Name, Value>, ()> {
+    fn var_to_out(n: &Name, env: &Assoc<Name, Value>) -> Result<Assoc<Name, Value>, ()> {
         ::ast_walk::var_bind(n, env)
     }
     

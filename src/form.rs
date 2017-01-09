@@ -12,8 +12,6 @@ use runtime::eval::{Evaluate, NegativeEvaluate, Quasiquote, NegativeQuasiquote};
 pub type NMap<T> = Assoc<Name, T>;
 
 
-// `Form` appears to be invariant (rather than covariant) over its lifetime parameter
-//  because the function inside WalkRule is invariant over it. ) :
 custom_derive! {
     /// Unseemly language form
     #[derive(Reifiable)]
@@ -73,11 +71,6 @@ impl PartialEq for Form {
     fn eq(&self, other: &Form) -> bool { 
         self as *const Form == other as *const Form
     }
-}
-
-// HACK: I think this means that we need to just get rid of the pervasive lifetime parameters
-pub fn same_form(a: &Rc<Form>, b: &Rc<Form>) -> bool {
-    a.name.is_name(&b.name)
 }
 
 

@@ -23,7 +23,7 @@ pub enum Token {
     Group(Name, DelimChar, TokenTree)
 }
 
-impl<'a> Token {
+impl Token {
     pub fn is_just(&self, s: &str) -> bool {
         match self {
             &Simple(ref x) if x.is(s) => { true }
