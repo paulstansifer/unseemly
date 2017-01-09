@@ -66,7 +66,7 @@ impl WalkMode for Evaluate {
     
     type Negative = NegativeEvaluate;
     
-    fn get_walk_rule<'f>(f: &'f Form) -> &'f WalkRule<Self> {
+    fn get_walk_rule(f: &Form) -> &WalkRule<Self> {
         f.eval.pos()
     }
 
@@ -98,8 +98,8 @@ impl WalkMode for NegativeEvaluate {
     
     type Negative = Evaluate;
     
-    fn get_walk_rule<'f>(f: &'f Form) -> &'f WalkRule<Self> {
-        &f.eval.neg()
+    fn get_walk_rule(f: &Form) -> &WalkRule<Self> {
+        f.eval.neg()
     }
 
     // It's not possible to construct the environment of the body of a function 
@@ -127,7 +127,7 @@ impl WalkMode for Quasiquote {
     
     type Negative = NegativeQuasiquote;
     
-    fn get_walk_rule<'f>(f: &'f Form) -> &'f WalkRule<Self> {
+    fn get_walk_rule(f: &Form) -> &WalkRule<Self> {
         f.quasiquote.pos()
     }
     
@@ -168,7 +168,7 @@ impl WalkMode for NegativeQuasiquote {
     
     type Negative = Quasiquote;
     
-    fn get_walk_rule<'f>(f: &'f Form) -> &'f WalkRule<Self> {
+    fn get_walk_rule(f: &Form) -> &WalkRule<Self> {
         f.quasiquote.neg()
     }
     

@@ -110,7 +110,7 @@ impl < T: PartialEq> PartialEq for EnvMBE<T> {
                (lhs: &Assoc<K, Option<V>>, rhs: &Assoc<K, Option<V>>)
                -> bool {
            for (k, v_maybe) in lhs.iter_pairs() {
-               if let &Some(ref v) = v_maybe {
+               if let Some(ref v) = *v_maybe {
                    if let Some(&Some(ref other_v)) = rhs.find(k) {
                        if !(v == other_v) { return false; }
                    } else { return false; }                   
@@ -124,7 +124,8 @@ impl < T: PartialEq> PartialEq for EnvMBE<T> {
                    } else { return false; }                   
                }
            }
-           return true;
+           
+           true
        }
        
        // This ought to handle permutations of `repeats` 
@@ -140,7 +141,7 @@ impl < T: PartialEq> PartialEq for EnvMBE<T> {
 
 impl<T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.leaves.empty() && self.repeats.len() == 0 {
+        if self.leaves.empty() && self.repeats.is_empty() {
             write!(f, "MBE∅")
         } else {
             try!(write!(f, "MBE{{ lf: {:?}, rp: [", self.leaves));
@@ -151,7 +152,7 @@ impl<T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
                 
                 // is it a named repeat?
                 for (name, idx_maybe) in self.named_repeats.iter_pairs() {
-                    if let &Some(idx) = idx_maybe {
+                    if let Some(idx) = *idx_maybe {
                         if idx == i { try!(write!(f, "({:?}) ", name)); }
                     }
                 }
@@ -228,7 +229,7 @@ impl<T: Clone> EnvMBE<T> {
         // arrays, but that would require reworking the interface.
         
         for (n, rep_idx) in rhs.named_repeats.iter_pairs() {
-            if let &Some(rep_idx) = rep_idx {
+            if let Some(rep_idx) = *rep_idx {
                 res.add_named_repeat(*n, (*rhs.repeats[rep_idx]).clone());
                 rhs_idx_is_named[rep_idx] = true;
             }
@@ -251,7 +252,7 @@ impl<T: Clone> EnvMBE<T> {
     /// 
     /// This takes a `Vec` of `Name` instead of just one because a particular name might
     /// not be transcribed at all here, and thus can't tell us how to repeat.
-    pub fn march_all(&self, driving_names: &Vec<Name>) -> Vec<EnvMBE<T>> {
+    pub fn march_all(&self, driving_names: &[Name]) -> Vec<EnvMBE<T>> {
         let mut first_march : Option<(usize, Name)> = None;
         
         for &n in driving_names {
@@ -306,17 +307,17 @@ impl<T: Clone> EnvMBE<T> {
     }
     
     pub fn add_named_repeat(&mut self, n: Name, sub: Vec<EnvMBE<T>>) {
-        if sub.len() == 0 { return; } // no-op-ish, but keep the repeats clean (good for `eq`)
+        if sub.is_empty() { return; } // no-op-ish, but keep the repeats clean (good for `eq`)
         
-        match self.named_repeats.find(&n).unwrap_or(&None) {
-            &None => {
+        match *self.named_repeats.find(&n).unwrap_or(&None) {
+            None => {
                 let new_index = self.repeats.len();
                 self.update_leaf_locs(new_index, &sub);
 
                 self.repeats.push(Rc::new(sub));
                 self.named_repeats = self.named_repeats.set(n, Some(new_index));
             }
-            &Some(idx) => {
+            Some(idx) => {
                 if self.repeats[idx].len() != sub.len() {
                     panic!("Named repetition {:?} is repeated {:?} times in one place, {:?} times in another.",
                         n, self.repeats[idx].len(), sub.len())
@@ -334,7 +335,7 @@ impl<T: Clone> EnvMBE<T> {
     }
     
     pub fn add_anon_repeat(&mut self, sub: Vec<EnvMBE<T>>) {
-        if sub.len() == 0 { return; } // no-op-ish, but keep the repeats clean (good for `eq`)
+        if sub.is_empty() { return; } // no-op-ish, but keep the repeats clean (good for `eq`)
 
         let new_index = self.repeats.len();
         self.update_leaf_locs(new_index, &sub);
@@ -365,11 +366,10 @@ impl<T: Clone> EnvMBE<T> {
         EnvMBE {
             leaves: self.leaves.map_with(&other.leaves, f),
             repeats: self.repeats.iter().zip(other.repeats.iter()).map(
-                &|(rc_vec_mbe, other_rc_vec_mbe) 
-                        : (&Rc<Vec<EnvMBE<T>>>, &Rc<Vec<EnvMBE<T>>>) | 
+                &|(rc_vec_mbe, other_rc_vec_mbe) : (&Rc<Vec<EnvMBE<T>>>, &Rc<Vec<EnvMBE<T>>>) | 
                     Rc::new(rc_vec_mbe.iter().zip(other_rc_vec_mbe.iter()).map(
                     &|(mbe, other_mbe) : (&EnvMBE<T>, &EnvMBE<T>)|
-                        mbe.map_with(&other_mbe, f)
+                        mbe.map_with(other_mbe, f)
                 ).collect())).collect(),
             leaf_locations: self.leaf_locations.clone(),
             named_repeats: self.named_repeats.clone()
@@ -403,7 +403,7 @@ impl<T: Clone> EnvMBE<T> {
         reduced        
     }
     
-    fn update_leaf_locs(&mut self, idx: usize, sub: &Vec<EnvMBE<T>>) {
+    fn update_leaf_locs(&mut self, idx: usize, sub: &[EnvMBE<T>]) {
         let mut already_placed_leaves = ::std::collections::HashSet::<Name>::new();
         let mut already_placed_repeats = ::std::collections::HashSet::<Name>::new();
 

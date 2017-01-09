@@ -64,12 +64,12 @@ impl<Mode: WalkMode + 'static> reify::Reifiable for WalkRule<Mode> {
     fn ty_name() -> Name { n("walk_rule") }
 
     fn reify(&self) -> eval::Value { 
-        match self {
-            &NotWalked => val!(enum "NotWalked",),
-            &Body(ref n) => val!(enum "Body", (ident n.clone())),
-            &Custom(ref lwr_to_out) => val!(enum "Custom", (, 
+        match *self {
+            NotWalked => val!(enum "NotWalked",),
+            Body(ref n) => val!(enum "Body", (ident n.clone())),
+            Custom(ref lwr_to_out) => val!(enum "Custom", (, 
                 reify::reify_1ary_function(lwr_to_out.clone()))),
-            &LiteralLike => val!(enum "LiteralLike",)
+            LiteralLike => val!(enum "LiteralLike",)
         }
     }
     
@@ -225,7 +225,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
     
     /** Only sensible for negative walks */
-    pub fn context_elt<'f>(&'f self) -> &'f Mode::Elt {
+    pub fn context_elt(&self) -> &Mode::Elt {
         self.env.find(&negative_ret_val()).unwrap()
     }
     
@@ -254,10 +254,10 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     /** March by example, turning a repeated set of part names into one LWR per repetition.
      * Keeps the same environment.
      */
-    pub fn march_parts(&self, driving_names: &Vec<Name>) -> Vec<LazyWalkReses<Mode>> {
+    pub fn march_parts(&self, driving_names: &[Name]) -> Vec<LazyWalkReses<Mode>> {
         let marched  = self.parts.march_all(driving_names);
         let mut res = vec![];
-        for marched_parts in marched.into_iter() {
+        for marched_parts in marched {
             res.push(LazyWalkReses{
                 env: self.env.clone(), parts: marched_parts, this_form: self.this_form.clone()
             });
@@ -270,14 +270,14 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
      * the same way. But I don't like having the same interface for them in general; I find it
      * confusing. So don't use this ): 
      */
-    pub fn march_all(&self, driving_names: &Vec<Name>) -> Vec<LazyWalkReses<Mode>> {
+    pub fn march_all(&self, driving_names: &[Name]) -> Vec<LazyWalkReses<Mode>> {
         self.march_parts(driving_names)
     }
     
     /** Combines `march_parts` and `with_context`. `new_contexts` should have the same length
      * as the repetition marched. 
      */ 
-    pub fn march_parts_with(&self, driving_names: &Vec<Name>, new_contexts: Vec<Mode::Elt>)
+    pub fn march_parts_with(&self, driving_names: &[Name], new_contexts: Vec<Mode::Elt>)
              -> Option<Vec<LazyWalkReses<Mode>>> {
         let marched  = self.parts.march_all(driving_names);
         if marched.len() != new_contexts.len() { return None; }
@@ -293,7 +293,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     /** Like `get_rep_res`, but with a different context for each repetition */
     pub fn get_rep_res_with(&self, n: &Name, new_contexts: Vec<Mode::Elt>)
             -> Result<Vec<Mode::Out>, ()> {
-        if let Some(sub_parts) = self.march_parts_with(&vec![*n], new_contexts) {
+        if let Some(sub_parts) = self.march_parts_with(&[*n], new_contexts) {
             //Some(sub_parts.iter().map(|sp| sp.get_res(n)).collect())
             let mut res = vec![];
             for sub_part in sub_parts {
@@ -316,20 +316,19 @@ pub fn walk<Mode: WalkMode>(expr: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
     match *expr {
         Node(ref f, ref parts) => {
             // certain walks only work on certain kinds of AST nodes
-            match Mode::get_walk_rule(f) {
-                &Custom(ref ts_fn) => {
-                    let res = ts_fn(LazyWalkReses::new(
-                        cur_node_contents.env.clone(), parts.clone(), f.clone()));
-                    res
+            match *Mode::get_walk_rule(f) {
+                Custom(ref ts_fn) => {
+                    ts_fn(LazyWalkReses::new(
+                        cur_node_contents.env.clone(), parts.clone(), f.clone()))
                 }
                 
-                &Body(ref n) => {
+                Body(ref n) => {
                     walk(parts.get_leaf(n).unwrap(),
                          &LazyWalkReses::<Mode>::new(
                              cur_node_contents.env.clone(), parts.clone(), f.clone()))
                 }
                 
-                &LiteralLike => {
+                LiteralLike => {
                     if Mode::positive() {
                         // rebuild the node around a recursive descent
                         let rebuilt = Node(f.clone(),
@@ -363,7 +362,7 @@ pub fn walk<Mode: WalkMode>(expr: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
                             
                             // TODO: this continues walking after a subterm fails to match;
                             //  it should bail out immediately
-                            let res = parts.map_reduce_with::<Result<Assoc<Name, Mode::Elt>, ()>>(&parts_actual,
+                            let res = parts.map_reduce_with::<Result<Assoc<Name, Mode::Elt>, ()>>(parts_actual,
                                 &|model: &Ast, actual: &Ast| {
                                     walk(model, 
                                         &cur_node_contents.with_context(
@@ -385,7 +384,7 @@ pub fn walk<Mode: WalkMode>(expr: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
                     }
                 }
                 
-                &NotWalked => { panic!( "{:?} should not be walked at all!", expr ) }
+                NotWalked => { panic!( "{:?} should not be walked at all!", expr ) }
             }
         }
         IncompleteNode(ref parts) => { panic!("{:?} isn't a complete node", parts)}
@@ -432,7 +431,7 @@ pub trait WalkMode : Debug + Copy + Reifiable {
     
     type Negative : WalkMode<Elt=Self::Elt>;
     
-    fn get_walk_rule<'f>(&'f Form) -> &'f WalkRule<Self> where Self: Sized ;
+    fn get_walk_rule(&Form) -> &WalkRule<Self> where Self: Sized ;
 
     /**
      Should the walker extend the environment based on imports?
@@ -477,14 +476,14 @@ pub trait WalkMode : Debug + Copy + Reifiable {
     fn positive() -> bool;
 }
 
-/** var_to_out, for positive walks where Out == Elt */
+/** `var_to_out`, for positive walks where `Out` == `Elt` */
 pub fn var_lookup<Elt: Debug + Clone>(n: &Name, env: &Assoc<Name, Elt>) 
         -> Result<Elt, ()> {
     Ok((*env.find(n).expect(format!("Name {:?} unbound in {:?}", n, env).as_str())).clone())
 }
 
-/** var_to_out, for negative walks where Out == Assoc<Name, Elt> */
+/** `var_to_out`, for negative walks where `Out` == `Assoc<Name, Elt>`` */
 pub fn var_bind<Elt: Debug + Clone>(n: &Name, env: &Assoc<Name, Elt>) 
         -> Result<Assoc<Name, Elt>, ()> {
-    Ok(Assoc::new().set(n.clone(), env.find(&negative_ret_val()).unwrap().clone()))
+    Ok(Assoc::new().set(*n, env.find(&negative_ret_val()).unwrap().clone()))
 }

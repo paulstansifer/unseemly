@@ -60,7 +60,7 @@ impl ::std::fmt::Display for Ty {
                     write!(f, " -> {}]", Ty(env.get_leaf_or_panic(&n("ret")).clone()))
                 } else if form == &find_core_form("type", "enum") {
                     try!(write!(f, "enum{{"));
-                    for subenv in env.march_all(&vec![n("name")]) {
+                    for subenv in env.march_all(&[n("name")]) {
                         try!(write!(f, " {}("/*)*/, 
                             ast_to_atom(&subenv.get_leaf_or_panic(&n("name")))));
                         if let Some(comps) = subenv.get_rep_leaf(&n("component")) {
@@ -76,7 +76,7 @@ impl ::std::fmt::Display for Ty {
                     write!(f, "}}")
                 } else if form == &find_core_form("type", "struct") {
                     try!(write!(f, "struct{{"));
-                    for subenv in env.march_all(&vec![n("component_name")]) {
+                    for subenv in env.march_all(&[n("component_name")]) {
                         try!(write!(f, " {}: {}", 
                             ast_to_atom(&subenv.get_leaf_or_panic(&n("component_name"))),
                             Ty(subenv.get_leaf_or_panic(&n("component")).clone())));
@@ -141,7 +141,7 @@ impl WalkMode for SynthesizeType {
     
     type Negative = NegativeSynthesizeType;
     
-    fn get_walk_rule<'f>(f: &'f Form) -> &'f WalkRule<Self> {
+    fn get_walk_rule(f: &Form) -> &WalkRule<Self> {
         f.synth_type.pos()
     }
     
@@ -173,8 +173,8 @@ impl WalkMode for NegativeSynthesizeType {
     
     type Negative = SynthesizeType;
     
-    fn get_walk_rule<'f>(f: &'f Form) -> &'f WalkRule<Self> {
-        &f.synth_type.neg()
+    fn get_walk_rule(f: &Form) -> &WalkRule<Self> {
+        f.synth_type.neg()
     }
     
     fn automatically_extend_env() -> bool { true }

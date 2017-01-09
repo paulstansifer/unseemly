@@ -37,7 +37,7 @@ impl <K : PartialEq + Clone, V: PartialEq> PartialEq for Assoc<K, V> {
             } else { return false; }
         }
         
-        return true;
+        true
     }
 }
 
@@ -88,7 +88,7 @@ impl<K : PartialEq, V> Assoc<K, V> {
         Assoc{ n: None }
     }
     
-    pub fn iter_pairs<'assoc>(&'assoc self) -> PairIter<'assoc, K, V> {
+    pub fn iter_pairs(&self) -> PairIter<K, V> {
         PairIter{ seen: Assoc::new(), cur: self }
     }
     
@@ -151,7 +151,7 @@ impl<K: PartialEq + fmt::Debug, V: fmt::Debug> Assoc<K, V> {
             None => {
                 panic!("{:?} not found in {:?}", target, self)
             },
-            Some(ref v) => v
+            Some(v) => v
         }
     }
 }
@@ -161,7 +161,7 @@ impl<K : PartialEq + fmt::Debug, V : fmt::Debug> fmt::Debug for Assoc<K, V> {
         try!(write!(f, "⟦"));
         let mut cur = &self.n;
         let mut first = true;
-        while let &Some(ref node) = cur {
+        while let Some(ref node) = *cur {
             if !first { try!(write!(f, ", ")); }
             try!(write!(f, "{:?} ⇒ {:?}", node.k, node.v));
             first = false;
@@ -176,7 +176,7 @@ impl<K : PartialEq + fmt::Display, V : fmt::Display> fmt::Display for Assoc<K, V
         try!(write!(f, "⟦"));
         let mut cur = &self.n;
         let mut first = true;
-        while let &Some(ref node) = cur {
+        while let Some(ref node) = *cur {
             if !first { try!(write!(f, ",\n ")); }
             try!(write!(f, "{} ⇒ {}", node.k, node.v));
             first = false;

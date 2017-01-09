@@ -25,8 +25,8 @@ pub enum Token {
 
 impl Token {
     pub fn is_just(&self, s: &str) -> bool {
-        match self {
-            &Simple(ref x) if x.is(s) => { true }
+        match *self {
+            Simple(ref x) if x.is(s) => { true }
             _ => { false }
         }
     }
@@ -44,13 +44,12 @@ const close : &'static str = r"[\]\)\}]";
 
 pub fn delim(s: &str) -> DelimChar {
     match s {
-        "(" => Paren, "[" => SquareBracket, "{" => CurlyBracket,
-        ")" => Paren, "]" => SquareBracket, "}" => CurlyBracket,
+        "(" | ")" => Paren, "[" | "]" => SquareBracket, "{" | "}" => CurlyBracket,
         _ => {panic!("not a delimiter!")}
     }
 }
 
-fn read_tokens<'a>(s: &'a str) -> TokenTree {
+fn read_tokens(s: &str) -> TokenTree {
     lazy_static! {
         static ref token : regex::Regex =
             regex::Regex::new(format!(r"(?P<open_all>(?P<main_o>{nd}*)(?P<open>{o}))|((?P<close>{c})(?P<main_c>{nd}*))|(?P<normal>{nd}+)",

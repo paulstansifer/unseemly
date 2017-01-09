@@ -60,37 +60,37 @@ impl fmt::Debug for Beta {
 
 impl Beta {
     pub fn names_mentioned(&self) -> Vec<Name> {
-        match self {
-            &Nothing => { vec![] }
-            &Shadow(ref lhs, ref rhs) => { 
+        match *self {
+            Nothing => { vec![] }
+            Shadow(ref lhs, ref rhs) => { 
                 let mut res = lhs.names_mentioned();
                 let mut r_res = rhs.names_mentioned();
                 res.append(&mut r_res);
                 res
             }
-            &ShadowAll(_, ref drivers) => { drivers.clone() }
-            &Basic(ref n, ref v) => { vec![n.clone(), *v] }
-            &SameAs(ref n, ref v_source) => { vec![n.clone(), *v_source] }
+            ShadowAll(_, ref drivers) => { drivers.clone() }
+            Basic(ref n, ref v) => { vec![n.clone(), *v] }
+            SameAs(ref n, ref v_source) => { vec![n.clone(), *v_source] }
         }
     }
 }
 
 pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
          -> Result<ResEnv<Mode::Elt>, ()> {
-    match b {
-        &Nothing => { Ok(Assoc::new()) }
-        &Shadow(ref lhs, ref rhs) => {
+    match *b {
+        Nothing => { Ok(Assoc::new()) }
+        Shadow(ref lhs, ref rhs) => {
             Ok(try!(env_from_beta(&*lhs, parts))
                 .set_assoc(&try!(env_from_beta(&*rhs, parts))))
         }
-        &ShadowAll(ref sub_beta, ref drivers) => {
+        ShadowAll(ref sub_beta, ref drivers) => {
             let mut res = Assoc::new();
             for parts in parts.march_all(drivers) {
                 res = res.set_assoc(&try!(env_from_beta(&*sub_beta, &parts)));
             }
             Ok(res)
         }
-        &Basic(ref name_source, ref ty_source) => {
+        Basic(ref name_source, ref ty_source) => {
             if let LazilyWalkedTerm {term: Atom(ref name), ..} 
                     = **parts.parts.get_leaf_or_panic(name_source) {
                 //let LazilyWalkedTerm {term: ref ty_stx, ..}
@@ -105,7 +105,7 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
         }
         
         // treats the node `name_source` mentions as a negative node, and gets names from it
-        &SameAs(ref name_source, ref res_source) => {
+        SameAs(ref name_source, ref res_source) => {
             // TODO: `env_from_beta` needs to return a Result
             let ty = try!(parts.get_res(res_source));
             Ok(Mode::Negative::out_to_env(

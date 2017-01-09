@@ -139,7 +139,7 @@ macro_rules! mbe_one_name {
         {
             let mut v = vec![];
             let marchee = vec![$(::name::n($n)),*];
-            for $new_env in $env.march_all(&marchee).into_iter() {
+            for $new_env in $env.march_all(&marchee) {
                 v.push( mbe_one_name!($k => $elt));
             }
             ::util::mbe::EnvMBE::new_from_anon_repeat(v)            
@@ -422,8 +422,8 @@ macro_rules! forms_to_form_pat {
 
 macro_rules! extract {
     (($v:expr) $( $expected:path = ( $( $sub:pat ),* ) => $body:expr);* ) => {
-        match $v {
-            $(& $expected ( $($sub),* ) => { $body } )*
+        match * $v {
+            $( $expected ( $($sub),* ) => { $body } )*
             _ => { panic!("ICE: {:?} isn't a {:?}", $v, stringify!( $($expected),* )) }
         }
     }

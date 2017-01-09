@@ -48,21 +48,19 @@ pub use self::EitherPN::*;
 
 impl<L, R> EitherPN<L, R> {
     pub fn pos(&self) -> &L {
-        match self { 
-            &Positive(ref l) => l, 
-            &Negative(_) => panic!("ICE: wanted positive walk"),
-            &Both(ref l, _) => l
+        match *self { 
+            Positive(ref l) | Both(ref l, _) => l, 
+            Negative(_) => panic!("ICE: wanted positive walk"),
         }
     }
     pub fn neg(&self) -> &R {
-        match self {
-            &Negative(ref r) => r, 
-            &Positive(_) => panic!("ICE: wanted negative walk"),
-            &Both(_, ref r) => r
+        match *self {
+            Negative(ref r) | Both(_, ref r)=> r, 
+            Positive(_) => panic!("ICE: wanted negative walk"),
         }
     }
-    pub fn is_pos(&self) -> bool { match self { &Negative(_) => false, _ => true }}
-    pub fn is_neg(&self) -> bool { match self { &Positive(_) => false, _ => true }}
+    pub fn is_pos(&self) -> bool { match *self { Negative(_) => false, _ => true }}
+    pub fn is_neg(&self) -> bool { match *self { Positive(_) => false, _ => true }}
 }
 
 

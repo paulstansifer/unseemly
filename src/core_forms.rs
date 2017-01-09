@@ -25,7 +25,7 @@ use num::bigint::ToBigInt;
 use core_type_forms::*; // type forms are kinda bulky
 
 pub fn ast_to_atom(ast: &Ast) -> Name {
-    match ast { &Atom(n) => n, _ => { panic!("internal error!") } }
+    match *ast { Atom(n) => n, _ => { panic!("internal error!") } }
 }
 
 /* 
@@ -238,7 +238,7 @@ pub fn make_core_syn_env() -> SynEnv {
             /* Typesynth: */
             cust_rc_box!(move | part_types | {
                 let mut res : Option<Ty> = None;
-                for arm_part_types in part_types.march_parts(&vec![n("arm")]) {
+                for arm_part_types in part_types.march_parts(&[n("arm")]) {
                     let arm_res = try!(arm_part_types.get_res(&n("arm")));
 
                     match res {
@@ -255,7 +255,7 @@ pub fn make_core_syn_env() -> SynEnv {
             }),
             /* Evaluation: */
             cust_rc_box!( move | part_values | {
-                for arm_values in part_values.march_all(&vec![n("arm")]) {
+                for arm_values in part_values.march_all(&[n("arm")]) {
                     match arm_values.get_res(&n("arm")) {
                         Ok(res) => { return Ok(res); }
                         Err(()) => { /* try the next one */ }
@@ -277,7 +277,7 @@ pub fn make_core_syn_env() -> SynEnv {
                 expect_node!( (res.0 ; find_type(&ctf_2, "enum"))
                     enum_type_parts; 
                     {
-                        for enum_type_part in enum_type_parts.march_all(&vec![n("name")]) {
+                        for enum_type_part in enum_type_parts.march_all(&[n("name")]) {
                             if &part_types.get_term(&n("name")) 
                                     != enum_type_part.get_leaf_or_panic(&n("name")) {
                                 continue; // not the right arm
@@ -320,7 +320,7 @@ pub fn make_core_syn_env() -> SynEnv {
             cust_rc_box!( move | part_values | {
                 let mut res = Assoc::new();
                 
-                for component_parts in part_values.march_parts(&vec![n("component")]) {
+                for component_parts in part_values.march_parts(&[n("component")]) {
                     res = res.set(ast_to_atom(&component_parts.get_term(&n("component_name"))),
                                   try!(component_parts.get_res(&n("component"))));
                 }
@@ -432,7 +432,7 @@ pub fn make_core_syn_env() -> SynEnv {
                 expect_node!( (part_types.context_elt().0 ; find_type(&ctf_6, "enum"))
                     enum_type_parts;
                     {
-                        for enum_type_part in enum_type_parts.march_all(&vec![n("name")]) {
+                        for enum_type_part in enum_type_parts.march_all(&[n("name")]) {
                         
                             if &part_types.get_term(&n("name")) 
                                     != enum_type_part.get_leaf_or_panic(&n("name")) {
@@ -456,8 +456,8 @@ pub fn make_core_syn_env() -> SynEnv {
             )),
             /* (Negatively) Evaluate: */
             cust_rc_box!( move | part_values | {
-                match part_values.context_elt() /* : Value */ {
-                    &Enum(ref name, ref elts) => {
+                match *part_values.context_elt() /* : Value */ {
+                    Enum(ref name, ref elts) => {
                         // "Try another branch"
                         if name != &ast_to_atom(&part_values.get_term(&n("name"))) {
                             return Err(()); 
@@ -484,10 +484,10 @@ pub fn make_core_syn_env() -> SynEnv {
                     struct_type_parts;
                     {
                         let mut res = Assoc::new();
-                        for component_ctx in part_types.march_parts(&vec![n("component")]) {
+                        for component_ctx in part_types.march_parts(&[n("component")]) {
                             let mut component_found = false;
                             for struct_type_part 
-                                    in struct_type_parts.march_all(&vec![n("component")]) {
+                                    in struct_type_parts.march_all(&[n("component")]) {
                                 if &component_ctx.get_term(&n("component_name"))
                                     != struct_type_part.get_leaf_or_panic(&n("component_name")) {
                                     continue;
@@ -510,11 +510,11 @@ pub fn make_core_syn_env() -> SynEnv {
                         Ok(res)
                     })),
             cust_rc_box!( move | part_values | {
-                match part_values.context_elt() {
-                    &Struct(ref contents) => {
+                match *part_values.context_elt() {
+                    Struct(ref contents) => {
                         let mut res = Assoc::new();
                         
-                        for component_ctx in part_values.march_parts(&vec![n("component")]) {
+                        for component_ctx in part_values.march_parts(&[n("component")]) {
                             res = res.set_assoc(
                                 &try!(component_ctx
                                     .with_context(contents.find_or_panic(
@@ -549,22 +549,22 @@ pub fn find_form(se: &SynEnv, nt: &str, form_name: &str)
          -> Rc<Form> {             
 
     fn find_form_rec(f: &FormPat, form_name: &str) -> Option<Rc<Form>> {
-        match f {
-            &Scope(ref f) => {
+        match *f {
+            Scope(ref f) => {
                 if f.name.is(form_name) {
                     Some(f.clone())
                 } else {
                     None
                 }
             }
-            &Alt(ref vf) => {
+            Alt(ref vf) => {
                 for f in vf {
                     let res = find_form_rec(f, form_name);
                     if res.is_some() { return res; }
                 }
                 None
             }
-            &Biased(ref lhs, ref rhs) => {
+            Biased(ref lhs, ref rhs) => {
                 let l_res = find_form_rec(lhs, form_name);
                 if l_res.is_some() { l_res } else { find_form_rec(rhs, form_name) }
             }

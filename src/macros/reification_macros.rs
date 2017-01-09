@@ -211,7 +211,7 @@ macro_rules! Reifiable {
             
             #[allow(unused_mut)] // rustc bug! `v` has to be mutable, but it complains
             fn reify(&self) -> ::runtime::eval::Value {
-                match self { $(
+                match *self { $(
                     choice_pat!( ( $($($part),*)* ) (a b c d e f g h i j k l m n o p q r s t) 
                                  $name::$choice ; ())
                     => {
@@ -244,11 +244,11 @@ macro_rules! choice_pat {
     };
 
     ( ( ) ($($i_cdr:ident)*) $choice:path; ( ) ) => {
-        & $choice
+        $choice
     };
 
     ( ( ) ($($i_cdr:ident)*) $choice:path; ( $($accum:ident),+ ) ) => {
-        & $choice($(ref $accum),*)
+        $choice($(ref $accum),*)
     };
 }
 
