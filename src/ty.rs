@@ -129,81 +129,29 @@ impl ::runtime::reify::Reifiable for Ty {
     fn reflect(v: &::runtime::eval::Value) -> Self { Ty(Ast::reflect(v))}
 }
 
-custom_derive! {
-    #[derive(Clone, Copy, Debug, Reifiable)]
-    pub struct SynthesizeType {}
-}
-
-impl WalkMode for SynthesizeType {
-    //TODO: these should be a newtype to prevent bugs
-    type Out = Ty;
-    type Elt = Ty;
-    
-    type Negative = NegativeSynthesizeType;
-    
-    fn get_walk_rule(f: &Form) -> &WalkRule<Self> {
-        f.synth_type.pos()
-    }
+impl ::ast_walk::WalkElt<SynthTy> for Ty {
+    fn get_bidi_walk_rule(f: &Form) -> &::form::BiDiWR<SynthTy, UnpackTy> { &f.synth_type }
     
     fn automatically_extend_env() -> bool { true }
     
-    fn ast_to_elt(a: Ast, _: &LazyWalkReses<Self>) -> Self::Elt { Ty(a) }
-    
-    fn ast_to_out(a: Ast) -> Self::Out { Ty(a) }
-    
-    fn out_to_elt(o: Self::Out) -> Self::Elt { o }
-    
-    fn out_to_ast(o: Self::Out) -> Ast { o.0 }
-    
-    fn var_to_out(n: &Name, env: &Assoc<Name, Self::Elt>) -> Result<Self::Out, ()> {
-        ::ast_walk::var_lookup(n, env)
-    }
-    
-    fn positive() -> bool { true }
+    fn from_ast(a: &Ast) -> Ty { Ty(a.clone()) }
+    fn to_ast(&self) -> Ast { self.0.clone() }
 }
 
-custom_derive! {
-    #[derive(Clone, Copy, Debug, Reifiable)]
-    pub struct NegativeSynthesizeType {} 
-}
-
-impl WalkMode for NegativeSynthesizeType {
-    type Out = Assoc<Name, Ty>;
-    type Elt = Ty;
-    
-    type Negative = SynthesizeType;
-    
-    fn get_walk_rule(f: &Form) -> &WalkRule<Self> {
-        f.synth_type.neg()
-    }
-    
-    fn automatically_extend_env() -> bool { true }
-    
-    fn ast_to_elt(a: Ast, _: &LazyWalkReses<Self>) -> Self::Elt { Ty(a) }
-    
-    fn var_to_out(n: &Name, env: &Assoc<Name, Self::Elt>) -> Result<Self::Out, ()> {
-        ::ast_walk::var_bind(n, env)
-    }
-    
-    fn out_to_env(o: Self::Out) -> Assoc<Name, Self::Elt> { o }
-    fn env_to_out(e: Assoc<Name, Self::Elt>) -> Self::Out { e }
-    
-    fn positive() -> bool { false }
-}
-
-
+pub type SynthTy = ::ast_walk::PositiveWalkMode<Ty>;
+pub type UnpackTy = ::ast_walk::NegativeWalkMode<Ty>;
 
 pub fn synth_type_top(expr: &Ast) ->  Result<Ty, ()> {
-    walk::<SynthesizeType>(expr, &LazyWalkReses::new_wrapper(Assoc::new()))
+    walk::<SynthTy>(expr, &LazyWalkReses::new_wrapper(Assoc::new()))
 }
 
 pub fn synth_type(expr: &Ast, env: Assoc<Name, Ty>) -> Result<Ty, ()> {
-    walk::<SynthesizeType>(expr, &LazyWalkReses::new_wrapper(env))
+    walk::<SynthTy>(expr, &LazyWalkReses::new_wrapper(env))
 }
 
 pub fn neg_synth_type(pat: &Ast, env: Assoc<Name, Ty>)
         -> Result<Assoc<Name, Ty>, ()> {
-    walk::<NegativeSynthesizeType>(pat, &LazyWalkReses::new_wrapper(env))
+    walk::<UnpackTy>(pat, &LazyWalkReses::new_wrapper(env))
 }
 
 

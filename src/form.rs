@@ -6,14 +6,17 @@ use std::fmt::{Debug,Formatter,Error};
 use util::assoc::Assoc;
 use std::rc::Rc;
 use ast_walk::WalkRule;
-use ty::{SynthesizeType, NegativeSynthesizeType};
-use runtime::eval::{Evaluate, NegativeEvaluate, Quasiquote, NegativeQuasiquote};
+use ty::Ty;
+use ast::Ast;
+use runtime::eval::Value;
 
 pub type NMap<T> = Assoc<Name, T>;
 
+/// BiDirectionalWalkRule: a walk rule, abstracted over whether the walk is positive or negative
+pub type BiDiWR<Mode, NegMode> = EitherPN<WalkRule<Mode>, WalkRule<NegMode>>;
 
 custom_derive! {
-    /// Unseemly language form
+    /// Unseemly language form. This is what tells us what a particular `Node` actually does.
     #[derive(Reifiable)]
     pub struct Form {
         /// The name of the form. Mainly for internal use.
@@ -23,11 +26,11 @@ custom_derive! {
          */
         pub grammar: FormPat,
         /** From a type environment, construct the type of this term. */
-        pub synth_type: EitherPN<WalkRule<SynthesizeType>, WalkRule<NegativeSynthesizeType>>,
+        pub synth_type: BiDiWR<::ty::SynthTy, ::ty::UnpackTy>,
         /** From a value environment, evaluate this term.*/
-        pub eval: EitherPN<WalkRule<Evaluate>, WalkRule<NegativeEvaluate>>,
-        /** Treat everything as quoted except `unquote`s */
-        pub quasiquote: EitherPN<WalkRule<Quasiquote>, WalkRule<NegativeQuasiquote>>,
+        pub eval: BiDiWR<::runtime::eval::Eval, ::runtime::eval::Destructure>,
+        /** At runtime, pick up code to use it as a value */
+        pub quasiquote: BiDiWR<::runtime::eval::QQuote, ::runtime::eval::QQuoteDestr>,
         pub relative_phase: Assoc<Name, i32> /* 2^31 macro phases ought to be enough for anybody */
     }
 }
@@ -45,6 +48,7 @@ custom_derive! {
     }
 }
 pub use self::EitherPN::*;
+
 
 impl<L, R> EitherPN<L, R> {
     pub fn pos(&self) -> &L {

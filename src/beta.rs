@@ -76,17 +76,17 @@ impl Beta {
 }
 
 pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
-         -> Result<ResEnv<Mode::Elt>, ()> {
+         -> Result<Assoc<Name, Mode::Elt>, ()> {
     match *b {
         Nothing => { Ok(Assoc::new()) }
         Shadow(ref lhs, ref rhs) => {
-            Ok(try!(env_from_beta(&*lhs, parts))
-                .set_assoc(&try!(env_from_beta(&*rhs, parts))))
+            Ok(try!(env_from_beta::<Mode>(&*lhs, parts))
+                .set_assoc(&try!(env_from_beta::<Mode>(&*rhs, parts))))
         }
         ShadowAll(ref sub_beta, ref drivers) => {
             let mut res = Assoc::new();
             for parts in parts.march_all(drivers) {
-                res = res.set_assoc(&try!(env_from_beta(&*sub_beta, &parts)));
+                res = res.set_assoc(&try!(env_from_beta::<Mode>(&*sub_beta, &parts)));
             }
             Ok(res)
         }
@@ -95,9 +95,9 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
                     = **parts.parts.get_leaf_or_panic(name_source) {
                 //let LazilyWalkedTerm {term: ref ty_stx, ..}
                 //    = **parts.parts.get_leaf_or_panic(ty_source);
-                let ty_stx = try!(parts.get_res(ty_source));
-                        
-                Ok(Assoc::new().set(*name, Mode::out_to_elt(ty_stx.clone())))    
+                let ty = try!(parts.get_res(ty_source));
+
+                Ok(Assoc::new().set(*name, Mode::out_as_elt(ty.clone())))    
             } else {
                 panic!("{:?} is supposed to supply names, but is not an Atom.", 
                     parts.parts.get_leaf_or_panic(name_source).term)
@@ -108,9 +108,10 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
         SameAs(ref name_source, ref res_source) => {
             // TODO: `env_from_beta` needs to return a Result
             let ty = try!(parts.get_res(res_source));
-            Ok(Mode::Negative::out_to_env(
+            
+            Ok(Mode::Negative::out_as_env(
                 try!(parts.switch_mode::<Mode::Negative>()
-                    .with_context(Mode::out_to_elt(ty))
+                    .with_context(Mode::out_as_elt(ty))
                     .get_res(name_source))))
         }
     }

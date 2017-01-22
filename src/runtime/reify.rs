@@ -268,6 +268,14 @@ impl<T: Reifiable> Reifiable for ::std::cell::RefCell<T> {
     fn reflect(v: &Value) -> Self { ::std::cell::RefCell::<T>::new(T::reflect(v)) }
 }
 
+impl<T> Reifiable for ::std::marker::PhantomData<T> {
+    fn ty_name() -> Name { n("PhantomData") } // Do we need to distinguish different ones?
+    
+    fn reify(&self) -> Value { Value::Bool(false) }
+    
+    fn reflect(_: &Value) -> Self { ::std::marker::PhantomData }
+}
+
 // Hey, I know how to generate the implementation for this...
 Reifiable! {
     () pub enum Option<T> {

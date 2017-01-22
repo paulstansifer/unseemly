@@ -217,7 +217,7 @@ pub fn make_core_syn_env() -> SynEnv {
                         
                         let new_env_parts = ::util::mbe::EnvMBE::new_from_anon_repeat(params);
                         
-                        ::ast_walk::walk::<::runtime::eval::Evaluate>(&clos.body,
+                        ::ast_walk::walk::<::runtime::eval::Eval>(&clos.body,
                             &::ast_walk::LazyWalkReses::new(
                                 clos.env.clone(), new_env_parts, part_values.this_form))
                     },

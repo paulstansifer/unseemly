@@ -55,150 +55,48 @@ impl std::fmt::Debug for BIF {
     }
 }
 
-custom_derive! {
-    #[derive(Clone, Copy, Debug, Reifiable)]
-    pub struct Evaluate {}
-}
-
-impl WalkMode for Evaluate {
-    type Out = Value;
-    type Elt = Value;
+impl ::ast_walk::WalkElt<Eval> for Value {
+    fn get_bidi_walk_rule(f: &Form) -> &::form::BiDiWR<Eval, Destructure> { &f.eval }
     
-    type Negative = NegativeEvaluate;
-    
-    fn get_walk_rule(f: &Form) -> &WalkRule<Self> {
-        f.eval.pos()
-    }
-
-    // It's not possible to construct the environment of the body of a function 
-    // at the point it's written down in code.
+    /// The whole point of program evaluation is that the enviornment 
+    ///  isn't generateable from the source tree.
+    /// Does that make sense? I suspect it does not.
     fn automatically_extend_env() -> bool { false }
     
-    fn ast_to_elt(a: Ast, parts: &LazyWalkReses<Self>) -> Self::Elt { 
-        walk::<Evaluate>(&a, parts).unwrap() //TODO: this should probably return a result
-    }
-    
-    fn var_to_out(n: &Name, env: &Assoc<Name, Value>) -> Result<Value, ()> {
-        ::ast_walk::var_lookup(n, env)
-    }
-    
-    fn out_to_elt(o: Self::Out) -> Self::Elt { o }
-    
-    fn positive() -> bool { true }
+    /// We'd need to know what `nt` we're at, so the quotation form has to do this work...
+    fn from_ast(_: &Ast) -> Value { panic!("ICE: tried to convert Ast to Value") }
+    /// This is possible, but should be handled by the unquotation form
+    fn to_ast(&self) -> Ast { panic!("ICE: shoudn't happen...")}
 }
 
-custom_derive! {
-    #[derive(Clone, Copy, Debug, Reifiable)]
-    pub struct NegativeEvaluate {}
+pub type Eval = ::ast_walk::PositiveWalkMode<Value>;
+pub type Destructure = ::ast_walk::NegativeWalkMode<Value>;
+
+
+
+
+impl ::ast_walk::WalkElt<QQuote> for Ast {
+    fn get_bidi_walk_rule(f: &Form) -> &::form::BiDiWR<QQuote, QQuoteDestr> { &f.quasiquote }
+
+    fn automatically_extend_env() -> bool { true } // You can't do this in Scheme!
+    
+    fn from_ast(a: &Ast) -> Ast { a.clone() }
+    fn to_ast(&self) -> Ast { self.clone() }
 }
 
-impl WalkMode for NegativeEvaluate {
-    type Out = Assoc<Name, Value>;
-    type Elt = Value;
-    
-    type Negative = Evaluate;
-    
-    fn get_walk_rule(f: &Form) -> &WalkRule<Self> {
-        f.eval.neg()
-    }
-
-    // It's not possible to construct the environment of the body of a function 
-    // at the point it's written down in code.
-    fn automatically_extend_env() -> bool { false }
-    
-    fn var_to_out(n: &Name, env: &Assoc<Name, Value>) -> Result<Assoc<Name, Value>, ()> {
-        ::ast_walk::var_bind(n, env)
-    }
-    
-    fn out_to_env(o: Self::Out) -> Assoc<Name, Self::Elt> { o }
-    fn env_to_out(e: Assoc<Name, Self::Elt>) -> Self::Out { e }
-
-    fn positive() -> bool { false }
-}
-
-custom_derive! {
-    #[derive(Clone, Copy, Debug, Reifiable)]
-    pub struct Quasiquote {}
-}
-
-impl WalkMode for Quasiquote {
-    type Out = Value;
-    type Elt = Value;
-    
-    type Negative = NegativeQuasiquote;
-    
-    fn get_walk_rule(f: &Form) -> &WalkRule<Self> {
-        f.quasiquote.pos()
-    }
-    
-    fn automatically_extend_env() -> bool { true } // but will it get the right phase?
-    
-    fn ast_to_elt(a: Ast, _: &LazyWalkReses<Self>) -> Self::Elt {
-        Value::AbstractSyntax(n("<unknown>"), Rc::new(a))
-    }
-    
-    fn ast_to_out(a: Ast) -> Self::Out {
-        Value::AbstractSyntax(n("<unknown>"), Rc::new(a))
-    }
-    
-    fn out_to_elt(o: Self::Out) -> Self::Elt { o }
-    
-    fn out_to_ast(o: Self::Out) -> Ast {
-        match o {
-            Value::AbstractSyntax(_, a) => (*a).clone(),
-            _ => panic!("ICE: messed-up syntax")
-        }
-    }
-    
-    fn var_to_out(n: &Name, env: &Assoc<Name, Self::Elt>) -> Result<Self::Out, ()> {
-        ::ast_walk::var_lookup(n, env)
-    }
-    
-    fn positive() -> bool { true }
-}
-
-custom_derive! {
-    #[derive(Clone, Copy, Debug, Reifiable)]
-    pub struct NegativeQuasiquote {}
-}
-
-impl WalkMode for NegativeQuasiquote {
-    type Out = Assoc<Name, Value>;
-    type Elt = Value;
-    
-    type Negative = Quasiquote;
-    
-    fn get_walk_rule(f: &Form) -> &WalkRule<Self> {
-        f.quasiquote.neg()
-    }
-    
-    fn automatically_extend_env() -> bool { true } // but will it get the right phase?
-    
-    fn ast_to_elt(a: Ast, _: &LazyWalkReses<Self>) -> Self::Elt {
-        Value::AbstractSyntax(n("<unknown>"), Rc::new(a))
-    }
-    
-    fn var_to_out(n: &Name, env: &Assoc<Name, Self::Elt>) -> Result<Self::Out, ()> {
-        ::ast_walk::var_bind(n, env)
-    }
-    
-    fn out_to_env(o: Self::Out) -> Assoc<Name, Self::Elt> { o }
-    fn env_to_out(e: Assoc<Name, Self::Elt>) -> Self::Out { e }
-    
-    fn positive() -> bool { false }
-}
 
 pub fn eval_top(expr: &Ast) -> Result<Value, ()> {
     eval(expr, Assoc::new())
 }
 
 pub fn eval(expr: &Ast, env: Assoc<Name, Value>) -> Result<Value, ()> {
-    walk::<Evaluate>(expr, &LazyWalkReses::new_wrapper(env))
+    walk::<Eval>(expr, &LazyWalkReses::new_wrapper(env))
 }
 
 pub fn neg_eval(pat: &Ast, env: Assoc<Name, Value>)
         -> Result<Assoc<Name, Value>,()> {
-    walk::<NegativeEvaluate>(pat, 
-        &LazyWalkReses::<NegativeEvaluate>::new_wrapper(env))
+    walk::<Destructure>(pat, &LazyWalkReses::new_wrapper(env))
 }
 
+pub type QQuote = ::ast_walk::PositiveWalkMode<Ast>;
+pub type QQuoteDestr = ::ast_walk::NegativeWalkMode<Ast>;

@@ -1,7 +1,7 @@
 
 /*
 We often need to walk an `Ast` while maintaining an environment.
-So far, this is used both for typechecking and for evaluation.
+So far, this seems to be true at typecheck time and at runtime.
 
 Our `Ast`s have information about
  what should happen environment-wise baked-in,
@@ -30,7 +30,7 @@ For example, suppose that `five` has type `nat` and `hello` has type `string`:
 
 At runtime, something similar happens with values and value environments.
 */
-use form::Form;
+use form::{Form, BiDiWR};
 use std::rc::Rc; 
 use std::cell::RefCell;
 use name::*;
@@ -59,7 +59,7 @@ pub enum WalkRule<Mode: WalkMode> {
 }
 
 // trait bounds on parameters and functions are not yet supported by `Reifiable!`
-impl<Mode: WalkMode + 'static> reify::Reifiable for WalkRule<Mode> {
+impl<Mode: WalkMode + Copy + 'static> reify::Reifiable for WalkRule<Mode> {
     // doesn't need to be parameterized because it will be opaque. I think!?
     fn ty_name() -> Name { n("walk_rule") }
 
@@ -121,14 +121,15 @@ impl<Mode: WalkMode> reify::Reifiable for LazilyWalkedTerm<Mode> {
 
 
 // We only implement this because lazy-rust is unstable 
-impl<Mode : WalkMode> LazilyWalkedTerm<Mode> {
+impl<Mode: WalkMode> LazilyWalkedTerm<Mode> {
     pub fn new(t: &Ast) -> Rc<LazilyWalkedTerm<Mode>> {
         Rc::new(LazilyWalkedTerm { term: t.clone(), res: RefCell::new(None) }) 
     }
         
     /** Get the result of walking this term (memoized) */
-    fn get_res(&self, cur_node_contents: &LazyWalkReses<Mode>) -> Result<Mode::Out, ()> {
-        self.memoized(&|| walk(&self.term, cur_node_contents))
+    fn get_res<NewMode: WalkMode<Out=Mode::Out>>(&self, cur_node_contents: &LazyWalkReses<NewMode>)
+            -> Result<Mode::Out, ()> {
+        self.memoized(&|| walk::<NewMode>(&self.term, cur_node_contents))
     }
     
     fn memoized(&self, f: &Fn() -> Result<Mode::Out, ()>) -> Result<Mode::Out, ()> {
@@ -238,15 +239,17 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     pub fn with_environment(&self, env: ResEnv<Mode::Elt>) -> LazyWalkReses<Mode> {
         LazyWalkReses { env: env, .. (*self).clone() }
     }
+
     
     /** Switch to a different mode with the same `Elt` type. */
-    pub fn switch_mode<NewMode: WalkMode<Elt=Mode::Elt>>(&self/*, new_mode: NewMode*/)
-            -> LazyWalkReses<NewMode> {
+    pub fn switch_mode<NewMode: WalkMode<Elt=Mode::Elt>>(&self) -> LazyWalkReses<NewMode> {
+        let new_parts: EnvMBE<Rc<LazilyWalkedTerm<NewMode>>> = 
+            self.parts.map(
+                &|part: &Rc<LazilyWalkedTerm<Mode>>| 
+                    LazilyWalkedTerm::<NewMode>::new(&part.term));
         LazyWalkReses::<NewMode> { 
             env: self.env.clone(),
-            parts: self.parts.map(
-                &|part: &Rc<LazilyWalkedTerm<Mode>>| 
-                    LazilyWalkedTerm::<NewMode>::new(&part.term)),
+            parts: new_parts,
             this_form:  self.this_form.clone()
         }
     }
@@ -322,66 +325,14 @@ pub fn walk<Mode: WalkMode>(expr: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
                         cur_node_contents.env.clone(), parts.clone(), f.clone()))
                 }
                 
-                Body(ref n) => {
-                    walk(parts.get_leaf(n).unwrap(),
+                Body(n) => {
+                    walk(parts.get_leaf(&n).unwrap(),
                          &LazyWalkReses::<Mode>::new(
                              cur_node_contents.env.clone(), parts.clone(), f.clone()))
                 }
                 
                 LiteralLike => {
-                    if Mode::positive() {
-                        // rebuild the node around a recursive descent
-                        let rebuilt = Node(f.clone(),
-                            try!(parts.map(
-                                &|p| match *p {
-                                    Node(_, _) => walk(p, cur_node_contents),
-                                    _ => Ok(Mode::ast_to_out(p.clone()))
-                                }.map(Mode::out_to_ast)).lift_result()));
-                                
-                        Ok(Mode::ast_to_out(rebuilt))
-                    } else {
-                        let ctxt = cur_node_contents.context_elt();
-                        // HACK: I don't want to add yet another thing to all the modes:
-                        let ctxt = Mode::out_to_ast(
-                            Mode::var_to_out(&n("only"),
-                                &assoc_n!("only" => ctxt.clone())).unwrap());
-                                
-                        //type Res<Mode: WalkMode> = Result<Assoc<Name, Mode::Elt>, ()>;
-
-                        // break apart the node, and walk it element-wise
-                        if let Node(ref f_actual, ref parts_actual) = ctxt {
-                            // TODO: wouldn't it be nice to have match failures that 
-                            //  contained useful `diff`-like information for debugging,
-                            //   when a match was expected to succeed?
-                            // (I really like using pattern-matching in unit tests!)
-                            if f != f_actual { return Err(()); /* match failure */ }
-                            
-                            fn combine<'f, Mode: WalkMode>(result: &'f Result<Assoc<Name, Mode::Elt>, ()>, next: &'f Result<Assoc<Name, Mode::Elt>, ()>) -> Result<Assoc<Name, Mode::Elt>, ()> {
-                                Ok(try!(result.clone()).set_assoc(&try!(next.clone())))
-                            }
-                            
-                            // TODO: this continues walking after a subterm fails to match;
-                            //  it should bail out immediately
-                            let res = parts.map_reduce_with::<Result<Assoc<Name, Mode::Elt>, ()>>(parts_actual,
-                                &|model: &Ast, actual: &Ast| {
-                                    walk(model, 
-                                        &cur_node_contents.with_context(
-                                            Mode::ast_to_elt(actual.clone(), cur_node_contents)))
-                                        .map(Mode::out_to_env)
-                                },
-                                &|result, next| {
-                                    let r: Assoc<Name, Mode::Elt> = try!(result.clone());
-                                    let n: Assoc<Name, Mode::Elt> = try!(next.clone());
-                                    Ok(r.set_assoc(&n))
-                                },
-                                //panic!("I don't understand lifetimes enough to make this work!"),
-                                Ok(cur_node_contents.env.clone()));
-                            
-                            res.map(Mode::env_to_out)
-                        } else {
-                            Err(()) /* match failure */
-                        }
-                    }
+                    Mode::walk_quasi_literally(f, parts, cur_node_contents)
                 }
                 
                 NotWalked => { panic!( "{:?} should not be walked at all!", expr ) }
@@ -389,7 +340,7 @@ pub fn walk<Mode: WalkMode>(expr: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
         }
         IncompleteNode(ref parts) => { panic!("{:?} isn't a complete node", parts)}
         
-        VariableReference(ref n) => { Mode::var_to_out(n, &cur_node_contents.env) }
+        VariableReference(n) => { Ok(Mode::walk_var(n, &cur_node_contents)) }
         
         Trivial | Atom(_) | Shape(_) => {
             panic!("{:?} is not a walkable node", expr);
@@ -403,6 +354,23 @@ pub fn walk<Mode: WalkMode>(expr: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
         }
     }
 }
+
+/**
+ * This trait makes a type producable by positive and negative walks.
+ * I'm not sure this information belongs on the type produced by the walk, 
+ *  but there doesn't seem to be a better place to put it.
+ */
+ 
+ // The fact that we need this type parameter makes me unhappy. Is there any way around it?
+pub trait WalkElt<Mode: WalkMode>: Clone + Debug + Reifiable {
+    fn get_bidi_walk_rule(f: &Form) -> &::form::BiDiWR<Mode, Mode::Negative>;
+     
+    fn automatically_extend_env() -> bool;
+    
+    fn from_ast(a: &Ast) -> Self;
+    fn to_ast(&self) -> Ast;
+}
+
 
 /**
  * This trait exists to connect `Form`s to different kinds of walks.
@@ -419,16 +387,17 @@ pub fn walk<Mode: WalkMode>(expr: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
  *  but they conceptually are mostly relying on the special value.
  */
 
-pub trait WalkMode : Debug + Copy + Reifiable {
+pub trait WalkMode : Debug + Copy + Reifiable {    
+    /** The object type for the environment to walk in. */
+    type Elt : Clone + Debug + Reifiable;
+    
     /** The output of the walking process.
      *
      * Negated walks produce an environment of Self::Elt, positive walks produce Self::Elt.
      */
     type Out : Clone + Debug + Reifiable;
-    
-    /** The object type for the environment to walk in. */
-    type Elt : Clone + Debug + Reifiable;
-    
+
+    /** The negated version of this walk */    
     type Negative : WalkMode<Elt=Self::Elt>;
     
     fn get_walk_rule(&Form) -> &WalkRule<Self> where Self: Sized ;
@@ -444,37 +413,123 @@ pub trait WalkMode : Debug + Copy + Reifiable {
      If `!automatically_extend_env()`, the `Custom` implementation
       must extend the environment properly to be safe.
      */
+    fn automatically_extend_env() -> bool;
+    
+    fn walk_quasi_literally(f: &Rc<Form>, parts: &EnvMBE<Ast>, 
+                            cnc: &LazyWalkReses<Self>) 
+        -> Result<Self::Out, ()>;
 
-    fn automatically_extend_env() -> bool { false }
+    // We need to dynamically do these if it's possible, for `env_from_beta`        
+    fn out_as_elt(Self::Out) -> Self::Elt;
+    fn out_as_env(Self::Out) -> Assoc<Name, Self::Elt>;
     
-    fn ast_to_elt(a: Ast, _: &LazyWalkReses<Self>) -> Self::Elt {
-        panic!("not implemented: {:?} cannot be converted", a)
-    }
-    
-    fn ast_to_out(a: Ast) -> Self::Out {
-        panic!("not implemented: {:?} cannot be converted", a)
-    }
-    
-    fn out_to_env(o: Self::Out) -> Assoc<Name, Self::Elt> {
-        panic!("not implemented: {:?} cannot be converted", o)
-    }
-    
-    fn env_to_out(e: Assoc<Name, Self::Elt>) -> Self::Out {
-        panic!("not implemented: {:?} cannot be converted", e)        
-    }
-    
-    fn out_to_elt(o: Self::Out) -> Self::Elt {
-        panic!("not implemented: {:?} cannot be converted", o)
-    }
-    
-    fn out_to_ast(o: Self::Out) -> Ast {
-        panic!("not implemented: {:?} cannot be converted", o)
-    }
-    
-    fn var_to_out(var: &Name, env: &ResEnv<Self::Elt>) -> Result<Self::Out, ()>;
-    
-    fn positive() -> bool;
+    fn walk_var(Name, &LazyWalkReses<Self>) -> Self::Out;
 }
+
+custom_derive! {
+    #[derive(Clone, Debug, Reifiable)]
+    pub struct PositiveWalkMode<Elt> { pd: ::std::marker::PhantomData<Elt> }
+}
+
+impl<Elt: Clone> Copy for PositiveWalkMode<Elt> {}
+
+impl<Elt: WalkElt<PositiveWalkMode<Elt>>> WalkMode for PositiveWalkMode<Elt> {
+    type Out = Elt;
+    type Elt = Elt;
+    type Negative = NegativeWalkMode<Elt>;
+
+    // TODO: maybe remove, use Elt::get_walk_rule() directly   
+    fn get_walk_rule(f: &Form) -> &WalkRule<Self> { 
+        Self::Elt::get_bidi_walk_rule(f).pos()
+    }
+    
+    // TODO: likewise
+    fn automatically_extend_env() -> bool { Elt::automatically_extend_env() }
+    
+    fn walk_quasi_literally(f: &Rc<Form>, parts: &EnvMBE<Ast>, 
+                            cnc: &LazyWalkReses<Self>) 
+            -> Result<Self::Out, ()> {
+        Ok(Elt::from_ast(&Node(f.clone(),
+            try!(parts.map(
+                &|p| match *p {
+                    Node(_, _) => walk(p, cnc),
+                    _ => Ok(Elt::from_ast(&p.clone()))
+                }.map(|e| Elt::to_ast(&e))).lift_result()))))
+    }
+    
+    /// Look up variable in the environment!
+    fn walk_var(n: Name, cnc: &LazyWalkReses<Self>) -> Self::Out {
+        cnc.env.find_or_panic(&n).clone()
+    }
+    
+    fn out_as_elt(o: Self::Out) -> Self::Elt { o }
+    fn out_as_env(_: Self::Out) -> Assoc<Name, Self::Elt> { panic!("ICE: out is not an env") }
+}
+
+custom_derive! {
+    #[derive(Clone, Debug, Reifiable)]
+    pub struct NegativeWalkMode<Elt> { pd: ::std::marker::PhantomData<Elt> }
+}
+
+impl<Elt: Clone> Copy for NegativeWalkMode<Elt> {}
+
+impl<Elt: WalkElt<PositiveWalkMode<Elt>>> WalkMode for NegativeWalkMode<Elt> {
+    type Out = Assoc<Name, Elt>;
+    type Elt = Elt;
+    type Negative = PositiveWalkMode<Elt>;
+
+    // TODO: mabye remove, use Elt::get_walk_rule() directly   
+    fn get_walk_rule(f: &Form) -> &WalkRule<Self> { 
+        Self::Elt::get_bidi_walk_rule(f).neg()
+    }
+    
+    // TODO: likewise
+    fn automatically_extend_env() -> bool { Elt::automatically_extend_env() }
+
+    fn walk_quasi_literally(f: &Rc<Form>, parts: &EnvMBE<Ast>, 
+                            cnc: &LazyWalkReses<Self>) 
+            -> Result<Self::Out, ()> {
+        let ctxt = Elt::to_ast(cnc.context_elt());
+
+        //type Res = Result<Assoc<Name, Self::Elt>, ()>;
+
+        // TODO Needs freshening (like what Romeo does)!
+        // I only spent three years or so on hygenic destructuring, 
+        //  so it's not surprising that I forgot that I'd need to do it.
+        
+        // break apart the node, and walk it element-wise
+        if let Node(ref f_actual, ref parts_actual) = ctxt {
+            // TODO: wouldn't it be nice to have match failures that 
+            //  contained useful `diff`-like information for debugging,
+            //   when a match was expected to succeed?
+            // (I really like using pattern-matching in unit tests!)
+            if **f != **f_actual { return Err(()); /* match failure: different form */ }
+            
+            // TODO: this continues walking after a subterm fails to match;
+            //  it should bail out immediately
+            let res = parts.map_reduce_with(parts_actual,
+                &|model: &Ast, actual: &Ast| {
+                    walk(model, &cnc.with_context(Elt::from_ast(actual)))
+                },
+                &|result, next| { Ok(try!(result.clone()).set_assoc(&try!(next.clone()))) },
+                Ok(cnc.env.clone()));
+            
+            res
+        } else {
+            Err(()) /* match failure:  */
+        }
+    }
+    
+    /// Bind variable to the context!
+    fn walk_var(n: Name, cnc: &LazyWalkReses<Self>) -> Self::Out {
+        Assoc::new().set(n, cnc.context_elt().clone())
+    }
+
+    fn out_as_elt(_: Self::Out) -> Self::Elt { panic!("ICE: Out ≠ Elt in negative walks") }
+    fn out_as_env(o: Self::Out) -> Assoc<Name, Self::Elt> { o }
+}
+
+
 
 /** `var_to_out`, for positive walks where `Out` == `Elt` */
 pub fn var_lookup<Elt: Debug + Clone>(n: &Name, env: &Assoc<Name, Elt>) 
