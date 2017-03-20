@@ -88,6 +88,10 @@ impl<K : PartialEq, V> Assoc<K, V> {
         Assoc{ n: None }
     }
     
+    pub fn single(k: K, v: V) -> Assoc<K, V> {
+        Self::new().set(k, v)
+    }
+    
     pub fn iter_pairs(&self) -> PairIter<K, V> {
         PairIter{ seen: Assoc::new(), cur: self }
     }

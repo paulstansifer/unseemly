@@ -20,7 +20,6 @@ impl Name {
 
 /// Special name for negative `ast_walk`ing
 // TODO: move to `ast_walk`
-
 // TODO: this interner doesn't support `gensym`...
 pub fn negative_ret_val() -> Name {
     Name { id: lalrpop_intern::intern("☾⋅☽")}

@@ -59,7 +59,7 @@ pub fn ast_to_atom(ast: &Ast) -> Name {
  *  
  *   match stx { '[{Expr} f x]' => ... }
  * In this case, we can check that the type of the scrutinee
- *  (which equals the type of the syntax quotation pattern)
+ *  (which is the type of the syntax quotation pattern)
  *   equals Expr<[ (whatever `f` returns) ]<.
  *   
  *   optimize_expr '[{Expr} match stx { ,[{Pat} my_pat], => ... } ]'

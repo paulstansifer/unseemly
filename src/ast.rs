@@ -7,6 +7,7 @@ use std::iter;
 use std::fmt;
 use std::rc::Rc;
 use form::Form;
+use ast;
 
 custom_derive! {
     #[derive(Clone, PartialEq, Reifiable)]

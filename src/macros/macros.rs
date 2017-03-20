@@ -1,5 +1,12 @@
 #![macro_use]
 
+// TODO: use a real logging framework
+macro_rules! log {
+    ($($e:expr),*) => {
+        /*  */
+    }
+}
+
 /* Assoc */
 
 macro_rules! expr_ify {

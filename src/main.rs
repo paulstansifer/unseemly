@@ -25,6 +25,8 @@ mod util;
 mod beta;
 mod read;
 mod ast;
+
+mod earley;
 mod parse;
 
 mod form;
