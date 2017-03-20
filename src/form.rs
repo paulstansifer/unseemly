@@ -36,9 +36,7 @@ custom_derive! {
 }
 
 custom_derive! {
-    /**
-     * The distinction between `Form`s with positive and negative walks is documented at `Mode`.
-     */
+    /// The distinction between `Form`s with positive and negative walks is documented at `Mode`.
     #[derive(Reifiable)]
     pub enum EitherPN<L, R> {
         Positive(L),

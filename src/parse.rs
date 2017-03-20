@@ -1,3 +1,5 @@
+// TODO: there's no reason for this and `earley.rs` to be different files.
+
 #![macro_use]
 
 use read::{Token, TokenTree, DelimChar, Group, Simple};

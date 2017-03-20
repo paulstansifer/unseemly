@@ -8,6 +8,9 @@ use std::fmt;
 
 // Potential optimization: replace a run of ten nodes with a `HashMap`.
 // Recursively replace runs of those, too...
+
+/// A functional key-value map. Seaching is linear (boo!), but the map is persistant (yay!).
+/// (It's just a linked list of pairs.)
 custom_derive! {
     // this is a functional data structure; dropping it on the floor is usually bad
     #[must_use]

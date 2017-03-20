@@ -1,3 +1,9 @@
+/*!
+ * This abstract syntax tree is *really* abstract. 
+ * By necessity, it's not tied to any specific language.
+ * "Normal" language forms all correspond to `Node`, and their meaning comes from their `Form`.
+ */
+
 #![macro_use]
 
 use util::mbe::EnvMBE;
@@ -13,13 +19,15 @@ custom_derive! {
     #[derive(Clone, PartialEq, Reifiable)]
     pub enum Ast {
         Trivial,
+        /// TODO: Are we going to have a proper reference/binder dichotomy, or something weird?
         Atom(Name),
         VariableReference(Name),
         Shape(Vec<Ast>),
         
         /// A meaningful chunk of syntax, governed by a form, containing an environment
         Node(Rc<Form>, EnvMBE<Ast>),
-        /// (Only appears during parsing)
+        
+        /// For parsing purposes.
         IncompleteNode(EnvMBE<Ast>),
         
         /// Variable binding

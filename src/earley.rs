@@ -8,7 +8,7 @@
 //                             and everything will work out fine.")
 // Why Earley?
 //  * Earley parses arbitrary CFLs, which are
-//    - a comprehensible category of languages to mere mortals,
+//    - a category of languages I can comprehend,
 //    - and closed under composition (though ambiguity can creep in)
 //  * Earley has a pretty good error message story (TODO: check that this is true)
 //  * Earley maxes out at O(n^3) time, and for practical grammars tends to be linear 
@@ -66,15 +66,19 @@ impl ::std::fmt::Debug for UniqueIdRef {
 
 // Hey, this doesn't need to be Reifiable!
 pub struct Item<'g> {
-    start_idx: usize, // Where this rule tried to start matching
+    /// Where (in the token input stream) this rule tried to start matching
+    start_idx: usize,
+    /// What are we trying to match?
     rule: &'g FormPat,
-    pos: usize, // The location of the • in the rule
-    grammar: &'g SynEnv, // The current grammar (&'g so that we can get &'g FormPat out of it)
+    /// The location of the • in the rule. Most rules are very short
+    pos: usize, 
+    /// The current grammar, so we can interperate `Call` rules
+    grammar: &'g SynEnv, 
     
     // Everything after this line is nonstandard, and is just here as an optimization
     
     
-    /// Identity for the purposes of `wanted_by`
+    /// Identity for the purposes of `wanted_by` and `local_parse`
     id: UniqueId, 
     
     /// Can this complete things that have asked for it?
@@ -105,7 +109,7 @@ pub struct Item<'g> {
     
 }
 
-/// Information for parsing. But it's not a parse tree; it's just a pointer to how we got here.
+/// Information for parsing. It's not a parse tree, but it tells you the next step to get one.
 /// (Hence "local")
 #[derive(PartialEq,Debug,Clone)]
 enum LocalParse {
@@ -120,7 +124,10 @@ enum LocalParse {
 use self::LocalParse::*;
 
 impl PartialOrd for LocalParse {
-    /// Establish a lattice for `LocalParse`; some parses are better (= get chosen )than others.
+    /// Establish a lattice for `LocalParse`; some parses are better than others.
+    /// `Biased` allows one to find a "Plan B" parse that gets overwritten by "Plan A".
+    /// But there's also `NothingYet`, for ... (TODO: only leaves and just-started nodes?)
+    /// ... and `Ambiguous`, when we know that there are multiple justifications for a single node
     fn partial_cmp(&self, other: &LocalParse) -> Option<::std::cmp::Ordering> {
         use ::std::cmp::Ordering::*;
         if self == other { return Some(Equal) }
