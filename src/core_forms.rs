@@ -536,11 +536,6 @@ pub fn make_core_syn_env() -> SynEnv {
     ).set_assoc(&ctf) /* throw in the types! */
 }
 
-
-
-
-
-
 /**
  * Mostly for testing purposes, this looks up forms by name.
  * In the "real world", programmers look up forms by syntax, using a parser. 
@@ -591,19 +586,20 @@ pub fn find_core_form(nt: &str, name: &str) -> Rc<Form> {
 
 
 
-/* TODO: this test is broken by identifiers-as-a-valid-type. Why? All other possible parses
-         should override identifiers.
+
 #[test]
 fn form_grammar() {
     let cse = make_core_syn_env();
-    assert_eq!(parse(&form_pat!((call "type")),
-                     cse.clone(),
-                     &tokens!([""; "ident" "->" "ident"])),
+    use read::*;
+    use read::DelimChar::*;
+    
+    assert_eq!(::parse::parse(&form_pat!((call "type")),
+                              &cse.clone(),
+                              &tokens!([""; "ident" "->" "ident"])),
                Ok(ast!({ find_form(&cse, "type", "fn"); 
                    ["ret" => {find_form(&cse, "type", "ident") ; []},
                     "param" => [{find_form(&cse, "type", "ident") ; []}]]})));
-    
-}*/
+}
 
 
 #[test]

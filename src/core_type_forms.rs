@@ -169,7 +169,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         }),
         NotWalked);
         
-    assoc_n!("type" => /*Biased(Box::new(*/forms_to_form_pat![
+    assoc_n!("type" => Biased(Box::new(forms_to_form_pat![
         fn_type.clone(),
         type_defn("ident", form_pat!((lit "ident"))),
         type_defn("int", form_pat!((lit "int"))),
@@ -180,9 +180,8 @@ pub fn make_core_syn_env_types() -> SynEnv {
         struct_type.clone(),
         forall_type.clone(),
         mu_type.clone(),
-        type_apply.clone(),
-        type_by_name.clone()
-        ]/*), Box::new(VarRef))*/)
+        type_apply.clone()
+        ]), Box::new(form_pat!((scope type_by_name.clone())))))
 } 
 
 #[test]
