@@ -49,7 +49,7 @@ pub fn delim(s: &str) -> DelimChar {
     }
 }
 
-fn read_tokens(s: &str) -> TokenTree {
+pub fn read_tokens(s: &str) -> TokenTree {
     lazy_static! {
         static ref token : regex::Regex =
             regex::Regex::new(format!(r"(?P<open_all>(?P<main_o>{nd}*)(?P<open>{o}))|((?P<close>{c})(?P<main_c>{nd}*))|(?P<normal>{nd}+)",

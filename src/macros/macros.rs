@@ -3,7 +3,7 @@
 // TODO: use a real logging framework
 macro_rules! log {
     ($($e:expr),*) => {
-        /*  */
+        // print!( $($e),* );
     }
 }
 
@@ -221,6 +221,7 @@ macro_rules! form_pat {
         ::parse::FormPat::Delimited(::name::n($n), ::read::delim($d), Box::new(form_pat!($body)))
     };
     ((star $body:tt)) => { ::parse::FormPat::Star(Box::new(form_pat!($body))) };
+    ((plus $body:tt)) => { ::parse::FormPat::Plus(Box::new(form_pat!($body))) };
     ((alt $($body:tt),* )) => { ::parse::FormPat::Alt(vec![ $( form_pat!($body) ),* ] )};
     ((biased $lhs:tt, $rhs:tt)) => { ::parse::FormPat::Biased(Box::new(form_pat!($lhs)), 
                                                               Box::new(form_pat!($rhs))) };
@@ -356,6 +357,12 @@ macro_rules! tf {
         TypedValue {
             ty: mk_type!([ ( $($param_t),* ) -> $ret_t ] ),
             val: core_fn!( $($param_p),* => $body)
+        }
+    };
+    (  $n:tt, $e:expr ) => {
+        TypedValue {
+            ty: mk_type!( $n ),
+            val: $e
         }
     }
 }

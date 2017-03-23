@@ -43,11 +43,33 @@ mod core_forms;
 use runtime::reify::Reifiable;
 
 fn main() {
+    let arguments : Vec<String> = std::env::args().collect();
+    let ref filename = arguments[1];
+
     let mut raw_input = String::new();
-    File::open(&Path::new(&std::env::args().next()
-               .expect("Expected first argument to be a file name")))
+    File::open(&Path::new(filename))
         .expect("Error opening file")
         .read_to_string(&mut raw_input)
         .expect("Error reading file");
 }
 
+fn eval_unseemly_program(program: &str) -> runtime::eval::Value {
+    let tokens = read::read_tokens(program);
+    
+    let ast = core_forms::core_forms.with(|cse| {
+        parse::parse(&core_forms::outermost_form(), &cse, &tokens).unwrap()
+    });
+    
+    runtime::eval::eval(&ast, runtime::core_values::core_values()).unwrap()
+}
+
+#[test]
+fn end_to_end_eval() {
+    // How does this language go again?
+    assert_eq!(eval_unseemly_program("zero? zero"),
+               val!(b true));
+    /*
+    assert_eq!(eval_unseemly_program("plus one one"),
+               val!(i 2));
+    */
+}

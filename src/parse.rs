@@ -51,6 +51,7 @@ custom_derive! {
         Delimited(Name, DelimChar, Box<FormPat>),
         Seq(Vec<FormPat>),
         Star(Box<FormPat>),
+        Plus(Box<FormPat>),
         Alt(Vec<FormPat>),
         Biased(Box<FormPat>, Box<FormPat>),
 

@@ -182,7 +182,7 @@ pub fn make_core_syn_env() -> SynEnv {
         
         typed_form!("apply", /* function application*/
             [(named "rator", (call "expr")), 
-             (star (named "rand", (call "expr")))],
+             (plus (named "rand", (call "expr")))],
             cust_rc_box!(move | part_types |
                 expect_node!( (try!(part_types.get_res(&n("rator"))).0 ; 
                                find_type(&ctf_1, "fn"))
@@ -233,7 +233,7 @@ pub fn make_core_syn_env() -> SynEnv {
         typed_form!("match",
             [(lit "match"), (named "scrutinee", (call "expr")),
              (delim "{", "{", 
-                 (star [(named "p", (call "pat")), (lit "=>"),
+                 (plus [(named "p", (call "pat")), (lit "=>"),
                         (named "arm", (import ["p" = "scrutinee"], (call "expr")))]))],
             /* Typesynth: */
             cust_rc_box!(move | part_types | {
@@ -578,6 +578,10 @@ fn find_type(se: &SynEnv, form_name: &str) -> Rc<Form> {
 
 thread_local! {
     pub static core_forms: SynEnv = make_core_syn_env();
+}
+
+pub fn outermost_form() -> FormPat {
+    Call(n("expr")) // `n` isn't static
 }
 
 pub fn find_core_form(nt: &str, name: &str) -> Rc<Form> {

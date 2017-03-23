@@ -32,8 +32,15 @@ pub fn core_typed_values() -> Assoc<Name, TypedValue> {
              ( Int(a), Int(b) ) => { Int( a.clone() * b ) }),
         "zero?" =>
         tf!([( "integer" ) -> "bool"],
-             ( Int(a) ) => { Bool(a == BigInt::from(0))} )
+             ( Int(a) ) => { Bool(a == BigInt::from(0))} ),
+        "zero" => tf!( "integer", val!(i 0) ),
+        "one" => tf!( "integer", val!(i 1) )
+        
     )
+}
+
+pub fn core_values() -> Assoc<Name, Value> {
+    core_typed_values().map(&erase_types)
 }
 
 
