@@ -11,7 +11,8 @@
 //    - a category of languages I can comprehend,
 //    - and closed under composition (though ambiguity can creep in)
 //  * Earley has a pretty good error message story (TODO: check that this is true)
-//  * Earley maxes out at O(n^3) time, and for practical grammars tends to be linear 
+//  * Earley maxes out at O(n^3) time†, and for practical grammars tends to be linear 
+//       †technically, the reflective bit makes parsing NP-complete, but No One Will Do That.
 //
 // Also, it turns out that implementing an Earley parser goes pretty smoothly. Yay!
 
@@ -23,6 +24,10 @@ use ast::Ast;
 use std::rc::Rc;
 use std::cell::{Ref,RefCell};
 use name::*;
+
+pub fn end_of_delim() -> Token {
+    Token::Simple(n("☾end delimiter☽"))
+}
 
 // TODO: This UniqueId stuff is great, but we could make things faster 
 //  by storing array indices instead
@@ -201,6 +206,7 @@ fn walk_tt<'g>(chart: &mut Vec<Vec<Item<'g>>>, t: &Token, cur_tok: &mut usize) {
             for ref sub_tok in tree.t.iter() {
                 walk_tt(chart, sub_tok, cur_tok);
             }
+            walk_tt(chart, &end_of_delim(), cur_tok);
         }
     }
 }
@@ -311,6 +317,7 @@ impl<'g, 'c> Item<'g> {
     
     // -----------------------------------------------------------
     // These methods all make a (singleton) set of items after progressing `self` somehow
+    // TODO: I have a lot of "like <one of these>, but" comments around this file... 
     
     fn advance(&'c self, consume_tok: bool) -> Vec<(Item<'g>, bool)> {
         log!("[adv ({})]", self.id.0);
@@ -373,10 +380,15 @@ impl<'g, 'c> Item<'g> {
                                                .. waiting_item.clone() }, false)]
                             }
                         }
+                        Delimited(_,_,_) => { // Like `waiting_item.advance` (etc.)
+                            vec![(Item { pos: waiting_item.pos+1,
+                                         local_parse: RefCell::new(me_justif),
+                                           .. waiting_item.clone() }, false)]                            
+                        }
                         Plus(_) | Star(_) => { // It'll also keep going, though!
                             waiting_item.finish_with(me_justif, false) 
                         }
-                        Delimited(_,_,_) | Alt(_) | Call(_) | ComputeSyntax(_,_) 
+                        Alt(_) | Call(_) | ComputeSyntax(_,_) 
                         | Scope(_) | Named(_,_) | SynImport(_,_) | NameImport(_,_) => {
                             waiting_item.finish_with(me_justif, false)
                         }
@@ -447,6 +459,16 @@ impl<'g, 'c> Item<'g> {
             },
             (1, &Delimited(_, _, ref xptd_body)) => {
                 self.start(&**xptd_body, cur_idx)
+            },
+            (2, &Delimited(_,_,_)) => {
+                match cur {
+                    Some(t) if t == &end_of_delim() => { // like `.finish`, but keeping local_parse
+                        vec![(Item{done: RefCell::new(true), pos: self.pos + 1, 
+                                   local_parse: RefCell::new(self.local_parse.borrow().clone()),
+                                    .. self.clone()}, 
+                              true)]},
+                    _ => { vec![] }
+                }
             },
             (pos, &Seq(ref subs)) => {
                 if pos < subs.len() {
@@ -558,7 +580,11 @@ impl<'g, 'c> Item<'g> {
                     ParsedAtom(a) => Ok(a), _ => { panic!("ICE: no simple parse saved")}
                 } 
             },
-            Delimited(_, _, _) | Alt(_) | Biased(_, _) | Call(_) | SynImport(_, _) => {
+            Delimited(_, _, _) => { 
+                // HACK: the wanted item is misaligned by a token because of the close delimiter
+                self.find_wanted(chart, done_tok-1).c_parse(chart, done_tok-1)
+            }
+            Alt(_) | Biased(_, _) | Call(_) | SynImport(_, _) => {
                 self.find_wanted(chart, done_tok).c_parse(chart, done_tok)
             },
             Seq(_) | Star(_) | Plus(_) => {

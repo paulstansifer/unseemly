@@ -181,8 +181,8 @@ pub fn make_core_syn_env() -> SynEnv {
             })),
         
         typed_form!("apply", /* function application*/
-            [(named "rator", (call "expr")), 
-             (plus (named "rand", (call "expr")))],
+            (delim "(", "(", /*))*/ [(named "rator", (call "expr")), 
+             (plus (named "rand", (call "expr")))]),
             cust_rc_box!(move | part_types |
                 expect_node!( (try!(part_types.get_res(&n("rator"))).0 ; 
                                find_type(&ctf_1, "fn"))

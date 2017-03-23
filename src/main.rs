@@ -55,7 +55,7 @@ fn main() {
 
 fn eval_unseemly_program(program: &str) -> runtime::eval::Value {
     let tokens = read::read_tokens(program);
-    
+        
     let ast = core_forms::core_forms.with(|cse| {
         parse::parse(&core_forms::outermost_form(), &cse, &tokens).unwrap()
     });
@@ -65,11 +65,9 @@ fn eval_unseemly_program(program: &str) -> runtime::eval::Value {
 
 #[test]
 fn end_to_end_eval() {
-    // How does this language go again?
-    assert_eq!(eval_unseemly_program("zero? zero"),
-               val!(b true));
-    /*
-    assert_eq!(eval_unseemly_program("plus one one"),
-               val!(i 2));
-    */
+    assert_eq!(eval_unseemly_program("(zero? zero)"), val!(b true));
+    
+    assert_eq!(eval_unseemly_program("(plus one one)"), val!(i 2));
+               
+    assert_eq!(eval_unseemly_program("(.[x : int  y : int . (plus x y)]. one one)"), val!(i 2))
 }
