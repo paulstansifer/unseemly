@@ -1,5 +1,6 @@
 
 use ast::Ast;
+use ty::Ty;
 use runtime::eval::{Value, BIF, eval};
 use runtime::eval::Value::*;
 use util::assoc::Assoc;
@@ -15,8 +16,8 @@ pub struct TypedValue {
     pub val: Value
 }
 
-pub fn erase_types(tv: &TypedValue) -> Value { tv.val.clone() }
-
+pub fn erase_type(tv: &TypedValue) -> Value { tv.val.clone() }
+pub fn erase_value(tv: &TypedValue) -> Ty { Ty(tv.ty.clone()) }
 
 
 pub fn core_typed_values() -> Assoc<Name, TypedValue> {
@@ -40,7 +41,11 @@ pub fn core_typed_values() -> Assoc<Name, TypedValue> {
 }
 
 pub fn core_values() -> Assoc<Name, Value> {
-    core_typed_values().map(&erase_types)
+    core_typed_values().map(&erase_type)
+}
+
+pub fn core_types() -> Assoc<Name, Ty> {
+    core_typed_values().map(&erase_value)
 }
 
 
@@ -49,15 +54,13 @@ fn basic_core_value_evaluation() {
     use core_forms::find_core_form;
     
     let cte = core_typed_values();
-    let ce = cte.map(&erase_types);
-    
-    let env = ce.set(n("one"), Int(BigInt::from(1)));
-    
+    let ce = cte.map(&erase_type);
+        
     assert_eq!(eval(
         &ast!({ find_core_form( "expr", "apply") ;
             "rator" => (vr "plus"),
             "rand" => [ (vr "one"), (vr "one") ]
         }),
-        env),
+        ce),
         Ok(Int(BigInt::from(2))));
 }

@@ -130,6 +130,8 @@ impl ::runtime::reify::Reifiable for Ty {
 }
 
 impl ::ast_walk::WalkElt<SynthTy> for Ty {
+    type Err = TypeError;
+    
     fn get_bidi_walk_rule(f: &Form) -> &::form::BiDiWR<SynthTy, UnpackTy> { &f.synth_type }
     
     fn automatically_extend_env() -> bool { true }
@@ -141,19 +143,73 @@ impl ::ast_walk::WalkElt<SynthTy> for Ty {
 pub type SynthTy = ::ast_walk::PositiveWalkMode<Ty>;
 pub type UnpackTy = ::ast_walk::NegativeWalkMode<Ty>;
 
-pub fn synth_type_top(expr: &Ast) ->  Result<Ty, ()> {
+pub fn synth_type_top(expr: &Ast) ->  TypeResult {
     walk::<SynthTy>(expr, &LazyWalkReses::new_wrapper(Assoc::new()))
 }
 
-pub fn synth_type(expr: &Ast, env: Assoc<Name, Ty>) -> Result<Ty, ()> {
+pub fn synth_type(expr: &Ast, env: Assoc<Name, Ty>) -> TypeResult {
     walk::<SynthTy>(expr, &LazyWalkReses::new_wrapper(env))
 }
 
 pub fn neg_synth_type(pat: &Ast, env: Assoc<Name, Ty>)
-        -> Result<Assoc<Name, Ty>, ()> {
+        -> Result<Assoc<Name, Ty>, TypeError> {
     walk::<UnpackTy>(pat, &LazyWalkReses::new_wrapper(env))
 }
 
+custom_derive! {
+    #[derive(Reifiable, Clone, PartialEq)]
+    pub enum TyErr {
+        Mismatch(Ty, Ty) // expected, got
+    }
+}
+
+impl ::std::fmt::Display for TyErr {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            TyErr::Mismatch(ref exp, ref got) => {
+                write!(f, "expected `{:?}`, found `{:?}`", exp, got)
+            }
+        }
+    }
+}
+
+// temporary, until we get rid of `Debug` as the way of outputting errors
+impl ::std::fmt::Debug for TyErr {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            TyErr::Mismatch(ref exp, ref got) => {
+                write!(f, "expected `{:?}`, found `{:?}`", exp, got)
+            }
+        }
+    }
+}
+
+/*
+// TODO: I hope I don't need this
+impl From<()> for TyErr {
+    fn from(_: ()) -> TyErr {
+        panic!("Tried to discard a type error");
+    }
+}
+*/
+
+pub type TypeError = ::util::err::Spanned<TyErr>;
+
+
+type TypeResult = Result<Ty, TypeError>;
+
+
+pub fn expect_type(expected: &Ty, got: &Ty, loc: &Ast) -> TypeResult {
+    if got != expected {
+        Err(::util::err::Spanned { 
+            loc: loc.clone(), body: TyErr::Mismatch(expected.clone(), got.clone()) 
+        } )
+    } else {
+        Ok(got.clone()) // HACK: we don't really care about this value...
+    }
+}
+
+// Design a type for type errors here!
 
 #[test]
 fn basic_type_synth() {

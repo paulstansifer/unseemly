@@ -137,6 +137,10 @@ fn eval_quoted_stx(a: Ast, env: Assoc<Name, Value>) -> Ast {
     }
 }
 */
+macro_rules! utry {
+    ($e:expr) => { $e.unwrap() }
+}
+
 /// This is the Unseemly language.
 pub fn make_core_syn_env() -> SynEnv {
     
@@ -188,11 +192,10 @@ pub fn make_core_syn_env() -> SynEnv {
                                find_type(&ctf_1, "fn"))
                     env;
                     {
-                        for (input, expected) in env.get_rep_leaf_or_panic(&n("param")).iter().zip(
-                            &try!(part_types.get_rep_res(&n("rand")))
-                        ) {
-                            // TODO: proper type comparison
-                            if input != &&expected.0 { return Err(()); }
+                        for ((input, expected), loc) in env.get_rep_leaf_or_panic(&n("param"))
+                                .iter().zip(&try!(part_types.get_rep_res(&n("rand"))))
+                                .zip(&part_types.get_rep_term(&n("rand"))) {
+                            let _ = try!(expect_type(expected, &Ty((*input).clone()), loc));
                         }
                     
                         Ok(Ty(env.get_leaf_or_panic(&n("ret")).clone()))

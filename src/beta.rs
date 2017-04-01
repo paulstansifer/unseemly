@@ -76,7 +76,7 @@ impl Beta {
 }
 
 pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
-         -> Result<Assoc<Name, Mode::Elt>, ()> {
+         -> Result<Assoc<Name, Mode::Elt>, Mode::Err> {
     match *b {
         Nothing => { Ok(Assoc::new()) }
         Shadow(ref lhs, ref rhs) => {

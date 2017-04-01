@@ -24,8 +24,9 @@ fn type_defn(form_name: &str, p: FormPat) -> Rc<Form> {
         name: n(form_name),
         grammar: p,
         relative_phase: ::util::assoc::Assoc::new(),
-        // How do kinds fit into this? Recall that `eval` must produce a `Value`, so 
-        // `synth_type` has to produce a type even though we are "evaluating" to a type
+        // How do kinds fit into this? 
+        // I know that that `eval` must produce a `Value`, so 
+        //  `synth_type` has to produce a type even though we are "evaluating" to a type
         synth_type: ::form::Positive(LiteralLike),
         quasiquote: ::form::Both(LiteralLike, LiteralLike),
         eval: ::form::Positive(NotWalked) 

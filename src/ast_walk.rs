@@ -39,7 +39,7 @@ use util::mbe::EnvMBE;
 use ast::Ast;
 use ast::Ast::*;
 use beta::*;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use runtime::{reify, eval};
 use runtime::reify::Reifiable;
 
@@ -49,7 +49,7 @@ pub enum WalkRule<Mode: WalkMode> {
      * A function from the types/values of the *parts* of this form
      *  to the type/value of this form.
      * Note that the environment is not directly accessible! */
-    Custom(Rc<Box<(Fn(LazyWalkReses<Mode>) -> Result<Mode::Out, ()>)>>),
+    Custom(Rc<Box<(Fn(LazyWalkReses<Mode>) -> Result<Mode::Out, Mode::Err>)>>),
     /** "this form has the same type/value as one of its subforms" */
     Body(Name),
     /** "traverse the subterms, and rebuild this syntax around them" */
@@ -98,7 +98,7 @@ pub type ResEnv<Elt> = Assoc<Name, Elt>;
 #[derive(Debug)]
 pub struct LazilyWalkedTerm<Mode: WalkMode> {
     pub term: Ast,
-    pub res: RefCell<Option<Result<Mode::Out, ()>>>
+    pub res: RefCell<Option<Result<Mode::Out, Mode::Err>>>
 }
 
 // trait bounds on parameters are not yet supported by `Reifiable!`
@@ -112,7 +112,7 @@ impl<Mode: WalkMode> reify::Reifiable for LazilyWalkedTerm<Mode> {
     fn reflect(v: &eval::Value) -> Self { 
         extract!((v) eval::Value::Struct = (ref contents) =>
             LazilyWalkedTerm { term: Ast::reflect(contents.find_or_panic(&n("term"))), 
-                               res: RefCell::<Option<Result<Mode::Out, ()>>>::reflect(
+                               res: RefCell::<Option<Result<Mode::Out, Mode::Err>>>::reflect(
                                    contents.find_or_panic(&n("res"))) })
     }
 }
@@ -127,12 +127,13 @@ impl<Mode: WalkMode> LazilyWalkedTerm<Mode> {
     }
         
     /** Get the result of walking this term (memoized) */
-    fn get_res<NewMode: WalkMode<Out=Mode::Out>>(&self, cur_node_contents: &LazyWalkReses<NewMode>)
-            -> Result<Mode::Out, ()> {
+    fn get_res<NewMode: WalkMode<Out=Mode::Out, Err=Mode::Err>>
+            (&self, cur_node_contents: &LazyWalkReses<NewMode>)
+            -> Result<Mode::Out, NewMode::Err> {
         self.memoized(&|| walk::<NewMode>(&self.term, cur_node_contents))
     }
     
-    fn memoized(&self, f: &Fn() -> Result<Mode::Out, ()>) -> Result<Mode::Out, ()> {
+    fn memoized(&self, f: &Fn() -> Result<Mode::Out, Mode::Err>) -> Result<Mode::Out, Mode::Err> {
         let result = self.res.borrow_mut().take().unwrap_or_else(f);
         * self.res.borrow_mut() = Some(result.clone());
         result
@@ -154,6 +155,7 @@ pub struct LazyWalkReses<Mode: WalkMode> {
     /// The environment of the overall walk.
     pub env: ResEnv<Mode::Elt>,
     pub this_form: Rc<Form> // Seems to be needed to close a loop ) :
+    //TODO: add the whole form for error reporting
 }
 
 // trait bounds on parameters are not yet supported by `Reifiable!`
@@ -199,18 +201,18 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
     
     /** The result of walking the subform named `part_name`. This is memoized. */
-    pub fn get_res(&self, part_name: &Name) -> Result<Mode::Out, ()> {
+    pub fn get_res(&self, part_name: &Name) -> Result<Mode::Out, Mode::Err> {
         self.parts.get_leaf_or_panic(part_name).get_res(self)
     }
 
     /** Like `get_res`, but for subforms that are repeated at depth 1. Sort of a hack. */
-    pub fn get_rep_res(&self, part_name: &Name) -> Result<Vec<Mode::Out>, ()> {
+    pub fn get_rep_res(&self, part_name: &Name) -> Result<Vec<Mode::Out>, Mode::Err> {
         self.parts.get_rep_leaf_or_panic(part_name)
             .iter().map( |&lwt| lwt.get_res(self)).collect()
     }
     
     /*/** Like `get_rep_res`, but doesn't panic if the name is absent. */
-    pub fn maybe_get_rep_res(&self, part_name: &Name) -> Option<Result<Vec<Mode::Out>, ()>> {
+    pub fn maybe_get_rep_res(&self, part_name: &Name) -> Option<Result<Vec<Mode::Out>, Mode::Err>> {
         self.parts.get_rep_leaf(part_name).map(|parts| 
             parts.iter().map( |&lwt| lwt.get_res(self)).collect())
     }*/
@@ -295,7 +297,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     
     /** Like `get_rep_res`, but with a different context for each repetition */
     pub fn get_rep_res_with(&self, n: &Name, new_contexts: Vec<Mode::Elt>)
-            -> Result<Vec<Mode::Out>, ()> {
+            -> Result<Vec<Mode::Out>, Mode::Err> {
         if let Some(sub_parts) = self.march_parts_with(&[*n], new_contexts) {
             //Some(sub_parts.iter().map(|sp| sp.get_res(n)).collect())
             let mut res = vec![];
@@ -315,7 +317,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
  * HACK: The parts in `cur_node_contents` are ignored; it's just an environment to us.
  */
 pub fn walk<Mode: WalkMode>(expr: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
-        -> Result<Mode::Out, ()> {
+        -> Result<Mode::Out, Mode::Err> {
     match *expr {
         Node(ref f, ref parts) => {
             // certain walks only work on certain kinds of AST nodes
@@ -333,17 +335,18 @@ pub fn walk<Mode: WalkMode>(expr: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
                 
                 LiteralLike => {
                     Mode::walk_quasi_literally(f, parts, cur_node_contents)
+                        .expect("Match failure")
                 }
                 
-                NotWalked => { panic!( "{:?} should not be walked at all!", expr ) }
+                NotWalked => { panic!( "ICE: {:?} should not be walked at all!", expr ) }
             }
         }
-        IncompleteNode(ref parts) => { panic!("{:?} isn't a complete node", parts)}
+        IncompleteNode(ref parts) => { panic!("ICE: {:?} isn't a complete node", parts)}
         
         VariableReference(n) => { Ok(Mode::walk_var(n, &cur_node_contents)) }
         
         Trivial | Atom(_) | Shape(_) => {
-            panic!("{:?} is not a walkable node", expr);
+            panic!("ICE: {:?} is not a walkable node", expr);
         }
         
         ExtendEnv(ref body, ref beta) => {
@@ -363,6 +366,8 @@ pub fn walk<Mode: WalkMode>(expr: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
  
  // The fact that we need this type parameter makes me unhappy. Is there any way around it?
 pub trait WalkElt<Mode: WalkMode>: Clone + Debug + Reifiable {
+    type Err : Debug /* TODO: use Display, when all errors are in place */ + Reifiable + Clone;
+    
     fn get_bidi_walk_rule(f: &Form) -> &::form::BiDiWR<Mode, Mode::Negative>;
      
     fn automatically_extend_env() -> bool;
@@ -370,6 +375,9 @@ pub trait WalkElt<Mode: WalkMode>: Clone + Debug + Reifiable {
     fn from_ast(a: &Ast) -> Self;
     fn to_ast(&self) -> Ast;
 }
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub struct MatchFailure(); // Huh, this doesn't need to be Reifiable?
 
 
 /**
@@ -396,9 +404,12 @@ pub trait WalkMode : Debug + Copy + Reifiable {
      * Negated walks produce an environment of Self::Elt, positive walks produce Self::Elt.
      */
     type Out : Clone + Debug + Reifiable;
-
+    
+    type Err : Debug /*Display*/ + Reifiable + Clone;
+    
     /** The negated version of this walk */    
-    type Negative : WalkMode<Elt=Self::Elt>;
+    type Negative : WalkMode<Elt=Self::Elt, Err=Self::Err>;
+    
     
     fn get_walk_rule(&Form) -> &WalkRule<Self> where Self: Sized ;
 
@@ -415,9 +426,19 @@ pub trait WalkMode : Debug + Copy + Reifiable {
      */
     fn automatically_extend_env() -> bool;
     
+    /**
+     Walk over the structure of a node, not its meaning.
+     This could be because we're inside a syntax-quote,
+      or it could be that we are a form (like written-out types or a literal)
+       that acts like a literal.
+     Children are not necessarily walked quasiliterally
+      -- maybe they're an interpolation of some kind --
+       instead, the mode (=quotation depth) and form together decide what to do.
+     If the walk is negative, the result might be MatchFailure
+     */
     fn walk_quasi_literally(f: &Rc<Form>, parts: &EnvMBE<Ast>, 
                             cnc: &LazyWalkReses<Self>) 
-        -> Result<Self::Out, ()>;
+        -> Result<Result<Self::Out, Self::Err>, MatchFailure>;
 
     // We need to dynamically do these if it's possible, for `env_from_beta`        
     fn out_as_elt(Self::Out) -> Self::Elt;
@@ -437,6 +458,8 @@ impl<Elt: WalkElt<PositiveWalkMode<Elt>>> WalkMode for PositiveWalkMode<Elt> {
     type Out = Elt;
     type Elt = Elt;
     type Negative = NegativeWalkMode<Elt>;
+    
+    type Err = Elt::Err;
 
     // TODO: maybe remove, use Elt::get_walk_rule() directly   
     fn get_walk_rule(f: &Form) -> &WalkRule<Self> { 
@@ -448,13 +471,34 @@ impl<Elt: WalkElt<PositiveWalkMode<Elt>>> WalkMode for PositiveWalkMode<Elt> {
     
     fn walk_quasi_literally(f: &Rc<Form>, parts: &EnvMBE<Ast>, 
                             cnc: &LazyWalkReses<Self>) 
-            -> Result<Self::Out, ()> {
-        Ok(Elt::from_ast(&Node(f.clone(),
-            try!(parts.map(
-                &|p| match *p {
-                    Node(_, _) => walk(p, cnc),
+            -> Result<Result<Self::Out, Self::Err>, MatchFailure> {
+        
+        // TODO: I think we need a separate version of `walk` that doesn't panic on `MatchFailure`
+        let walked : Result<EnvMBE<Ast>, Self::Err> = parts.map(
+            &|p: &Ast| match *p {
+                Node(_, _) => walk(p, cnc),
+                _ => Ok(Elt::from_ast(&p.clone()))
+            }.map(|e| Elt::to_ast(&e))).lift_result();
+
+        match walked { // sort of an inner `try!`
+            Err(e) => { Ok(Err(e)) }, // match succeeded, walk failed
+            Ok(out) => { Ok(Ok(Elt::from_ast(&Node(f.clone(), out)))) }
+        }
+        
+        
+        /*
+        //panic!("TODO: I don't understand the code I wrote for this")
+        
+        let walked_subterms : Result<EnvMBE<Self::Out>, _> = parts.map(
+            &|p: &Ast| -> Result<Self::Out, Self::Err> {
+                match *p {
+                    // Yes, `walk`, not `w_q_l`; the mode is in charge of figuring things out.
+                    Node(_,_) => { walk(p, cnc) },
                     _ => Ok(Elt::from_ast(&p.clone()))
-                }.map(|e| Elt::to_ast(&e))).lift_result()))))
+                }.map(|e:Elt| Elt::to_ast(&e))
+            }).lift_result();
+                
+        Ok(Elt::from_ast(&Node(f.clone(), walked_subterms)))*/
     }
     
     /// Look up variable in the environment!
@@ -477,6 +521,8 @@ impl<Elt: WalkElt<PositiveWalkMode<Elt>>> WalkMode for NegativeWalkMode<Elt> {
     type Out = Assoc<Name, Elt>;
     type Elt = Elt;
     type Negative = PositiveWalkMode<Elt>;
+    
+    type Err = Elt::Err;
 
     // TODO: mabye remove, use Elt::get_walk_rule() directly   
     fn get_walk_rule(f: &Form) -> &WalkRule<Self> { 
@@ -488,7 +534,7 @@ impl<Elt: WalkElt<PositiveWalkMode<Elt>>> WalkMode for NegativeWalkMode<Elt> {
 
     fn walk_quasi_literally(f: &Rc<Form>, parts: &EnvMBE<Ast>, 
                             cnc: &LazyWalkReses<Self>) 
-            -> Result<Self::Out, ()> {
+            -> Result<Result<Self::Out, Self::Err>, MatchFailure> {
         let ctxt = Elt::to_ast(cnc.context_elt());
 
         //type Res = Result<Assoc<Name, Self::Elt>, ()>;
@@ -503,7 +549,7 @@ impl<Elt: WalkElt<PositiveWalkMode<Elt>>> WalkMode for NegativeWalkMode<Elt> {
             //  contained useful `diff`-like information for debugging,
             //   when a match was expected to succeed?
             // (I really like using pattern-matching in unit tests!)
-            if **f != **f_actual { return Err(()); /* match failure: different form */ }
+            if **f != **f_actual { return Err(MatchFailure()); /* different form */ }
             
             // TODO: this continues walking after a subterm fails to match;
             //  it should bail out immediately
@@ -514,9 +560,9 @@ impl<Elt: WalkElt<PositiveWalkMode<Elt>>> WalkMode for NegativeWalkMode<Elt> {
                 &|result, next| { Ok(try!(result.clone()).set_assoc(&try!(next.clone()))) },
                 Ok(cnc.env.clone()));
             
-            res
+            Ok(res) // Match success
         } else {
-            Err(()) /* match failure:  */
+            Err(MatchFailure()) /* Didn't even get a form */
         }
     }
     

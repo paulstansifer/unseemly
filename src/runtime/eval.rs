@@ -56,6 +56,8 @@ impl std::fmt::Debug for BIF {
 }
 
 impl ::ast_walk::WalkElt<Eval> for Value {
+    type Err = ();
+    
     fn get_bidi_walk_rule(f: &Form) -> &::form::BiDiWR<Eval, Destructure> { &f.eval }
     
     /// The whole point of program evaluation is that the enviornment 
@@ -76,6 +78,8 @@ pub type Destructure = ::ast_walk::NegativeWalkMode<Value>;
 
 
 impl ::ast_walk::WalkElt<QQuote> for Ast {
+    type Err = ();
+    
     fn get_bidi_walk_rule(f: &Form) -> &::form::BiDiWR<QQuote, QQuoteDestr> { &f.quasiquote }
 
     fn automatically_extend_env() -> bool { true } // You can't do this in Scheme!
