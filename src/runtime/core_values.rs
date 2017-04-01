@@ -45,7 +45,13 @@ pub fn core_values() -> Assoc<Name, Value> {
 }
 
 pub fn core_types() -> Assoc<Name, Ty> {
-    core_typed_values().map(&erase_value)
+    core_typed_values().map(&erase_value).set_assoc(
+        // TODO: This is needed for `type_by_name`s to turn into ... plain names
+        &assoc_n!(
+            "integer" => ty!("integer"),
+            "bool" => ty!("bool")
+        )
+    )
 }
 
 
