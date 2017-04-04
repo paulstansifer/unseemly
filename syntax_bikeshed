@@ -16,7 +16,7 @@ quick lambda:
   [_ + 1]
   _[_ + 1]_
 
-type ascription:
+type parameterization:
   List @ Num
   List <[Num]<   ...fish X-ray!
   @[List Num]@

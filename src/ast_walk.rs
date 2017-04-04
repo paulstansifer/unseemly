@@ -13,6 +13,8 @@ The most interesting `WalkRule`, `Custom`,
  specifies an arbitrary function on the results of walking its subterms.
 Subterms are walked lazily, since not all of them are even evaluable/typeable,
  and they might need to be walked in a specific order.
+ 
+I may have committed some light type sorcery to make this happen.
  */
 
 
@@ -142,7 +144,7 @@ impl<Mode: WalkMode> LazilyWalkedTerm<Mode> {
 
 
 /** 
- * Package containing enough information to the subforms of some form on-demand.
+ * Package containing enough information to walk the subforms of some form on-demand.
  *
  * It is safe to have unwalkable subforms, as long as nothing ever refers to them.
  * 
