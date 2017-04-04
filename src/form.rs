@@ -24,7 +24,7 @@ custom_derive! {
         /** The grammar the programmer should use to invoke this form. 
          * This contains information about bindings and syntax extension; this is where it belongs!
          */
-        pub grammar: FormPat,
+        pub grammar: Rc<FormPat>,
         /** From a type environment, construct the type of this term. */
         pub synth_type: BiDiWR<::ty::SynthTy, ::ty::UnpackTy>,
         /** From a value environment, evaluate this term.*/
@@ -84,7 +84,7 @@ impl Debug for Form {
 pub fn simple_form(form_name: &str, p: FormPat) -> Rc<Form> {
     Rc::new(Form {
             name: n(form_name),
-            grammar: p,
+            grammar: Rc::new(p),
             relative_phase: Assoc::new(), 
             synth_type: ::form::Positive(WalkRule::NotWalked),
             eval: ::form::Positive(WalkRule::NotWalked),

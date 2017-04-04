@@ -78,11 +78,11 @@ fn unquote<Mode: ::ast_walk::WalkMode>(nt: Name, ctf: SynEnv, pos: bool) -> Rc<F
     Rc::new(Form {
         name: n("unquote"), // maybe add the `nt` to the name?
         grammar: 
-            if pos {
+            Rc::new(if pos {
                 form_pat!([(delim ",[", "[", /*]]*/ (named "body", (call "expr")))])             
             } else {
                 form_pat!([(delim ",[", "[", /*]]*/ (named "body", (call "pat")))])
-            },
+            }),
         synth_type: 
             // imagine: ` '[{expr} .[a : int . ,[body], ]. ]' `
             if pos {
@@ -534,8 +534,8 @@ pub fn make_core_syn_env() -> SynEnv {
             }))];
 
     assoc_n!(
-        "pat" => Biased(Box::new(main_pat_forms), Box::new(VarRef)),
-        "expr" => Biased(Box::new(main_expr_forms), Box::new(VarRef))
+        "pat" => Rc::new(Biased(Rc::new(main_pat_forms), Rc::new(VarRef))),
+        "expr" => Rc::new(Biased(Rc::new(main_expr_forms), Rc::new(VarRef)))
     ).set_assoc(&ctf) /* throw in the types! */
 }
 

@@ -7,5 +7,7 @@
   should be automatically derivable from type definitions. Okay, this probably
   takes way too much guessing for something whose semantics can be permanently
   affected by past commits.
-* a tool for quickly writing templates over cross-products of lists of syntax,
+* a tool for quickly expanding templates over cross-products of lists of syntax,
   for avoiding small-scale repetition.
+* a tool to automatically turn on logging and `diff` log messages from the
+  failing tests in current version of the repo against the last good run.

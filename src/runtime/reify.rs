@@ -18,7 +18,7 @@ use util::assoc::Assoc;
  */
 
 pub trait Reifiable {
-    /// The Unseemly type that corresponds to Self.
+    /// The Unseemly type that corresponds to to the `Reifiable` type.
     /// Suitable for type definition, so any parameters will be abstract.
     /// e.g. `∀ A. Pair <[A int]<`
     /// TODO: this should return `Ty`
@@ -26,7 +26,7 @@ pub trait Reifiable {
         // By default, this is an opaque primitive.
         Ast::Node(Rc::new(::form::Form { 
             name: Self::ty_name(),
-            grammar: ::parse::FormPat::Impossible,
+            grammar: Rc::new(::parse::FormPat::Impossible),
             relative_phase: ::util::assoc::Assoc::new(),
             synth_type: ::form::Positive(::ast_walk::WalkRule::LiteralLike),
             quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike, 

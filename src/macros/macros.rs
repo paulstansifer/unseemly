@@ -218,25 +218,25 @@ macro_rules! form_pat {
     (aat) => { ::parse::FormPat::AnyAtomicToken };
     (varref) => { ::parse::FormPat::VarRef };
     ((delim $n:expr, $d:expr, $body:tt)) => {
-        ::parse::FormPat::Delimited(::name::n($n), ::read::delim($d), Box::new(form_pat!($body)))
+        ::parse::FormPat::Delimited(::name::n($n), ::read::delim($d), Rc::new(form_pat!($body)))
     };
-    ((star $body:tt)) => { ::parse::FormPat::Star(Box::new(form_pat!($body))) };
-    ((plus $body:tt)) => { ::parse::FormPat::Plus(Box::new(form_pat!($body))) };
-    ((alt $($body:tt),* )) => { ::parse::FormPat::Alt(vec![ $( form_pat!($body) ),* ] )};
-    ((biased $lhs:tt, $rhs:tt)) => { ::parse::FormPat::Biased(Box::new(form_pat!($lhs)), 
-                                                              Box::new(form_pat!($rhs))) };
+    ((star $body:tt)) => { ::parse::FormPat::Star(Rc::new(form_pat!($body))) };
+    ((plus $body:tt)) => { ::parse::FormPat::Plus(Rc::new(form_pat!($body))) };
+    ((alt $($body:tt),* )) => { ::parse::FormPat::Alt(vec![ $( Rc::new(form_pat!($body)) ),* ] )};
+    ((biased $lhs:tt, $rhs:tt)) => { ::parse::FormPat::Biased(Rc::new(form_pat!($lhs)), 
+                                                              Rc::new(form_pat!($rhs))) };
     ((call $n:expr)) => { ::parse::FormPat::Call(::name::n($n)) };
     ((scope $f:expr)) => { ::parse::FormPat::Scope($f) };
     ((named $n:expr, $body:tt)) => {
-        ::parse::FormPat::Named(::name::n($n), Box::new(form_pat!($body))) 
+        ::parse::FormPat::Named(::name::n($n), Rc::new(form_pat!($body))) 
     };
     ((import $beta:tt, $body:tt)) => { 
-        ::parse::FormPat::NameImport(Box::new(form_pat!($body)), beta!($beta))
+        ::parse::FormPat::NameImport(Rc::new(form_pat!($body)), beta!($beta))
     };
     ((extend $n:expr, $f:expr)) => {
         ::parse::FormPat::SynImport(::name::n($n), ::parse::SyntaxExtension(Rc::new(Box::new($f))))
     };
-    ( [$($body:tt),*] ) => { ::parse::FormPat::Seq(vec![ $(form_pat!($body)),* ])}
+    ( [$($body:tt),*] ) => { ::parse::FormPat::Seq(vec![ $( Rc::new(form_pat!($body)) ),* ])}
 }
 
 
@@ -255,7 +255,7 @@ macro_rules! basic_typed_form {
     ( $p:tt, $gen_type:expr, $eval:expr ) => {
         Rc::new(Form {
             name: ::name::n("unnamed form"),
-            grammar: form_pat!($p),
+            grammar: Rc::new(form_pat!($p)),
             relative_phase: ::util::assoc::Assoc::new(),
             synth_type: ::form::Positive($gen_type),
             quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike,
@@ -269,7 +269,7 @@ macro_rules! typed_form {
     ( $name:expr, $p:tt, $gen_type:expr, $eval:expr ) => {
         Rc::new(Form {
             name: ::name::n($name),
-            grammar: form_pat!($p),
+            grammar: Rc::new(form_pat!($p)),
             relative_phase: ::util::assoc::Assoc::new(),
             synth_type: ::form::Positive($gen_type),
             quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike,
@@ -284,7 +284,7 @@ macro_rules! negative_typed_form {
     ( $name:expr, $p:tt, $gen_type:expr, $eval:expr ) => {
         Rc::new(Form {
             name: ::name::n($name),
-            grammar: form_pat!($p),
+            grammar: Rc::new(form_pat!($p)),
             relative_phase: ::util::assoc::Assoc::new(),
             synth_type: ::form::Negative($gen_type),
             quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike,
@@ -298,7 +298,7 @@ macro_rules! ambidextrous_typed_form {
     ( $name:expr, $p:tt, $gen_type:expr, $neg_gen_type:expr, $eval:expr, $neg_eval:expr) => {
         Rc::new(Form {
             name: ::name::n($name),
-            grammar: form_pat!($p),
+            grammar: Rc::new(form_pat!($p)),
             relative_phase: ::util::assoc::Assoc::new(),
             synth_type: ::form::Both($gen_type, $neg_gen_type),
             quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike,

@@ -16,13 +16,16 @@ custom_derive! {
     #[must_use]
     #[derive(Reifiable)]
     pub struct Assoc<K, V> {
-        pub n: Option<Rc<AssocNode<K, V>>>
+        pub n: Option<Rc<AssocNode<K, V>>> // This could be a newtype, except for `custom_derive`
     }
 }
 
 impl<K : PartialEq + Clone, V: Clone> Clone for Assoc<K, V> {
     fn clone(&self) -> Assoc<K, V> {
-        self.map(&|rc| rc.clone())
+        //self.map(&|rc| rc.clone()) // TODO: did I want this behavior somehow?
+        Assoc {
+            n: self.n.clone()
+        }
     }
 }
 
@@ -65,6 +68,18 @@ impl<K: PartialEq + Clone, V: Clone> Clone for AssocNode<K, V> {
 
 
 impl<K : PartialEq, V> Assoc<K, V> {
+    
+    /// Possibly unintuitively, all empty assocs are identical.
+    pub fn almost_ptr_eq(&self, other: &Assoc<K, V>) -> bool {
+        match (&self.n, &other.n) {
+            (&None, &None) => true,
+            (&Some(ref l_rc), &Some(ref r_rc)) => {
+                &**l_rc as *const AssocNode<K,V> == &**r_rc as *const AssocNode<K,V>
+            }
+            _ => false
+        }
+    }
+    
     pub fn find<'assoc, 'f>(&'assoc self, target: &'f K) -> Option<&'assoc V> {
         match self.n {
             None => None,

@@ -30,7 +30,7 @@ impl Token {
 
 custom_derive! {
     /**
-      FormPat is a grammar for syntax forms.
+      `FormPat` is a grammar. Think EBNF, but more extended. 
 
       Most kinds of grammar nodes produce an `Ast` of either `Shape` or `Env`,
        but `Named` and `Scope` are special:
@@ -48,12 +48,12 @@ custom_derive! {
         AnyToken,
         AnyAtomicToken,
         VarRef,
-        Delimited(Name, DelimChar, Box<FormPat>),
-        Seq(Vec<FormPat>),
-        Star(Box<FormPat>),
-        Plus(Box<FormPat>),
-        Alt(Vec<FormPat>),
-        Biased(Box<FormPat>, Box<FormPat>),
+        Delimited(Name, DelimChar, Rc<FormPat>),
+        Seq(Vec<Rc<FormPat>>),
+        Star(Rc<FormPat>),
+        Plus(Rc<FormPat>),
+        Alt(Vec<Rc<FormPat>>),
+        Biased(Rc<FormPat>, Rc<FormPat>),
 
         /**
          * Lookup a nonterminal in the current syntactic environment.
@@ -65,11 +65,11 @@ custom_derive! {
          *  as a function from the current `SynEnv` to a new one, 
          *  and names the result in the current scope. 
          */
-        ComputeSyntax(Name, Box<FormPat>),
+        ComputeSyntax(Name, Rc<FormPat>),
 
         /** Makes a node and limits the region where names are meaningful. */
         Scope(Rc<Form>), 
-        Named(Name, Box<FormPat>),
+        Named(Name, Rc<FormPat>),
 
         /**
          * This is where syntax gets extensible.
@@ -82,8 +82,8 @@ custom_derive! {
          * (write Named(NameImport(..., ...)) instead) 
          * TODO: make this better
          */
-        NameImport(Box<FormPat>, Beta),
-        //NameExport(Beta, Box<FormPat>) // This might want to go on some existing pattern
+        NameImport(Rc<FormPat>, Beta),
+        //NameExport(Beta, Rc<FormPat>) // This might want to go on some existing pattern
     }
 }
 pub struct SyntaxExtension(pub Rc<Box<(Fn(SynEnv) -> SynEnv)>>);
@@ -116,7 +116,7 @@ impl std::fmt::Debug for SyntaxExtension {
     }
 }
 
-pub type SynEnv = Assoc<Name, FormPat>;
+pub type SynEnv = Assoc<Name, Rc<FormPat>>;
 
 
 pub use ::earley::parse;
@@ -134,21 +134,21 @@ use self::FormPat::*;
 
 #[test]
 fn basic_parsing() {    
-    assert_eq!(parse_top(&Seq(vec![AnyToken]), &tokens!("asdf")).unwrap(), ast_shape!("asdf"));
+    assert_eq!(parse_top(&Seq(vec![Rc::new(AnyToken)]), &tokens!("asdf")).unwrap(), ast_shape!("asdf"));
     
-    assert_eq!(parse_top(&Seq(vec![AnyToken, Literal(n("fork")), AnyToken]),
+    assert_eq!(parse_top(&Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
                &tokens!("asdf" "fork" "asdf")).unwrap(),
                ast_shape!("asdf" "fork" "asdf"));
                
-    assert_eq!(parse_top(&Seq(vec![AnyToken, Literal(n("fork")), AnyToken]),
+    assert_eq!(parse_top(&Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
                &tokens!("asdf" "fork" "asdf")).unwrap(),
                ast_shape!("asdf" "fork" "asdf"));
                
-    parse_top(&Seq(vec![AnyToken, Literal(n("fork")), AnyToken]),
+    parse_top(&Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
           &tokens!("asdf" "knife" "asdf")).unwrap_err();
           
-    assert_eq!(parse_top(&Seq(vec![Star(Box::new(Named(n("c"), Box::new(Literal(n("*")))))),
-                                   Literal(n("X"))]),
+    assert_eq!(parse_top(&Seq(vec![Rc::new(Star(Rc::new(Named(n("c"), Rc::new(Literal(n("*"))))))),
+                                   Rc::new(Literal(n("X")))]),
                      &tokens!("*" "*" "*" "*" "*" "X")).unwrap(),
                ast_shape!({- "c" => ["*", "*", "*", "*", "*"] } "X"));
 }
@@ -212,9 +212,10 @@ fn advanced_parsing() {
     let toks_a_b = tokens!("a" "b");
     assert_eq!(parse(&form_pat!((call "expr")),
                      &assoc_n!(
-                         "other_1" => Scope(simple_form("o", form_pat!((lit "other")))),
-                         "expr" => Scope(pair_form.clone()),
-                         "other_2" => Scope(simple_form("o", form_pat!((lit "otherother"))))),
+                         "other_1" => Rc::new(Scope(simple_form("o", form_pat!((lit "other"))))),
+                         "expr" => Rc::new(Scope(pair_form.clone())),
+                         "other_2" => 
+                             Rc::new(Scope(simple_form("o", form_pat!((lit "otherother")))))),
                      &toks_a_b).unwrap(),
                ast!({pair_form ; ["rhs" => "b", "lhs" => "a"]}));
 }
@@ -225,16 +226,15 @@ fn advanced_parsing() {
 // But then, we pretty much have to store Earley rules in Rc<> also (ick!)...
 // ...and how do we test for equality on grammars and rules? 
 // I think we pretty much need to force memoization on the syntax extension functions...
-/*
+
 #[test]
 fn extensible_parsing() {
     
-    
-    
     fn synex(s: SynEnv) -> SynEnv {
         assoc_n!(
-            "a" => form_pat!((star (named "c", (alt (lit "AA"), [(lit "Back"), (call "o"), (lit ".")])))),
-            "b" => form_pat!((lit "BB"))
+            "a" => Rc::new(form_pat!(
+                (star (named "c", (alt (lit "AA"), [(lit "Back"), (call "o"), (lit ".")]))))),
+            "b" => Rc::new(form_pat!((lit "BB")))
         ).set_assoc(&s)
     }
     
@@ -242,9 +242,10 @@ fn extensible_parsing() {
                ast!("BB"));
                
                
-    let orig = assoc_n!(
-        "o" => form_pat!((star (named "c", (alt (lit "O"), [(lit "Extend"), (extend "a", synex), (lit ".")]))))
-    );
+    let orig = Rc::new(assoc_n!(
+        "o" => Rc::new(form_pat!(
+            (star (named "c", (alt (lit "O"), [(lit "Extend"), (extend "a", synex), (lit ".")])))))
+    ));
     
     assert_eq!(
         parse(&form_pat!((call "o")), &orig,
@@ -263,7 +264,7 @@ fn extensible_parsing() {
     
 
 }
-*/
+
 
 /*
 #[test]
