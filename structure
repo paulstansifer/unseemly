@@ -1,8 +1,8 @@
 TODO:
-  [ ] Reification for important internal types
   [ ] Core forms for core types
   [ ] Syntax types, with repetition typing
   [ ] Syntax pattern-matching
+  [ ] Name freshening on destructuring
   [ ] Syntax quote
   [ ] Macros (procedural!)
   [ ] Traits  
@@ -26,7 +26,7 @@ Unlike a normal language implementation,
 This means that the typechecker has to operate on
  user-defined AST nodes,
   which is possible,
-   because (I think) one can derive a typechecker for forms
+   because (I think) one can derive a typechecker for a form
     from the type of its definition.
 The weirdness of this language implementation starts with the AST.
 

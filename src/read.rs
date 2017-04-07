@@ -41,7 +41,6 @@ const nondelim : &'static str = r"[^\[\]\(\)\{\}\s]";
 const open : &'static str = r"[\[\(\{]";
 const close : &'static str = r"[\]\)\}]";
 
-
 pub fn delim(s: &str) -> DelimChar {
     match s {
         "(" | ")" => Paren, "[" | "]" => SquareBracket, "{" | "}" => CurlyBracket,

@@ -1,4 +1,3 @@
-
 use ast::Ast;
 use ty::Ty;
 use runtime::eval::{Value, BIF, eval};
@@ -35,8 +34,9 @@ pub fn core_typed_values() -> Assoc<Name, TypedValue> {
         tf!([( "integer" ) -> "bool"],
              ( Int(a) ) => { Bool(a == BigInt::from(0))} ),
         "zero" => tf!( "integer", val!(i 0) ),
-        "one" => tf!( "integer", val!(i 1) )
-        
+        "one" => tf!( "integer", val!(i 1) ),
+        "false" => tf!( "bool", val!(b false)),
+        "true" => tf!( "bool", val!(b true))
     )
 }
 

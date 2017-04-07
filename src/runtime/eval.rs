@@ -17,7 +17,7 @@ use std;
 pub enum Value {
     Int(BigInt),
     Bool(bool),
-    Ident(Name),
+    Ident(Name), // TODO: this is subsumed by AbstractSyntax, isn't it?
     Sequence(Vec<Rc<Value>>), // TODO: switch to a different core sequence type
     Function(Rc<Closure>), // TODO: unsure if this Rc is needed
     BuiltInFunction(BIF),
@@ -82,7 +82,7 @@ impl ::ast_walk::WalkElt<QQuote> for Ast {
     
     fn get_bidi_walk_rule(f: &Form) -> &::form::BiDiWR<QQuote, QQuoteDestr> { &f.quasiquote }
 
-    fn automatically_extend_env() -> bool { true } // You can't do this in Scheme!
+    fn automatically_extend_env() -> bool { true } // This is the point of Unseemly!
     
     fn from_ast(a: &Ast) -> Ast { a.clone() }
     fn to_ast(&self) -> Ast { self.clone() }
