@@ -9,6 +9,8 @@ regex = { version = "0.1.77" }
 num = { version = "0.1.36" }
 custom_derive = { version = "0.1.5" }
 lalrpop-intern = { version = "0.12.4" }
+mac = "0.1.1"
+quote = "0.3"
 
 [[bin]]
 name = "unseemly"

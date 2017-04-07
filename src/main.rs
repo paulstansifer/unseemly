@@ -11,6 +11,8 @@
 #[macro_use] extern crate lazy_static;
 extern crate num;
 #[macro_use] extern crate custom_derive;
+#[macro_use] extern crate mac;
+#[macro_use] extern crate quote;
 
 use std::path::Path;
 use std::fs::File;

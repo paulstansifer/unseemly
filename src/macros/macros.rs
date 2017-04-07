@@ -124,7 +124,27 @@ macro_rules! ty {
     ( $($contents:tt)* ) => { ::ty::Ty(ast!($($contents)*)) }
 }
 
-/* EnvMBE*/
+macro_rules! ty_err {
+    ( $name:tt ( $($arg:expr),* ) at $loc:expr) => {
+        return Err(::util::err::sp(::ty::TyErr::$name( $($arg),* ), $loc));
+    }    
+}
+
+macro_rules! ty_exp { // type expectation
+    ( $got:expr, $expected:expr, $loc:expr) => {
+        if $got != $expected {
+            ty_err!(Mismatch((*$got).clone(), (*$expected).clone()) at $loc)
+        }
+    }
+}
+
+macro_rules! ty_err_p { // type error pattern
+    ( $name:tt ( $($arg:pat),* ) ) => {
+        Err( ::util::err::Spanned { body: ::ty::TyErr::$name( $($arg),* ), loc: _ } )
+    }
+}
+
+/* EnvMBE */
 
 /* These macros generate `EnvMBE<Ast>`s, not arbitrary `EnvMBE`s, 
     which is a little un-abstract, but is the main usage. */
@@ -415,6 +435,22 @@ macro_rules! expect_node {
     )
 }
 
+macro_rules! expect_ty_node {
+    ( ($node:expr ; $form:expr) $env:ident ; $body:expr ) => (
+        // This is tied to the signature of `Custom`
+        if let Node(ref f, ref $env) = $node.0 {
+            if *f == $form { 
+                $body
+            } else {
+                ty_err!(UnableToDestructure($node.clone(), $form.name) at Trivial /* TODO */);
+            }
+        } else {
+            ty_err!(UnableToDestructure($node.clone(), $form.name) at Trivial);
+        }
+    )
+}
+
+
 // TODO: this ought to have some MBE support
 macro_rules! destructure_node {
     ( ($node:expr ; $form:expr) $( $n:ident = $name:expr ),* ; $body:expr ) => (
@@ -458,5 +494,19 @@ macro_rules! cop_out_reifiability {
                     s.downcast_ref::<Self>().expect("Smuggling has gone terribly wrong!").clone())
             }
         }
+    }
+}
+
+/* Testing */
+
+macro_rules! assert_m {
+    ($got:expr, $expected:pat, $body:expr) => {
+        match $got {
+            $expected => { assert!($body) }
+            _ => { assert!(false, "{:?} does not match {:?}", $got, quote!($expected).as_str()) }
+        }
+    };
+    ($got:expr, $expected:pat) => {
+        assert_m!($got, $expected, true)
     }
 }

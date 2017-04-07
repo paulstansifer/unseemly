@@ -19,7 +19,7 @@ use ast::*;
 use name::*;
 use std::rc::Rc;
 
-// TODO: we should validate that types don't have unexpected names in them 
+// TODO: we should validate that types don't have unexpected names in them
 // (i.e. `∀ X. List<X>` is okay, but `X` is not a type; it's just syntax)
 #[derive(Clone, PartialEq)]
 pub struct Ty(pub Ast);
@@ -36,18 +36,18 @@ impl ::std::fmt::Display for Ty {
         use core_forms::{find_core_form, ast_to_atom};
         match self.0 {
             // Not used, right? Maybe it should be...
-            //VariableReference(ref n) => { write!(f, "{}", n) },
+            // VariableReference(ref n) => { write!(f, "{}", n) },
             Node(ref form, ref env) => {
                 if form == &find_core_form("type", "ident") {
                     write!(f, "ident")
                 } else if form == &find_core_form("type", "int") {
-                    write!(f, "int")                    
+                    write!(f, "int")
                 } else if form == &find_core_form("type", "nat") {
-                    write!(f, "nat")                    
+                    write!(f, "nat")
                 } else if form == &find_core_form("type", "float") {
-                    write!(f, "float")                    
+                    write!(f, "float")
                 } else if form == &find_core_form("type", "bool") {
-                    write!(f, "bool")                    
+                    write!(f, "bool")
                 } else if form == &find_core_form("type", "fn") {
                     try!(write!(f, "["));
                     let mut first = true;
@@ -143,7 +143,7 @@ impl ::ast_walk::WalkElt<SynthTy> for Ty {
 pub type SynthTy = ::ast_walk::PositiveWalkMode<Ty>;
 pub type UnpackTy = ::ast_walk::NegativeWalkMode<Ty>;
 
-pub fn synth_type_top(expr: &Ast) ->  TypeResult {
+pub fn synth_type_top(expr: &Ast) -> TypeResult {
     walk::<SynthTy>(expr, &LazyWalkReses::new_wrapper(Assoc::new()))
 }
 
@@ -159,15 +159,38 @@ pub fn neg_synth_type(pat: &Ast, env: Assoc<Name, Ty>)
 custom_derive! {
     #[derive(Reifiable, Clone, PartialEq)]
     pub enum TyErr {
-        Mismatch(Ty, Ty) // expected, got
+        Mismatch(Ty, Ty), // got, expected
+        NtInterpMismatch(Name, Name),
+        NonexistentEnumArm(Name, Ty),
+        NonexistentStructField(Name, Ty),
+        NonExhaustiveMatch(Ty),
+        UnableToDestructure(Ty, Name)
     }
 }
 
 impl ::std::fmt::Display for TyErr {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        use self::TyErr::*;
         match *self {
-            TyErr::Mismatch(ref exp, ref got) => {
+            Mismatch(ref got, ref exp) => {
                 write!(f, "expected `{:?}`, found `{:?}`", exp, got)
+            }
+            NtInterpMismatch(got, exp) => {
+                write!(f, "expected the nonterminal `{:?}`, but `{:?}` was interpolated",
+                       exp, got)
+            }
+            NonexistentEnumArm(got_name, ref ty) => {
+                write!(f, "the enum `{:?}` doesn't have an arm named `{:?}`",
+                       got_name, ty)
+            }
+            NonexistentStructField(got_name, ref ty) => {
+                write!(f,
+                       "the struct `{:?}` doesn't have a field named `{:?}`",
+                       got_name, ty)
+            }
+            NonExhaustiveMatch(ref ty) => write!(f, "non-exhaustive match of `{:?}`", ty),
+            UnableToDestructure(ref ty, expected_name) => {
+                write!(f, "expected a `{}` type, got `{:?}`", expected_name, ty)
             }
         }
     }
@@ -176,11 +199,7 @@ impl ::std::fmt::Display for TyErr {
 // temporary, until we get rid of `Debug` as the way of outputting errors
 impl ::std::fmt::Debug for TyErr {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        match *self {
-            TyErr::Mismatch(ref exp, ref got) => {
-                write!(f, "expected `{:?}`, found `{:?}`", exp, got)
-            }
-        }
+        ::std::fmt::Display::fmt(self, f)
     }
 }
 
@@ -218,14 +237,14 @@ fn basic_type_synth() {
     let bool_ty = ty!({ ::core_forms::find_core_form("type", "bool") ; });
     
     let simple_ty_env = mt_ty_env.set(n("x"), int_ty.clone());
-    
+
     let body = basic_typed_form!(at, Body(n("body")), NotWalked);
     let untypeable = basic_typed_form!(at, NotWalked, NotWalked);
-    
+
     assert_eq!(synth_type(&ast!((vr "x")), simple_ty_env.clone()),
                Ok(int_ty.clone()));
-               
-    assert_eq!(synth_type(&ast!({body.clone() ; 
+
+    assert_eq!(synth_type(&ast!({body.clone() ;
                                      ["irrelevant" => {untypeable.clone() ; },
                                       "body" => (vr "x")]}),
                           simple_ty_env.clone()),
@@ -237,11 +256,11 @@ fn basic_type_synth() {
                                      "body" => (import ["new_var" : "type_of_new_var"] (vr "y"))}),
                           simple_ty_env.clone()),
                Ok(int_ty.clone()));
-               
+
     assert_eq!(synth_type(
         &ast!(
             {basic_typed_form!(
-                at, 
+                at,
                 Custom(Rc::new(Box::new(
                     |_| Ok(ty!({ ::core_forms::find_core_form("type", "bool") ; }))))),
                 NotWalked) ; []}),

@@ -148,7 +148,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 }
                 Some(defined_type) => {
                     // This might ought to be done by a specialized `beta`...
-                    expect_node!( (defined_type.0 ; forall_type_0.clone())
+                    expect_ty_node!( (defined_type ; forall_type_0.clone())
                         forall_type__parts;
                         {
                             let params = forall_type__parts.get_rep_leaf_or_panic(&n("param"));
