@@ -160,7 +160,7 @@ macro_rules! reify_types {
     ( $($t:ty),* ) => {{
         let mut res = Assoc::new();
         $( 
-           res = res.set(<$t as Reifiable>::ty_name(), ::ty::Ty(<$t as Reifiable>::ty()));    
+           res = res.set(<$t as Reifiable>::ty_name(), ::ty::Ty::new(<$t as Reifiable>::ty()));    
         )*
         res
     }}

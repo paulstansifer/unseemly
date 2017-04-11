@@ -37,12 +37,12 @@ Well, the parser and tokenizer are weird, but in a sort of optional way.
 
 
  Pipeline:
-                             ⋮              ⋮
-                      →  [TypeSynth]  →  [Evaluate] ↩ (phase 2)
-                      →  [TypeSynth]  →  [Evaluate] ↩ (phase 1)
-  [Read]  →  [Parse]  →  [TypeSynth]  →  [Evaluate] (phase 0: runtime)
-          ↑           ↑               ↑
-      TokenTree      Ast           Ast:Ast
+                             ⋮              ⋮           ⋮
+                      →  [TypeSynth]  →  [Expand] →  [Evaluate] ↩ (phase 2)
+                      →  [TypeSynth]  →  [Expand] →  [Evaluate] ↩ (phase 1)
+  [Read]  →  [Parse]  →  [TypeSynth]  →  [Expand] →  [Evaluate] (runtime)
+          ↑           ↑               ↑           ↑
+      TokenTree      Ast           Ast:Ty      Ast:Ty (core) 
 
 [Read] read.rs
   The reader is very simple.

@@ -95,7 +95,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
             // Like LiteralLike, but with the above environment-mucking
             Ok(ty!({ mu_parts.this_form.clone() ; 
                 "param" => (, mu_parts.get_term(&n("param"))),
-                "body" => (, try!(without_param.get_res(&n("body"))).0 )}))
+                "body" => (, try!(without_param.get_res(&n("body"))).concrete() )}))
          }),
          NotWalked);
     
@@ -140,11 +140,11 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     let mut args = vec![];
                     for individual__arg_res in arg_res {
                         args.push(::util::mbe::EnvMBE::new_from_leaves(
-                            assoc_n!("arg" => individual__arg_res.0)));
+                            assoc_n!("arg" => individual__arg_res.concrete())));
                     }
                     new__tapp_parts.add_anon_repeat(args);
                     
-                    Ok(Ty(Node(tapp_parts.this_form, new__tapp_parts)))
+                    Ok(Ty::new(Node(tapp_parts.this_form, new__tapp_parts)))
                 }
                 Some(defined_type) => {
                     // This might ought to be done by a specialized `beta`...
@@ -198,43 +198,43 @@ fn parametric_types() {
         "unary" => ty!({ "type" "forall_type" :
             "param" => ["t"],
             "body" => { "type" "fn" :
-                "param" => [ (, nat_ty.0.clone()) ],
-                "ret" => (, tbn("t").0) }}),
+                "param" => [ (, nat_ty.concrete()) ],
+                "ret" => (, tbn("t").concrete() ) }}),
         "binary" => ty!({ "type" "forall_type" :
             "param" => ["t", "u"],
             "body" => { "type" "fn" :
-                "param" => [ (, tbn("t").0), (, tbn("u").0) ],
-                "ret" => (, nat_ty.0.clone()) }}));
+                "param" => [ (, tbn("t").concrete() ), (, tbn("u").concrete() ) ],
+                "ret" => (, nat_ty.concrete()) }}));
 
     // If `unary` is undefined, `unary <[ ident ]<` can't be simplified.
     assert_eq!(synth_type(
         &ast!( { "type" "type_apply" :
             "type_name" => "unary",
-            "arg" => [ (, ident_ty.0.clone()) ]}),
+            "arg" => [ (, ident_ty.concrete()) ]}),
         mt_ty_env.clone()),
         Ok(ty!({ "type" "type_apply" :
             "type_name" => "unary",
-            "arg" => [ (, ident_ty.0.clone()) ]})));
+            "arg" => [ (, ident_ty.concrete()) ]})));
 
     // If `unary` is undefined, `unary <[ [nat -> nat] ]<` can't be simplified.
     assert_eq!(synth_type(
         &ast!( { "type" "type_apply" :
             "type_name" => "unary",
             "arg" => [ { "type" "fn" :
-                "param" => [(, nat_ty.0.clone())], "ret" => (, nat_ty.0.clone())} ]}),
+                "param" => [(, nat_ty.concrete())], "ret" => (, nat_ty.concrete())} ]}),
         mt_ty_env.clone()),
         Ok(ty!({ "type" "type_apply" :
             "type_name" => "unary",
             "arg" => [ { "type" "fn" :
-                "param" => [(, nat_ty.0.clone())], "ret" => (, nat_ty.0.clone())} ]})));
+                "param" => [(, nat_ty.concrete())], "ret" => (, nat_ty.concrete())} ]})));
                 
     // Expand the definition of `unary`.
     assert_eq!(synth_type(
         &ast!( { "type" "type_apply" :
             "type_name" => "unary",
-            "arg" => [ (, ident_ty.0.clone()) ]}),
+            "arg" => [ (, ident_ty.concrete()) ]}),
         para_ty_env),
         Ok(ty!({ "type" "fn" :
-            "param" => [(, nat_ty.0)],
-            "ret" => (, ident_ty.0.clone())})));
+            "param" => [(, nat_ty.concrete() )],
+            "ret" => (, ident_ty.concrete())})));
 }

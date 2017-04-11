@@ -101,7 +101,7 @@ fn unquote<Mode: ::ast_walk::WalkMode>(nt: Name, ctf: SynEnv, pos: bool) -> Rc<F
                                 if args.len() != 1 {
                                     panic!("Kind error: expected one argument, got {:?}", args)
                                 }
-                                Ok(Ty(args[0].clone()))
+                                Ok(Ty::new(args[0].clone()))
                 })}))
             } else {
                 Negative(
@@ -171,8 +171,8 @@ pub fn make_core_syn_env() -> SynEnv {
                 let lambda_type : Ty = 
                     ty!({ find_type(&ctf_0, "fn") ;
                          "param" => [* part_types =>("param") part_types :
-                                       (, try!(part_types.get_res(&n("p_t"))).0)],
-                         "ret" => (, try!(part_types.get_res(&n("body"))).0)});
+                                       (, try!(part_types.get_res(&n("p_t"))).concrete() )],
+                         "ret" => (, try!(part_types.get_res(&n("body"))).concrete() )});
                 Ok(lambda_type)}),
             /* evaluation */
             cust_rc_box!( move | part_values | {
@@ -186,7 +186,7 @@ pub fn make_core_syn_env() -> SynEnv {
         
         typed_form!("apply", /* function application*/
             (delim "(", "(", /*))*/ [(named "rator", (call "expr")), 
-             (plus (named "rand", (call "expr")))]),
+             (star (named "rand", (call "expr")))]),
             cust_rc_box!(move | part_types |
                 expect_ty_node!( (try!(part_types.get_res(&n("rator"))); 
                                find_type(&ctf_1, "fn"))
@@ -195,10 +195,10 @@ pub fn make_core_syn_env() -> SynEnv {
                         for ((input, expected), loc) in env.get_rep_leaf_or_panic(&n("param"))
                                 .iter().zip(&try!(part_types.get_rep_res(&n("rand"))))
                                 .zip(&part_types.get_rep_term(&n("rand"))) {
-                            let _ = try!(expect_type(expected, &Ty((*input).clone()), loc));
+                            let _ = try!(expect_type(expected, &Ty::new((*input).clone()), loc));
                         }
                     
-                        Ok(Ty(env.get_leaf_or_panic(&n("ret")).clone()))
+                        Ok(Ty::new(env.get_leaf_or_panic(&n("ret")).clone()))
                     }
                 )),
             cust_rc_box!( move | part_values | {
@@ -297,7 +297,7 @@ pub fn make_core_syn_env() -> SynEnv {
                             
                             let component_types : Vec<Ty> = 
                                 enum_type_part.get_rep_leaf_or_panic(&n("component"))
-                                    .iter().map(|a| Ty((*a).clone())).collect();
+                                    .iter().map(|a| Ty::new((*a).clone())).collect();
                                     
                             for (t, expected_t) in try!(part_types.get_rep_res(&n("component")))
                                 .iter().zip(component_types) {
@@ -326,7 +326,7 @@ pub fn make_core_syn_env() -> SynEnv {
                 Ok(ty!({ find_type(&ctf_3, "struct") ;
                     "component_name" => (@"c" ,seq part_types.get_rep_term(&n("component_name"))),
                     "component" => (@"c" ,seq try!(part_types.get_rep_res(&n("component")))
-                        .into_iter().map(|c : Ty| c.0))
+                        .into_iter().map(|c : Ty| c.concrete()))
                 }))
             }),
             cust_rc_box!( move | part_values | {
@@ -419,7 +419,7 @@ pub fn make_core_syn_env() -> SynEnv {
                 //TODO put variables in phases!!! !!!!! !!!!!!!!!!!!
                 Ok(ty!({ find_type(&ctf_8, "type_apply") ;
                     "type_name" => (, quote_parts.get_term(&n("nt")) ),
-                    "arg" => [ (, try!(quote_parts.get_res(&n("body"))).0 )]
+                    "arg" => [ (, try!(quote_parts.get_res(&n("body"))).concrete() )]
                 }))
             }),
             cust_rc_box!( move | _quote_values | {
@@ -452,7 +452,7 @@ pub fn make_core_syn_env() -> SynEnv {
                         
                             let component_types : Vec<Ty> = 
                                 enum_type_part.get_rep_leaf_or_panic(&n("component"))
-                                    .iter().map(|a| Ty((*a).clone())).collect();
+                                    .iter().map(|a| Ty::new((*a).clone())).collect();
                            
                             let mut res = Assoc::new();
                             for sub_res in &try!(part_types
@@ -463,7 +463,7 @@ pub fn make_core_syn_env() -> SynEnv {
                             return Ok(res);
                         }
                         ty_err!(NonexistentEnumArm(ast_to_atom(arm_name),
-                            Ty(Trivial)) /* TODO `LazyWalkReses` needs more information */ 
+                            Ty::new(Trivial)) /* TODO `LazyWalkReses` needs more information */ 
                             at arm_name.clone())
                 }
             )),
@@ -506,11 +506,11 @@ pub fn make_core_syn_env() -> SynEnv {
                                     continue;
                                 }
                                 component_found = true;
+                                
+                                let component_type = Ty::new(
+                                    struct_type_part.get_leaf_or_panic(&n("component")).clone());                                
                                 res = res.set_assoc(
-                                    &try!(component_ctx
-                                        .with_context(
-                                            Ty(struct_type_part.get_leaf_or_panic(&n("component"))
-                                                .clone()))
+                                    &try!(component_ctx.with_context(component_type)
                                         .get_res(&n("component"))));
                                 break;
                             }
@@ -734,7 +734,7 @@ fn alg_type() {
         { enum_e.clone() ;
             "name" => "Jefferson",
             "component" => [(vr "x"), (vr "b")],
-            "t" => (, my_enum.0.clone())
+            "t" => (, my_enum.concrete() )
         }),
         simple_ty_env.clone()),
         Ok(my_enum.clone()));
@@ -933,7 +933,7 @@ fn recursive_types() {
         "param" => "int_list",
         "body" => { find_core_form("type", "enum") ; 
             "name" => [@"c" "Nil", "Cons"],
-            "component" => [@"c" [], ["integer", (, tbn("int_list").0)]]}});
+            "component" => [@"c" [], ["integer", (, tbn("int_list").concrete() )]]}});
 
     let ty_env = assoc_n!(
         "int_list" => int_list_ty.clone(),  // this is a type definition...
@@ -950,7 +950,7 @@ fn recursive_types() {
         &ast!( { find_core_form("expr", "fold") ;
             "body" => { find_core_form("expr", "unfold") ;
                 "body" => (vr "il_direct") },
-            "t" => (, int_list_ty.0.clone())}),
+            "t" => (, int_list_ty.concrete() )}),
         ty_env.clone()),
         Ok(int_list_ty.clone()));
 
@@ -961,7 +961,7 @@ fn recursive_types() {
             "p" => [@"arm" { find_core_form("pat", "enum_pat") ;
                 "name" => "Cons",
                 "component" => [(vr "car"), (vr "cdr")],
-                "t" => (, tbn("int_list").0)
+                "t" => (, tbn("int_list").concrete() )
             }],
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "car"))]
         }),
@@ -976,7 +976,7 @@ fn recursive_types() {
                 "p" => [@"arm" { find_core_form("pat", "enum_pat") ;
                 "name" => "Cons",
                 "component" => [(vr "car"), (vr "cdr")],
-                "t" => (, tbn("int_list").0)
+                "t" => (, tbn("int_list").concrete() )
             }],
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "car"))]
         }),

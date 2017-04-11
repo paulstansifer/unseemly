@@ -16,7 +16,7 @@ pub struct TypedValue {
 }
 
 pub fn erase_type(tv: &TypedValue) -> Value { tv.val.clone() }
-pub fn erase_value(tv: &TypedValue) -> Ty { Ty(tv.ty.clone()) }
+pub fn erase_value(tv: &TypedValue) -> Ty { Ty::new(tv.ty.clone()) }
 
 
 pub fn core_typed_values() -> Assoc<Name, TypedValue> {

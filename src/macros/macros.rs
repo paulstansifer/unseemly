@@ -121,7 +121,7 @@ macro_rules! ast {
 // Note that interpolations into this have to be `Ast`, not `Ty`.
 // This isn't ideal, but the macrology involved in fixing that is a bridge too far for me
 macro_rules! ty {
-    ( $($contents:tt)* ) => { ::ty::Ty(ast!($($contents)*)) }
+    ( $($contents:tt)* ) => { ::ty::Ty::new(ast!($($contents)*)) }
 }
 
 macro_rules! ty_err {
@@ -436,18 +436,11 @@ macro_rules! expect_node {
 }
 
 macro_rules! expect_ty_node {
-    ( ($node:expr ; $form:expr) $env:ident ; $body:expr ) => (
+    ( ($node:expr ; $form:expr) $env:ident ; $body:expr ) => ({
         // This is tied to the signature of `Custom`
-        if let Node(ref f, ref $env) = $node.0 {
-            if *f == $form { 
-                $body
-            } else {
-                ty_err!(UnableToDestructure($node.clone(), $form.name) at Trivial /* TODO */);
-            }
-        } else {
-            ty_err!(UnableToDestructure($node.clone(), $form.name) at Trivial);
-        }
-    )
+        let $env = try!($node.destructure($form));
+        $body
+    })
 }
 
 
