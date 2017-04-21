@@ -61,6 +61,17 @@ Many interesting macros can be defined simply
  (This corresponds to Scheme's `syntax-rules` and Rust's `macro-rules`.)
 */
 
+/*
+Suppose we want to write code that processes MBE environments.
+Obviously, we can use `march` to pull out all the structure as necessary.
+But pattern-matching is really nice... 
+ and sometimes it's nice to abstract over the number of repetitions of something.
+
+So, if you set a particular index is `ddd`, that will be repeated 0 or more times
+ in order to match the length of whatever is on the other side.
+*/
+
+
 use util::assoc::Assoc;
 use name::*;
 use std::rc::Rc;
@@ -94,6 +105,11 @@ custom_derive! {
         ///   that index into this.
         repeats: Vec<Rc<Vec<EnvMBE<T>>>>,
         
+        /// Which, if any, index is supposed to match 0 or more repetitions of something?
+        /// This should always have the same length as `repeats`.
+        /// If this isn't all `None`, then this MBE is presumably some kind of pattern.
+        ddd_rep_idxes: Vec<Option<usize>>,
+        
         /// Where in `repeats` to look, if we want to traverse for a particular leaf.
         /// We use `.unwrap_or(None)` when looking up into this 
         ///  so we can delete by storing `None`.
@@ -104,7 +120,7 @@ custom_derive! {
     }
 }
 
-impl < T: PartialEq> PartialEq for EnvMBE<T> {
+impl <T: PartialEq> PartialEq for EnvMBE<T> {
    fn eq(&self, other: &EnvMBE<T>) -> bool {
        fn assoc_eq_modulo_none<K : PartialEq + Clone, V: PartialEq>
                (lhs: &Assoc<K, Option<V>>, rhs: &Assoc<K, Option<V>>)
@@ -134,6 +150,7 @@ impl < T: PartialEq> PartialEq for EnvMBE<T> {
        
        self.leaves == other.leaves 
        && self.repeats == other.repeats 
+       && self.ddd_rep_idxes == other.ddd_rep_idxes
        && assoc_eq_modulo_none(&self.leaf_locations, &other.leaf_locations)
        && assoc_eq_modulo_none(&self.named_repeats, &other.named_repeats)
    }    
@@ -163,11 +180,50 @@ impl<T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
     }
 }
 
+/// An iterator that expands a dotdotdot a certain number of times.
+struct DddIter<'a, S: 'a> {
+    underlying: ::std::slice::Iter<'a, S>,
+    cur_idx: usize,
+    rep_idx: usize,
+    repeated: Option<&'a S>,
+    extra_needed: usize
+}
+
+impl<'a, S: Clone> DddIter<'a, S> {
+    fn new(und: ::std::slice::Iter<'a, S>, rep_idx: usize, extra: usize) -> DddIter<'a, S> {
+        DddIter {
+            underlying: und,
+            cur_idx: 0,
+            rep_idx: rep_idx,
+            repeated: None,
+            extra_needed: extra
+        }
+    }
+}
+
+impl<'a, S: Clone> Iterator for DddIter<'a, S> {
+    type Item = &'a S;
+    fn next(&mut self) -> Option<&'a S> {
+        let cur_idx = self.cur_idx;
+        self.cur_idx += 1;
+        
+        if cur_idx == self.rep_idx {
+            self.repeated = self.underlying.next();
+        }
+        if cur_idx >= self.rep_idx && cur_idx < self.rep_idx + self.extra_needed {
+            return self.repeated;
+        } else {
+            return self.underlying.next();
+        }
+    }
+}
+
 impl<T: Clone> EnvMBE<T> {
     pub fn new() -> EnvMBE<T> {
         EnvMBE {
             leaves: Assoc::new(),
             repeats: vec![],
+            ddd_rep_idxes: vec![],
             leaf_locations: Assoc::new(),
             named_repeats: Assoc::new()
         }
@@ -178,6 +234,7 @@ impl<T: Clone> EnvMBE<T> {
         EnvMBE {
             leaves: l,
             repeats: vec![],
+            ddd_rep_idxes: vec![],
             leaf_locations: Assoc::new(),
             named_repeats: Assoc::new()
         }
@@ -186,14 +243,22 @@ impl<T: Clone> EnvMBE<T> {
     /// Creates an `EnvMBE` containing a single anonymous repeat
     pub fn new_from_anon_repeat(r: Vec<EnvMBE<T>>) -> EnvMBE<T> {
         let mut res = EnvMBE::new();
-        res.add_anon_repeat(r);
+        res.add_anon_repeat(r, None);
         res
     }
+
+    /// Creates an `EnvMBE` containing a single anonymous repeat
+    pub fn new_from_anon_repeat_ddd(r: Vec<EnvMBE<T>>, ddd_idx: Option<usize>) -> EnvMBE<T> {
+        let mut res = EnvMBE::new();
+        res.add_anon_repeat(r, ddd_idx);
+        res
+    }
+
     
     /// Creates an `EnvMBE` containing a single named repeat
     pub fn new_from_named_repeat(n: Name, r: Vec<EnvMBE<T>>) -> EnvMBE<T> {
         let mut res = EnvMBE::new();
-        res.add_named_repeat(n, r);
+        res.add_named_repeat(n, r, None);
         res        
     }
     
@@ -207,9 +272,13 @@ impl<T: Clone> EnvMBE<T> {
         let mut new_repeats = self.repeats.clone();
         new_repeats.append(&mut rhs.repeats.clone());
         
+        let mut new__ddd_rep_idxes = self.ddd_rep_idxes.clone();
+        new__ddd_rep_idxes.append(&mut rhs.ddd_rep_idxes.clone());
+        
         EnvMBE {
             leaves: self.leaves.set_assoc(&rhs.leaves),
             repeats: new_repeats,
+            ddd_rep_idxes: new__ddd_rep_idxes,
             leaf_locations: self.leaf_locations.set_assoc(
                 &rhs.leaf_locations.map(&|idx_opt| idx_opt.map(|idx| idx+adjust_rhs_by))),
             named_repeats: self.named_repeats.set_assoc(
@@ -230,14 +299,17 @@ impl<T: Clone> EnvMBE<T> {
         
         for (n, rep_idx) in rhs.named_repeats.iter_pairs() {
             if let Some(rep_idx) = *rep_idx {
-                res.add_named_repeat(*n, (*rhs.repeats[rep_idx]).clone());
+                res.add_named_repeat(
+                    *n, (*rhs.repeats[rep_idx]).clone(), rhs.ddd_rep_idxes[rep_idx]);
                 rhs_idx_is_named[rep_idx] = true;
             }
         }
         
-        for (idx, rep) in rhs.repeats.iter().enumerate() {
+        for (idx, (rep, ddd_rep_idx)) in 
+                rhs.repeats.iter().zip(rhs.ddd_rep_idxes.iter()).enumerate() {
+                    
             if !rhs_idx_is_named[idx] {
-                res.add_anon_repeat((**rep).clone());
+                res.add_anon_repeat((**rep).clone(), *ddd_rep_idx);
             }
         }
         
@@ -306,7 +378,7 @@ impl<T: Clone> EnvMBE<T> {
         self.leaves = self.leaves.set(n, v);
     }
     
-    pub fn add_named_repeat(&mut self, n: Name, sub: Vec<EnvMBE<T>>) {
+    pub fn add_named_repeat(&mut self, n: Name, sub: Vec<EnvMBE<T>>, sub_ddd_idx: Option<usize>) {
         if sub.is_empty() { return; } // no-op-ish, but keep the repeats clean (good for `eq`)
         
         match *self.named_repeats.find(&n).unwrap_or(&None) {
@@ -315,6 +387,7 @@ impl<T: Clone> EnvMBE<T> {
                 self.update_leaf_locs(new_index, &sub);
 
                 self.repeats.push(Rc::new(sub));
+                self.ddd_rep_idxes.push(sub_ddd_idx);
                 self.named_repeats = self.named_repeats.set(n, Some(new_index));
             }
             Some(idx) => {
@@ -330,17 +403,23 @@ impl<T: Clone> EnvMBE<T> {
                     new_repeats_at_idx.push(pairs.0.combine_overriding(pairs.1));
                 }
                 self.repeats[idx] = Rc::new(new_repeats_at_idx);
+                if self.ddd_rep_idxes[idx] != sub_ddd_idx {
+                    // Maybe we should support this usecase!
+                    panic!("Named repetition {:?} has mismatched ddd rep indices {:?} and {:?}.",
+                           n, self.ddd_rep_idxes[idx], sub_ddd_idx);
+                }
             }
         }
     }
     
-    pub fn add_anon_repeat(&mut self, sub: Vec<EnvMBE<T>>) {
+    pub fn add_anon_repeat(&mut self, sub: Vec<EnvMBE<T>>, sub_ddd_idx: Option<usize>) {
         if sub.is_empty() { return; } // no-op-ish, but keep the repeats clean (good for `eq`)
 
         let new_index = self.repeats.len();
         self.update_leaf_locs(new_index, &sub);
         
         self.repeats.push(Rc::new(sub));
+        self.ddd_rep_idxes.push(sub_ddd_idx);
     }
     
     pub fn anonimize_repeat(&mut self, n: Name) {
@@ -356,26 +435,62 @@ impl<T: Clone> EnvMBE<T> {
                 &|rc_vec_mbe : &Rc<Vec<EnvMBE<T>>>| Rc::new(rc_vec_mbe.iter().map(
                     &|mbe : &EnvMBE<T>| mbe.map(f)
                 ).collect())).collect(),
-            leaf_locations: self.leaf_locations.clone(),
-            named_repeats: self.named_repeats.clone()
-        }
-    }
-
-    pub fn map_with<NewT: Clone>(&self, other: &EnvMBE<T>, f: &Fn(&T, &T) -> NewT)
-            -> EnvMBE<NewT> {
-        EnvMBE {
-            leaves: self.leaves.map_with(&other.leaves, f),
-            repeats: self.repeats.iter().zip(other.repeats.iter()).map(
-                &|(rc_vec_mbe, other_rc_vec_mbe) : (&Rc<Vec<EnvMBE<T>>>, &Rc<Vec<EnvMBE<T>>>) | 
-                    Rc::new(rc_vec_mbe.iter().zip(other_rc_vec_mbe.iter()).map(
-                    &|(mbe, other_mbe) : (&EnvMBE<T>, &EnvMBE<T>)|
-                        mbe.map_with(other_mbe, f)
-                ).collect())).collect(),
+            ddd_rep_idxes: self.ddd_rep_idxes.clone(),
             leaf_locations: self.leaf_locations.clone(),
             named_repeats: self.named_repeats.clone()
         }
     }
     
+    // TODO: for efficiency, this ought to return iterators
+    fn resolve_ddd<'a>(lhs: &'a Rc<Vec<EnvMBE<T>>>, lhs_ddd: &'a Option<usize>, 
+                           rhs: &'a Rc<Vec<EnvMBE<T>>>, rhs_ddd: &'a Option<usize>) 
+            -> Vec<(&'a EnvMBE<T>, &'a EnvMBE<T>)> {
+
+        let len_diff = lhs.len() as i32 - (rhs.len() as i32);
+
+        let matched: Vec<(&EnvMBE<T>, &EnvMBE<T>)> = match (lhs_ddd, rhs_ddd) {
+            (&None, &None) => {
+                if len_diff != 0 { panic!("mismatched MBE lengths") }
+                lhs.iter().zip(rhs.iter()).collect()
+            }
+            (&Some(ddd_idx), &None) => {
+                if len_diff - 1 > 0 { panic!("abstract MBE LHS too long") }
+                DddIter::new(lhs.iter(), ddd_idx, -(len_diff - 1) as usize)
+                    .zip(rhs.iter()).collect()
+            }
+            (&None, &Some(ddd_idx)) => {
+                if len_diff + 1 < 0 { panic!("abstract MBE RHS too long") }
+                lhs.iter().zip(
+                    DddIter::new(rhs.iter(), ddd_idx, (len_diff + 1) as usize)).collect()
+            }
+            (&Some(_), &Some(_)) => panic!("repetition on both sides")
+        };
+        
+        matched
+    }
+    
+    pub fn map_with<NewT: Clone>(&self, o: &EnvMBE<T>, f: &Fn(&T, &T) -> NewT)
+            -> EnvMBE<NewT> {
+        EnvMBE {
+            leaves: self.leaves.map_with(&o.leaves, f),
+            repeats: 
+            self.repeats.iter().zip(self.ddd_rep_idxes.iter())
+                .zip(o.repeats.iter().zip(o.ddd_rep_idxes.iter())).map(
+                    
+                &|((rc_vec_mbe, ddd_idx), (o_rc_vec_mbe, o_ddd_idx)) : 
+                  ((&Rc<Vec<EnvMBE<T>>>, &Option<usize>), (&Rc<Vec<EnvMBE<T>>>, &Option<usize>))| {
+                  
+                    let mapped : Vec<_> 
+                        = Self::resolve_ddd(rc_vec_mbe, ddd_idx, o_rc_vec_mbe, o_ddd_idx).iter()
+                        .map(&|&(mbe, o_mbe) : &(&EnvMBE<T>, &EnvMBE<T>)| mbe.map_with(o_mbe, f))
+                        .collect();
+                  
+                  Rc::new(mapped)}).collect(),
+            ddd_rep_idxes: self.repeats.iter().map(|_| None).collect(), // remove all dotdotdots
+            leaf_locations: self.leaf_locations.clone(),
+            named_repeats: self.named_repeats.clone()
+        }
+    }
     
     pub fn map_reduce_with<NewT: Clone>(&self,  other: &EnvMBE<T>, 
             f: &Fn(&T, &T) -> NewT, red: &Fn(&NewT, &NewT) -> NewT, base: NewT) -> NewT {
@@ -394,8 +509,11 @@ impl<T: Clone> EnvMBE<T> {
             
             let other_idx = other.leaf_locations.find_or_panic(leaf_name).unwrap();
             
-            for (self_elt, other_elt) in self.repeats[self_idx].iter()
-                    .zip(other.repeats[other_idx].iter()) {
+            let matched = Self::resolve_ddd(
+                &self.repeats[self_idx], &self.ddd_rep_idxes[self_idx],
+                &other.repeats[other_idx], &other.ddd_rep_idxes[other_idx]);
+
+            for (self_elt, other_elt) in matched {
                 reduced = self_elt.map_reduce_with(other_elt, f, &red, reduced);
             }
         }
@@ -447,6 +565,7 @@ impl<T: Clone, E: Clone> EnvMBE<Result<T, E>> {
         Ok(EnvMBE {
             leaves: leaves,
             repeats: repeats,
+            ddd_rep_idxes: self.ddd_rep_idxes.clone(),
             leaf_locations: self.leaf_locations.clone(),
             named_repeats: self.named_repeats.clone()
         })
@@ -472,9 +591,7 @@ impl<T: Clone + fmt::Debug> EnvMBE<T> {
     }
 }
 
-
 #[test]
-
 fn basic_mbe() {
     let mut mbe = EnvMBE::new();
     mbe.add_leaf(n("eight"), 8 as i32);
@@ -489,14 +606,14 @@ fn basic_mbe() {
         EnvMBE::new_from_leaves(assoc_n!("t" => 13))
     ];
 
-    mbe.add_named_repeat(n("low_two_digits"), teens_mbe);
+    mbe.add_named_repeat(n("low_two_digits"), teens_mbe, None);
 
     let big_mbe = vec![
         EnvMBE::new_from_leaves(assoc_n!("y" => 9001)),
         EnvMBE::new_from_leaves(assoc_n!("y" => 9002))
     ];
     
-    mbe.add_anon_repeat(big_mbe);
+    mbe.add_anon_repeat(big_mbe, None);
 
     
     for (sub_mbe, teen) in mbe.march_all(&vec![n("t"), n("eight")]).iter().zip(vec![11,12,13]) {
@@ -519,7 +636,7 @@ fn basic_mbe() {
         EnvMBE::new_from_leaves(assoc_n!("nt" => -13))
     ];
     
-    mbe.add_named_repeat(n("low_two_digits"), neg_teens_mbe);
+    mbe.add_named_repeat(n("low_two_digits"), neg_teens_mbe, None);
     
     for (sub_mbe, teen) in mbe.march_all(&vec![n("t"), n("nt"), n("eight")]).iter().zip(vec![11,12,13]) {
         assert_eq!(sub_mbe.get_leaf(&n("eight")), Some(&8));
@@ -582,3 +699,42 @@ fn basic_mbe() {
     assert_eq!(first_sub_mbe.get_leaf(&n("x")), None);     
 }
 
+#[test]
+fn ddd_iter() {
+    assert_eq!(DddIter::new([0,1,2].iter(), 0, 0).collect::<Vec<_>>(), [&1,&2]);
+    assert_eq!(DddIter::new([0,1,2].iter(), 1, 0).collect::<Vec<_>>(), [&0,&2]);
+    assert_eq!(DddIter::new([0,1,2].iter(), 2, 0).collect::<Vec<_>>(), [&0,&1]);
+    
+    assert_eq!(DddIter::new([0,1,2].iter(), 1, 1).collect::<Vec<_>>(), [&0,&1,&2]);
+    assert_eq!(DddIter::new([0,1,2].iter(), 1, 3).collect::<Vec<_>>(), [&0,&1,&1,&1,&2]);
+}
+
+#[test]
+fn mbe_ddd_map_with() {
+    use ast::{Ast, Atom};
+    
+    let lhs = mbe!( "a" => ["0", "1", "2", "3", "4"] );
+    let rhs = mbe!( "a" => ["0" ...("1")..., "4"] );
+    
+    fn concat(l: &Ast, r: &Ast) -> Ast {
+        match (l, r) {
+            (&Atom(ln), &Atom(rn)) => Atom(n( format!("{}{}", ln, rn).as_str() )),
+            _ => panic!()
+        }
+    }
+    
+    assert_eq!(lhs.map_with(&rhs, &concat),
+               mbe!( "a" => ["00", "11", "21", "31", "44"] ));
+    assert_eq!(rhs.map_with(&lhs, &concat),
+               mbe!( "a" => ["00", "11", "12", "13", "44"] ));
+               
+    assert_eq!(lhs.map_reduce_with(&rhs, &concat, &concat, ast!("")),
+               ast!("4431211100")); // N.B. order is arbitrary
+               
+    
+    let lhs = mbe!( "a" => [["a", "b"], ["c", "d"], ["c", "d"]]);
+    let rhs = mbe!( "a" => [["a", "b"] ...(["c", "d"])...]);
+    
+    assert_eq!(lhs.map_with(&rhs, &concat),
+               mbe!( "a" => [["aa", "bb"], ["cc", "dd"], ["cc", "dd"]]));
+}

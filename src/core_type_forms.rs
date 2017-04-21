@@ -99,6 +99,16 @@ pub fn make_core_syn_env_types() -> SynEnv {
          }),
          NotWalked);
     
+    // This only makes sense inside a concrete syntax type or during typechecking.
+    // For example, the type of the `let` macro is (where `dotdotdot_type` is `...[]...`):
+    // ∀ ...{T}... . ∀ S . 
+    //    '[let ...[ ,[ var ⇑ v ], = ,[ expr<[T]< ], ]... 
+    //            in ,[ expr<[S]< ↓ ...{v = T}...], ]' 
+    //        -> expr<[S]<
+    // TODO: add named repeats. Add type-level numbers!
+    let dotdotdot_type = type_defn("dotdotdot", 
+        form_pat!((delim "...[", "[", /*]]*/ (named "body", (call "type")))));
+    
     // Like a variable reference (but `LiteralLike` typing prevents us from doing that)
     let type_by_name = typed_form!("type_by_name", (named "name", aat),
         cust_rc_box!(move |tbn_part| {
@@ -142,7 +152,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                         args.push(::util::mbe::EnvMBE::new_from_leaves(
                             assoc_n!("arg" => individual__arg_res.concrete())));
                     }
-                    new__tapp_parts.add_anon_repeat(args);
+                    new__tapp_parts.add_anon_repeat(args, None);
                     
                     Ok(Ty::new(Node(tapp_parts.this_form, new__tapp_parts)))
                 }
@@ -179,6 +189,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         enum_type.clone(),
         struct_type.clone(),
         forall_type.clone(),
+        dotdotdot_type.clone(),
         mu_type.clone(),
         type_apply.clone()
         ]), Rc::new(form_pat!((scope type_by_name.clone()))))))

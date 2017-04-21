@@ -28,6 +28,7 @@ syntax quotation:
   '[,[e], + 1]' and ''[,[ e ], + ,,[e],,]''
   +[-[e]- + 1]+
   '[ ...[ ,[e], + 1 ]... ]'   ...but how do we escape it?
+  '[ *[ ,[e], + 1 ]* ]'
   '[ ,,...[e],,... ]'    '[ ,[ (dotdotdotsyntax '[e]')], ]'
 
 form definition:
@@ -36,10 +37,16 @@ form definition:
   '[(extend-syntax ,{f : Forms}, ,{body : T <-syn- f})]'
   '[(begin-for-syntax ,{+phase e : Expr},)]'
 
-
 function invocation:
   (map [the Num + 1] lst)     ...Schemey!
   map ([the Num + 1] lst)     ...Cy! (but with an extra space)
   map [the Num + 1] lst       ...MLy!
   map [the Num + 1] over lst  ...Smalltalky!
 
+ macro types:
+ 
+(Is the concrete syntax part of the type? We may need it to be, for `...` to work)
+∀ ...{T}... . ∀ S . 
+    '[let ...[ ,[ var ⇑ v ], = ,[ expr<[T]< ], ]... 
+            in ,[ expr<[S]< ↓ ...{v = T}...], ]' 
+        -> expr<[S]<

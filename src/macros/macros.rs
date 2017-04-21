@@ -172,6 +172,7 @@ macro_rules! mbe_one_name {
             ::util::mbe::EnvMBE::new_from_anon_repeat(v)            
         }
     };
+    
     ($k:tt => [@ $n:tt $($elt:tt),*]) => {
         ::util::mbe::EnvMBE::new_from_named_repeat(
             ::name::n(expr_ify!($n)),
@@ -179,6 +180,15 @@ macro_rules! mbe_one_name {
         )
     };
     
+    ($k:tt => [$($elt_pre:tt),* ...($elt_rep:tt)... $(, $elt_post:tt)*]) => {
+        ::util::mbe::EnvMBE::new_from_anon_repeat_ddd(
+            vec![ $( mbe_one_name!($k => $elt_pre) ),* ,
+                  mbe_one_name!($k => $elt_rep) ,
+                  $( mbe_one_name!($k => $elt_post) ),* ],
+              Some( vec![$( {$elt_pre; ()} ),*].len() ) // count the things in `$elt_pre`
+        )
+    };
+
     ($k:tt => [$($elt:tt),*]) => {
         ::util::mbe::EnvMBE::new_from_anon_repeat(
             vec![ $( mbe_one_name!($k => $elt) ),* ])

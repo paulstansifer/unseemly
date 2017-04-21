@@ -15,7 +15,7 @@ pub struct Name {
 // impl !Send for Name {}
 
 impl Name {
-    fn sp(&self) -> String { self.id.to_string() }
+    pub fn sp(&self) -> String { self.id.to_string() }
 }
 
 /// Special name for negative `ast_walk`ing
