@@ -27,14 +27,13 @@ We need to peel off the the ∀, but we also need to make sure that,
   to all be the same type.
 What to do?
 Whenever we destructure a type, if it's
-  *  `∀ T.…`, then we peel off the ∀, and note in the environment that `T` is underdetermined
-  *  underdetermined, we determine it to be be the right atomic type or the right structure...
-       ...and fill that structure with `∀ G. G` (note: be hygenic, hopefully automatically)
+  *  `∀ T.…`, then we peel off the ∀, and set it to "underdetermined" in the environment
+  *  underdetermined, we set it to be be the right atomic type or the right structure...
+       ...and fill that structure with "underdetermined"
 (Note that destructuring `∀ T. T` needs to hit both of these cases.)
 
-Okay, but what if we want to use <underdetermined> as *part* of a type (e.g. `.[a:int . (error)].`)
-We need turn it into `∀ G. G`.
-
+This glosses over the fact that we want to use side-effects to communicate determination.
+This means having a side table!
 */
 
 // TODO: we should validate that types don't have unexpected names in them
