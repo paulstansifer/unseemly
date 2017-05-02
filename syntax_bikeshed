@@ -50,3 +50,33 @@ function invocation:
     '[let ...[ ,[ var ⇑ v ], = ,[ expr<[T]< ], ]... 
             in ,[ expr<[S]< ↓ ...{v = T}...], ]' 
         -> expr<[S]<
+
+
+'[letrec 
+    ...[ ( ,[ var ⇑ v],  ...[ ,[ var ⇑ arg], ]... ) 
+             = ,[ expr <[T]< ↓ ...{arg}...], ]... 
+    in ,[ expr <[S]< ], ]'
+    
+
+We should try to have types and expressions look different. 
+One tradition is for types to be capitalized and expressions to be lowercase.
+Perhaps that means that types generally get "bigger" operators?
+  -[x : Int -> x]- : =[Int => Int]=
+  ~[the Int]~      : =[Int => Int]=
+
+We also need [](){} groupers for a lot of different purposes:
+ syntax quotation, syntax unquotation, lambda, possibly function application
+ forced precedence in expressions, 
+ forced precedence for syntax operations (maybe just `...`),
+ forced precedence for betas (maybe just `...`),
+ function types, type precedence (maybe just type abstraction invocation),
+ enum/struct types,
+ literal lists/maps/sets,
+ ...probably more kinds of quotation,
+ 
+One natural allocation is [] for sequences in which order matters, {} for sets,
+ and () for forcing precedence.
+An immediate problem with that is that {} will hardly ever get used.
+
+We could use `[]` for "level shifts" (i.e. literals, quotation, lambdas), 
+ `()` for precedence, and `{}` for... everything else?
