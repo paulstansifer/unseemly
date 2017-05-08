@@ -10,11 +10,15 @@ lambda:
   .[x : Num -> x + 1].
   ^ x : Num -> x + 1
   .[x : Num . x + 1].
+  -[x : Num]- x + 1
+  ->[x : Num]-> x + 1
+  x : Num ->[x + 1]->
 
 quick lambda:
 (Assuming we can get inference to work. Otherwise, maybe `the Num` or `_ : Num` instead)
   [_ + 1]
   _[_ + 1]_
+  -> _ + 1
 
 type parameterization:
   List @ Num

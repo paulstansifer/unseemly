@@ -1,7 +1,7 @@
 
 /*
 We often need to walk an `Ast` while maintaining an environment.
-So far, this seems to be true at typecheck time and at runtime.
+This seems to be true at typecheck time and at runtime.
 
 Our `Ast`s have information about
  what should happen environment-wise baked-in,
@@ -17,13 +17,37 @@ Subterms are walked lazily, since not all of them are even evaluable/typeable,
 I may have committed some light type sorcery to make this happen.
  */
 
+/*
+There are different kinds of walks. Here are the ones Unseemly needs so far:
+
+Evaluation prodcues a `Value` or an error.
+During evaluation, each `lambda` form may be processed many times, 
+ with different values for its parameters.
+
+Typechecking produces `Ty` or an error.
+During typechecking, each `lambda` form is processed once,
+ using its parameters declared types.
+
+Quasiquotation, typically a part of evaluation, produces a `Value::AbstractSyntax`.
+Typically, it is triggered by a specific quotative form, 
+ and it's very simple to implement; it just reifies syntax.
+Unseemly is special in that `lambda` even binds under quasiquotation,
+ despite the fact that it doesn't do anything until the reified syntax is evaluated.
+
+*/
 
 /*
+When we walk an `Ast`, we encounter many different forms.
+
 Some forms are positive, and some are negative. 
-Positive forms (e.g. expressions) are walked in an environment, and produce a value.
-Negative forms (e.g. patterns) still can access their environment, 
- but primarily they look at one special "result" in it, and when they are walked, 
-  they produce an environment from that special result.
+
+Positive forms (e.g. expressions and variable references)
+ are walked in an environment, and produce a "result" value.
+
+Negative forms (e.g. patterns and variable bindings) 
+ still can access their environment, 
+  but primarily they look at one special "result" in it, and when they are walked, 
+   they produce an environment from that special result.
   
 For example, suppose that `five` has type `nat` and `hello` has type `string`:
   - the expression `struct{a: five, b: hello}` produces the type `struct{a: nat, b: string}`
@@ -31,6 +55,11 @@ For example, suppose that `five` has type `nat` and `hello` has type `string`:
      the envirnonment where `aa` is `nat` and `bb` is `string`.
 
 At runtime, something similar happens with values and value environments.
+
+Some forms are "ambidextrous". 
+Everything should be ambidextrous under quasiquotation,
+ because all syntax should be constructable and matchable.
+
 */
 use form::{Form, BiDiWR};
 use std::rc::Rc; 

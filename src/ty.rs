@@ -223,6 +223,7 @@ impl ::ast_walk::WalkElt<SynthTy> for Ty {
 pub type SynthTy = ::ast_walk::PositiveWalkMode<Ty>;
 pub type UnpackTy = ::ast_walk::NegativeWalkMode<Ty>;
 
+
 pub fn synth_type_top(expr: &Ast) -> TypeResult {
     walk::<SynthTy>(expr, &LazyWalkReses::new_wrapper(Assoc::new()))
 }
@@ -379,6 +380,6 @@ fn type_specialization() {
             }), para_ty_env.clone()),
         Ok(ty!( { "type" "int" : })));
     */
-    // TODO: test that ∀ X. ∀ Y. [ X → Y ] is a sensible type 
+    // TODO: test that ∀ X. ∀ Y. [ X → Y ] is a (sortof) sensible type (for transmogrify)
     //        and that ∀ X. [ X → ∀ Y . Y ] is ridiculously permissive
 }

@@ -9,6 +9,42 @@
  *  so there are `struct`s and `enum`s.
  */
  
+ /*
+There are two similar things we should distinguish!
+(1) syntax for types, as written by the user in an `Ast`
+(2) types themselves, the result of type synthesis, often stored in `Ty`
+     (which is just a thin wrapper around `Ast`).
+
+These things are almost identical, 
+ which is why postive synth_type is usually implemented with `LiteralLike`.
+ 
+We should also distinguish
+(3) ___, (normally also called "types"). The ___ of an expression is a type, 
+     and the ___ of a type is a kind.
+
+
+It is at this point that I am reminded of a passage from GEB:
+
+ Now in set theory, which deals with abstractions that we don't use all the time, a 
+ stratification like the theory of types seems acceptable, even if a little strange-but when it 
+ comes to language, an all-pervading part of life, such stratification appears absurd. We 
+ don't think of ourselves as jumping up and down a hierarchy of languages when we speak 
+ about various things. A rather matter-of-fact sentence such as, "In this book, I criticize 
+ the theory of types" would be doubly forbidden in the system we are discussing. Firstly, it 
+ mentions "this book", which should only be mentionable in a metabook-and secondly, it mentions
+ me-a person whom I should not be allowed to speak of at all! This example points out how silly
+ the theory of types seems, when you import it into a familiar context. The remedy it adopts for
+ paradoxes-total banishment of self-reference in any form-is a real case of overkill, branding
+ many perfectly good constructions as meaningless. The adjective "meaningless", by the way,
+ would have to apply to all discussions of the theory of linguistic types (such as that of this
+ very paragraph) for they clearly could not occur on any of the levels-neither object language, 
+ nor metalanguage, nor metametalanguage, etc. So the very act of discussing the theory 
+ would be the most blatant possible violation of it!
+ 
+   — Douglas Hofstadter, Godel, Escher, Bach: and Eternal Golden Braid
+
+*/
+ 
 use std::rc::Rc;
 use parse::{SynEnv, FormPat};
 use form::{Form, simple_form};
@@ -19,19 +55,47 @@ use core_forms::ast_to_atom;
 use ty::{Ty, synth_type};
 use ast::*;
 
+/*
+ NOT SURE IF THIS IS A HACK ALERT
+ 
+ Type synth on expressions/patterns is a positive/negative walk with `Elt`=`Ty` which 
+  emulates normal typechecking.
+ Type synth on types is a positive (mostly `LiteralLike`) walk that turns type syntax into types.
+ ...but there's also a negative type synth on types, used to determine if the type in question
+  can specialize down to the `context_elt`.
+  
+ It feels funny, but "are these two types compatible?" is a question we ask during type synthesis,
+  and the negative side of type syntax is the right place for it.
+ But it still feels like a hack. 
+ In particular, I feel like this comment is bascially incomprehensible
+ */
+
+
+//TODO: I think we need to extend `Form` with `synth_kind`...
 fn type_defn(form_name: &str, p: FormPat) -> Rc<Form> {
     Rc::new(Form {
         name: n(form_name),
         grammar: Rc::new(p),
         relative_phase: ::util::assoc::Assoc::new(),
-        // How do kinds fit into this? 
-        // I know that that `eval` must produce a `Value`, so 
-        //  `synth_type` has to produce a type even though we are "evaluating" to a type
-        synth_type: ::form::Positive(LiteralLike),
+        synth_type: ::form::Both(LiteralLike, LiteralLike),
         quasiquote: ::form::Both(LiteralLike, LiteralLike),
         eval: ::form::Positive(NotWalked) 
     })
 }
+
+/* Let me write down an example subtyping hierarchy, to stop myself from getting confused.
+    ⊤ (any type/dynamic type/"dunno")
+   ╱              |                      ╲
+ Num          ∀X.∀Y.(X→Y)              Nat→Int
+  |           ╱         ╲              ╱     ╲
+ Int     ∀Y.(Bool→Y)  ∀X.(X→Bool)  Int→Int  Nat→Nat
+  |           ╲         ╱              ╲     ╱
+ Nat           Bool→Bool              Int→Nat
+   ╲               |                     ╱
+    ⊥ (uninhabited type/panic/"can't happen")
+
+*/
+
 
 pub fn make_core_syn_env_types() -> SynEnv {
     /* Regarding the value/type/kind hierarchy, Benjamin Pierce generously assures us that 
@@ -66,17 +130,8 @@ pub fn make_core_syn_env_types() -> SynEnv {
     let forall_type = 
         type_defn("forall_type", form_pat!(
             [(lit "forall_type"), (star (named "param", aat)), (lit "."), 
-                // // This isn't part of the grammar from the user's point of view!
-                // // We just need the type kind for the RHS of the beta, 
-                // //  since the parameters are always plain types.
-                // // (but is this even right? Is it an enviornment of types specifically, or 
-                // //  whatever-is-one-level-up-from-the-LHS)
-                // (named "type_kind_stx", (anyways "*")),
-                
-                // It seems like there ought to be an import of "param" here,
-                //  but the binding has to be done manually. 
-                // Maybe there's something we can add to `beta` for this case...
-                (delim "forall[", "[", /*]]*/ (named "body", (call "type")))]));
+                (delim "forall[", "[", /*]]*/ 
+                    (named "body", (import [forall "param"], (call "type"))))]));
     
     /* This behaves slightly differently than the `mu` from Pierce's book,
      *  because we need to support mutual recursion.
