@@ -29,25 +29,29 @@ macro_rules! assoc_n {
 /* Beta */
 
 macro_rules! beta_connector {
-    ( : ) => { Basic };
-    ( = ) => { SameAs }
+    ( : ) => { ::beta::Basic };
+    ( = ) => { ::beta::SameAs }
 }
 
 macro_rules! beta {
-    ( [] ) => { Nothing };
+    ( [] ) => { ::beta::Nothing };
     ( [* $body:tt ]) => {
         {
             let sub = beta!($body);
             let drivers = sub.names_mentioned();
-            ShadowAll(Box::new(sub), drivers)
+            ::beta::ShadowAll(Box::new(sub), drivers)
         }
     };
     ( [ $name:tt $connector:tt $t:tt
-        $(, $name_cdr:tt $connector_cdr:tt $t_cdr:tt )*
+        $( $rest:tt )*
          ] ) => { 
-        Shadow(Box::new(beta_connector!($connector)(::name::n(expr_ify!($name)), 
+        ::beta::Shadow(Box::new(beta_connector!($connector)(::name::n(expr_ify!($name)), 
                                                     ::name::n(expr_ify!($t)))),
-               Box::new(beta!( [ $( $name_cdr $connector_cdr $t_cdr ),* ] )))
+               Box::new(beta!( [ $( $rest )* ] )))
+    };
+    ( [ forall $name:tt $( $rest:tt )*] ) => {
+        ::beta::Shadow(Box::new(::beta::Underspecified(::name::n(expr_ify!($name)))),
+               Box::new(beta!( [ $( $rest )* ] )))
     }
 }
 
@@ -320,20 +324,6 @@ macro_rules! negative_typed_form {
             quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike,
                                      ::ast_walk::WalkRule::LiteralLike),
             eval: ::form::Negative($eval)
-        })
-    }
-}
-
-macro_rules! ambidextrous_typed_form {
-    ( $name:expr, $p:tt, $gen_type:expr, $neg_gen_type:expr, $eval:expr, $neg_eval:expr) => {
-        Rc::new(Form {
-            name: ::name::n($name),
-            grammar: Rc::new(form_pat!($p)),
-            relative_phase: ::util::assoc::Assoc::new(),
-            synth_type: ::form::Both($gen_type, $neg_gen_type),
-            quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike,
-                                     ::ast_walk::WalkRule::LiteralLike),
-            eval: ::form::Both($eval, $neg_eval)
         })
     }
 }
