@@ -1,10 +1,10 @@
 // Unseemly is a "core" typed language with (typed!) macros.
-// You shouldn't write code in Unseemly. 
+// You shouldn't write code in Unseemly.
 // Instead, you should implement your programming language as Unseemly macros.
 
 
-#![allow(dead_code,non_snake_case,unused_imports,non_upper_case_globals)]
-// dead_code is a hopefully temporary allowance
+#![allow(dead_code,non_snake_case,unused_imports,non_upper_case_globals, unused_macros)]
+// dead_code and unused_macros are hopefully temporary allowances
 // non_snake_case is stylistic, unused_imports is inaccurate because of macros
 // non_upper_case_globals is stylistic; I like my thread_local!s lowercase.
 
@@ -64,22 +64,22 @@ fn main() {
 
 fn eval_unseemly_program(program: &str) -> runtime::eval::Value {
     let tokens = read::read_tokens(program);
-        
+
     let ast = core_forms::core_forms.with(|cse| {
         parse::parse(&core_forms::outermost_form(), &cse, &tokens).unwrap()
     });
-    
+
     let _type = ty::synth_type(&ast, runtime::core_values::core_types()).unwrap();
-    
+
     runtime::eval::eval(&ast, runtime::core_values::core_values()).unwrap()
 }
 
 #[test]
 fn end_to_end_eval() {
     assert_eq!(eval_unseemly_program("(zero? zero)"), val!(b true));
-    
+
     assert_eq!(eval_unseemly_program("(plus one one)"), val!(i 2));
-    
-    assert_eq!(eval_unseemly_program("(.[x : integer  y : integer . (plus x y)]. one one)"), 
+
+    assert_eq!(eval_unseemly_program("(.[x : integer  y : integer . (plus x y)]. one one)"),
                val!(i 2));
 }
