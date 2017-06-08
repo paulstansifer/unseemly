@@ -25,13 +25,14 @@ custom_derive! {
          * This contains information about bindings and syntax extension; this is where it belongs!
          */
         pub grammar: Rc<FormPat>,
+        /** (type only) If this is a type, compare types */
+        pub type_compare: BiDiWR<::ty_compare::Canonicalize, ::ty_compare::Subtype>,
         /** From a type environment, construct the type of this term. */
         pub synth_type: BiDiWR<::ty::SynthTy, ::ty::UnpackTy>,
-        /** From a value environment, evaluate this term.*/
+        /** (expr and pat only) From a value environment, evaluate this term.*/
         pub eval: BiDiWR<::runtime::eval::Eval, ::runtime::eval::Destructure>,
         /** At runtime, pick up code to use it as a value */
         pub quasiquote: BiDiWR<::runtime::eval::QQuote, ::runtime::eval::QQuoteDestr>,
-        pub relative_phase: Assoc<Name, i32> /* 2^31 macro phases ought to be enough for anybody */
     }
 }
 
@@ -85,7 +86,7 @@ pub fn simple_form(form_name: &str, p: FormPat) -> Rc<Form> {
     Rc::new(Form {
             name: n(form_name),
             grammar: Rc::new(p),
-            relative_phase: Assoc::new(), 
+            type_compare: ::form::Both(WalkRule::NotWalked, WalkRule::NotWalked),
             synth_type: ::form::Positive(WalkRule::NotWalked),
             eval: ::form::Positive(WalkRule::NotWalked),
             quasiquote: ::form::Both(WalkRule::LiteralLike, WalkRule::LiteralLike)

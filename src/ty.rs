@@ -36,13 +36,10 @@ This glosses over the fact that we want to use side-effects to communicate deter
 This means having a side table!
 */
 
+// TODO: remove the concrete/abstract distinction; it's not in the right place
 // TODO: we should validate that types don't have unexpected names in them
 // (i.e. `∀ X. List<X>` is okay, but `X` is not a type; it's just syntax)
 #[derive(PartialEq)]
-// pub enum Ty {
-//     ConcreteType(Ast),
-//     Param(std::cell::RefCell<Ast>)
-// }
 // `None` means abstract, `Some` means concrete
 pub struct Ty(pub ::std::cell::RefCell<Option<Ast>>);
 
@@ -186,7 +183,9 @@ impl ::std::fmt::Display for Ty {
                     panic!("{:?} is not a well-formed type", self.0);
                 }
             }
-            _ => { panic!("{:?} is not a well-formed type", self.0); }
+            Some(ref other_ast) => {
+                write!(f, "(ill-formed type: {:?})", other_ast)
+            }
         }
     }
 }
@@ -204,8 +203,13 @@ impl ::runtime::reify::Reifiable for Ty {
 }
 
 impl ::ast_walk::WalkElt<SynthTy> for Ty {
-    type Err = TypeError;
+    type Err = TypeError; // TODO: should we use TyErr to avoid dummying spans?
     
+    fn mismatch_error(lhs: Ty, rhs: Ty) -> Self::Err {
+        ::util::err::Spanned { 
+            loc: ast!("TODO"), body: TyErr::Mismatch(lhs.clone(), rhs.clone()) 
+        }
+    }
     fn get_bidi_walk_rule(f: &Form) -> &::form::BiDiWR<SynthTy, UnpackTy> { &f.synth_type }
     
     fn automatically_extend_env() -> bool { true }
@@ -220,8 +224,8 @@ impl ::ast_walk::WalkElt<SynthTy> for Ty {
     }
 }
 
-pub type SynthTy = ::ast_walk::PositiveWalkMode<Ty>;
-pub type UnpackTy = ::ast_walk::NegativeWalkMode<Ty>;
+pub type SynthTy = ::ast_walk::PositiveWalkMode<Ty, ()>;
+pub type UnpackTy = ::ast_walk::NegativeWalkMode<Ty, ()>;
 
 
 pub fn synth_type_top(expr: &Ast) -> TypeResult {
@@ -245,7 +249,8 @@ custom_derive! {
         NonexistentEnumArm(Name, Ty),
         NonexistentStructField(Name, Ty),
         NonExhaustiveMatch(Ty),
-        UnableToDestructure(Ty, Name)
+        UnableToDestructure(Ty, Name),
+        UnboundName(Name)
     }
 }
 
@@ -254,23 +259,29 @@ impl ::std::fmt::Display for TyErr {
         use self::TyErr::*;
         match *self {
             Mismatch(ref got, ref exp) => {
-                write!(f, "expected `{}`, found `{}`", exp, got)
+                write!(f, "[Mismatch] expected `{}`, found `{}`", exp, got)
             }
             NtInterpMismatch(got, exp) => {
-                write!(f, "expected the nonterminal `{:?}`, but `{:?}` was interpolated",
+                write!(f, "[NtInterpMismatch] expected the nonterminal `{:?}`, \
+                           but `{:?}` was interpolated",
                        exp, got)
             }
             NonexistentEnumArm(got_name, ref ty) => {
-                write!(f, "the enum `{}` doesn't have an arm named `{:?}`",
+                write!(f, "[NonexistentEnumArm] the enum `{}` doesn't have an arm named `{:?}`",
                        ty, got_name)
             }
             NonexistentStructField(got_name, ref ty) => {
-                write!(f, "the struct `{}` doesn't have a field named `{:?}`",
+                write!(f, "[NonexistentStructField] the struct `{}` doesn't have a \
+                           field named `{:?}`",
                        ty, got_name)
             }
-            NonExhaustiveMatch(ref ty) => write!(f, "non-exhaustive match of `{}`", ty),
+            NonExhaustiveMatch(ref ty) => 
+                write!(f, "[NonExhaustiveMatch] non-exhaustive match of `{}`", ty),
             UnableToDestructure(ref ty, expected_name) => {
-                write!(f, "expected a `{}` type, got `{}`", expected_name, ty)
+                write!(f, "[UnableToDestructure] expected a `{}` type, got `{}`", expected_name, ty)
+            }
+            UnboundName(name) => {
+                write!(f, "[UnboundName] `{}` does not refer to a type", name)
             }
         }
     }
@@ -293,7 +304,6 @@ impl From<()> for TyErr {
 */
 
 pub type TypeError = ::util::err::Spanned<TyErr>;
-
 
 type TypeResult = Result<Ty, TypeError>;
 

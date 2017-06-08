@@ -71,8 +71,8 @@ impl ::ast_walk::WalkElt<Eval> for Value {
     fn to_ast(&self) -> Ast { panic!("ICE: shoudn't happen...")}
 }
 
-pub type Eval = ::ast_walk::PositiveWalkMode<Value>;
-pub type Destructure = ::ast_walk::NegativeWalkMode<Value>;
+pub type Eval = ::ast_walk::PositiveWalkMode<Value, ()>;
+pub type Destructure = ::ast_walk::NegativeWalkMode<Value, ()>;
 
 
 
@@ -102,5 +102,5 @@ pub fn neg_eval(pat: &Ast, env: Assoc<Name, Value>)
     walk::<Destructure>(pat, &LazyWalkReses::new_wrapper(env))
 }
 
-pub type QQuote = ::ast_walk::PositiveWalkMode<Ast>;
-pub type QQuoteDestr = ::ast_walk::NegativeWalkMode<Ast>;
+pub type QQuote = ::ast_walk::PositiveWalkMode<Ast, ()>;
+pub type QQuoteDestr = ::ast_walk::NegativeWalkMode<Ast, ()>;

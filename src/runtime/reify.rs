@@ -27,7 +27,7 @@ pub trait Reifiable {
         Ast::Node(Rc::new(::form::Form { 
             name: Self::ty_name(),
             grammar: Rc::new(::parse::FormPat::Impossible),
-            relative_phase: ::util::assoc::Assoc::new(),
+            type_compare: ::form::Positive(::ast_walk::WalkRule::NotWalked),
             synth_type: ::form::Positive(::ast_walk::WalkRule::LiteralLike),
             quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike, 
                                      ::ast_walk::WalkRule::LiteralLike),

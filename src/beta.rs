@@ -23,8 +23,9 @@ use ast::{Atom};
   (b) where to get the type annotation (`Basic`) 
        or an expression producting the type (`SameAs`) 
        for that name.
- 
  */
+ 
+
 
 custom_derive! {
     #[derive(PartialEq, Eq, Clone, Reifiable)]
@@ -117,7 +118,8 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
                     parts.parts.get_leaf_or_panic(name_source).term)
             }
         }
-        
+
+        // TODO: I need more help understanding this         
         // treats the node `name_source` mentions as a negative node, and gets names from it
         SameAs(ref name_source, ref res_source) => {
             // TODO: `env_from_beta` needs to return a Result
@@ -129,13 +131,19 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
                     .get_res(name_source))))
         }
         
-        Underspecified(_name_source) => {
-            panic!("not implemented yet!")
+        Underspecified(ref name_source) => {
+            if let LazilyWalkedTerm {term: Atom(ref name), ..} 
+                    = **parts.parts.get_leaf_or_panic(name_source) {
+                use ast_walk::WalkElt;
+            
+                Ok(Assoc::new().set(*name, Mode::underspecified_elt()))
+            } else {
+                panic!("{:?} is supposed to supply names, but is not an Atom.", 
+                    parts.parts.get_leaf_or_panic(name_source).term)                
+            }
         }
     }
 }
 
 //fn fold_beta<T>(b: Beta, over: Assoc<Name, T>,
 //                    leaf: Fn(&Ast ) -> S
-
-

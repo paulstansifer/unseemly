@@ -1,6 +1,6 @@
 // This virtual machine kills cyber-fascists.
 
-#![allow(dead_code, non_upper_case_globals)]
+
 
 // Core forms!
 //
@@ -81,6 +81,7 @@ fn unquote<Mode: ::ast_walk::WalkMode>(nt: Name, ctf: SynEnv, pos: bool) -> Rc<F
             } else {
                 form_pat!([(delim ",[", "[", /*]]*/ (named "body", (call "pat")))])
             }),
+        type_compare: Positive(NotWalked), // this is not a type form
         synth_type: 
             // imagine: ` '[{expr} .[a : int . ,[body], ]. ]' `
             if pos {
@@ -124,8 +125,7 @@ fn unquote<Mode: ::ast_walk::WalkMode>(nt: Name, ctf: SynEnv, pos: bool) -> Rc<F
         quasiquote: //should be both
             Positive(cust_rc_box!( move | _unquote_parts | {
                 panic!("");
-            })),
-        relative_phase: Assoc::new()
+            }))
     })
 }
 

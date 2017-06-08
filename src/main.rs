@@ -1,6 +1,12 @@
-#![allow(dead_code,non_snake_case,unused_imports)]
+// Unseemly is a "core" typed language with (typed!) macros.
+// You shouldn't write code in Unseemly. 
+// Instead, you should implement your programming language as Unseemly macros.
+
+
+#![allow(dead_code,non_snake_case,unused_imports,non_upper_case_globals)]
 // dead_code is a hopefully temporary allowance
 // non_snake_case is stylistic, unused_imports is inaccurate because of macros
+// non_upper_case_globals is stylistic; I like my thread_local!s lowercase.
 
 // unstable; only for testing
 // #![feature(log_syntax,trace_macros)]
@@ -35,6 +41,7 @@ mod form;
 
 mod ast_walk;
 mod ty;
+mod ty_compare;
 
 mod runtime;
 

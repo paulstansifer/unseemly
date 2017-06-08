@@ -89,7 +89,7 @@ macro_rules! ast {
         ExtendEnv(Box::new(ast!($sub)), beta!($beta))
     };
     /* // not sure we'll need this
-    ( (* $env:expr => $new_env:ident / $($n:expr),* ; $($sub_args:tt)*) ) => {
+    ( (* $env:expr => $new_env:ident / $($n:expr),* ; $($sub_ar"gs:tt)*) ) => {
         {
             let mut res = vec![];
             
@@ -290,7 +290,7 @@ macro_rules! basic_typed_form {
         Rc::new(Form {
             name: ::name::n("unnamed form"),
             grammar: Rc::new(form_pat!($p)),
-            relative_phase: ::util::assoc::Assoc::new(),
+            type_compare: ::form::Positive(::ast_walk::WalkRule::NotWalked),
             synth_type: ::form::Positive($gen_type),
             quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike,
                                      ::ast_walk::WalkRule::LiteralLike),
@@ -304,7 +304,7 @@ macro_rules! typed_form {
         Rc::new(Form {
             name: ::name::n($name),
             grammar: Rc::new(form_pat!($p)),
-            relative_phase: ::util::assoc::Assoc::new(),
+            type_compare: ::form::Positive(::ast_walk::WalkRule::NotWalked),
             synth_type: ::form::Positive($gen_type),
             quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike,
                                      ::ast_walk::WalkRule::LiteralLike),
@@ -313,13 +313,12 @@ macro_rules! typed_form {
     }
 }
 
-
 macro_rules! negative_typed_form {
     ( $name:expr, $p:tt, $gen_type:expr, $eval:expr ) => {
         Rc::new(Form {
             name: ::name::n($name),
             grammar: Rc::new(form_pat!($p)),
-            relative_phase: ::util::assoc::Assoc::new(),
+            type_compare: ::form::Positive(::ast_walk::WalkRule::NotWalked),
             synth_type: ::form::Negative($gen_type),
             quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike,
                                      ::ast_walk::WalkRule::LiteralLike),
@@ -493,12 +492,13 @@ macro_rules! cop_out_reifiability {
 /* Testing */
 
 macro_rules! assert_m {
-    ($got:expr, $expected:pat, $body:expr) => {
-        match $got {
+    ($got:expr, $expected:pat, $body:expr) => {{
+        let got = $got;
+        match got.clone() {
             $expected => { assert!($body) }
-            _ => { assert!(false, "{:?} does not match {:?}", $got, quote!($expected).as_str()) }
+            _ => { assert!(false, "{:?} does not match {:?}", got, quote!($expected).as_str()) }
         }
-    };
+    }};
     ($got:expr, $expected:pat) => {
         assert_m!($got, $expected, true)
     }

@@ -37,8 +37,6 @@ custom_derive! {
 
 pub use self::Ast::*;
 
-
-
 impl fmt::Debug for Ast {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -67,8 +65,6 @@ impl fmt::Debug for Ast {
         }
     }
 }
-
-
 
 
 impl Ast {

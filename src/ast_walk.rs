@@ -26,7 +26,12 @@ During evaluation, each `lambda` form may be processed many times,
 
 Typechecking produces `Ty` or an error.
 During typechecking, each `lambda` form is processed once,
- using its parameters declared types.
+ using its parameters' declared types.
+ 
+Subtyping produces `Ty` (irrelevant) or an error.
+It only walks type Asts, so `lambda` is not walked,
+ but ∀ is a binding form that acts sort of like type-level lambda,
+  except we use unification instead of explicit "function" calls.
 
 Quasiquotation, typically a part of evaluation, produces a `Value::AbstractSyntax`.
 Typically, it is triggered by a specific quotative form, 
@@ -231,6 +236,13 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         }
     }
     
+    // TODO: this should probably actually be stored, rather than reconstructed.
+    pub fn as_ast(&self) -> Ast {
+        Node(self.this_form.clone(),
+             self.parts.clone().map(
+                 &|x: &Rc<::ast_walk::LazilyWalkedTerm<Mode>>| x.term.clone()))
+    }
+    
     /** The result of walking the subform named `part_name`. This is memoized. */
     pub fn get_res(&self, part_name: &Name) -> Result<Mode::Out, Mode::Err> {
         self.parts.get_leaf_or_panic(part_name).get_res(self)
@@ -344,12 +356,13 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
 }
 
 /**
- * Make a `Mode::Out` by walking `expr` in the environment from `cur_node_contents`.
+ * Make a `Mode::Out` by walking `node` in the environment from `cur_node_contents`.
  * HACK: The parts in `cur_node_contents` are ignored; it's just an environment to us.
  */
-pub fn walk<Mode: WalkMode>(expr: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
+pub fn walk<Mode: WalkMode>(node: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
         -> Result<Mode::Out, Mode::Err> {
-    match *expr {
+    print!("WALK: {:?}\n", node);
+    match *node {
         Node(ref f, ref parts) => {
             // certain walks only work on certain kinds of AST nodes
             match *Mode::get_walk_rule(f) {
@@ -366,10 +379,9 @@ pub fn walk<Mode: WalkMode>(expr: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
                 
                 LiteralLike => {
                     Mode::walk_quasi_literally(f, parts, cur_node_contents)
-                        .expect("Match failure")
                 }
                 
-                NotWalked => { panic!( "ICE: {:?} should not be walked at all!", expr ) }
+                NotWalked => { panic!( "ICE: {:?} should not be walked at all!", node ) }
             }
         }
         IncompleteNode(ref parts) => { panic!("ICE: {:?} isn't a complete node", parts)}
@@ -377,7 +389,7 @@ pub fn walk<Mode: WalkMode>(expr: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
         VariableReference(n) => { Ok(Mode::walk_var(n, &cur_node_contents)) }
         
         Trivial | Atom(_) | Shape(_) => {
-            panic!("ICE: {:?} is not a walkable node", expr);
+            panic!("ICE: {:?} is not a walkable node", node);
         }
         
         ExtendEnv(ref body, ref beta) => {
@@ -403,13 +415,17 @@ pub trait WalkElt<Mode: WalkMode>: Clone + Debug + Reifiable {
      
     fn automatically_extend_env() -> bool;
     
+    fn underspecified() -> Self {
+        panic!("underspecification not supported!")
+    }
+    
+    fn mismatch_error(Self, Self) -> Self::Err {
+        panic!("mismatch is not supported for all elements")
+    }
+    
     fn from_ast(a: &Ast) -> Self;
     fn to_ast(&self) -> Ast;
 }
-
-#[derive(Debug, PartialEq, Copy, Clone)]
-pub struct MatchFailure(); // Huh, this doesn't need to be Reifiable?
-
 
 /**
  * This trait exists to connect `Form`s to different kinds of walks.
@@ -426,7 +442,7 @@ pub struct MatchFailure(); // Huh, this doesn't need to be Reifiable?
  *  but they conceptually are mostly relying on the special value.
  */
 
-pub trait WalkMode : Debug + Copy + Reifiable {    
+pub trait WalkMode : Debug + Copy + Reifiable {
     /** The object type for the environment to walk in. */
     type Elt : Clone + Debug + Reifiable;
     
@@ -439,7 +455,7 @@ pub trait WalkMode : Debug + Copy + Reifiable {
     type Err : Debug /*Display*/ + Reifiable + Clone;
     
     /** The negated version of this walk */    
-    type Negative : WalkMode<Elt=Self::Elt, Err=Self::Err>;
+    type Negative : WalkMode<Elt=Self::Elt, Err=Self::Err, Negative=Self>;
     
     
     fn get_walk_rule(&Form) -> &WalkRule<Self> where Self: Sized ;
@@ -457,6 +473,27 @@ pub trait WalkMode : Debug + Copy + Reifiable {
      */
     fn automatically_extend_env() -> bool;
     
+    /** 
+     (negative only)
+     Make up a special `Elt` that is currently "underspecified",
+      but which can be "unified" with some other `Elt`.
+     If that happens, all copies of this `Elt` will act like that other one.
+     
+     Side-effects under the covers make this work.
+     */
+    fn underspecified_elt() -> Self::Elt;
+    
+    /**
+     * (negative only) What happens if destructuring fails? 
+     */
+    fn qlit_mismatch_error(Self::Elt, Self::Elt) -> Self::Err;
+    
+    /**
+     * (negative only) Possibly swap out a variable before matching.
+     *
+    fn pre_match(Self::Elt, Self::Elt) -> Self::Elt;
+    */
+    
     /**
      Walk over the structure of a node, not its meaning.
      This could be because we're inside a syntax-quote,
@@ -469,7 +506,7 @@ pub trait WalkMode : Debug + Copy + Reifiable {
      */
     fn walk_quasi_literally(f: &Rc<Form>, parts: &EnvMBE<Ast>, 
                             cnc: &LazyWalkReses<Self>) 
-        -> Result<Result<Self::Out, Self::Err>, MatchFailure>;
+        -> Result<Self::Out, Self::Err>;
 
     // We need to dynamically do these if it's possible, for `env_from_beta`        
     fn out_as_elt(Self::Out) -> Self::Elt;
@@ -480,15 +517,16 @@ pub trait WalkMode : Debug + Copy + Reifiable {
 
 custom_derive! {
     #[derive(Clone, Debug, Reifiable)]
-    pub struct PositiveWalkMode<Elt> { pd: ::std::marker::PhantomData<Elt> }
+    pub struct PositiveWalkMode<Elt, T> { pd: ::std::marker::PhantomData<Elt>, t: T }
 }
 
-impl<Elt: Clone> Copy for PositiveWalkMode<Elt> {}
+impl<Elt: Clone, T: Copy> Copy for PositiveWalkMode<Elt, T> {}
 
-impl<Elt: WalkElt<PositiveWalkMode<Elt>>> WalkMode for PositiveWalkMode<Elt> {
+impl<T: Copy + Debug + Reifiable, Elt: WalkElt<PositiveWalkMode<Elt, T>>>
+        WalkMode for PositiveWalkMode<Elt, T> {
     type Out = Elt;
     type Elt = Elt;
-    type Negative = NegativeWalkMode<Elt>;
+    type Negative = NegativeWalkMode<Elt, T>;
     
     type Err = Elt::Err;
 
@@ -499,10 +537,19 @@ impl<Elt: WalkElt<PositiveWalkMode<Elt>>> WalkMode for PositiveWalkMode<Elt> {
     
     // TODO: likewise
     fn automatically_extend_env() -> bool { Elt::automatically_extend_env() }
-    
+
+    // TODO: likewise    
+    fn underspecified_elt() -> Self::Elt {
+        Self::Elt::underspecified()
+    }
+
+    fn qlit_mismatch_error(_: Self::Elt, _: Self::Elt) -> Self::Err {
+        panic!("can't happen; negative-only")
+    }
+        
     fn walk_quasi_literally(f: &Rc<Form>, parts: &EnvMBE<Ast>, 
                             cnc: &LazyWalkReses<Self>) 
-            -> Result<Result<Self::Out, Self::Err>, MatchFailure> {
+            -> Result<Self::Out, Self::Err> {
         
         // TODO: I think we need a separate version of `walk` that doesn't panic on `MatchFailure`
         let walked : Result<EnvMBE<Ast>, Self::Err> = parts.map(
@@ -511,11 +558,7 @@ impl<Elt: WalkElt<PositiveWalkMode<Elt>>> WalkMode for PositiveWalkMode<Elt> {
                 _ => Ok(Elt::from_ast(&p.clone()))
             }.map(|e| Elt::to_ast(&e))).lift_result();
 
-        match walked { // sort of an inner `try!`
-            Err(e) => { Ok(Err(e)) }, // match succeeded, walk failed
-            Ok(out) => { Ok(Ok(Elt::from_ast(&Node(f.clone(), out)))) }
-        }
-        
+        walked.map(|out| Elt::from_ast(&Node(f.clone(), out)))      
         
         /*
         //panic!("TODO: I don't understand the code I wrote for this")
@@ -543,15 +586,48 @@ impl<Elt: WalkElt<PositiveWalkMode<Elt>>> WalkMode for PositiveWalkMode<Elt> {
 
 custom_derive! {
     #[derive(Clone, Debug, Reifiable)]
-    pub struct NegativeWalkMode<Elt> { pd: ::std::marker::PhantomData<Elt> }
+    pub struct NegativeWalkMode<Elt, T> { pd: ::std::marker::PhantomData<Elt>, t: T }
 }
 
-impl<Elt: Clone> Copy for NegativeWalkMode<Elt> {}
+impl<Elt: Clone, T: Copy> Copy for NegativeWalkMode<Elt, T> {}
 
-impl<Elt: WalkElt<PositiveWalkMode<Elt>>> WalkMode for NegativeWalkMode<Elt> {
+impl<T: Copy + Debug + Reifiable, Elt: WalkElt<PositiveWalkMode<Elt, T>>>
+        NegativeWalkMode<Elt, T> {
+    // Match the context element against the current node
+    pub fn context_match(f: &Rc<Form>, parts: &EnvMBE<Ast>, got: &Elt, env: Assoc<Name, Elt>)
+            -> Result<EnvMBE<Ast>, <Self as WalkMode>::Err> {
+        let ctxt = Elt::to_ast(got);
+
+        //type Res = Result<Assoc<Name, Self::Elt>, ()>;
+
+        // TODO Needs freshening (like what Romeo does)!
+        // I only spent three years or so on hygenic destructuring, 
+        //  so it's not surprising that I forgot that I'd need to do it.
+        
+        // break apart the node, and walk it element-wise
+        if let Node(f_actual, parts_actual) = ctxt {
+            // TODO: wouldn't it be nice to have match failures that 
+            //  contained useful `diff`-like information for debugging,
+            //   when a match was expected to succeed?
+            // (I really like using pattern-matching in unit tests!)
+            if **f != *f_actual { /* different form */
+                let expd_elt = Elt::from_ast(&Node(f.clone(), parts.clone()));
+                return Err(Self::qlit_mismatch_error(got.clone(), expd_elt));
+            }
+
+            Ok(parts_actual)
+        } else { /* Didn't even get a form */
+            let expd_elt = Elt::from_ast(&Node(f.clone(), parts.clone()));
+            Err(Self::qlit_mismatch_error(got.clone(), expd_elt))
+        }        
+    }
+}
+
+impl<T: Copy + Debug + Reifiable, Elt: WalkElt<PositiveWalkMode<Elt, T>>> 
+        WalkMode for NegativeWalkMode<Elt, T> {
     type Out = Assoc<Name, Elt>;
     type Elt = Elt;
-    type Negative = PositiveWalkMode<Elt>;
+    type Negative = PositiveWalkMode<Elt, T>;
     
     type Err = Elt::Err;
 
@@ -562,39 +638,33 @@ impl<Elt: WalkElt<PositiveWalkMode<Elt>>> WalkMode for NegativeWalkMode<Elt> {
     
     // TODO: likewise
     fn automatically_extend_env() -> bool { Elt::automatically_extend_env() }
+    
+    // TODO: likewise    
+    fn underspecified_elt() -> Self::Elt {
+        Self::Elt::underspecified()
+    }
+    
+    /*fn pre_match(got: Self::Elt, expd: Self::Elt) -> Self::Elt {
+        panic!("not implemented for this mode")
+    }*/
 
+    // TODO: can we move this off Elt and onto the modes themselves?    
+    fn qlit_mismatch_error(got: Self::Elt, expd: Self::Elt) -> Self::Err {
+        Self::Elt::mismatch_error(got, expd)
+    }
+    
     fn walk_quasi_literally(f: &Rc<Form>, parts: &EnvMBE<Ast>, 
                             cnc: &LazyWalkReses<Self>) 
-            -> Result<Result<Self::Out, Self::Err>, MatchFailure> {
-        let ctxt = Elt::to_ast(cnc.context_elt());
+            -> Result<Self::Out, Self::Err> {
 
-        //type Res = Result<Assoc<Name, Self::Elt>, ()>;
-
-        // TODO Needs freshening (like what Romeo does)!
-        // I only spent three years or so on hygenic destructuring, 
-        //  so it's not surprising that I forgot that I'd need to do it.
+        let parts_actual = try!(Self::context_match(f, parts, cnc.context_elt(), cnc.env.clone()));
         
-        // break apart the node, and walk it element-wise
-        if let Node(ref f_actual, ref parts_actual) = ctxt {
-            // TODO: wouldn't it be nice to have match failures that 
-            //  contained useful `diff`-like information for debugging,
-            //   when a match was expected to succeed?
-            // (I really like using pattern-matching in unit tests!)
-            if **f != **f_actual { return Err(MatchFailure()); /* different form */ }
-            
-            // TODO: this continues walking after a subterm fails to match;
-            //  it should bail out immediately
-            let res = parts.map_reduce_with(parts_actual,
-                &|model: &Ast, actual: &Ast| {
-                    walk(model, &cnc.with_context(Elt::from_ast(actual)))
-                },
-                &|result, next| { Ok(try!(result.clone()).set_assoc(&try!(next.clone()))) },
-                Ok(cnc.env.clone()));
-            
-            Ok(res) // Match success
-        } else {
-            Err(MatchFailure()) /* Didn't even get a form */
-        }
+        parts.map_reduce_with(&parts_actual,
+            &|model: &Ast, actual: &Ast| {
+                walk(model, &cnc.with_context(Elt::from_ast(actual)))
+            },
+            &|result, next| { Ok(try!(result.clone()).set_assoc(&try!(next.clone()))) },
+            Ok(cnc.env.clone()))
     }
     
     /// Bind variable to the context!

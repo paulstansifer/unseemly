@@ -1,5 +1,4 @@
 #![macro_use]
-#![allow(non_upper_case_globals)]
 
 extern crate lalrpop_intern;
 
@@ -24,7 +23,6 @@ impl Name {
 pub fn negative_ret_val() -> Name {
     Name { id: lalrpop_intern::intern("☾⋅☽")}
 }
-
 
 impl fmt::Debug for Name {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

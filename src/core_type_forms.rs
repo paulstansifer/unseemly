@@ -47,28 +47,16 @@ It is at this point that I am reminded of a passage from GEB:
  
 use std::rc::Rc;
 use parse::{SynEnv, FormPat};
-use form::{Form, simple_form};
+use form::{Form, simple_form, BiDiWR, Positive, Negative, Both};
 use parse::FormPat::*;
+use ast_walk::{WalkRule, WalkMode, walk, WalkElt};
 use ast_walk::WalkRule::*;
 use name::*;
 use core_forms::ast_to_atom;
-use ty::{Ty, synth_type};
+use ty::{Ty, synth_type, UnpackTy, TyErr, SynthTy};
+use ty_compare::{Canonicalize, Subtype};
 use ast::*;
 
-/*
- NOT SURE IF THIS IS A HACK ALERT
- 
- Type synth on expressions/patterns is a positive/negative walk with `Elt`=`Ty` which 
-  emulates normal typechecking.
- Type synth on types is a positive (mostly `LiteralLike`) walk that turns type syntax into types.
- ...but there's also a negative type synth on types, used to determine if the type in question
-  can specialize down to the `context_elt`.
-  
- It feels funny, but "are these two types compatible?" is a question we ask during type synthesis,
-  and the negative side of type syntax is the right place for it.
- But it still feels like a hack. 
- In particular, I feel like this comment is bascially incomprehensible
- */
 
 
 //TODO: I think we need to extend `Form` with `synth_kind`...
@@ -76,26 +64,24 @@ fn type_defn(form_name: &str, p: FormPat) -> Rc<Form> {
     Rc::new(Form {
         name: n(form_name),
         grammar: Rc::new(p),
-        relative_phase: ::util::assoc::Assoc::new(),
-        synth_type: ::form::Both(LiteralLike, LiteralLike),
-        quasiquote: ::form::Both(LiteralLike, LiteralLike),
-        eval: ::form::Positive(NotWalked) 
+        type_compare: Both(LiteralLike, LiteralLike),
+        synth_type: Positive(LiteralLike),
+        quasiquote: Both(LiteralLike, LiteralLike),
+        eval: Positive(NotWalked) 
     })
 }
 
-/* Let me write down an example subtyping hierarchy, to stop myself from getting confused.
-    ⊤ (any type/dynamic type/"dunno")
-   ╱              |                      ╲
- Num          ∀X.∀Y.(X→Y)              Nat→Int
-  |           ╱         ╲              ╱     ╲
- Int     ∀Y.(Bool→Y)  ∀X.(X→Bool)  Int→Int  Nat→Nat
-  |           ╲         ╱              ╲     ╱
- Nat           Bool→Bool              Int→Nat
-   ╲               |                     ╱
-    ⊥ (uninhabited type/panic/"can't happen")
-
-*/
-
+fn type_defn_complex(form_name: &str, p: FormPat, sy: WalkRule<SynthTy>, 
+                     tc: BiDiWR<Canonicalize, Subtype>) -> Rc<Form> {
+    Rc::new(Form {
+        name: n(form_name),
+        grammar: Rc::new(p),
+        type_compare: tc,
+        synth_type: Positive(sy),
+        quasiquote: Both(LiteralLike, LiteralLike),
+        eval: Positive(NotWalked) 
+    })
+}
 
 pub fn make_core_syn_env_types() -> SynEnv {
     /* Regarding the value/type/kind hierarchy, Benjamin Pierce generously assures us that 
@@ -110,11 +96,39 @@ pub fn make_core_syn_env_types() -> SynEnv {
     
     /* types */
     let fn_type =
-        type_defn("fn", 
+        type_defn_complex("fn",
             /* Friggin' Atom bracket matching doesn't ignore strings or comments. */
             form_pat!((delim "[", "[", /*]]*/
                 [ (star (named "param", (call "type"))), (lit "->"), 
-                  (named "ret", (call "type") ) ])));
+                  (named "ret", (call "type") ) ])),
+            LiteralLike, // synth is normal
+            Both(LiteralLike,
+                cust_rc_box!(move |fn_parts| {
+                    let actual_parts = try!(Subtype::context_match(
+                        &fn_parts.this_form, 
+                        // TODO: another sign we need to just have access to the original node:
+                        &fn_parts.parts.map(&|x: &Rc<::ast_walk::LazilyWalkedTerm<Subtype>>| 
+                            x.term.clone()), 
+                        fn_parts.context_elt(),
+                        fn_parts.env.clone()));
+                    
+                    let expd_params = fn_parts.get_rep_term(&n("param"));
+                    let actl_params = actual_parts.get_rep_leaf_or_panic(&n("param"));
+                    if expd_params.len() != actl_params.len() {
+                        return Err(TyErr::Mismatch(ty!("TODO: length mismatch"), ty!("TODO")));
+                    }
+                    for (p_expected, p_got) in expd_params.iter().zip(actl_params.iter()) {
+                        // Parameters have reversed subtyping:
+
+                        let _ : ::util::assoc::Assoc<Name, Ty> = try!(walk::<Subtype>(
+                            *p_got, &fn_parts.with_context(Ty::new(p_expected.clone()))));
+                    }
+                    
+                    walk::<Subtype>(&fn_parts.get_term(&n("ret")), 
+                        &fn_parts.with_context(
+                            Ty::new(actual_parts.get_leaf_or_panic(&n("ret")).clone())))
+                 }))
+        );
                   
     let enum_type = 
         type_defn("enum", form_pat!([(lit "enum"),
@@ -128,10 +142,44 @@ pub fn make_core_syn_env_types() -> SynEnv {
                                             (named "component", (call "type"))]))]));
     
     let forall_type = 
-        type_defn("forall_type", form_pat!(
-            [(lit "forall_type"), (star (named "param", aat)), (lit "."), 
+        type_defn_complex("forall_type", 
+            form_pat!([(lit "forall_type"), (star (named "param", aat)), (lit "."), 
                 (delim "forall[", "[", /*]]*/ 
-                    (named "body", (import [forall "param"], (call "type"))))]));
+                    (named "body", (import [* [forall "param"]], (call "type"))))]),
+            LiteralLike, // synth is normal
+            Both(
+                LiteralLike,
+                cust_rc_box!(move |forall_parts| {
+                    match Subtype::context_match(
+                            &forall_parts.this_form,
+                            &forall_parts.parts.map(&|x: &Rc<::ast_walk::LazilyWalkedTerm<_>>| 
+                                x.term.clone()),
+                            forall_parts.context_elt(),
+                            forall_parts.env.clone()) {
+                        // ∀ X. ⋯ <: ∀ Y. ⋯ ? (so force X=Y)
+                        Ok(actual_forall_parts) => {
+                            // TODO: does this actually work? I'm just doing it because it's easy…
+                            
+                            // This is an ugly way of extracting the body of the context_elt
+                            //  without handling the `beta`,
+                            //  leaving the `param`s of the forall unbound.
+                            // There's got to be some case in which this goes wrong.
+                            let a_b = match actual_forall_parts.get_leaf_or_panic(&n("body")) {
+                                &ExtendEnv(ref body, _) => { body }
+                                _ => panic!("can't happen, by structure of forall's `form_pat!`")
+                            };
+                            
+                            walk::<Subtype>(&forall_parts.get_term(&n("body")),
+                                &forall_parts.with_context(Ty::new((**a_b).clone())))
+                        }
+                        // ∀ X. ⋯ <: ⋯ ?  (so try to specialize X)
+                        Err(_) => {
+                            // `import [forall "param"]` handles the specialization,
+                            //  and we leave the context element alone                                
+                            walk::<Subtype>(&forall_parts.get_term(&n("body")), &forall_parts)
+                        }
+                    }
+                })));
     
     /* This behaves slightly differently than the `mu` from Pierce's book,
      *  because we need to support mutual recursion.
@@ -139,9 +187,9 @@ pub fn make_core_syn_env_types() -> SynEnv {
      * The only thing that `mu` actually does is suppress substitution,
      *  to prevent the attempted generation of an infinite type.
      */
-    let mu_type = typed_form!("mu_type",
-            [(lit "mu_type"), (star (named "param", aat)), (lit "."), 
-             (named "body", (call "type"))],
+    let mu_type = type_defn_complex("mu_type",
+        form_pat!([(lit "mu_type"), (star (named "param", aat)), (lit "."), 
+             (named "body", (call "type"))]),
         cust_rc_box!(move |mu_parts| {
             // This probably ought to eventually be a feature of betas...
             let without_param = mu_parts.with_environment(mu_parts.env.unset(
@@ -152,7 +200,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 "param" => (, mu_parts.get_term(&n("param"))),
                 "body" => (, try!(without_param.get_res(&n("body"))).concrete() )}))
          }),
-         NotWalked);
+         Both(LiteralLike, LiteralLike)); // subtyping is normal (TODO: α-convert?)
     
     // This only makes sense inside a concrete syntax type or during typechecking.
     // For example, the type of the `let` macro is (where `dotdotdot_type` is `...[]...`):
@@ -165,7 +213,8 @@ pub fn make_core_syn_env_types() -> SynEnv {
         form_pat!((delim "...[", "[", /*]]*/ (named "body", (call "type")))));
     
     // Like a variable reference (but `LiteralLike` typing prevents us from doing that)
-    let type_by_name = typed_form!("type_by_name", (named "name", aat),
+    // TODO: maybe we should fix that
+    let type_by_name = type_defn_complex("type_by_name", form_pat!((named "name", aat)),
         cust_rc_box!(move |tbn_part| {
             let name = tbn_part.get_term(&n("name"));
             match tbn_part.env.find(&ast_to_atom(&name)) {
@@ -174,7 +223,22 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 Some(ty) => Ok(ty.clone())
             }
         }),
-        NotWalked);
+        Both(
+            cust_rc_box!(move |tbn_part| { // no-op; reconstruct (this should be easier!)
+                Ok(Ty::new(tbn_part.as_ast()))
+            }),
+            cust_rc_box!(move |tbn_part| {
+                match tbn_part.context_elt().concrete() {
+                    Node(ref ctxt_f, ref ctxt_parts) 
+                        if ctxt_f == &tbn_part.this_form
+                            && ctxt_parts.get_leaf_or_panic(&n("name"))
+                                == &tbn_part.get_term(&n("name")) => {
+                        Ok(::util::assoc::Assoc::new())
+                    },
+                    _ => { Err(Subtype::qlit_mismatch_error(tbn_part.context_elt().clone(), 
+                                                            Ty::new(tbn_part.as_ast()))) }
+                }
+            }))); // subtyping is normal
 
     let forall_type_0 = forall_type.clone();
     
@@ -187,10 +251,10 @@ pub fn make_core_syn_env_types() -> SynEnv {
     * This is, at the type level, like function application.
     * We restrict the LHS to being a name, because that's "normal". Should we?
     */    
-    let type_apply = typed_form!("type_apply",
+    let type_apply = type_defn_complex("type_apply",
         // The technical term for `<[...]<` is "fish X-ray"
-        [(lit "tbn"), (named "type_name", aat), 
-         (delim "<[", "[", /*]]*/ (star [(named "arg", (call "type")), (lit ",")]))],
+        form_pat!([(lit "tbn"), (named "type_name", aat), 
+         (delim "<[", "[", /*]]*/ (star [(named "arg", (call "type")), (lit ",")]))]),
         cust_rc_box!(move |tapp_parts| {
             let arg_res = try!(tapp_parts.get_rep_res(&n("arg")));
             match tapp_parts.env.find(&ast_to_atom(&tapp_parts.get_term(&n("type_name")))) {
@@ -232,7 +296,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 }
             }
         }),
-        NotWalked);
+        Both(LiteralLike, LiteralLike));
         
     assoc_n!("type" => Rc::new(Biased(Rc::new(forms_to_form_pat![
         fn_type.clone(),
