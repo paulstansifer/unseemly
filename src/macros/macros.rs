@@ -44,8 +44,8 @@ macro_rules! beta {
     };
     ( [ $name:tt $connector:tt $t:tt
         $( $rest:tt )*
-         ] ) => { 
-        ::beta::Shadow(Box::new(beta_connector!($connector)(::name::n(expr_ify!($name)), 
+         ] ) => {
+        ::beta::Shadow(Box::new(beta_connector!($connector)(::name::n(expr_ify!($name)),
                                                     ::name::n(expr_ify!($t)))),
                Box::new(beta!( [ $( $rest )* ] )))
     };
@@ -64,13 +64,13 @@ macro_rules! tokens {
 }
 
 macro_rules! t_elt {
-    ( [ $e:expr ;  $( $list:tt )* ] ) => { 
+    ( [ $e:expr ;  $( $list:tt )* ] ) => {
         Group(::name::n(concat!($e,"[")), SquareBracket, tokens!($($list)*))
     };
-    ( { $e:expr ;  $( $list:tt )* } ) => { 
+    ( { $e:expr ;  $( $list:tt )* } ) => {
         Group(::name::n(concat!($e,"{")), CurlyBracket, tokens!($($list)*))
     };
-    ( ( $e:expr ;  $( $list:tt )* ) ) => { 
+    ( ( $e:expr ;  $( $list:tt )* ) ) => {
         Group(::name::n(concat!($e,"(")), Paren, tokens!($($list)*))
     };
     ($e:expr) => { Simple(::name::n($e)) }
@@ -92,7 +92,7 @@ macro_rules! ast {
     ( (* $env:expr => $new_env:ident / $($n:expr),* ; $($sub_ar"gs:tt)*) ) => {
         {
             let mut res = vec![];
-            
+
             for $new_env in $env.march_all( &vec![$($n),*] ) {
                 res.push(ast!($sub))
             }
@@ -103,7 +103,7 @@ macro_rules! ast {
     ( (vr $var:expr) ) => { ::ast::VariableReference(::name::n($var)) };
     ( (, $interp:expr)) => { $interp };
     // TODO: maybe we should use commas for consistency:
-    ( ( $( $list:tt )* ) ) => { ast_shape!($($list)*)}; 
+    ( ( $( $list:tt )* ) ) => { ast_shape!($($list)*)};
     ( { - $($mbe_arg:tt)* } ) => {
         ::ast::IncompleteNode(mbe!( $($mbe_arg)* ))
     };
@@ -131,7 +131,7 @@ macro_rules! ty {
 macro_rules! ty_err {
     ( $name:tt ( $($arg:expr),* ) at $loc:expr) => {
         return Err(::util::err::sp(::ty::TyErr::$name( $($arg),* ), $loc));
-    }    
+    }
 }
 
 macro_rules! ty_exp { // type expectation
@@ -150,40 +150,40 @@ macro_rules! ty_err_p { // type error pattern
 
 /* EnvMBE */
 
-/* These macros generate `EnvMBE<Ast>`s, not arbitrary `EnvMBE`s, 
+/* These macros generate `EnvMBE<Ast>`s, not arbitrary `EnvMBE`s,
     which is a little un-abstract, but is the main usage. */
 
 /*
- * Wait a second, I'm writing in Rust right now! I'll use an MBE macro to implement an MBE literal! 
+ * Wait a second, I'm writing in Rust right now! I'll use an MBE macro to implement an MBE literal!
  */
 macro_rules! mbe_one_name {
     // `elt` ought to have an interpolation that references `new_env`
     /* TYPE PUN ALERT: $env has to be something with a `march_all` method;
         there's no trait enforcing this.
-       
+
        But wait, isn't preventing this kind of nonsense the whole point of this project?
-       
-       Well, you know the old saying: 
-        "While the mice are implementing the cat, the mice will play."    
+
+       Well, you know the old saying:
+        "While the mice are implementing the cat, the mice will play."
     */
-    ($k:tt => [* $env:expr =>($($n:expr),*) $new_env:ident : $elt:tt]) => { 
+    ($k:tt => [* $env:expr =>($($n:expr),*) $new_env:ident : $elt:tt]) => {
         {
             let mut v = vec![];
             let marchee = vec![$(::name::n($n)),*];
             for $new_env in $env.march_all(&marchee) {
                 v.push( mbe_one_name!($k => $elt));
             }
-            ::util::mbe::EnvMBE::new_from_anon_repeat(v)            
+            ::util::mbe::EnvMBE::new_from_anon_repeat(v)
         }
     };
-    
+
     ($k:tt => [@ $n:tt $($elt:tt),*]) => {
         ::util::mbe::EnvMBE::new_from_named_repeat(
             ::name::n(expr_ify!($n)),
             vec![ $( mbe_one_name!($k => $elt) ),* ]
         )
     };
-    
+
     ($k:tt => [$($elt_pre:tt),* ...($elt_rep:tt)... $(, $elt_post:tt)*]) => {
         ::util::mbe::EnvMBE::new_from_anon_repeat_ddd(
             vec![ $( mbe_one_name!($k => $elt_pre) ),* ,
@@ -197,22 +197,22 @@ macro_rules! mbe_one_name {
         ::util::mbe::EnvMBE::new_from_anon_repeat(
             vec![ $( mbe_one_name!($k => $elt) ),* ])
     };
-    
+
     // since `Ast`s go on the RHS, we have to have a distinctive interpolation syntax
-    ($k:tt => (,seq $e:expr)) => { 
+    ($k:tt => (,seq $e:expr)) => {
         {
             let mut v = vec![];
-            for elt in $e { 
+            for elt in $e {
                 v.push(::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => elt)))
             }
             ::util::mbe::EnvMBE::new_from_anon_repeat(v)
         }
     };
-    
-    ($k:tt => (@ $rep_n:tt ,seq $e:expr)) => { 
+
+    ($k:tt => (@ $rep_n:tt ,seq $e:expr)) => {
         {
             let mut v = vec![];
-            for elt in $e { 
+            for elt in $e {
                 v.push(::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => elt)))
             }
             ::util::mbe::EnvMBE::new_from_named_repeat(::name::n(expr_ify!($rep_n)), v)
@@ -220,7 +220,7 @@ macro_rules! mbe_one_name {
     };
 
     // For parsing reasons, we only accept expressions that are TTs.
-    // It's hard to generalize the `mbe!` interface so that it accepts exprs 
+    // It's hard to generalize the `mbe!` interface so that it accepts exprs
     // or `[]`-surrounded trees of them.
     ($k:tt => $leaf:tt) => {
         ::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => ast!($leaf)))
@@ -257,14 +257,14 @@ macro_rules! form_pat {
     ((star $body:tt)) => { ::parse::FormPat::Star(Rc::new(form_pat!($body))) };
     ((plus $body:tt)) => { ::parse::FormPat::Plus(Rc::new(form_pat!($body))) };
     ((alt $($body:tt),* )) => { ::parse::FormPat::Alt(vec![ $( Rc::new(form_pat!($body)) ),* ] )};
-    ((biased $lhs:tt, $rhs:tt)) => { ::parse::FormPat::Biased(Rc::new(form_pat!($lhs)), 
+    ((biased $lhs:tt, $rhs:tt)) => { ::parse::FormPat::Biased(Rc::new(form_pat!($lhs)),
                                                               Rc::new(form_pat!($rhs))) };
     ((call $n:expr)) => { ::parse::FormPat::Call(::name::n($n)) };
     ((scope $f:expr)) => { ::parse::FormPat::Scope($f) };
     ((named $n:expr, $body:tt)) => {
-        ::parse::FormPat::Named(::name::n($n), Rc::new(form_pat!($body))) 
+        ::parse::FormPat::Named(::name::n($n), Rc::new(form_pat!($body)))
     };
-    ((import $beta:tt, $body:tt)) => { 
+    ((import $beta:tt, $body:tt)) => {
         ::parse::FormPat::NameImport(Rc::new(form_pat!($body)), beta!($beta))
     };
     ((extend $n:expr, $f:expr)) => {
@@ -340,16 +340,16 @@ macro_rules! val {
         ::runtime::eval::Value::Function(
             Rc::new(::runtime::eval::Closure(ast!($body), $params, assoc_n! $env)))
     };
-    (bif $f:expr) => { 
-        ::runtime::eval::Value::BuiltInFunction(::runtime::eval::BIF(Rc::new($f))) 
+    (bif $f:expr) => {
+        ::runtime::eval::Value::BuiltInFunction(::runtime::eval::BIF(Rc::new($f)))
     };
-    (ast $nm:expr, $body:tt) => { 
-        ::runtime::eval::Value::AbstractSyntax(::name::n($nm), ast! $body) 
+    (ast $nm:expr, $body:tt) => {
+        ::runtime::eval::Value::AbstractSyntax(::name::n($nm), ast! $body)
     };
-    (struct $( $k:tt => $v:tt ),* ) => { 
+    (struct $( $k:tt => $v:tt ),* ) => {
         ::runtime::eval::Value::Struct(assoc_n!( $( $k => val! $v),* ))
     };
-    (enum $nm:expr, $($v:tt),*) => { 
+    (enum $nm:expr, $($v:tt),*) => {
         ::runtime::eval::Value::Enum(::name::n($nm), vec![ $( val! $v ),* ])
     };
     (, $interpolate:expr) => { $interpolate }
@@ -361,7 +361,7 @@ macro_rules! val {
 
 macro_rules! mk_type { // TODO: maybe now use find_core_form and un-thread $se?
     ( [ ( $( $param:tt ),* )  -> $ret_t:tt ] ) => {
-        ast!( { ::core_forms::find_core_form("type", "fn") ; 
+        ast!( { ::core_forms::find_core_form("type", "fn") ;
                   "param" => [ $((, mk_type!($param) )),*],
                   "ret" => (, mk_type!($ret_t))
         })
@@ -371,7 +371,7 @@ macro_rules! mk_type { // TODO: maybe now use find_core_form and un-thread $se?
 
 /* Define a typed function */
 macro_rules! tf {
-    (  [ ( $($param_t:tt),* ) -> $ret_t:tt ] , 
+    (  [ ( $($param_t:tt),* ) -> $ret_t:tt ] ,
        ( $($param_p:pat),* ) => $body:expr) => {
         TypedValue {
             ty: mk_type!([ ( $($param_t),* ) -> $ret_t ] ),
@@ -395,14 +395,14 @@ macro_rules! bind_patterns {
             }
             None => { panic!("ICE: too few arguments"); }
             Some(ref other) => { panic!("Type ICE in argument: {:?}", other); }
-        } 
+        }
     }
 }
 
 macro_rules! core_fn {
     ( $($p:pat),* => $body:expr ) => {
         BuiltInFunction(BIF(Rc::new(
-            move | args | { 
+            move | args | {
                 let mut argi = args.into_iter();
                 bind_patterns!(argi; ($( $p, )*) => $body )
             }
@@ -420,11 +420,11 @@ macro_rules! expect_node {
     ( ($node:expr ; $form:expr) $env:ident ; $body:expr ) => (
         // This is tied to the signature of `Custom`
         if let Node(ref f, ref $env) = $node {
-            if *f == $form { 
+            if *f == $form {
                 $body
             } else {
                 // TODO: make it possible to specify which one
-                panic!("ICE or type error: Expected a {:?} node, got {:?}, which is {:?}.", 
+                panic!("ICE or type error: Expected a {:?} node, got {:?}, which is {:?}.",
                        $form, $node, *f)
             }
         } else {
@@ -478,11 +478,11 @@ macro_rules! cop_out_reifiability {
     ( $underlying_type:ty, $ty_name:tt ) => {
         impl Reifiable for $underlying_type {
             fn ty_name() -> Name { n(stringify!($ty_name)) }
-     
+
             fn reify(&self) -> Value { Value::Smuggled(self.clone()) }
-            
-            fn reflect(v: &Value) -> Self { 
-                extract!((v) Value::Smuggled = (ref s) => 
+
+            fn reflect(v: &Value) -> Self {
+                extract!((v) Value::Smuggled = (ref s) =>
                     s.downcast_ref::<Self>().expect("Smuggling has gone terribly wrong!").clone())
             }
         }

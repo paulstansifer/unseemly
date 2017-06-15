@@ -1,55 +1,55 @@
 /*
- * The type theory for Unseemly 
+ * The type theory for Unseemly
  *  is largely swiped from the "Types and Programming Languages" by Pierce.
- * I've agressively copied the formally-elegant but non-ergonomic theory 
+ * I've agressively copied the formally-elegant but non-ergonomic theory
  *  whenever I think that the ergonomic way of doing things is just syntax sugar over it.
  * After all, syntax sugar is the point of Unseemly!
- * 
+ *
  * I didn't think that I could survive making a system out of + and × types, though,
  *  so there are `struct`s and `enum`s.
  */
- 
+
  /*
 There are two similar things we should distinguish!
 (1) syntax for types, as written by the user in an `Ast`
 (2) types themselves, the result of type synthesis, often stored in `Ty`
      (which is just a thin wrapper around `Ast`).
 
-These things are almost identical, 
+These things are almost identical,
  which is why postive synth_type is usually implemented with `LiteralLike`.
- 
+
 We should also distinguish
-(3) ___, (normally also called "types"). The ___ of an expression is a type, 
+(3) ___, (normally also called "types"). The ___ of an expression is a type,
      and the ___ of a type is a kind.
 
 
 It is at this point that I am reminded of a passage from GEB:
 
- Now in set theory, which deals with abstractions that we don't use all the time, a 
- stratification like the theory of types seems acceptable, even if a little strange-but when it 
- comes to language, an all-pervading part of life, such stratification appears absurd. We 
- don't think of ourselves as jumping up and down a hierarchy of languages when we speak 
- about various things. A rather matter-of-fact sentence such as, "In this book, I criticize 
- the theory of types" would be doubly forbidden in the system we are discussing. Firstly, it 
+ Now in set theory, which deals with abstractions that we don't use all the time, a
+ stratification like the theory of types seems acceptable, even if a little strange-but when it
+ comes to language, an all-pervading part of life, such stratification appears absurd. We
+ don't think of ourselves as jumping up and down a hierarchy of languages when we speak
+ about various things. A rather matter-of-fact sentence such as, "In this book, I criticize
+ the theory of types" would be doubly forbidden in the system we are discussing. Firstly, it
  mentions "this book", which should only be mentionable in a metabook-and secondly, it mentions
  me-a person whom I should not be allowed to speak of at all! This example points out how silly
  the theory of types seems, when you import it into a familiar context. The remedy it adopts for
  paradoxes-total banishment of self-reference in any form-is a real case of overkill, branding
  many perfectly good constructions as meaningless. The adjective "meaningless", by the way,
  would have to apply to all discussions of the theory of linguistic types (such as that of this
- very paragraph) for they clearly could not occur on any of the levels-neither object language, 
- nor metalanguage, nor metametalanguage, etc. So the very act of discussing the theory 
+ very paragraph) for they clearly could not occur on any of the levels-neither object language,
+ nor metalanguage, nor metametalanguage, etc. So the very act of discussing the theory
  would be the most blatant possible violation of it!
- 
+
    — Douglas Hofstadter, Godel, Escher, Bach: and Eternal Golden Braid
 
 */
- 
+
 use std::rc::Rc;
 use parse::{SynEnv, FormPat};
 use form::{Form, simple_form, BiDiWR, Positive, Negative, Both};
 use parse::FormPat::*;
-use ast_walk::{WalkRule, WalkMode, walk, WalkElt};
+use ast_walk::{WalkRule, WalkMode, walk, WalkElt, NegativeWalkMode};
 use ast_walk::WalkRule::*;
 use name::*;
 use core_forms::ast_to_atom;
@@ -67,11 +67,11 @@ fn type_defn(form_name: &str, p: FormPat) -> Rc<Form> {
         type_compare: Both(LiteralLike, LiteralLike),
         synth_type: Positive(LiteralLike),
         quasiquote: Both(LiteralLike, LiteralLike),
-        eval: Positive(NotWalked) 
+        eval: Positive(NotWalked)
     })
 }
 
-fn type_defn_complex(form_name: &str, p: FormPat, sy: WalkRule<SynthTy>, 
+fn type_defn_complex(form_name: &str, p: FormPat, sy: WalkRule<SynthTy>,
                      tc: BiDiWR<Canonicalize, Subtype>) -> Rc<Form> {
     Rc::new(Form {
         name: n(form_name),
@@ -79,39 +79,39 @@ fn type_defn_complex(form_name: &str, p: FormPat, sy: WalkRule<SynthTy>,
         type_compare: tc,
         synth_type: Positive(sy),
         quasiquote: Both(LiteralLike, LiteralLike),
-        eval: Positive(NotWalked) 
+        eval: Positive(NotWalked)
     })
 }
 
 pub fn make_core_syn_env_types() -> SynEnv {
-    /* Regarding the value/type/kind hierarchy, Benjamin Pierce generously assures us that 
+    /* Regarding the value/type/kind hierarchy, Benjamin Pierce generously assures us that
         "For programming languages ... three levels have proved sufficient." */
-    
+
     /* kinds */
     let _type_kind = simple_form("type", form_pat!((lit "*")));
     let _higher_kind = simple_form("higher", form_pat!(
-        (delim "k[", "[", /*]]*/ 
+        (delim "k[", "[", /*]]*/
             [ (star (named "param", (call "kind"))), (lit "->"), (named "res", (call "kind"))])));
-    
-    
+
+
     /* types */
     let fn_type =
         type_defn_complex("fn",
             /* Friggin' Atom bracket matching doesn't ignore strings or comments. */
             form_pat!((delim "[", "[", /*]]*/
-                [ (star (named "param", (call "type"))), (lit "->"), 
+                [ (star (named "param", (call "type"))), (lit "->"),
                   (named "ret", (call "type") ) ])),
             LiteralLike, // synth is normal
             Both(LiteralLike,
                 cust_rc_box!(move |fn_parts| {
                     let actual_parts = try!(Subtype::context_match(
-                        &fn_parts.this_form, 
+                        &fn_parts.this_form,
                         // TODO: another sign we need to just have access to the original node:
-                        &fn_parts.parts.map(&|x: &Rc<::ast_walk::LazilyWalkedTerm<Subtype>>| 
-                            x.term.clone()), 
+                        &fn_parts.parts.map(&|x: &Rc<::ast_walk::LazilyWalkedTerm<Subtype>>|
+                            x.term.clone()),
                         fn_parts.context_elt(),
                         fn_parts.env.clone()));
-                    
+
                     let expd_params = fn_parts.get_rep_term(&n("param"));
                     let actl_params = actual_parts.get_rep_leaf_or_panic(&n("param"));
                     if expd_params.len() != actl_params.len() {
@@ -123,28 +123,28 @@ pub fn make_core_syn_env_types() -> SynEnv {
                         let _ : ::util::assoc::Assoc<Name, Ty> = try!(walk::<Subtype>(
                             *p_got, &fn_parts.with_context(Ty::new(p_expected.clone()))));
                     }
-                    
-                    walk::<Subtype>(&fn_parts.get_term(&n("ret")), 
+
+                    walk::<Subtype>(&fn_parts.get_term(&n("ret")),
                         &fn_parts.with_context(
                             Ty::new(actual_parts.get_leaf_or_panic(&n("ret")).clone())))
                  }))
         );
-                  
-    let enum_type = 
+
+    let enum_type =
         type_defn("enum", form_pat!([(lit "enum"),
-            (delim "{", "{", /*}}*/ (star [(named "name", aat), 
+            (delim "{", "{", /*}}*/ (star [(named "name", aat),
                 (delim "(", "(", /*))*/ [(star (named "component", (call "type")))])]))]));
-                
+
     let struct_type =
         type_defn("struct", form_pat!(
             [(lit "struct"),
-             (delim "{", "{", /*}}*/ (star [(named "component_name", aat), (lit ":"), 
+             (delim "{", "{", /*}}*/ (star [(named "component_name", aat), (lit ":"),
                                             (named "component", (call "type"))]))]));
-    
-    let forall_type = 
-        type_defn_complex("forall_type", 
-            form_pat!([(lit "forall_type"), (star (named "param", aat)), (lit "."), 
-                (delim "forall[", "[", /*]]*/ 
+
+    let forall_type =
+        type_defn_complex("forall_type",
+            form_pat!([(lit "forall_type"), (star (named "param", aat)), (lit "."),
+                (delim "forall[", "[", /*]]*/
                     (named "body", (import [* [forall "param"]], (call "type"))))]),
             LiteralLike, // synth is normal
             Both(
@@ -152,14 +152,14 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 cust_rc_box!(move |forall_parts| {
                     match Subtype::context_match(
                             &forall_parts.this_form,
-                            &forall_parts.parts.map(&|x: &Rc<::ast_walk::LazilyWalkedTerm<_>>| 
+                            &forall_parts.parts.map(&|x: &Rc<::ast_walk::LazilyWalkedTerm<_>>|
                                 x.term.clone()),
                             forall_parts.context_elt(),
                             forall_parts.env.clone()) {
                         // ∀ X. ⋯ <: ∀ Y. ⋯ ? (so force X=Y)
                         Ok(actual_forall_parts) => {
                             // TODO: does this actually work? I'm just doing it because it's easy…
-                            
+
                             // This is an ugly way of extracting the body of the context_elt
                             //  without handling the `beta`,
                             //  leaving the `param`s of the forall unbound.
@@ -168,19 +168,19 @@ pub fn make_core_syn_env_types() -> SynEnv {
                                 &ExtendEnv(ref body, _) => { body }
                                 _ => panic!("can't happen, by structure of forall's `form_pat!`")
                             };
-                            
+
                             walk::<Subtype>(&forall_parts.get_term(&n("body")),
                                 &forall_parts.with_context(Ty::new((**a_b).clone())))
                         }
                         // ∀ X. ⋯ <: ⋯ ?  (so try to specialize X)
                         Err(_) => {
                             // `import [forall "param"]` handles the specialization,
-                            //  and we leave the context element alone                                
+                            //  and we leave the context element alone
                             walk::<Subtype>(&forall_parts.get_term(&n("body")), &forall_parts)
                         }
                     }
                 })));
-    
+
     /* This behaves slightly differently than the `mu` from Pierce's book,
      *  because we need to support mutual recursion.
      * In particular, it relies on having a binding for `param` in the environment!
@@ -188,30 +188,30 @@ pub fn make_core_syn_env_types() -> SynEnv {
      *  to prevent the attempted generation of an infinite type.
      */
     let mu_type = type_defn_complex("mu_type",
-        form_pat!([(lit "mu_type"), (star (named "param", aat)), (lit "."), 
+        form_pat!([(lit "mu_type"), (star (named "param", aat)), (lit "."),
              (named "body", (call "type"))]),
         cust_rc_box!(move |mu_parts| {
             // This probably ought to eventually be a feature of betas...
             let without_param = mu_parts.with_environment(mu_parts.env.unset(
                 &ast_to_atom(&mu_parts.get_term(&n("param")))));
-                            
+
             // Like LiteralLike, but with the above environment-mucking
-            Ok(ty!({ mu_parts.this_form.clone() ; 
+            Ok(ty!({ mu_parts.this_form.clone() ;
                 "param" => (, mu_parts.get_term(&n("param"))),
                 "body" => (, try!(without_param.get_res(&n("body"))).concrete() )}))
          }),
          Both(LiteralLike, LiteralLike)); // subtyping is normal (TODO: α-convert?)
-    
+
     // This only makes sense inside a concrete syntax type or during typechecking.
     // For example, the type of the `let` macro is (where `dotdotdot_type` is `...[]...`):
-    // ∀ ...{T}... . ∀ S . 
-    //    '[let ...[ ,[ var ⇑ v ], = ,[ expr<[T]< ], ]... 
-    //            in ,[ expr<[S]< ↓ ...{v = T}...], ]' 
+    // ∀ ...{T}... . ∀ S .
+    //    '[let ...[ ,[ var ⇑ v ], = ,[ expr<[T]< ], ]...
+    //            in ,[ expr<[S]< ↓ ...{v = T}...], ]'
     //        -> expr<[S]<
     // TODO: add named repeats. Add type-level numbers!
-    let dotdotdot_type = type_defn("dotdotdot", 
+    let dotdotdot_type = type_defn("dotdotdot",
         form_pat!((delim "...[", "[", /*]]*/ (named "body", (call "type")))));
-    
+
     // Like a variable reference (but `LiteralLike` typing prevents us from doing that)
     // TODO: maybe we should fix that
     let type_by_name = type_defn_complex("type_by_name", form_pat!((named "name", aat)),
@@ -229,38 +229,38 @@ pub fn make_core_syn_env_types() -> SynEnv {
             }),
             cust_rc_box!(move |tbn_part| {
                 match tbn_part.context_elt().concrete() {
-                    Node(ref ctxt_f, ref ctxt_parts) 
+                    Node(ref ctxt_f, ref ctxt_parts)
                         if ctxt_f == &tbn_part.this_form
                             && ctxt_parts.get_leaf_or_panic(&n("name"))
                                 == &tbn_part.get_term(&n("name")) => {
                         Ok(::util::assoc::Assoc::new())
                     },
-                    _ => { Err(Subtype::qlit_mismatch_error(tbn_part.context_elt().clone(), 
+                    _ => { Err(Subtype::qlit_mismatch_error(tbn_part.context_elt().clone(),
                                                             Ty::new(tbn_part.as_ast()))) }
                 }
             }))); // subtyping is normal
 
     let forall_type_0 = forall_type.clone();
-    
+
    /* [Type theory alert!]
-    * Pierce's notion of type application is an expression, not a type; 
+    * Pierce's notion of type application is an expression, not a type;
     *  you just take an expression whose type is a `forall`, and then give it some arguments.
     * Instead, we will just make the type system unify `forall` types with more specific types.
     * But sometimes the user wants to write a more specific type, and they use this.
     *
     * This is, at the type level, like function application.
     * We restrict the LHS to being a name, because that's "normal". Should we?
-    */    
+    */
     let type_apply = type_defn_complex("type_apply",
         // The technical term for `<[...]<` is "fish X-ray"
-        form_pat!([(lit "tbn"), (named "type_name", aat), 
+        form_pat!([(lit "tbn"), (named "type_name", aat),
          (delim "<[", "[", /*]]*/ (star [(named "arg", (call "type")), (lit ",")]))]),
         cust_rc_box!(move |tapp_parts| {
             let arg_res = try!(tapp_parts.get_rep_res(&n("arg")));
             match tapp_parts.env.find(&ast_to_atom(&tapp_parts.get_term(&n("type_name")))) {
                 None => { // e.g. `X<[int, Y]<` underneath `mu X. ...`
                     // Rebuild a type_by_name, but evaulate its arguments
-                    // This kind of this is necessary because 
+                    // This kind of this is necessary because
                     //  we wish to avoid aliasing problems at the type level.
                     // In System F, this is avoided by capture-avoiding substitution.
                     let mut new__tapp_parts = ::util::mbe::EnvMBE::new_from_leaves(
@@ -272,7 +272,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                             assoc_n!("arg" => individual__arg_res.concrete())));
                     }
                     new__tapp_parts.add_anon_repeat(args, None);
-                    
+
                     Ok(Ty::new(Node(tapp_parts.this_form, new__tapp_parts)))
                 }
                 Some(defined_type) => {
@@ -286,18 +286,18 @@ pub fn make_core_syn_env_types() -> SynEnv {
                             }
                             let mut new__ty_env = tapp_parts.env.clone();
                             for (name, actual_type) in params.iter().zip(arg_res) {
-                                new__ty_env 
+                                new__ty_env
                                     = new__ty_env.set(ast_to_atom(name), actual_type);
                             }
-                            
-                            synth_type(&forall_type__parts.get_leaf_or_panic(&n("body")), 
+
+                            synth_type(&forall_type__parts.get_leaf_or_panic(&n("body")),
                                        new__ty_env)
                         })
                 }
             }
         }),
         Both(LiteralLike, LiteralLike));
-        
+
     assoc_n!("type" => Rc::new(Biased(Rc::new(forms_to_form_pat![
         fn_type.clone(),
         type_defn("ident", form_pat!((lit "ident"))),
@@ -312,18 +312,18 @@ pub fn make_core_syn_env_types() -> SynEnv {
         mu_type.clone(),
         type_apply.clone()
         ]), Rc::new(form_pat!((scope type_by_name.clone()))))))
-} 
+}
 
 #[test]
 fn parametric_types() {
     let ident_ty = ty!( { "type" "ident" : });
     let nat_ty = ty!( { "type" "nat" : });
-    
+
     fn tbn(nm: &'static str) -> Ty {
         ty!( { "type" "type_by_name" : "name" => (, ::ast::Ast::Atom(n(nm))) } )
     }
 
-    let mt_ty_env = ::util::assoc::Assoc::new();    
+    let mt_ty_env = ::util::assoc::Assoc::new();
     let para_ty_env = assoc_n!(
         "unary" => ty!({ "type" "forall_type" :
             "param" => ["t"],
@@ -357,7 +357,7 @@ fn parametric_types() {
             "type_name" => "unary",
             "arg" => [ { "type" "fn" :
                 "param" => [(, nat_ty.concrete())], "ret" => (, nat_ty.concrete())} ]})));
-                
+
     // Expand the definition of `unary`.
     assert_eq!(synth_type(
         &ast!( { "type" "type_apply" :

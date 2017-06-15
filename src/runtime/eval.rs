@@ -5,7 +5,7 @@ use util::assoc::Assoc;
 use name::*;
 use std::rc::Rc;
 use ast::Ast;
-use ast_walk::{walk, WalkMode, WalkRule, LazyWalkReses};
+use ast_walk::{walk, WalkMode, WalkRule, LazyWalkReses, NegativeWalkMode};
 use form::Form;
 use std;
 
@@ -55,35 +55,50 @@ impl std::fmt::Debug for BIF {
     }
 }
 
-impl ::ast_walk::WalkElt<Eval> for Value {
-    type Err = ();
-    
-    fn get_bidi_walk_rule(f: &Form) -> &::form::BiDiWR<Eval, Destructure> { &f.eval }
-    
-    /// The whole point of program evaluation is that the enviornment 
-    ///  isn't generateable from the source tree.
-    /// Does that make sense? I suspect it does not.
-    fn automatically_extend_env() -> bool { false }
-    
+impl ::ast_walk::WalkElt for Value {
     /// We'd need to know what `nt` we're at, so the quotation form has to do this work...
     fn from_ast(_: &Ast) -> Value { panic!("ICE: tried to convert Ast to Value") }
     /// This is possible, but should be handled by the unquotation form
     fn to_ast(&self) -> Ast { panic!("ICE: shoudn't happen...")}
 }
 
-pub type Eval = ::ast_walk::PositiveWalkMode<Value, ()>;
-pub type Destructure = ::ast_walk::NegativeWalkMode<Value, ()>;
 
 
+custom_derive!{
+    #[derive(Copy, Clone, Debug, Reifiable)]
+    pub struct Eval {}
+}
+custom_derive!{
+    #[derive(Copy, Clone, Debug, Reifiable)]
+    pub struct Destructure {}
+}
 
-
-impl ::ast_walk::WalkElt<QQuote> for Ast {
+impl WalkMode for Eval {
+    type Elt = Value;
+    type Negated = Destructure;
     type Err = ();
-    
-    fn get_bidi_walk_rule(f: &Form) -> &::form::BiDiWR<QQuote, QQuoteDestr> { &f.quasiquote }
+    type D = ::ast_walk::Positive<Eval>;
 
-    fn automatically_extend_env() -> bool { true } // This is the point of Unseemly!
-    
+    fn get_walk_rule(f: &Form) -> &WalkRule<Eval> { &f.eval.pos() }
+    fn automatically_extend_env() -> bool { false }
+}
+
+impl WalkMode for Destructure {
+    type Elt = Value;
+    type Negated = Eval;
+    type Err = ();
+    type D = ::ast_walk::Negative<Destructure>;
+
+    /// The whole point of program evaluation is that the enviornment
+    ///  isn't generateable from the source tree.
+    /// Does that make sense? I suspect it does not.
+    fn get_walk_rule(f: &Form) -> &WalkRule<Destructure> { &f.eval.neg() }
+    fn automatically_extend_env() -> bool { false } // TODO: think about this
+}
+
+impl NegativeWalkMode for Destructure {}
+
+impl ::ast_walk::WalkElt for Ast {
     fn from_ast(a: &Ast) -> Ast { a.clone() }
     fn to_ast(&self) -> Ast { self.clone() }
 }
@@ -102,5 +117,33 @@ pub fn neg_eval(pat: &Ast, env: Assoc<Name, Value>)
     walk::<Destructure>(pat, &LazyWalkReses::new_wrapper(env))
 }
 
-pub type QQuote = ::ast_walk::PositiveWalkMode<Ast, ()>;
-pub type QQuoteDestr = ::ast_walk::NegativeWalkMode<Ast, ()>;
+custom_derive!{
+    #[derive(Copy, Clone, Debug, Reifiable)]
+    pub struct QQuote {}
+}
+custom_derive!{
+    #[derive(Copy, Clone, Debug, Reifiable)]
+    pub struct QQuoteDestr {}
+}
+
+impl WalkMode for QQuote {
+    type Elt = Ast;
+    type Negated = QQuoteDestr;
+    type Err = ();
+    type D = ::ast_walk::Positive<QQuote>;
+
+    fn get_walk_rule(f: &Form) -> &WalkRule<QQuote> { &f.quasiquote.pos() }
+    fn automatically_extend_env() -> bool { true } // This is the point of Unseemly!
+}
+
+impl WalkMode for QQuoteDestr {
+    type Elt = Ast;
+    type Negated = QQuote;
+    type Err = ();
+    type D = ::ast_walk::Negative<QQuoteDestr>;
+
+    fn get_walk_rule(f: &Form) -> &WalkRule<QQuoteDestr> { &f.quasiquote.neg() }
+    fn automatically_extend_env() -> bool { true } // This is the point of Unseemly!
+}
+
+impl NegativeWalkMode for QQuoteDestr {}

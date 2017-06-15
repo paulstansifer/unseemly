@@ -18,23 +18,23 @@ use ast::{Atom};
 
  `Beta`s are trees that determine how variables shadow each other,
   if multiple variables are being handled at once.
- The leaf nodes, `Basic` and `SameAs`, indicate 
+ The leaf nodes, `Basic` and `SameAs`, indicate
   (a) where the name comes from
-  (b) where to get the type annotation (`Basic`) 
-       or an expression producting the type (`SameAs`) 
+  (b) where to get the type annotation (`Basic`)
+       or an expression producting the type (`SameAs`)
        for that name.
  */
- 
+
 
 
 custom_derive! {
     #[derive(PartialEq, Eq, Clone, Reifiable)]
     pub enum Beta {
-        /// Both of these `Name`s refer to named terms in the current `Scope` 
+        /// Both of these `Name`s refer to named terms in the current `Scope`
         ///  (or `ResEnv`, for `Ast`s).
         /// The first is the identifier to import, and the second the syntax for its type.
         Basic(Name, Name),
-        /// Like `Basic`, but here the second part is another expression 
+        /// Like `Basic`, but here the second part is another expression
         /// which should be typechecked, and whose type the new name gets.
         /// (This can be used write to `let` without requiring a type annotation.)
         SameAs(Name, Name),
@@ -57,11 +57,11 @@ impl fmt::Debug for Beta {
         match *self {
             Nothing => { write!(f, "∅") },
             Shadow(ref lhs, ref rhs) => { write!(f, "({:?} ▷ {:?})", lhs, rhs) },
-            ShadowAll(ref sub_beta, ref drivers) => { 
+            ShadowAll(ref sub_beta, ref drivers) => {
                 write!(f, "( {:?} ▷ ... by {:?})", sub_beta, drivers)
             }
             Basic(ref name, ref ty) => { write!(f, "{:?}:{:?}", name, ty) }
-            SameAs(ref name, ref ty_source) => { 
+            SameAs(ref name, ref ty_source) => {
                 write!(f, "{:?}={:?}", name, ty_source)
             }
             Underspecified(ref name) => {
@@ -75,7 +75,7 @@ impl Beta {
     pub fn names_mentioned(&self) -> Vec<Name> {
         match *self {
             Nothing => { vec![] }
-            Shadow(ref lhs, ref rhs) => { 
+            Shadow(ref lhs, ref rhs) => {
                 let mut res = lhs.names_mentioned();
                 let mut r_res = rhs.names_mentioned();
                 res.append(&mut r_res);
@@ -85,11 +85,12 @@ impl Beta {
             Basic(n, v) => { vec![n, v] }
             SameAs(n, v_source) => { vec![n, v_source] }
             Underspecified(n) => { vec![n] }
-            
+
         }
     }
 }
 
+// Mode is expected to be positive
 pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
          -> Result<Assoc<Name, Mode::Elt>, Mode::Err> {
     match *b {
@@ -106,40 +107,40 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
             Ok(res)
         }
         Basic(ref name_source, ref ty_source) => {
-            if let LazilyWalkedTerm {term: Atom(ref name), ..} 
+            if let LazilyWalkedTerm {term: Atom(ref name), ..}
                     = **parts.parts.get_leaf_or_panic(name_source) {
                 //let LazilyWalkedTerm {term: ref ty_stx, ..}
                 //    = **parts.parts.get_leaf_or_panic(ty_source);
                 let ty = try!(parts.get_res(ty_source));
 
-                Ok(Assoc::new().set(*name, Mode::out_as_elt(ty.clone())))    
+                Ok(Assoc::new().set(*name, Mode::out_as_elt(ty.clone())))
             } else {
-                panic!("{:?} is supposed to supply names, but is not an Atom.", 
+                panic!("{:?} is supposed to supply names, but is not an Atom.",
                     parts.parts.get_leaf_or_panic(name_source).term)
             }
         }
 
-        // TODO: I need more help understanding this         
+        // TODO: I need more help understanding this
         // treats the node `name_source` mentions as a negative node, and gets names from it
         SameAs(ref name_source, ref res_source) => {
             // TODO: `env_from_beta` needs to return a Result
             let ty = try!(parts.get_res(res_source));
-            
-            Ok(Mode::Negative::out_as_env(
-                try!(parts.switch_mode::<Mode::Negative>()
+
+            Ok(Mode::Negated::out_as_env(
+                try!(parts.switch_mode::<Mode::Negated>()
                     .with_context(Mode::out_as_elt(ty))
                     .get_res(name_source))))
         }
-        
+
         Underspecified(ref name_source) => {
-            if let LazilyWalkedTerm {term: Atom(ref name), ..} 
+            if let LazilyWalkedTerm {term: Atom(ref name), ..}
                     = **parts.parts.get_leaf_or_panic(name_source) {
                 use ast_walk::WalkElt;
-            
-                Ok(Assoc::new().set(*name, Mode::underspecified_elt()))
+
+                Ok(Assoc::new().set(*name, Mode::Elt::underspecified()))
             } else {
-                panic!("{:?} is supposed to supply names, but is not an Atom.", 
-                    parts.parts.get_leaf_or_panic(name_source).term)                
+                panic!("{:?} is supposed to supply names, but is not an Atom.",
+                    parts.parts.get_leaf_or_panic(name_source).term)
             }
         }
     }

@@ -1,10 +1,10 @@
 /*
-Type synthesis is a recursive traversal of an abstract syntax tree. 
+Type synthesis is a recursive traversal of an abstract syntax tree.
 It is compositional,
- except for binding, which is indicated by ExtendTypeEnv nodes. 
+ except for binding, which is indicated by ExtendTypeEnv nodes.
 These nodes may depend on
  the result of type-synthesizing sibling AST nodes
- or the actual value of AST nodes corresponding to types 
+ or the actual value of AST nodes corresponding to types
   (i.e., type annotations).
 */
 
@@ -21,8 +21,8 @@ use name::*;
 use std::rc::Rc;
 
 /*
-Suppose that we are in typechecking, and we want to know if `∀ T.…` is a function type. 
-We need to peel off the the ∀, but we also need to make sure that, 
+Suppose that we are in typechecking, and we want to know if `∀ T.…` is a function type.
+We need to peel off the the ∀, but we also need to make sure that,
  if there are multiple references to T on the RHS, we constain them
   to all be the same type.
 What to do?
@@ -73,18 +73,18 @@ impl Ty {
         // Fix the most arbitrary type, `∀ U. U`:
         *self.0.borrow_mut() = Some(ast!({ "type" "forall_type" :
             "param" => ["underdetermined"],
-            "body" => 
+            "body" =>
                 { "type" "type_by_name" : "name" => "underdetermined" }}));
-                
+
         return self.concrete(); // Now it'll be concrete!
     }
-    
+
     pub fn destructure(&self, expected_form: Rc<Form>) -> Result<EnvMBE<Ast>, TypeError> {
         match *self.0.borrow() {
             Some(Node(ref f, ref env)) => {
                 if f == &expected_form {
                     return Ok(env.clone());
-                } 
+                }
                 ty_err!(UnableToDestructure(self.clone(), expected_form.name) at Trivial /*TODO*/);
             }
             Some(_) => {
@@ -97,7 +97,7 @@ impl Ty {
         //*self.0.borrow_mut() = Some(Node(expected_form, generic_environment.clone()));
         //return Ok(generic_environment);
     }
-    
+
 }
 
 // this kinda belongs in core_forms.rs
@@ -125,20 +125,20 @@ impl ::std::fmt::Display for Ty {
                     for p in env.get_rep_leaf_or_panic(&n("param")) {
                         // TODO: use commas in the grammar
                         if !first { try!(write!(f, " ")); } first = false;
-                        
+
                         try!(write!(f, "{}", Ty::new(p.clone())));
                     }
                     write!(f, " -> {}]", Ty::new(env.get_leaf_or_panic(&n("ret")).clone()))
                 } else if form == &find_core_form("type", "enum") {
                     try!(write!(f, "enum{{"));
                     for subenv in env.march_all(&[n("name")]) {
-                        try!(write!(f, " {}("/*)*/, 
+                        try!(write!(f, " {}("/*)*/,
                             ast_to_atom(&subenv.get_leaf_or_panic(&n("name")))));
                         if let Some(comps) = subenv.get_rep_leaf(&n("component")) {
                             let mut first = true;
                             for comp in comps {
                                 if !first { try!(write!(f, " "))} first = false;
-                                
+
                                 try!(write!(f, "{}", Ty::new(comp.clone())));
                             }
                         }
@@ -148,7 +148,7 @@ impl ::std::fmt::Display for Ty {
                 } else if form == &find_core_form("type", "struct") {
                     try!(write!(f, "struct{{"));
                     for subenv in env.march_all(&[n("component_name")]) {
-                        try!(write!(f, " {}: {}", 
+                        try!(write!(f, " {}: {}",
                             ast_to_atom(&subenv.get_leaf_or_panic(&n("component_name"))),
                             Ty::new(subenv.get_leaf_or_panic(&n("component")).clone())));
                     }
@@ -163,7 +163,7 @@ impl ::std::fmt::Display for Ty {
                     }
                     write!(f, ". {}", Ty::new(env.get_leaf_or_panic(&n("body")).clone()))
                 } else if form == &find_core_form("type", "mu_type") {
-                    write!(f, "μ {}. {}", 
+                    write!(f, "μ {}. {}",
                         ast_to_atom(env.get_leaf_or_panic(&n("param"))),
                         Ty::new(env.get_leaf_or_panic(&n("body")).clone()))
                 } else if form == &find_core_form("type", "type_by_name") {
@@ -194,39 +194,71 @@ impl ::runtime::reify::Reifiable for Ty {
     fn ty() -> Ast { Ast::ty() }
 
     fn ty_name() -> Name { n("Type") }
-    
+
     fn ty_invocation() -> Ast { Ast::ty_invocation() }
-    
+
     fn reify(&self) -> ::runtime::eval::Value { self.0.reify() }
-    
+
     fn reflect(v: &::runtime::eval::Value) -> Self { Ty::new(Ast::reflect(v))}
 }
 
-impl ::ast_walk::WalkElt<SynthTy> for Ty {
-    type Err = TypeError; // TODO: should we use TyErr to avoid dummying spans?
-    
-    fn mismatch_error(lhs: Ty, rhs: Ty) -> Self::Err {
-        ::util::err::Spanned { 
-            loc: ast!("TODO"), body: TyErr::Mismatch(lhs.clone(), rhs.clone()) 
-        }
-    }
-    fn get_bidi_walk_rule(f: &Form) -> &::form::BiDiWR<SynthTy, UnpackTy> { &f.synth_type }
-    
-    fn automatically_extend_env() -> bool { true }
-    
+impl ::ast_walk::WalkElt for Ty {
     fn from_ast(a: &Ast) -> Ty { Ty::new(a.clone()) }
-    fn to_ast(&self) -> Ast { 
-        match *self.0.borrow() {
-            Some(ref a) => a.clone(),
-            None => panic!("ICE: attempted to convert underdetermined type to AST")
-            // (or just use `.concrete()`)
-        }
+    fn to_ast(&self) -> Ast { self.concrete() }
+
+    fn underspecified() -> Ty {
+        ::ty_compare::unification.with(|unif| {
+            ::ty_compare::next_id.with(|id| {
+                *id.borrow_mut() += 1;
+                // TODO: we need `gensym`!
+                let new_name = n(("⚁ ".to_string() + id.borrow().to_string().as_str()).as_str());
+
+                print!("###U### {:?}\n", new_name);
+
+                unif.borrow_mut().insert(new_name, None); // leave it underspecified for now
+
+                // TODO: this isn't really a variable reference, like `type_by_name` suggests,
+                //  since it's not in the environment,
+                //   but needs to be "looked up" with `unify_or_lookup`.
+                // Make this better somehow.
+
+                ty!({ "type" "type_by_name" : "name" => (, ::ast::Atom(new_name))})
+            })
+        })
     }
+
 }
 
-pub type SynthTy = ::ast_walk::PositiveWalkMode<Ty, ()>;
-pub type UnpackTy = ::ast_walk::NegativeWalkMode<Ty, ()>;
+custom_derive!{
+    #[derive(Copy, Clone, Debug, Reifiable)]
+    pub struct SynthTy {}
+}
+custom_derive!{
+    #[derive(Copy, Clone, Debug, Reifiable)]
+    pub struct UnpackTy {}
+}
 
+impl WalkMode for SynthTy {
+    type Elt = Ty;
+    type Negated = UnpackTy;
+    type Err = TypeError;
+    type D = ::ast_walk::Positive<SynthTy>;
+
+    fn get_walk_rule(f: &Form) -> &WalkRule<SynthTy> { &f.synth_type.pos() }
+    fn automatically_extend_env() -> bool { true }
+}
+
+impl WalkMode for UnpackTy {
+    type Elt = Ty;
+    type Negated = SynthTy;
+    type Err = TypeError;
+    type D = ::ast_walk::Negative<UnpackTy>;
+
+    fn get_walk_rule(f: &Form) -> &WalkRule<UnpackTy> { &f.synth_type.neg() }
+    fn automatically_extend_env() -> bool { true }
+}
+
+impl ::ast_walk::NegativeWalkMode for UnpackTy {}
 
 pub fn synth_type_top(expr: &Ast) -> TypeResult {
     walk::<SynthTy>(expr, &LazyWalkReses::new_wrapper(Assoc::new()))
@@ -275,7 +307,7 @@ impl ::std::fmt::Display for TyErr {
                            field named `{:?}`",
                        ty, got_name)
             }
-            NonExhaustiveMatch(ref ty) => 
+            NonExhaustiveMatch(ref ty) =>
                 write!(f, "[NonExhaustiveMatch] non-exhaustive match of `{}`", ty),
             UnableToDestructure(ref ty, expected_name) => {
                 write!(f, "[UnableToDestructure] expected a `{}` type, got `{}`", expected_name, ty)
@@ -310,8 +342,8 @@ type TypeResult = Result<Ty, TypeError>;
 
 pub fn expect_type(expected: &Ty, got: &Ty, loc: &Ast) -> TypeResult {
     if got != expected {
-        Err(::util::err::Spanned { 
-            loc: loc.clone(), body: TyErr::Mismatch(expected.clone(), got.clone()) 
+        Err(::util::err::Spanned {
+            loc: loc.clone(), body: TyErr::Mismatch(expected.clone(), got.clone())
         } )
     } else {
         Ok(got.clone()) // HACK: we don't really care about this value...
@@ -323,7 +355,7 @@ fn basic_type_synth() {
     let mt_ty_env = Assoc::new();
     let int_ty = ty!({ ::core_forms::find_core_form("type", "int") ; });
     let bool_ty = ty!({ ::core_forms::find_core_form("type", "bool") ; });
-    
+
     let simple_ty_env = mt_ty_env.set(n("x"), int_ty.clone());
 
     let body = basic_typed_form!(at, Body(n("body")), NotWalked);
@@ -360,11 +392,11 @@ fn basic_type_synth() {
 #[test]
 fn type_specialization() {
     let nat_ty = ty!( { "type" "nat" : });
-    
+
     fn tbn(nm: &'static str) -> Ty {
         ty!( { "type" "type_by_name" : "name" => (, ::ast::Ast::Atom(n(nm))) } )
     }
-    
+
     let _para_ty_env = assoc_n!(
         "some_int" => ty!( { "type" "int" : }),
         "convert_to_nat" => ty!({ "type" "forall_type" :
@@ -378,13 +410,13 @@ fn type_specialization() {
                 "param" => [ (, tbn("t").concrete() ) ],
                 "ret" => (, tbn("t").concrete() ) }}));
     /*
-    assert_eq!(synth_type(&ast!({ "expr" "apply" : 
+    assert_eq!(synth_type(&ast!({ "expr" "apply" :
                 "rator" => (vr "convert_to_nat"),
                 "rand" => [ (vr "some_int") ]
             }), para_ty_env.clone()),
         Ok(ty!( { "type" "nat" : })));
 
-    assert_eq!(synth_type(&ast!({ "expr" "apply" : 
+    assert_eq!(synth_type(&ast!({ "expr" "apply" :
                 "rator" => (vr "identity"),
                 "rand" => [ (vr "some_int") ]
             }), para_ty_env.clone()),
