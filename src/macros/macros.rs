@@ -252,25 +252,30 @@ macro_rules! form_pat {
     (aat) => { ::parse::FormPat::AnyAtomicToken };
     (varref) => { ::parse::FormPat::VarRef };
     ((delim $n:expr, $d:expr, $body:tt)) => {
-        ::parse::FormPat::Delimited(::name::n($n), ::read::delim($d), Rc::new(form_pat!($body)))
+        ::parse::FormPat::Delimited(::name::n($n), ::read::delim($d),
+                          ::std::rc::Rc::new(form_pat!($body)))
     };
-    ((star $body:tt)) => { ::parse::FormPat::Star(Rc::new(form_pat!($body))) };
-    ((plus $body:tt)) => { ::parse::FormPat::Plus(Rc::new(form_pat!($body))) };
-    ((alt $($body:tt),* )) => { ::parse::FormPat::Alt(vec![ $( Rc::new(form_pat!($body)) ),* ] )};
-    ((biased $lhs:tt, $rhs:tt)) => { ::parse::FormPat::Biased(Rc::new(form_pat!($lhs)),
-                                                              Rc::new(form_pat!($rhs))) };
+    ((star $body:tt)) => { ::parse::FormPat::Star(::std::rc::Rc::new(form_pat!($body))) };
+    ((plus $body:tt)) => { ::parse::FormPat::Plus(::std::rc::Rc::new(form_pat!($body))) };
+    ((alt $($body:tt),* )) => { ::parse::FormPat::Alt(vec![
+        $( ::std::rc::Rc::new(form_pat!($body)) ),* ] )};
+    ((biased $lhs:tt, $rhs:tt)) => {
+        ::parse::FormPat::Biased(::std::rc::Rc::new(form_pat!($lhs)),
+                                 ::std::rc::Rc::new(form_pat!($rhs))) };
     ((call $n:expr)) => { ::parse::FormPat::Call(::name::n($n)) };
     ((scope $f:expr)) => { ::parse::FormPat::Scope($f) };
     ((named $n:expr, $body:tt)) => {
-        ::parse::FormPat::Named(::name::n($n), Rc::new(form_pat!($body)))
+        ::parse::FormPat::Named(::name::n($n), ::std::rc::Rc::new(form_pat!($body)))
     };
     ((import $beta:tt, $body:tt)) => {
-        ::parse::FormPat::NameImport(Rc::new(form_pat!($body)), beta!($beta))
+        ::parse::FormPat::NameImport(::std::rc::Rc::new(form_pat!($body)), beta!($beta))
     };
     ((extend $n:expr, $f:expr)) => {
-        ::parse::FormPat::SynImport(::name::n($n), ::parse::SyntaxExtension(Rc::new(Box::new($f))))
+        ::parse::FormPat::SynImport(::name::n($n),
+            ::parse::SyntaxExtension(::std::rc::Rc::new(Box::new($f))))
     };
-    ( [$($body:tt),*] ) => { ::parse::FormPat::Seq(vec![ $( Rc::new(form_pat!($body)) ),* ])}
+    ( [$($body:tt),*] ) => {
+        ::parse::FormPat::Seq(vec![ $( ::std::rc::Rc::new(form_pat!($body)) ),* ])}
 }
 
 

@@ -183,6 +183,9 @@ impl ::std::fmt::Display for Ty {
                     panic!("{:?} is not a well-formed type", self.0);
                 }
             }
+            Some(ExtendEnv(ref t, ref beta)) => {
+                write!(f, "{}↓{:?}", Ty::new((**t).clone()), beta)
+            }
             Some(ref other_ast) => {
                 write!(f, "(ill-formed type: {:?})", other_ast)
             }
@@ -206,25 +209,19 @@ impl ::ast_walk::WalkElt for Ty {
     fn from_ast(a: &Ast) -> Ty { Ty::new(a.clone()) }
     fn to_ast(&self) -> Ast { self.concrete() }
 
-    fn underspecified() -> Ty {
-        ::ty_compare::unification.with(|unif| {
-            ::ty_compare::next_id.with(|id| {
+    fn underspecified() -> Ty { // This sorta belongs in ty_compare.rs ) :
+        ::ty_compare::next_id.with(|id| {
+            ::ty_compare::underdetermined_form.with(|u_f| {
                 *id.borrow_mut() += 1;
                 // TODO: we need `gensym`!
                 let new_name = n(("⚁ ".to_string() + id.borrow().to_string().as_str()).as_str());
 
                 print!("###U### {:?}\n", new_name);
 
-                unif.borrow_mut().insert(new_name, None); // leave it underspecified for now
-
-                // TODO: this isn't really a variable reference, like `type_by_name` suggests,
-                //  since it's not in the environment,
-                //   but needs to be "looked up" with `unify_or_lookup`.
-                // Make this better somehow.
-
-                ty!({ "type" "type_by_name" : "name" => (, ::ast::Atom(new_name))})
+                ty!({ u_f.clone() ; "id" => (, ::ast::Atom(new_name))})
             })
         })
+
     }
 
 }

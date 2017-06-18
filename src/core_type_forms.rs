@@ -228,17 +228,35 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 Ok(Ty::new(tbn_part.as_ast()))
             }),
             cust_rc_box!(move |tbn_part| {
-                match tbn_part.context_elt().concrete() {
-                    Node(ref ctxt_f, ref ctxt_parts)
-                        if ctxt_f == &tbn_part.this_form
-                            && ctxt_parts.get_leaf_or_panic(&n("name"))
-                                == &tbn_part.get_term(&n("name")) => {
-                        Ok(::util::assoc::Assoc::new())
-                    },
-                    _ => { Err(Subtype::qlit_mismatch_error(tbn_part.context_elt().clone(),
-                                                            Ty::new(tbn_part.as_ast()))) }
+                // TODO: this just recapitulates `walk_quasi_literally`
+                // I think this suggests that `type_by_name` ought to become a real varref
+                let this_elt = Ty::new( // HACK: reconstruct this form
+                    Node(tbn_part.this_form.clone(),
+                    tbn_part.parts.map(&|x: &Rc<::ast_walk::LazilyWalkedTerm<Subtype>>|
+                        x.term.clone())));
+
+                let (new_self, new_matchee) = Subtype::pre_match(tbn_part.context_elt().clone(),
+                                                     this_elt.clone(), &tbn_part.env);
+                print!("## {} vs. {}\n", new_self, new_matchee);
+
+                let (new_this_form, new_parts) = match Ty::to_ast(&new_self) {
+                    Node(a,b) => (a,b), _ => {panic!("ICE")} };
+
+                if new_this_form != tbn_part.this_form {
+                    // HACK: We're no longer a `type_by_name`, so we need to try again
+                    walk::<Subtype>(&Ty::to_ast(&new_self), &tbn_part)
+                } else {
+                    match new_matchee.concrete() {
+                        Node(ref ctxt_f, ref ctxt_parts)
+                            if ctxt_f == &new_this_form
+                                && ctxt_parts.get_leaf_or_panic(&n("name"))
+                                    == new_parts.get_leaf_or_panic(&n("name")) => {
+                            Ok(::util::assoc::Assoc::new())
+                        },
+                        _ => { Err(Subtype::qlit_mismatch_error(new_self, new_matchee)) }
+                    }
                 }
-            }))); // subtyping is normal
+            })));
 
     let forall_type_0 = forall_type.clone();
 

@@ -97,8 +97,16 @@ But let's not do that weird thing just yet.
 
 thread_local! {
     pub static next_id: RefCell<u32> = RefCell::new(0);
-    pub static unification: RefCell<::std::collections::HashMap<Name, Option<Ty>>>
+    pub static unification: RefCell<::std::collections::HashMap<Name, Ty>>
         = RefCell::new(::std::collections::HashMap::new());
+    pub static underdetermined_form : ::std::rc::Rc<Form> = ::std::rc::Rc::new(Form {
+        name: n("underdetermined"),
+        grammar: ::std::rc::Rc::new(form_pat!((named "id", aat))),
+        type_compare: ::form::Both(WalkRule::NotWalked,WalkRule::NotWalked),
+        synth_type:   ::form::Both(WalkRule::NotWalked,WalkRule::NotWalked),
+        eval:         ::form::Both(WalkRule::NotWalked,WalkRule::NotWalked),
+        quasiquote:   ::form::Both(WalkRule::NotWalked,WalkRule::NotWalked)
+    })
 }
 /*
 // TODO: underspecification needs to not be a `type_by_name`, so we can simplify this
@@ -203,9 +211,49 @@ impl WalkMode for Subtype {
 
 impl ::ast_walk::NegativeWalkMode for Subtype {
     fn qlit_mismatch_error(got: Ty, expd: Ty) -> Self::Err { TyErr::Mismatch(got, expd) }
+
+    fn pre_match(matchee: Ty, goal: Ty, env: &Assoc<Name, Ty>) -> (Ty, Ty) {
+        print!(" ## PM {} vs. {}\n", matchee, goal);
+        // TODO: we ought to help short-circuit matching
+        let matchee = lookup_and_determine(matchee, &goal, env);
+        let goal    = lookup_and_determine(goal, &matchee, env);
+        print!(" ##    {} vs. {}\n", matchee, goal);
+        (matchee, goal)
+    }
 }
 
+fn lookup_and_determine(maybe_underdet_var: Ty, other: &Ty, env: &Assoc<Name, Ty>) -> Ty {
+    let underdetermined_frm = underdetermined_form.with(|u| { u.clone() });
 
+    unification.with(|unif| {
+        // This only finds `type_by_name`s which refer to underdetermined types,
+        // because that's what `∀` creates.
+        // TODO: should we look up variables in general here (does `SynthTy` do that for us?)
+        let maybe_underdet = match maybe_underdet_var.concrete() {
+            Node(ref m_u_f, ref parts)
+                    if m_u_f == &::core_forms::find_core_form("type", "type_by_name") => {
+                env.find_or_panic(&::core_forms::ast_to_atom(
+                    &parts.get_leaf_or_panic(&n("name"))))
+            }
+            _ => { return maybe_underdet_var } // not a var; nothing to do
+        };
+        print!(" ## at least: {:?}\n", maybe_underdet);
+
+        match maybe_underdet.concrete() {
+            Node(ref m_u_f, ref parts) if m_u_f == &underdetermined_frm => {
+                let id = ::core_forms::ast_to_atom(&parts.get_leaf_or_panic(&n("id")));
+
+                use std::collections::hash_map::Entry::*;
+
+                print!(" ## PD: {:?} -> {:?}\n", id, unif.borrow_mut().entry(id));
+                let r = unif.borrow_mut().entry(id).or_insert(other.clone()).clone();
+                print!(" ##     returning {}\n", r);
+                r
+            }
+            _ => { maybe_underdet.clone() } // Just return the result of the lookup, then
+        }
+    })
+}
 
 pub fn must_subtype(sub: &Ty, sup: &Ty, env: Assoc<Name, Ty>) -> Result<(), TyErr> {
     // TODO: I think we should be canonicalizing first...
@@ -237,7 +285,7 @@ fn basic_subtyping() {
 
     let mt_ty_env = Assoc::new();
     let int_ty = ty!({ "type" "int" : });
-    let _nat_ty = ty!({ "type" "nat" : });
+    let nat_ty = ty!({ "type" "nat" : });
     let bool_ty = ty!({ "type" "bool" : });
 
 
@@ -262,7 +310,7 @@ fn basic_subtyping() {
 
     assert_eq!(must_subtype(&id_fn_ty, &id_fn_ty, mt_ty_env.clone()),
                Ok(()));
-/*
+
 
     // actually subtype interestingly!
     assert_eq!(must_subtype(&int_to_int_fn_ty, &id_fn_ty, mt_ty_env.clone()),
@@ -272,7 +320,7 @@ fn basic_subtyping() {
     assert_m!(must_subtype(&id_fn_ty, &int_to_int_fn_ty, mt_ty_env.clone()),
               Err(Mismatch(_,_)));
 
-    let parametric_ty_env = assoc_n!(
+    let _parametric_ty_env = assoc_n!(
         "some_int" => ty!( { "type" "int" : }),
         "convert_to_nat" => ty!({ "type" "forall_type" :
             "param" => ["t"],
@@ -283,7 +331,7 @@ fn basic_subtyping() {
         "identity" => id_fn_ty.clone(),
         "int_to_int" => int_to_int_fn_ty.clone());
 
-
+/*
     assert_eq!(must_subtype(&tbn("int_to_int"), &tbn("identity"), parametric_ty_env.clone()),
               Ok(()));
 

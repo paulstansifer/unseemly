@@ -454,7 +454,6 @@ pub trait WalkMode : Debug + Copy + Reifiable {
     type Negated : WalkMode<Elt=Self::Elt, Err=Self::Err, Negated=Self>;
 
 
-
     fn get_walk_rule(&Form) -> &WalkRule<Self> where Self: Sized ;
 
     /**
@@ -510,6 +509,7 @@ pub trait Dir : Debug + Copy + Clone
     fn walk_quasi_literally(&Rc<Form>, &EnvMBE<Ast>, &LazyWalkReses<Self::Mode>)
         -> Result<Self::Out, <Self::Mode as WalkMode>::Err>;
 
+    /// Look up variable in the environment!
     fn walk_var(Name, &LazyWalkReses<Self::Mode>) -> Self::Out;
 
     fn out_as_elt(Self::Out) -> <Self::Mode as WalkMode>::Elt;
@@ -543,7 +543,6 @@ impl<Mode: WalkMode<D=Self>> Dir for Positive<Mode> {
         walked.map(|out| <Self::Mode as WalkMode>::Elt::from_ast(&Node(f.clone(), out)))
     }
 
-    /// Look up variable in the environment!
     fn walk_var(n: Name, cnc: &LazyWalkReses<Self::Mode>) -> Self::Out {
         cnc.env.find_or_panic(&n).clone()
     }
@@ -561,10 +560,16 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
     fn walk_quasi_literally(f: &Rc<Form>, parts: &EnvMBE<Ast>,
                             cnc: &LazyWalkReses<Self::Mode>)
             -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
+        let (walkee, goal) = Mode::pre_match(cnc.context_elt().clone(),
+                                             Mode::Elt::from_ast(&Node(f.clone(), parts.clone())),
+                                             &cnc.env);
+        let (new_f, new_parts) = match Mode::Elt::to_ast(&goal) {
+            Node(a,b) => (a,b), _ => {panic!("ICE")} };
+        print!(" WQL: {:?} vs. {:?}\n", goal, walkee);
 
-        let parts_actual = try!(Mode::context_match(f, parts, cnc.context_elt(), cnc.env.clone()));
+        let parts_actual = try!(Mode::context_match(&new_f, &new_parts, &walkee, cnc.env.clone()));
 
-        parts.map_reduce_with(&parts_actual,
+        new_parts.map_reduce_with(&parts_actual,
             &|model: &Ast, actual: &Ast| {
                 walk(model, &cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(actual)))
             },
@@ -587,9 +592,10 @@ pub trait NegativeWalkMode : WalkMode {
         panic!("ICE: unimplemented")
     }
 
-    /// Possibly swap out a variable before matching.
-    fn pre_match(matchee: Self::Elt, _goal: Self::Elt) -> Self::Elt {
-        matchee // no-op
+    /// Before matching, possibly adjust `matchee` so that it's more likely to match `_goal`.
+    fn pre_match(matchee: Self::Elt, goal: Self::Elt, _env: &Assoc<Name, Self::Elt>)
+            -> (Self::Elt, Self::Elt) {
+        (matchee, goal) // no-op by default
     }
 
     /// Match the context element against the current node
@@ -611,13 +617,14 @@ pub trait NegativeWalkMode : WalkMode {
             //   when a match was expected to succeed?
             // (I really like using pattern-matching in unit tests!)
             if **f != *f_actual { /* different form */
+                print!("{:?} ≠ {:?}\n", *f, f_actual);
                 let expd_elt = Self::Elt::from_ast(&Node(f.clone(), parts.clone()));
                 return Err(Self::qlit_mismatch_error(got.clone(), expd_elt));
             }
-
             Ok(parts_actual)
         } else { /* Didn't even get a form */
             let expd_elt = Self::Elt::from_ast(&Node(f.clone(), parts.clone()));
+            print!("{:?} not even {:?}\n", got.clone(), expd_elt);
             Err(Self::qlit_mismatch_error(got.clone(), expd_elt))
         }
     }
