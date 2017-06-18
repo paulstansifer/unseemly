@@ -20,28 +20,11 @@ use util::mbe::EnvMBE;
 use name::*;
 use std::rc::Rc;
 
-/*
-Suppose that we are in typechecking, and we want to know if `∀ T.…` is a function type.
-We need to peel off the the ∀, but we also need to make sure that,
- if there are multiple references to T on the RHS, we constain them
-  to all be the same type.
-What to do?
-Whenever we destructure a type, if it's
-  *  `∀ T.…`, then we peel off the ∀, and set it to "underdetermined" in the environment
-  *  underdetermined, we set it to be be the right atomic type or the right structure...
-       ...and fill that structure with "underdetermined"
-(Note that destructuring `∀ T. T` needs to hit both of these cases.)
 
-This glosses over the fact that we want to use side-effects to communicate determination.
-This means having a side table!
-*/
-
-// TODO: remove the concrete/abstract distinction; it's not in the right place
 // TODO: we should validate that types don't have unexpected names in them
 // (i.e. `∀ X. List<X>` is okay, but `X` is not a type; it's just syntax)
-#[derive(PartialEq)]
-// `None` means abstract, `Some` means concrete
-pub struct Ty(pub ::std::cell::RefCell<Option<Ast>>);
+#[derive(PartialEq, Clone)]
+pub struct Ty(pub Ast);
 
 impl ::std::fmt::Debug for Ty {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
@@ -49,53 +32,25 @@ impl ::std::fmt::Debug for Ty {
     }
 }
 
-impl Clone for Ty {
-    fn clone(&self) -> Ty {
-        match *self.0.borrow() {
-            Some(ref a) => Ty::new(a.clone()),
-            None => panic!("Turns out `Ty` needs an `Rc` around the `RefCell` to be correct.")
-        }
-    }
-}
-
 impl Ty {
-    pub fn new(a: Ast) -> Ty {
-        Ty(::std::cell::RefCell::new(Some(a)))
-    }
-    pub fn new_underdetermined() -> Ty {
-        Ty(::std::cell::RefCell::new(None))
-    }
-    pub fn concrete(&self) -> Ast {
-        match *self.0.borrow() {
-            Some(ref a) => { return a.clone(); },
-            None => {}
-        }
-        // Fix the most arbitrary type, `∀ U. U`:
-        *self.0.borrow_mut() = Some(ast!({ "type" "forall_type" :
-            "param" => ["underdetermined"],
-            "body" =>
-                { "type" "type_by_name" : "name" => "underdetermined" }}));
-
-        return self.concrete(); // Now it'll be concrete!
+    pub fn new(a: Ast) -> Ty { Ty(a) } // TODO: use `Ty()` instead of `Ty::new()`
+    pub fn concrete(&self) -> Ast { // TODO: just use `Ty::to_ast()`; this name is obsolete
+        self.0.clone()
     }
 
+    // TODO: use this more
     pub fn destructure(&self, expected_form: Rc<Form>) -> Result<EnvMBE<Ast>, TypeError> {
-        match *self.0.borrow() {
-            Some(Node(ref f, ref env)) => {
+        match self.0 {
+            Node(ref f, ref env) => {
                 if f == &expected_form {
                     return Ok(env.clone());
                 }
                 ty_err!(UnableToDestructure(self.clone(), expected_form.name) at Trivial /*TODO*/);
             }
-            Some(_) => {
+            _ => {
                 ty_err!(UnableToDestructure(self.clone(), expected_form.name) at Trivial /*TODO*/);
             }
-            None => {}
         }
-        let _generic_environment : EnvMBE<Ast> = panic!("TODO");
-        // cloning this environment is expensive... but I'm not sure how to avoid it
-        //*self.0.borrow_mut() = Some(Node(expected_form, generic_environment.clone()));
-        //return Ok(generic_environment);
     }
 
 }
@@ -104,11 +59,10 @@ impl Ty {
 impl ::std::fmt::Display for Ty {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         use core_forms::{find_core_form, ast_to_atom};
-        match *self.0.borrow() {
-            None => { write!(f, "<underdetermined>")}
+        match self.0 {
             // Not used, right? Maybe it should be...
             // Some(VariableReference(ref n)) => { write!(f, "{}", n) },
-            Some(Node(ref form, ref env)) => {
+            Node(ref form, ref env) => {
                 if form == &find_core_form("type", "ident") {
                     write!(f, "ident")
                 } else if form == &find_core_form("type", "int") {
@@ -183,10 +137,10 @@ impl ::std::fmt::Display for Ty {
                     panic!("{:?} is not a well-formed type", self.0);
                 }
             }
-            Some(ExtendEnv(ref t, ref beta)) => {
+            ExtendEnv(ref t, ref beta) => {
                 write!(f, "{}↓{:?}", Ty::new((**t).clone()), beta)
             }
-            Some(ref other_ast) => {
+            ref other_ast => {
                 write!(f, "(ill-formed type: {:?})", other_ast)
             }
         }
