@@ -105,12 +105,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
             Both(LiteralLike,
                 cust_rc_box!(move |fn_parts| {
                     let actual_parts = try!(Subtype::context_match(
-                        &fn_parts.this_form,
-                        // TODO: another sign we need to just have access to the original node:
-                        &fn_parts.parts.map(&|x: &Rc<::ast_walk::LazilyWalkedTerm<Subtype>>|
-                            x.term.clone()),
-                        fn_parts.context_elt(),
-                        fn_parts.env.clone()));
+                        &fn_parts.this_ast, fn_parts.context_elt(), fn_parts.env.clone()));
 
                     let expd_params = fn_parts.get_rep_term(&n("param"));
                     let actl_params = actual_parts.get_rep_leaf_or_panic(&n("param"));
@@ -151,9 +146,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 LiteralLike,
                 cust_rc_box!(move |forall_parts| {
                     match Subtype::context_match(
-                            &forall_parts.this_form,
-                            &forall_parts.parts.map(&|x: &Rc<::ast_walk::LazilyWalkedTerm<_>>|
-                                x.term.clone()),
+                            &forall_parts.this_ast,
                             forall_parts.context_elt(),
                             forall_parts.env.clone()) {
                         // ∀ X. ⋯ <: ∀ Y. ⋯ ? (so force X=Y)
@@ -196,7 +189,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 &ast_to_atom(&mu_parts.get_term(&n("param")))));
 
             // Like LiteralLike, but with the above environment-mucking
-            Ok(ty!({ mu_parts.this_form.clone() ;
+            Ok(ty!({ mu_parts.this_form() ;
                 "param" => (, mu_parts.get_term(&n("param"))),
                 "body" => (, try!(without_param.get_res(&n("body"))).concrete() )}))
          }),
@@ -219,21 +212,18 @@ pub fn make_core_syn_env_types() -> SynEnv {
             let name = tbn_part.get_term(&n("name"));
             match tbn_part.env.find(&ast_to_atom(&name)) {
                 None => // This is fine; e.g. we might be at the `X` in `forall X. List<[X]<`.
-                    Ok(ty!({ tbn_part.this_form ; "name" => (, name) })),
+                    Ok(Ty(tbn_part.this_ast.clone())),
                 Some(ty) => Ok(ty.clone())
             }
         }),
         Both(
             cust_rc_box!(move |tbn_part| { // no-op; reconstruct (this should be easier!)
-                Ok(Ty::new(tbn_part.as_ast()))
+                Ok(Ty::new(tbn_part.this_ast.clone()))
             }),
             cust_rc_box!(move |tbn_part| {
                 // TODO: this just recapitulates `walk_quasi_literally`
                 // I think this suggests that `type_by_name` ought to become a real varref
-                let this_elt = Ty::new( // HACK: reconstruct this form
-                    Node(tbn_part.this_form.clone(),
-                    tbn_part.parts.map(&|x: &Rc<::ast_walk::LazilyWalkedTerm<Subtype>>|
-                        x.term.clone())));
+                let this_elt = Ty::new(tbn_part.this_ast.clone());
 
                 let (new_self, new_matchee) = Subtype::pre_match(tbn_part.context_elt().clone(),
                                                      this_elt.clone(), &tbn_part.env);
@@ -242,7 +232,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 let (new_this_form, new_parts) = match Ty::to_ast(&new_self) {
                     Node(a,b) => (a,b), _ => {panic!("ICE")} };
 
-                if new_this_form != tbn_part.this_form {
+                if new_this_form != tbn_part.this_form() {
                     // HACK: We're no longer a `type_by_name`, so we need to try again
                     walk::<Subtype>(&Ty::to_ast(&new_self), &tbn_part)
                 } else {
@@ -278,7 +268,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
             match tapp_parts.env.find(&ast_to_atom(&tapp_parts.get_term(&n("type_name")))) {
                 None => { // e.g. `X<[int, Y]<` underneath `mu X. ...`
                     // Rebuild a type_by_name, but evaulate its arguments
-                    // This kind of this is necessary because
+                    // This kind of thing is necessary because
                     //  we wish to avoid aliasing problems at the type level.
                     // In System F, this is avoided by capture-avoiding substitution.
                     let mut new__tapp_parts = ::util::mbe::EnvMBE::new_from_leaves(
@@ -291,7 +281,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     }
                     new__tapp_parts.add_anon_repeat(args, None);
 
-                    Ok(Ty::new(Node(tapp_parts.this_form, new__tapp_parts)))
+                    Ok(Ty::new(Node(tapp_parts.this_form(), new__tapp_parts)))
                 }
                 Some(defined_type) => {
                     // This might ought to be done by a specialized `beta`...

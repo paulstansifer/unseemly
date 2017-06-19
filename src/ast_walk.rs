@@ -191,8 +191,7 @@ pub struct LazyWalkReses<Mode: WalkMode> {
     pub parts: EnvMBE<Rc<LazilyWalkedTerm<Mode>>>,
     /// The environment of the overall walk.
     pub env: ResEnv<Mode::Elt>,
-    pub this_form: Rc<Form> // Seems to be needed to close a loop ) :
-    //TODO: add the whole form for error reporting
+    pub this_ast: Ast,
 }
 
 // trait bounds on parameters are not yet supported by `Reifiable!`
@@ -202,7 +201,7 @@ impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
 
     fn reify(&self) -> eval::Value {
         val!(struct "parts" => (, self.parts.reify()), "env" => (, self.env.reify()),
-                    "this_form" => (, self.this_form.reify()))
+                    "this_ast" => (, self.this_ast.reify()))
     }
     fn reflect(v: &eval::Value) -> Self {
         extract!((v) eval::Value::Struct = (ref contents) =>
@@ -210,22 +209,22 @@ impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
                                 contents.find_or_panic(&n("parts"))),
                             env: ResEnv::<Mode::Elt>::reflect(
                                 contents.find_or_panic(&n("env"))),
-                            this_form: Rc::<Form>::reflect(
-                                contents.find_or_panic(&n("this_form")))})
+                            this_ast: Ast::reflect(
+                                contents.find_or_panic(&n("this_ast")))})
     }
 }
 
 
 
 impl<Mode: WalkMode> LazyWalkReses<Mode> {
-    pub fn new(env: ResEnv<Mode::Elt>,
+    pub fn new(env: ResEnv<Mode::Elt>, // TODO: we could get rid of the middle element
                parts_unwalked: EnvMBE<Ast>,
-               this_form: Rc<Form>)
+               this_ast: Ast)
             -> LazyWalkReses<Mode> {
         LazyWalkReses {
             env: env,
             parts: parts_unwalked.map(&LazilyWalkedTerm::new),
-            this_form: this_form
+            this_ast: this_ast
         }
     }
 
@@ -233,15 +232,14 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     pub fn new_wrapper(env: ResEnv<Mode::Elt>) -> LazyWalkReses<Mode> {
         LazyWalkReses {
             env: env,
-            parts: EnvMBE::new(), this_form: ::form::simple_form("<wrapper>", form_pat!([]))
+            parts: EnvMBE::new(), this_ast: ast!("wrapper")
         }
     }
 
-    // TODO: this should probably actually be stored, rather than reconstructed.
-    pub fn as_ast(&self) -> Ast {
-        Node(self.this_form.clone(),
-             self.parts.clone().map(
-                 &|x: &Rc<::ast_walk::LazilyWalkedTerm<Mode>>| x.term.clone()))
+    pub fn this_form(&self) -> Rc<Form> {
+        match self.this_ast {
+            Node(ref f, _) => f.clone(),  _ => panic!("ICE")
+        }
     }
 
     /** The result of walking the subform named `part_name`. This is memoized. */
@@ -296,7 +294,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         LazyWalkReses::<NewMode> {
             env: self.env.clone(),
             parts: new_parts,
-            this_form:  self.this_form.clone()
+            this_ast:  self.this_ast.clone()
         }
     }
 
@@ -308,7 +306,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         let mut res = vec![];
         for marched_parts in marched {
             res.push(LazyWalkReses{
-                env: self.env.clone(), parts: marched_parts, this_form: self.this_form.clone()
+                env: self.env.clone(), parts: marched_parts, this_ast: self.this_ast.clone()
             });
         }
         res
@@ -334,7 +332,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         for (marched_parts, ctx) in marched.into_iter().zip(new_contexts.into_iter()) {
             res.push(LazyWalkReses{env: self.env.set(negative_ret_val(), ctx),
                                    parts: marched_parts,
-                                   this_form: self.this_form.clone()});
+                                   this_ast: self.this_ast.clone()});
         }
         Some(res)
     }
@@ -369,17 +367,17 @@ pub fn walk<Mode: WalkMode>(node: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
             match *Mode::get_walk_rule(f) {
                 Custom(ref ts_fn) => {
                     ts_fn(LazyWalkReses::new(
-                        cur_node_contents.env.clone(), parts.clone(), f.clone()))
+                        cur_node_contents.env.clone(), parts.clone(), node.clone()))
                 }
 
                 Body(n) => {
                     walk(parts.get_leaf(&n).unwrap(),
                          &LazyWalkReses::<Mode>::new(
-                             cur_node_contents.env.clone(), parts.clone(), f.clone()))
+                             cur_node_contents.env.clone(), parts.clone(), node.clone()))
                 }
 
                 LiteralLike => {
-                    Mode::walk_quasi_literally(f, parts, cur_node_contents)
+                    Mode::walk_quasi_literally(Mode::Elt::from_ast(node), cur_node_contents)
                 }
 
                 NotWalked => { panic!( "ICE: {:?} should not be walked at all!", node ) }
@@ -469,7 +467,6 @@ pub trait WalkMode : Debug + Copy + Reifiable {
      */
     fn automatically_extend_env() -> bool;
 
-
     /**
      Walk over the structure of a node, not its meaning.
      This could be because we're inside a syntax-quote,
@@ -480,10 +477,9 @@ pub trait WalkMode : Debug + Copy + Reifiable {
        instead, the mode (=quotation depth) and form together decide what to do.
      If the walk is negative, the result might be MatchFailure
      */
-    fn walk_quasi_literally(f: &Rc<Form>, parts: &EnvMBE<Ast>,
-                            cnc: &LazyWalkReses<Self>)
+    fn walk_quasi_literally(expected: Self::Elt, cnc: &LazyWalkReses<Self>)
             -> Result<<Self::D as Dir>::Out, Self::Err> {
-        Self::D::walk_quasi_literally(f, parts, cnc)
+        Self::D::walk_quasi_literally(expected, cnc)
     }
 
     // TODO: these seem like a hack...
@@ -506,7 +502,7 @@ pub trait Dir : Debug + Copy + Clone
      */
     type Out : Clone + Debug + Reifiable;
 
-    fn walk_quasi_literally(&Rc<Form>, &EnvMBE<Ast>, &LazyWalkReses<Self::Mode>)
+    fn walk_quasi_literally(<Self::Mode as WalkMode>::Elt, &LazyWalkReses<Self::Mode>)
         -> Result<Self::Out, <Self::Mode as WalkMode>::Err>;
 
     /// Look up variable in the environment!
@@ -528,9 +524,10 @@ impl<Mode: WalkMode<D=Self>> Dir for Positive<Mode> {
     type Out = <Self::Mode as WalkMode>::Elt;
     type Mode = Mode;
 
-    fn walk_quasi_literally(f: &Rc<Form>, parts: &EnvMBE<Ast>,
-                            cnc: &LazyWalkReses<Self::Mode>)
+    fn walk_quasi_literally(expected: <Self::Mode as WalkMode>::Elt, cnc: &LazyWalkReses<Self::Mode>)
             -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
+        let (f, parts) = match <Self::Mode as WalkMode>::Elt::to_ast(&expected) {
+            Node(f,p) => (f,p), _ => panic!("ICE")};
 
         // TODO: I think we need a separate version of `walk` that doesn't panic on `MatchFailure`
         let walked : Result<EnvMBE<Ast>, <Self::Mode as WalkMode>::Err> = parts.map(
@@ -557,19 +554,20 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
     type Out = Assoc<Name, <Self::Mode as WalkMode>::Elt>;
     type Mode = Mode;
 
-    fn walk_quasi_literally(f: &Rc<Form>, parts: &EnvMBE<Ast>,
+    fn walk_quasi_literally(expected: <Self::Mode as WalkMode>::Elt,
                             cnc: &LazyWalkReses<Self::Mode>)
             -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
-        let (walkee, goal) = Mode::pre_match(cnc.context_elt().clone(),
-                                             Mode::Elt::from_ast(&Node(f.clone(), parts.clone())),
-                                             &cnc.env);
-        let (new_f, new_parts) = match Mode::Elt::to_ast(&goal) {
-            Node(a,b) => (a,b), _ => {panic!("ICE")} };
-        print!(" WQL: {:?} vs. {:?}\n", goal, walkee);
+        let (walkee, expd) = Mode::pre_match(cnc.context_elt().clone(), expected, &cnc.env);
 
-        let parts_actual = try!(Mode::context_match(&new_f, &new_parts, &walkee, cnc.env.clone()));
+        print!(" WQL: {:?} vs. {:?}\n", expd, walkee);
+        let expd_ast = Mode::Elt::to_ast(&expd);
 
-        new_parts.map_reduce_with(&parts_actual,
+        let parts_actual = try!(Mode::context_match(
+            &expd_ast, &walkee, cnc.env.clone()));
+
+        let expd_parts = match expd_ast { Node(_, ref p) => p, _ => panic!("ICE") };
+
+        expd_parts.map_reduce_with(&parts_actual,
             &|model: &Ast, actual: &Ast| {
                 walk(model, &cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(actual)))
             },
@@ -599,10 +597,9 @@ pub trait NegativeWalkMode : WalkMode {
     }
 
     /// Match the context element against the current node
-    fn context_match(f: &Rc<Form>, parts: &EnvMBE<Ast>, got: &Self::Elt,
-                     _env: Assoc<Name, Self::Elt>)
+    fn context_match(expected: &Ast, got: &Self::Elt, _env: Assoc<Name, Self::Elt>)
             -> Result<EnvMBE<Ast>, <Self as WalkMode>::Err> {
-        let ctxt = Self::Elt::to_ast(got);
+        let got_ast = Self::Elt::to_ast(got);
 
         //type Res = Result<Assoc<Name, Self::Elt>, ()>;
 
@@ -611,21 +608,23 @@ pub trait NegativeWalkMode : WalkMode {
         //  so it's not surprising that I forgot that I'd need to do it.
 
         // break apart the node, and walk it element-wise
-        if let Node(f_actual, parts_actual) = ctxt {
-            // TODO: wouldn't it be nice to have match failures that
-            //  contained useful `diff`-like information for debugging,
-            //   when a match was expected to succeed?
-            // (I really like using pattern-matching in unit tests!)
-            if **f != *f_actual { /* different form */
-                print!("{:?} ≠ {:?}\n", *f, f_actual);
-                let expd_elt = Self::Elt::from_ast(&Node(f.clone(), parts.clone()));
-                return Err(Self::qlit_mismatch_error(got.clone(), expd_elt));
+        match (expected, got_ast) {
+            (&Node(ref f, _), Node(ref f_actual, ref parts_actual)) => {
+                // TODO: wouldn't it be nice to have match failures that
+                //  contained useful `diff`-like information for debugging,
+                //   when a match was expected to succeed?
+                // (I really like using pattern-matching in unit tests!)
+                if *f != *f_actual { /* different form */
+                    print!("{:?} ≠ {:?}\n", *f, *f_actual);
+                    return Err(Self::qlit_mismatch_error(got.clone(),
+                                                         Self::Elt::from_ast(&expected)));
+                }
+                Ok(parts_actual.clone())
+            }  // TODO: handle non-Node successful matches!
+            _ => { /* Didn't even get a form */
+                print!("{:?} not even {:?}\n", got.clone(), expected);
+                Err(Self::qlit_mismatch_error(got.clone(), Self::Elt::from_ast(&expected)))
             }
-            Ok(parts_actual)
-        } else { /* Didn't even get a form */
-            let expd_elt = Self::Elt::from_ast(&Node(f.clone(), parts.clone()));
-            print!("{:?} not even {:?}\n", got.clone(), expd_elt);
-            Err(Self::qlit_mismatch_error(got.clone(), expd_elt))
         }
     }
 }

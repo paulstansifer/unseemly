@@ -52,7 +52,6 @@ impl Ty {
             }
         }
     }
-
 }
 
 // this kinda belongs in core_forms.rs
