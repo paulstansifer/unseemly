@@ -7,6 +7,8 @@ use util::mbe::EnvMBE;
 use ty::{Ty, TyErr, TypeError};
 use name::*;
 use std::cell::{Ref,RefCell};
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use core_forms::{find_core_form, ast_to_atom};
 
 /* Let me write down an example subtyping hierarchy, to stop myself from getting confused.
@@ -94,11 +96,38 @@ But let's not do that weird thing just yet.
 
 */
 
+/// Follow variable references in `env` and underdeterminednesses in `unif`
+///  until we hit something that can't move further.
+pub fn resolve<'a>(t: &'a Ty, env: &'a Assoc<Name, Ty>, unif: &'a HashMap<Name, Ty>) -> &'a Ty {
+    let u_f = underdetermined_form.with(|u_f| { u_f.clone() });
+
+    match t {
+        &Ty(VariableReference(vr)) => { // variable reference
+            env.find(&vr).map(|new_t| resolve(new_t, env, unif)).unwrap_or(t)
+        }
+        &Ty(Node(ref form, ref parts)) if form == &find_core_form("type", "type_by_name") =>  {
+            // TODO: remove this stanza when type_by_name is gone
+            let vr = ast_to_atom(&parts.get_leaf_or_panic(&n("name")));
+            env.find(&vr).map(|new_t| resolve(new_t, env, unif)).unwrap_or(t)
+        }
+        &Ty(Node(ref form, ref parts)) if form == &u_f => { // underdetermined
+            match unif.get(&ast_to_atom(parts.get_leaf_or_panic(&n("id")))) {
+                Some(ref new_t) => resolve(new_t, env, unif),
+                // unfortunately, since I don't want to return a mutable reference here,
+                //  the client will have to re-do the above destructuring to insert into the table
+                None => t
+            }
+        }
+        _ => t
+    }
+}
 
 thread_local! {
     pub static next_id: RefCell<u32> = RefCell::new(0);
-    pub static unification: RefCell<::std::collections::HashMap<Name, Ty>>
-        = RefCell::new(::std::collections::HashMap::new());
+
+    // Invariant: `underdetermined_form`s in the HashMap must not form a cycle.
+    pub static unification: RefCell<HashMap<Name, Ty>>
+        = RefCell::new(HashMap::new());
     pub static underdetermined_form : ::std::rc::Rc<Form> = ::std::rc::Rc::new(Form {
         name: n("underdetermined"),
         grammar: ::std::rc::Rc::new(form_pat!((named "id", aat))),
@@ -108,79 +137,11 @@ thread_local! {
         quasiquote:   ::form::Both(WalkRule::NotWalked,WalkRule::NotWalked)
     })
 }
-/*
-// TODO: underspecification needs to not be a `type_by_name`, so we can simplify this
-pub fn unify_or_lookup(name: Name, t: &Ty, env: Assoc<Name, Ty>) -> Result<(), TyErr> {
-    print!("UOL: {:?} {:?}\n", name, t);
-    use std::collections::hash_map::Entry::*;
-
-    unification.with(|unif| {
-        let (lookup_res, sure_to_match) = match unif.borrow_mut().entry(name) {
-            // It is or was underspecified...
-            Occupied(ref mut occ) => {
-                if let &Some(ref occ_t) = occ.get() { // ...it's already specified
-                    (occ_t.clone(), false)
-                } else {
-                     // ...specify it to be this (later).
-                    (t.clone(), true)
-                }
-            }
-            Vacant(_) => { // Can't unify; this is a normal type variable
-                (env.find_or_panic(&name).clone(), false)
-            }
-        };
-
-        if sure_to_match {
-            //logically belongs at `true`, above, but borrow-checker doesn't like it:
-            unif.borrow_mut().insert(name, Some(t.clone()));
-            return Ok(());
-        }
-
-        // try the same thing on other side...
-        let (lookup_res_rhs, sure_to_match) = if let Node(t_form, t_parts) = t.concrete() {
-            if t_form == find_core_form("type", "type_by_name") {
-                let n_rhs = ast_to_atom(t_parts.get_leaf_or_panic(&n("name")));
-                match unif.borrow_mut().entry(n_rhs) {
-                    Occupied(ref mut occ) => {
-                        if let &Some(ref occ_t) = occ.get() {
-                            (occ_t.clone(), false)
-                        } else {
-                            (lookup_res.clone(), true)
-                        }
-                    }
-                    Vacant(_) => {
-                        (env.find_or_panic(&n_rhs).clone(), false)
-                    }
-                }
-            } else {
-                (t.clone(), false)
-            }
-        } else {
-            (t.clone(), false)
-        };
-
-        if sure_to_match {
-            match t.concrete() { // ACK!
-                Node(_, t_parts) => {
-                    unif.borrow_mut().insert(ast_to_atom(t_parts.get_leaf_or_panic(&n("name"))),
-                                             Some(lookup_res.clone()));
-                }
-                _ => { panic!("can't happen")}
-            }
-            return Ok(());
-        }
-
-        print!("UOL:ME: {} {}\n", lookup_res, lookup_res_rhs);
-
-        must_equal(&lookup_res, &lookup_res_rhs, env)
-    })
-}
-*/
 
 
 custom_derive!{
     #[derive(Copy, Clone, Debug, Reifiable)]
-    // TODO: does `Canonicalize` do anything that `Typesynth` on types doesn't do?
+    // Canonicalize isn't currently used, so its name is arbitrary
     pub struct Canonicalize {}
 }
 custom_derive!{
@@ -212,55 +173,43 @@ impl WalkMode for Subtype {
 impl ::ast_walk::NegativeWalkMode for Subtype {
     fn qlit_mismatch_error(got: Ty, expd: Ty) -> Self::Err { TyErr::Mismatch(got, expd) }
 
-    fn pre_match(matchee: Ty, goal: Ty, env: &Assoc<Name, Ty>) -> (Ty, Ty) {
-        print!(" ## PM {} vs. {}\n", matchee, goal);
-        // TODO: we ought to help short-circuit matching
-        let matchee = lookup_and_determine(matchee, &goal, env);
-        let goal    = lookup_and_determine(goal, &matchee, env);
-        print!(" ##    {} vs. {}\n", matchee, goal);
-        (matchee, goal)
+    fn needs_pre_match() -> bool { true }
+
+    /// Push through all variable references and underdeterminednesses on both sides,
+    ///  returning types that are ready to compare, or `None` if they're definitionally equal
+    fn pre_match(lhs: Ty, rhs: Ty, env: &Assoc<Name, Ty>) -> Option<(Ty, Ty)> {
+        let u_f = underdetermined_form.with(|u_f| { u_f.clone() });
+
+        unification.with(|unif| {
+            let lhs = resolve(&lhs, env, &unif.borrow()).clone();
+            let rhs = resolve(&rhs, env, &unif.borrow()).clone();
+
+            let lhs_name = lhs.destructure(u_f.clone()).map(
+                |p| ast_to_atom(p.get_leaf_or_panic(&n("id"))));
+            let rhs_name = rhs.destructure(u_f.clone()).map(
+                |p| ast_to_atom(p.get_leaf_or_panic(&n("id"))));
+
+            match (lhs_name, rhs_name) {
+                // They are the same underdetermined type; nothing to do:
+                (Ok(l), Ok(r)) if l == r => { None }
+                // Make a determination (possibly just merging two underdetermined types):
+                (Ok(l), _) => { unif.borrow_mut().insert(l, rhs.clone()); None }
+                (_, Ok(r)) => { unif.borrow_mut().insert(r, lhs.clone()); None }
+                // They are (potentially) different:
+                _ => { Some((lhs.clone(), rhs.clone()))}
+            }
+        })
     }
 }
 
-fn lookup_and_determine(maybe_underdet_var: Ty, other: &Ty, env: &Assoc<Name, Ty>) -> Ty {
-    let underdetermined_frm = underdetermined_form.with(|u| { u.clone() });
 
-    unification.with(|unif| {
-        // This only finds `type_by_name`s which refer to underdetermined types,
-        // because that's what `∀` creates.
-        // TODO: should we look up variables in general here (does `SynthTy` do that for us?)
-        let maybe_underdet = match maybe_underdet_var.concrete() {
-            Node(ref m_u_f, ref parts)
-                    if m_u_f == &::core_forms::find_core_form("type", "type_by_name") => {
-                env.find_or_panic(&::core_forms::ast_to_atom(
-                    &parts.get_leaf_or_panic(&n("name"))))
-            }
-            _ => { return maybe_underdet_var } // not a var; nothing to do
-        };
-        print!(" ## at least: {:?}\n", maybe_underdet);
 
-        match maybe_underdet.concrete() {
-            Node(ref m_u_f, ref parts) if m_u_f == &underdetermined_frm => {
-                let id = ::core_forms::ast_to_atom(&parts.get_leaf_or_panic(&n("id")));
-
-                use std::collections::hash_map::Entry::*;
-
-                print!(" ## PD: {:?} -> {:?}\n", id, unif.borrow_mut().entry(id));
-                let r = unif.borrow_mut().entry(id).or_insert(other.clone()).clone();
-                print!(" ##     returning {}\n", r);
-                r
-            }
-            _ => { maybe_underdet.clone() } // Just return the result of the lookup, then
-        }
-    })
-}
-
-pub fn must_subtype(sub: &Ty, sup: &Ty, env: Assoc<Name, Ty>) -> Result<(), TyErr> {
+pub fn must_subtype(sub: &Ty, sup: &Ty, env: Assoc<Name, Ty>) -> Result<Assoc<Name, Ty>, TyErr> {
     // TODO: I think we should be canonicalizing first...
     // TODO: they might need different environments?
     let lwr_env = &LazyWalkReses::<Subtype>::new_wrapper(env).with_context(sub.clone());
 
-    walk::<Subtype>(&sup.concrete(), lwr_env).map(|_| ())
+    walk::<Subtype>(&sup.concrete(), lwr_env)
 }
 
 // TODO: I think we need to route some other things (especially in macros.rs) through this...
@@ -289,7 +238,7 @@ fn basic_subtyping() {
     let bool_ty = ty!({ "type" "bool" : });
 
 
-    assert_eq!(must_subtype(&int_ty, &int_ty, mt_ty_env.clone()), Ok(()));
+    assert_m!(must_subtype(&int_ty, &int_ty, mt_ty_env.clone()), Ok(_));
 
     assert_eq!(must_subtype(&bool_ty, &int_ty, mt_ty_env.clone()),
         Err(Mismatch(bool_ty.clone(), int_ty.clone())));
@@ -305,22 +254,22 @@ fn basic_subtyping() {
          "param" => [(, int_ty.concrete())],
          "ret" => (, int_ty.concrete())});
 
-    assert_eq!(must_subtype(&int_to_int_fn_ty, &int_to_int_fn_ty, mt_ty_env.clone()),
-               Ok(()));
+    assert_m!(must_subtype(&int_to_int_fn_ty, &int_to_int_fn_ty, mt_ty_env.clone()),
+               Ok(_));
 
-    assert_eq!(must_subtype(&id_fn_ty, &id_fn_ty, mt_ty_env.clone()),
-               Ok(()));
+    assert_m!(must_subtype(&id_fn_ty, &id_fn_ty, mt_ty_env.clone()),
+               Ok(_));
 
 
     // actually subtype interestingly!
-    assert_eq!(must_subtype(&int_to_int_fn_ty, &id_fn_ty, mt_ty_env.clone()),
-               Ok(()));
+    assert_m!(must_subtype(&int_to_int_fn_ty, &id_fn_ty, mt_ty_env.clone()),
+               Ok(_));
 
     // TODO: this error spits out generated names to the user without context ) :
     assert_m!(must_subtype(&id_fn_ty, &int_to_int_fn_ty, mt_ty_env.clone()),
               Err(Mismatch(_,_)));
 
-    let _parametric_ty_env = assoc_n!(
+    let parametric_ty_env = assoc_n!(
         "some_int" => ty!( { "type" "int" : }),
         "convert_to_nat" => ty!({ "type" "forall_type" :
             "param" => ["t"],
@@ -331,12 +280,18 @@ fn basic_subtyping() {
         "identity" => id_fn_ty.clone(),
         "int_to_int" => int_to_int_fn_ty.clone());
 
-/*
-    assert_eq!(must_subtype(&tbn("int_to_int"), &tbn("identity"), parametric_ty_env.clone()),
-              Ok(()));
+
+    assert_m!(must_subtype(&tbn("int_to_int"), &tbn("identity"), parametric_ty_env.clone()),
+              Ok(_));
 
     assert_m!(must_subtype(&tbn("identity"), &tbn("int_to_int"), parametric_ty_env.clone()),
               Err(Mismatch(_,_)));
-*/
 
+    // This is the sort of thing the application typechecker will check against:
+    let incomplete_fn_ty = ty!({ "type" "fn" :
+        "param" => [ (, int_ty.concrete() ) ],
+        "ret" => (vr "return_type")});
+
+    assert_eq!(must_subtype(&int_to_int_fn_ty, &incomplete_fn_ty, mt_ty_env.clone()),
+               Ok(assoc_n!( "return_type" => int_ty )));
 }

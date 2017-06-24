@@ -114,7 +114,6 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     }
                     for (p_expected, p_got) in expd_params.iter().zip(actl_params.iter()) {
                         // Parameters have reversed subtyping:
-
                         let _ : ::util::assoc::Assoc<Name, Ty> = try!(walk::<Subtype>(
                             *p_got, &fn_parts.with_context(Ty::new(p_expected.clone()))));
                     }
@@ -158,7 +157,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                             //  leaving the `param`s of the forall unbound.
                             // There's got to be some case in which this goes wrong.
                             let a_b = match actual_forall_parts.get_leaf_or_panic(&n("body")) {
-                                &ExtendEnv(ref body, _) => { body }
+                                &ExtendEnv(ref body, _) => body,
                                 _ => panic!("can't happen, by structure of forall's `form_pat!`")
                             };
 
@@ -209,43 +208,16 @@ pub fn make_core_syn_env_types() -> SynEnv {
     // TODO: maybe we should fix that
     let type_by_name = type_defn_complex("type_by_name", form_pat!((named "name", aat)),
         cust_rc_box!(move |tbn_part| {
-            let name = tbn_part.get_term(&n("name"));
-            match tbn_part.env.find(&ast_to_atom(&name)) {
-                None => // This is fine; e.g. we might be at the `X` in `forall X. List<[X]<`.
-                    Ok(Ty(tbn_part.this_ast.clone())),
-                Some(ty) => Ok(ty.clone())
-            }
+            let name = ast_to_atom(&tbn_part.get_term(&n("name")));
+            ::ty::SynthTy::walk_var(name, &tbn_part)
         }),
         Both(
             cust_rc_box!(move |tbn_part| { // no-op; reconstruct (this should be easier!)
-                Ok(Ty::new(tbn_part.this_ast.clone()))
+                ::ty_compare::Canonicalize::walk_var(n("[ignored]"), &tbn_part)
             }),
             cust_rc_box!(move |tbn_part| {
-                // TODO: this just recapitulates `walk_quasi_literally`
-                // I think this suggests that `type_by_name` ought to become a real varref
-                let this_elt = Ty::new(tbn_part.this_ast.clone());
+                ::ty_compare::Subtype::walk_var(n("[ignored]"), &tbn_part)
 
-                let (new_self, new_matchee) = Subtype::pre_match(tbn_part.context_elt().clone(),
-                                                     this_elt.clone(), &tbn_part.env);
-                print!("## {} vs. {}\n", new_self, new_matchee);
-
-                let (new_this_form, new_parts) = match Ty::to_ast(&new_self) {
-                    Node(a,b) => (a,b), _ => {panic!("ICE")} };
-
-                if new_this_form != tbn_part.this_form() {
-                    // HACK: We're no longer a `type_by_name`, so we need to try again
-                    walk::<Subtype>(&Ty::to_ast(&new_self), &tbn_part)
-                } else {
-                    match new_matchee.concrete() {
-                        Node(ref ctxt_f, ref ctxt_parts)
-                            if ctxt_f == &new_this_form
-                                && ctxt_parts.get_leaf_or_panic(&n("name"))
-                                    == new_parts.get_leaf_or_panic(&n("name")) => {
-                            Ok(::util::assoc::Assoc::new())
-                        },
-                        _ => { Err(Subtype::qlit_mismatch_error(new_self, new_matchee)) }
-                    }
-                }
             })));
 
     let forall_type_0 = forall_type.clone();

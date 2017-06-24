@@ -1,5 +1,5 @@
 /*!
- * This abstract syntax tree is *really* abstract. 
+ * This abstract syntax tree is *really* abstract.
  * By necessity, it's not tied to any specific language.
  * "Normal" language forms all correspond to `Node`, and their meaning comes from their `Form`.
  */
@@ -23,13 +23,13 @@ custom_derive! {
         Atom(Name),
         VariableReference(Name),
         Shape(Vec<Ast>),
-        
+
         /// A meaningful chunk of syntax, governed by a form, containing an environment
         Node(Rc<Form>, EnvMBE<Ast>),
-        
+
         /// For parsing purposes.
         IncompleteNode(EnvMBE<Ast>),
-        
+
         /// Variable binding
         ExtendEnv(Box<Ast>, Beta)
     }
@@ -53,11 +53,11 @@ impl fmt::Debug for Ast {
                 }
                 write!(f, ")")
             },
-            Node(ref form, ref body) => { 
+            Node(ref form, ref body) => {
                 write!(f, "{{ ({:?}); {:?} }}", form.name, body)
             }
             IncompleteNode(ref body) => {
-                write!(f, "{{ INCOMPLETE; {:?} }}", body)                
+                write!(f, "{{ INCOMPLETE; {:?} }}", body)
             }
             ExtendEnv(ref body, ref beta) => {
                 write!(f, "{:?}↓{:?}", body, beta)
@@ -83,13 +83,13 @@ impl Ast {
             },
             IncompleteNode(ref env) => { env.clone() }
             Node(ref _f, ref _body) => {
-                // TODO: think about what should happen when 
+                // TODO: think about what should happen when
                 //  `Scope` contains a `Scope` without an intervening `Named`
                 panic!("I don't know what to do here!")
             },
             ExtendEnv(ref body, _) => body.flatten()
         }
-    }    
+    }
 }
 
 // This is used by combine::many, which is used by the Star parser
@@ -121,12 +121,12 @@ fn combine_from_kleene_star() {
                            ast!({ - "a" => ["1", "2"], "b" => "8.1"}),
                            ast!({ - "a" => ["1", "2", "3"], "b" => "8.2"})];
     let parsed = Ast::from_iter(parse_parts);
-    
-    let mut expected_mbe = 
+
+    let mut expected_mbe =
         mbe!("a" => [@"triple" [], ["1", "2"], ["1", "2", "3"]],
              "b" => [@"triple" "8.0", "8.1", "8.2"]);
     expected_mbe.anonimize_repeat(n("triple"));
-    
+
     assert_eq!(parsed, IncompleteNode(expected_mbe));
 }
 
@@ -134,21 +134,21 @@ fn combine_from_kleene_star() {
 #[test]
 fn star_construction() {
     let env = mbe!( "a" => ["1", "2"]);
-    
+
     assert_eq!(
         ast!( { - "x" => [* env =>("a") env : (, env.get_leaf_or_panic(&n("a")).clone())]} ),
         ast!( { - "x" => ["1", "2"] }));
-    
 
-    
+
+
     let env = mbe!( "a" => [@"duo" "1", "2"], "b" => [@"duo" "11", "22"]);
-    
+
     assert_eq!(
-        ast!( { - "x" => [* env =>("a", "b") env : 
-                            ((, env.get_leaf_or_panic(&n("b")).clone()) 
+        ast!( { - "x" => [* env =>("a", "b") env :
+                            ((, env.get_leaf_or_panic(&n("b")).clone())
                              (, env.get_leaf_or_panic(&n("a")).clone()))]} ),
         ast!( { - "x" => [("11" "1"), ("22" "2")] }));
-    
+
 }
 
 #[test]
@@ -157,4 +157,3 @@ fn mbe_r_and_r_roundtrip() {
     let mbe1 = mbe!( "a" => [@"duo" "1", "2"], "b" => [@"duo" "11", "22"]);
     assert_eq!(mbe1, EnvMBE::<Ast>::reflect(&mbe1.reify()));
 }
-
