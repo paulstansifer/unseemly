@@ -200,6 +200,8 @@ impl ::ast_walk::NegativeWalkMode for Subtype {
             }
         })
     }
+
+    // TODO: should unbound variable references ever be walked at all? Maybe it should panic?
 }
 
 
@@ -287,11 +289,17 @@ fn basic_subtyping() {
     assert_m!(must_subtype(&tbn("identity"), &tbn("int_to_int"), parametric_ty_env.clone()),
               Err(Mismatch(_,_)));
 
-    // This is the sort of thing the application typechecker will check against:
-    let incomplete_fn_ty = ty!({ "type" "fn" :
-        "param" => [ (, int_ty.concrete() ) ],
-        "ret" => (vr "return_type")});
+    fn incomplete_fn_ty() -> Ty { // A function, so we get a fresh underspecified type each time.
+        use ast_walk::WalkElt;
+        ty!({ "type" "fn" :
+            "param" => [ { "type" "int" : } ],
+            "ret" => (, Ty::underspecified().concrete() )})
+    }
 
-    assert_eq!(must_subtype(&int_to_int_fn_ty, &incomplete_fn_ty, mt_ty_env.clone()),
-               Ok(assoc_n!( "return_type" => int_ty )));
+
+    assert_m!(must_subtype(&incomplete_fn_ty(), &int_to_int_fn_ty, mt_ty_env.clone()),
+              Ok(_));
+
+    assert_m!(must_subtype(&incomplete_fn_ty(), &id_fn_ty, mt_ty_env.clone()),
+              Ok(_));
 }

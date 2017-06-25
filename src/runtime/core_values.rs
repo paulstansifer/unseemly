@@ -22,19 +22,28 @@ pub fn erase_value(tv: &TypedValue) -> Ty { Ty::new(tv.ty.clone()) }
 pub fn core_typed_values() -> Assoc<Name, TypedValue> {
     assoc_n!(
         "plus" =>
-        tf!([( "integer", "integer" ) -> "integer"],
+        tf!([( "int", "int" ) -> "int"],
              ( Int(a), Int(b) ) => { Int( a.clone() + b ) }),
         "minus" =>
-        tf!([( "integer", "integer" ) -> "integer"],
+        tf!([( "int", "int" ) -> "int"],
              ( Int(a), Int(b) ) => { Int( a.clone() - b ) }),
         "times" =>
-        tf!([( "integer", "integer" ) -> "integer"],
+        tf!([( "int", "int" ) -> "int"],
              ( Int(a), Int(b) ) => { Int( a.clone() * b ) }),
         "zero?" =>
-        tf!([( "integer" ) -> "bool"],
+        tf!([( "int" ) -> "bool"],
              ( Int(a) ) => { Bool(a == BigInt::from(0))} ),
-        "zero" => tf!( "integer", val!(i 0) ),
-        "one" => tf!( "integer", val!(i 1) ),
+        "zero" => tf!( "int", val!(i 0) ),
+        "one" => tf!( "int", val!(i 1) ),
+        "two" => tf!( "int", val!(i 2) ),
+        "three" => tf!( "int", val!(i 3) ),
+        "four" => tf!( "int", val!(i 4) ),
+        "five" => tf!( "int", val!(i 5) ),
+        "six" => tf!( "int", val!(i 6) ),
+        "seven" => tf!( "int", val!(i 7) ),
+        "eight" => tf!( "int", val!(i 8) ),
+        "nine" => tf!( "int", val!(i 9) ),
+        "ten" => tf!( "int", val!(i 10) ),
         "false" => tf!( "bool", val!(b false)),
         "true" => tf!( "bool", val!(b true))
     )
@@ -45,23 +54,17 @@ pub fn core_values() -> Assoc<Name, Value> {
 }
 
 pub fn core_types() -> Assoc<Name, Ty> {
-    core_typed_values().map(&erase_value).set_assoc(
-        // TODO: This is needed for `type_by_name`s to turn into ... plain names
-        &assoc_n!(
-            "integer" => ty!("integer"),
-            "bool" => ty!("bool")
-        )
-    )
+    core_typed_values().map(&erase_value)
 }
 
 
 #[test]
 fn basic_core_value_evaluation() {
     use core_forms::find_core_form;
-    
+
     let cte = core_typed_values();
     let ce = cte.map(&erase_type);
-        
+
     assert_eq!(eval(
         &ast!({ find_core_form( "expr", "apply") ;
             "rator" => (vr "plus"),

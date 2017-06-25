@@ -42,7 +42,7 @@ impl fmt::Debug for Ast {
         match *self {
             Trivial => { write!(f, "⨉") },
             Atom(ref n) => { write!(f, "∘{:?}∘", n) },
-            VariableReference(ref v) => { write!(f, "{:?}", v)}
+            VariableReference(ref v) => { write!(f, "{:?}", v) }
             Shape(ref v) => {
                 try!(write!(f, "("));
                 let mut first = true;
@@ -54,7 +54,7 @@ impl fmt::Debug for Ast {
                 write!(f, ")")
             },
             Node(ref form, ref body) => {
-                write!(f, "{{ ({:?}); {:?} }}", form.name, body)
+                write!(f, "{{ ({}); {:?} }}", form.name.sp(), body)
             }
             IncompleteNode(ref body) => {
                 write!(f, "{{ INCOMPLETE; {:?} }}", body)

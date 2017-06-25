@@ -80,6 +80,6 @@ fn end_to_end_eval() {
 
     assert_eq!(eval_unseemly_program("(plus one one)"), val!(i 2));
 
-    assert_eq!(eval_unseemly_program("(.[x : integer  y : integer . (plus x y)]. one one)"),
+    assert_eq!(eval_unseemly_program("(.[x : int  y : int . (plus x y)]. one one)"),
                val!(i 2));
 }

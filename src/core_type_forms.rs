@@ -205,14 +205,15 @@ pub fn make_core_syn_env_types() -> SynEnv {
         form_pat!((delim "...[", "[", /*]]*/ (named "body", (call "type")))));
 
     // Like a variable reference (but `LiteralLike` typing prevents us from doing that)
-    // TODO: maybe we should fix that
-    let type_by_name = type_defn_complex("type_by_name", form_pat!((named "name", aat)),
+    // TODO: I think this can be removed, and replaced with `VariableReference` now
+    let type_by_name = type_defn_complex("type_by_name",
+        form_pat!([(lit "DEPRECATED"), (named "name", aat)]),
         cust_rc_box!(move |tbn_part| {
             let name = ast_to_atom(&tbn_part.get_term(&n("name")));
             ::ty::SynthTy::walk_var(name, &tbn_part)
         }),
         Both(
-            cust_rc_box!(move |tbn_part| { // no-op; reconstruct (this should be easier!)
+            cust_rc_box!(move |tbn_part| {
                 ::ty_compare::Canonicalize::walk_var(n("[ignored]"), &tbn_part)
             }),
             cust_rc_box!(move |tbn_part| {
@@ -290,8 +291,9 @@ pub fn make_core_syn_env_types() -> SynEnv {
         forall_type.clone(),
         dotdotdot_type.clone(),
         mu_type.clone(),
-        type_apply.clone()
-        ]), Rc::new(form_pat!((scope type_by_name.clone()))))))
+        type_apply.clone(),
+        type_by_name.clone()
+        ]), Rc::new(VarRef))))
 }
 
 #[test]

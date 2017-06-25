@@ -371,7 +371,7 @@ macro_rules! mk_type { // TODO: maybe now use find_core_form and un-thread $se?
                   "ret" => (, mk_type!($ret_t))
         })
     };
-    ( $n:tt ) => { ast!($n) };
+    ( $n:tt ) => { ast!({ "type" $n : }) }; // atomic type
 }
 
 /* Define a typed function */

@@ -58,6 +58,8 @@ impl Ty {
 impl ::std::fmt::Display for Ty {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         use core_forms::{find_core_form, ast_to_atom};
+        let undet_form = ::ty_compare::underdetermined_form.with(|u_f| { u_f.clone() });
+
         match self.0 {
             // Not used, right? Maybe it should be...
             // Some(VariableReference(ref n)) => { write!(f, "{}", n) },
@@ -132,12 +134,17 @@ impl ::std::fmt::Display for Ty {
                         }
                     }
                     write!(f, "]<")
+                } else if form == &undet_form {
+                    write!(f, "¿{}?", ast_to_atom(env.get_leaf_or_panic(&n("id"))))
                 } else {
                     panic!("{:?} is not a well-formed type", self.0);
                 }
             }
+            VariableReference(vr) => {
+                write!(f, "{}", vr)
+            }
             ExtendEnv(ref t, ref beta) => {
-                write!(f, "{}↓{:?}", Ty::new((**t).clone()), beta)
+                write!(f, "({}↓{:?})", Ty::new((**t).clone()), beta)
             }
             ref other_ast => {
                 write!(f, "(ill-formed type: {:?})", other_ast)
@@ -169,8 +176,6 @@ impl ::ast_walk::WalkElt for Ty {
                 // TODO: we need `gensym`!
                 let new_name = n(("⚁ ".to_string() + id.borrow().to_string().as_str()).as_str());
 
-                print!("###U### {:?}\n", new_name);
-
                 ty!({ u_f.clone() ; "id" => (, ::ast::Atom(new_name))})
             })
         })
@@ -200,7 +205,7 @@ impl WalkMode for SynthTy {
     fn walk_var(n: Name, parts: &::ast_walk::LazyWalkReses<SynthTy>) -> Result<Ty, TypeError> {
         match parts.env.find(&n) {
             None => // This is fine; e.g. we might be at the `X` in `forall X. List<[X]<`.
-                Ok(Ty(parts.this_ast.clone())),
+                Ok(Ty(VariableReference(n))),
             Some(ty) => Ok(ty.clone())
         }
     }

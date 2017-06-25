@@ -21,7 +21,7 @@ impl Name {
 // TODO: move to `ast_walk`
 // TODO: this interner doesn't support `gensym`...
 pub fn negative_ret_val() -> Name {
-    Name { id: lalrpop_intern::intern("☾⋅☽")}
+    Name { id: lalrpop_intern::intern("⋄")}
 }
 
 impl fmt::Debug for Name {
@@ -40,7 +40,7 @@ impl Name {
     pub fn is(&self, s: &str) -> bool {
         &self.sp() == s
     }
-    
+
     pub fn is_name(&self, n: &Name) -> bool {
         self.sp() == n.sp()
     }

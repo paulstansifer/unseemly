@@ -36,13 +36,13 @@ impl <K : PartialEq + Clone, V: PartialEq> PartialEq for Assoc<K, V> {
                 if !(v == other_v) { return false; }
             } else { return false; }
         }
-        
+
         for (other_k, other_v) in other.iter_pairs() {
             if let Some(v) = self.find(other_k) {
                 if !(v == other_v) { return false; }
             } else { return false; }
         }
-        
+
         true
     }
 }
@@ -68,7 +68,7 @@ impl<K: PartialEq + Clone, V: Clone> Clone for AssocNode<K, V> {
 
 
 impl<K : PartialEq, V> Assoc<K, V> {
-    
+
     /// Possibly unintuitively, all empty assocs are identical.
     pub fn almost_ptr_eq(&self, other: &Assoc<K, V>) -> bool {
         match (&self.n, &other.n) {
@@ -79,7 +79,7 @@ impl<K : PartialEq, V> Assoc<K, V> {
             _ => false
         }
     }
-    
+
     pub fn find<'assoc, 'f>(&'assoc self, target: &'f K) -> Option<&'assoc V> {
         match self.n {
             None => None,
@@ -92,28 +92,28 @@ impl<K : PartialEq, V> Assoc<K, V> {
             }
         }
     }
-    
+
     pub fn empty(&self) -> bool { self.n.is_none() }
-    
+
     pub fn set(&self, k: K, v: V) -> Assoc<K, V> {
         Assoc{
             n: Some(Rc::new(AssocNode {
                 k: k, v: v, next: Assoc { n: self.n.clone() }
         }))}
     }
-        
+
     pub fn new() -> Assoc<K, V> {
         Assoc{ n: None }
     }
-    
+
     pub fn single(k: K, v: V) -> Assoc<K, V> {
         Self::new().set(k, v)
     }
-    
+
     pub fn iter_pairs(&self) -> PairIter<K, V> {
         PairIter{ seen: Assoc::new(), cur: self }
     }
-    
+
     pub fn reduce<Out>(&self, red: &Fn(&K, &V, Out) -> Out, base: Out) -> Out {
         match self.n {
             None => base,
@@ -122,7 +122,7 @@ impl<K : PartialEq, V> Assoc<K, V> {
             }
         }
     }
-} 
+}
 
 impl<K: PartialEq + Clone, V> Assoc<K,V> {
     pub fn iter_keys<'assoc>(&'assoc self) -> Box<Iterator<Item=K> +'assoc> {
@@ -134,21 +134,21 @@ impl<K: PartialEq + Clone, V: Clone> Assoc<K,V> {
     pub fn iter_values<'assoc>(&'assoc self) -> Box<Iterator<Item=V> + 'assoc> {
         Box::new(self.iter_pairs().map(|p| (*p.1).clone()))
     }
-    
+
     pub fn map<NewV>(&self, f: &Fn(&V) -> NewV) -> Assoc<K, NewV> {
         match self.n {
             None => Assoc{ n: None },
             Some(ref node) => {
-                Assoc { 
+                Assoc {
                     n: Some(Rc::new(AssocNode {
-                        k: node.k.clone(), v: f(&node.v), 
+                        k: node.k.clone(), v: f(&node.v),
                         next: node.next.map(f)
                     }))
                 }
             }
         }
     }
-    
+
     pub fn map_with<NewV>(&self, other: &Assoc<K, V>, f: &Fn(&V, &V) -> NewV)
             -> Assoc<K, NewV> {
         match self.n {
@@ -218,7 +218,7 @@ impl<K : PartialEq + Clone, V : Clone> Assoc<K, V> {
             }
         }
     }
-    
+
     pub fn unset(&self, k: &K) -> Assoc<K, V> {
         match self.n {
             None => Assoc{ n: None },
@@ -227,7 +227,7 @@ impl<K : PartialEq + Clone, V : Clone> Assoc<K, V> {
                 if &node.k != k {
                     Assoc{
                         n: Some(Rc::new(AssocNode {
-                            k: node.k.clone(), v: v, 
+                            k: node.k.clone(), v: v,
                             next: node.next.unset(k)
                         }))
                     }
@@ -235,8 +235,8 @@ impl<K : PartialEq + Clone, V : Clone> Assoc<K, V> {
                     node.next.unset(k)
                 }
             }
-        }        
-    }    
+        }
+    }
     /* This isn't right without deduplication before hand...
     pub fn filter(&self, f: &Fn(&V) -> bool) -> Assoc<K, V> {
         match self.n {
@@ -244,9 +244,9 @@ impl<K : PartialEq + Clone, V : Clone> Assoc<K, V> {
             Some(ref node) => {
                 let v = node.v.clone();
                 if f(&v) {
-                    Assoc{ 
+                    Assoc{
                         n: Some(Rc::new(AssocNode {
-                            k: node.k.clone(), v: v, 
+                            k: node.k.clone(), v: v,
                             next: node.next.filter(f)
                         }))
                     }
@@ -254,7 +254,7 @@ impl<K : PartialEq + Clone, V : Clone> Assoc<K, V> {
                     node.next.filter(f)
                 }
             }
-        }        
+        }
     }*/
 }
 
@@ -306,7 +306,7 @@ impl<'assoc, K: PartialEq + Clone, V> Iterator for PairIter<'assoc, K, V> {
             Some(ref node) => {
                 self.cur = &(*node).next;
                 if self.seen.find(&(*node).k).is_none() { // have we done this key already?
-                    self.seen = self.seen.set((*node).k.clone(), ()); 
+                    self.seen = self.seen.set((*node).k.clone(), ());
                     Some((&(*node).k, &(*node).v))
                 } else {
                     self.next() // try the next one
@@ -334,7 +334,7 @@ fn basic_assoc() {
     assert_eq!(a2.find(&5), Some(&6));
     assert_eq!(a_override.find(&5), Some(&500));
     assert_eq!(a_override.find(&6), Some(&7));
-    
+
     assert_eq!(a_override.unset(&5).find(&5), None);
     assert_eq!(a_override.unset(&6).find(&6), None);
 
@@ -352,10 +352,10 @@ fn assoc_equality() {
     let a1 = mt.set(5,6);
     let a2 = a1.set(6,7);
     let a_override = a2.set(5,500);
-    
+
     let a2_opposite = mt.set(6,7).set(5,6);
     let a_override_direct = mt.set(5,500).set(6,7);
-    
+
     assert_eq!(mt, Assoc::new());
     assert_eq!(a1, a1);
     assert!(a1 != mt);
@@ -381,7 +381,7 @@ fn assoc_r_and_r_roundtrip() {
 fn assoc_map() {
     let a1 = assoc_n!("x" => 1, "y" => 2, "z" => 3);
     assert_eq!(a1.map(&|a| a+1), assoc_n!("x" => 2, "y" => 3, "z" => 4));
-    
+
     let a2 = assoc_n!("y" => -2, "z" => -3, "x" => -1);
     assert_eq!(a1.map_with(&a2, &|a, b| a+b),
        assoc_n!("x" => 0, "y" => 0, "z" => 0));
@@ -391,7 +391,7 @@ fn assoc_map() {
 fn assoc_reduce() {
     let a1 = assoc_n!("x" => 1, "y" => 2, "z" => 3);
     assert_eq!(a1.reduce(&|_key, a, b| a+b, 0), 6);
-    
+
     let a1 = assoc_n!("x" => 1, "y" => 2, "z" => 3);
     assert_eq!(a1.reduce(&|key, a, b| if key.is("y") { b } else { a+b }, 0), 4);
 }

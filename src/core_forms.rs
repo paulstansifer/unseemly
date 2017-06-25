@@ -148,7 +148,6 @@ pub fn make_core_syn_env() -> SynEnv {
 
     // This seems to be necessary to get separate `Rc`s into the closures.
     let ctf_0 = ctf.clone();
-    let ctf_1 = ctf.clone();
     let ctf_2 = ctf.clone();
     let ctf_3 = ctf.clone();
     let ctf_4 = ctf.clone();
@@ -168,6 +167,10 @@ pub fn make_core_syn_env() -> SynEnv {
                     (import [* ["param" : "p_t"]], (call "expr")))]),
             /* type */
             cust_rc_box!( move | part_types | {
+                for p in part_types.march_all(&[n("param")]) {
+                    print!("$$$$ {}\n", try!(p.get_res(&n("p_t"))));
+                }
+
                 let lambda_type : Ty =
                     ty!({ find_type(&ctf_0, "fn") ;
                          "param" => [* part_types =>("param") part_types :
@@ -187,20 +190,23 @@ pub fn make_core_syn_env() -> SynEnv {
         typed_form!("apply", /* function application*/
             (delim "(", "(", /*))*/ [(named "rator", (call "expr")),
              (star (named "rand", (call "expr")))]),
-            cust_rc_box!(move | part_types |
-                expect_ty_node!( (try!(part_types.get_res(&n("rator")));
-                               find_type(&ctf_1, "fn"))
-                    env;
-                    {
-                        for ((input, expected), loc) in env.get_rep_leaf_or_panic(&n("param"))
-                                .iter().zip(&try!(part_types.get_rep_res(&n("rand"))))
-                                .zip(&part_types.get_rep_term(&n("rand"))) {
-                            let _ = try!(expect_type(expected, &Ty::new((*input).clone()), loc));
-                        }
+            cust_rc_box!(move | part_types | {
+                use ::ast_walk::WalkElt;
+                let return_type = Ty::underspecified();
+                let _ = try!(::ty_compare::must_subtype(
+                    &ty!({ "type" "fn" :
+                        "param" => (,seq try!(part_types.get_rep_res(&n("rand")))
+                             .iter().map(|t| t.concrete()).collect::<Vec<_>>() ),
+                        "ret" => (, return_type.concrete() )}),
+                    &try!(part_types.get_res(&n("rator"))),
+                    part_types.env.clone())
+                        .map_err(|e| ::util::err::sp(e, part_types.this_ast.clone())));
 
-                        Ok(Ty::new(env.get_leaf_or_panic(&n("ret")).clone()))
-                    }
-                )),
+                ::ty_compare::unification.with(|unif| {
+                    Ok(::ty_compare::resolve(&return_type, &part_types.env, &unif.borrow())
+                        .clone())
+                })
+            }),
             cust_rc_box!( move | part_values | {
                 match try!(part_values.get_res(&n("rator"))) {
                     Function(clos) => {
@@ -658,6 +664,35 @@ fn form_type() {
 }
 
 #[test]
+fn type_apply_with_subtype() { // Application can perform subtyping
+
+    let bool_ty = ty!({ "type" "bool" : });
+
+    let ty_env = assoc_n!(
+        "b" => bool_ty.clone(),
+        "bool_to_bool" => ty!({ "type" "fn" :
+            "param" => [ (, bool_ty.concrete() ) ],
+            "ret" => (, bool_ty.concrete() )}),
+        "∀t_t_to_t" => ty!({ "type" "forall_type" :
+            "param" => ["t"],
+            "body" => (import [* [forall "param"]]
+                { "type" "fn" :
+                    "param" => [ (vr "t") ],
+                    "ret" => (vr "t") })}));
+
+    assert_eq!(synth_type(&ast!(
+            { "expr" "apply" : "rator" => (vr "bool_to_bool") , "rand" => [ (vr "b") ]}),
+            ty_env.clone()),
+        Ok(bool_ty.clone()));
+
+    assert_eq!(synth_type(&ast!(
+            { "expr" "apply" : "rator" => (vr "∀t_t_to_t") , "rand" => [ (vr "b") ]}),
+            ty_env.clone()),
+        Ok(bool_ty.clone()));
+
+}
+
+#[test]
 fn form_eval() {
     let cse = make_core_syn_env();
 
@@ -925,15 +960,11 @@ fn alg_eval() {
 
 #[test]
 fn recursive_types() {
-    fn tbn(nm: &'static str) -> Ty {
-        ty!( { find_core_form("type", "type_by_name") ; "name" => (, ::ast::Ast::Atom(n(nm))) } )
-    }
-
     let int_list_ty = ty!( { find_core_form("type", "mu_type") ;
         "param" => "int_list",
         "body" => { find_core_form("type", "enum") ;
             "name" => [@"c" "Nil", "Cons"],
-            "component" => [@"c" [], ["integer", (, tbn("int_list").concrete() )]]}});
+            "component" => [@"c" [], ["integer", (vr "int_list") ]]}});
 
     let ty_env = assoc_n!(
         "int_list" => int_list_ty.clone(),  // this is a type definition...
@@ -961,7 +992,7 @@ fn recursive_types() {
             "p" => [@"arm" { find_core_form("pat", "enum_pat") ;
                 "name" => "Cons",
                 "component" => [(vr "car"), (vr "cdr")],
-                "t" => (, tbn("int_list").concrete() )
+                "t" => (vr "int_list")
             }],
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "car"))]
         }),
@@ -976,7 +1007,7 @@ fn recursive_types() {
                 "p" => [@"arm" { find_core_form("pat", "enum_pat") ;
                 "name" => "Cons",
                 "component" => [(vr "car"), (vr "cdr")],
-                "t" => (, tbn("int_list").concrete() )
+                "t" => (vr "int_list")
             }],
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "car"))]
         }),
