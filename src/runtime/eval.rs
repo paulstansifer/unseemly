@@ -16,7 +16,6 @@ use std;
 #[derive(Debug,Clone,PartialEq)]
 pub enum Value {
     Int(BigInt),
-    Bool(bool),
     Ident(Name), // TODO: this is subsumed by AbstractSyntax, isn't it?
     Sequence(Vec<Rc<Value>>), // TODO: switch to a different core sequence type
     Function(Rc<Closure>), // TODO: unsure if this Rc is needed

@@ -237,13 +237,13 @@ fn basic_subtyping() {
     let mt_ty_env = Assoc::new();
     let int_ty = ty!({ "type" "int" : });
     let nat_ty = ty!({ "type" "nat" : });
-    let bool_ty = ty!({ "type" "bool" : });
+    let float_ty = ty!({ "type" "float" : });
 
 
     assert_m!(must_subtype(&int_ty, &int_ty, mt_ty_env.clone()), Ok(_));
 
-    assert_eq!(must_subtype(&bool_ty, &int_ty, mt_ty_env.clone()),
-        Err(Mismatch(bool_ty.clone(), int_ty.clone())));
+    assert_eq!(must_subtype(&float_ty, &int_ty, mt_ty_env.clone()),
+        Err(Mismatch(float_ty.clone(), int_ty.clone())));
 
     let id_fn_ty = ty!({ "type" "forall_type" :
         "param" => ["t"],

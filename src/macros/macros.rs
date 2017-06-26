@@ -339,7 +339,9 @@ macro_rules! negative_typed_form {
 macro_rules! val {
     (i $i:expr) => { ::runtime::eval::Value::Int(::num::bigint::BigInt::from($i)) };
     (ident $n:expr) => { ::runtime::eval::Value::Ident($n) };
-    (b $b:expr) => { ::runtime::eval::Value::Bool($b) };
+    (b $b:expr) => {
+        ::runtime::eval::Value::Enum( ::name::n(if $b {"True"} else {"False"}), vec![])
+    };
     (cons $a:tt, $d:tt) => { ::runtime::eval::Value::Cons(Rc::new(val!($a)), Rc::new(val! $d )) };
     (f $body:tt, $params:expr, $env:tt) => {
         ::runtime::eval::Value::Function(
@@ -380,7 +382,7 @@ macro_rules! tf {
        ( $($param_p:pat),* ) => $body:expr) => {
         TypedValue {
             ty: mk_type!([ ( $($param_t),* ) -> $ret_t ] ),
-            val: core_fn!( $($param_p),* => $body)
+            val: core_fn!( $($param_p),* => $body )
         }
     };
     (  $n:tt, $e:expr ) => {
@@ -388,6 +390,13 @@ macro_rules! tf {
             ty: mk_type!( $n ),
             val: $e
         }
+    }
+}
+
+/* Like `tf!`, but actually uses `ast!`, which is more flexible than `mk_type!` */
+macro_rules! tyf {
+    ( $t:tt, ( $($param_p:pat),* ) => $body:expr ) => {
+        TypedValue { ty: ast!($t), val: core_fn!($($param_p),* => $body) }
     }
 }
 

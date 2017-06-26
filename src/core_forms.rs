@@ -643,7 +643,7 @@ fn form_expect_node() {
 fn form_type() {
     let simple_ty_env = assoc_n!(
         "x" => ty!({ find_core_form("type", "int") ; }),
-        "b" => ty!({ find_core_form("type", "bool") ; }));
+        "b" => ty!({ find_core_form("type", "nat") ; }));
 
     let lam = find_core_form("expr", "lambda");
     let fun = find_core_form("type", "fn");
@@ -666,13 +666,13 @@ fn form_type() {
 #[test]
 fn type_apply_with_subtype() { // Application can perform subtyping
 
-    let bool_ty = ty!({ "type" "bool" : });
+    let nat_ty = ty!({ "type" "nat" : });
 
     let ty_env = assoc_n!(
-        "b" => bool_ty.clone(),
-        "bool_to_bool" => ty!({ "type" "fn" :
-            "param" => [ (, bool_ty.concrete() ) ],
-            "ret" => (, bool_ty.concrete() )}),
+        "n" => nat_ty.clone(),
+        "nat_to_nat" => ty!({ "type" "fn" :
+            "param" => [ (, nat_ty.concrete() ) ],
+            "ret" => (, nat_ty.concrete() )}),
         "∀t_t_to_t" => ty!({ "type" "forall_type" :
             "param" => ["t"],
             "body" => (import [* [forall "param"]]
@@ -681,14 +681,14 @@ fn type_apply_with_subtype() { // Application can perform subtyping
                     "ret" => (vr "t") })}));
 
     assert_eq!(synth_type(&ast!(
-            { "expr" "apply" : "rator" => (vr "bool_to_bool") , "rand" => [ (vr "b") ]}),
+            { "expr" "apply" : "rator" => (vr "nat_to_nat") , "rand" => [ (vr "n") ]}),
             ty_env.clone()),
-        Ok(bool_ty.clone()));
+        Ok(nat_ty.clone()));
 
     assert_eq!(synth_type(&ast!(
-            { "expr" "apply" : "rator" => (vr "∀t_t_to_t") , "rand" => [ (vr "b") ]}),
+            { "expr" "apply" : "rator" => (vr "∀t_t_to_t") , "rand" => [ (vr "n") ]}),
             ty_env.clone()),
-        Ok(bool_ty.clone()));
+        Ok(nat_ty.clone()));
 
 }
 
@@ -696,9 +696,9 @@ fn type_apply_with_subtype() { // Application can perform subtyping
 fn form_eval() {
     let cse = make_core_syn_env();
 
-    let simple_env = assoc_n!("x" => Int(18.to_bigint().unwrap()),
-                              "w" => Int(99.to_bigint().unwrap()),
-                              "b" => Bool(false));
+    let simple_env = assoc_n!("x" => val!(i 18),
+                              "w" => val!(i 99),
+                              "b" => val!(b false));
 
     let lam = find_form(&cse, "expr", "lambda");
     let app = find_form(&cse, "expr", "apply");

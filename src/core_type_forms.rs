@@ -285,7 +285,6 @@ pub fn make_core_syn_env_types() -> SynEnv {
         type_defn("int", form_pat!((lit "int"))),
         type_defn("nat", form_pat!((lit "nat"))),
         type_defn("float", form_pat!((lit "float"))),
-        type_defn("bool", form_pat!((lit "bool"))),
         enum_type.clone(),
         struct_type.clone(),
         forall_type.clone(),

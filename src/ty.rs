@@ -317,7 +317,7 @@ pub fn expect_type(expected: &Ty, got: &Ty, loc: &Ast) -> TypeResult {
 fn basic_type_synth() {
     let mt_ty_env = Assoc::new();
     let int_ty = ty!({ ::core_forms::find_core_form("type", "int") ; });
-    let bool_ty = ty!({ ::core_forms::find_core_form("type", "bool") ; });
+    let nat_ty = ty!({ ::core_forms::find_core_form("type", "nat") ; });
 
     let simple_ty_env = mt_ty_env.set(n("x"), int_ty.clone());
 
@@ -345,10 +345,10 @@ fn basic_type_synth() {
             {basic_typed_form!(
                 at,
                 Custom(Rc::new(Box::new(
-                    |_| Ok(ty!({ ::core_forms::find_core_form("type", "bool") ; }))))),
+                    |_| Ok(ty!({ ::core_forms::find_core_form("type", "nat") ; }))))),
                 NotWalked) ; []}),
             simple_ty_env.clone()),
-        Ok(bool_ty.clone()));
+        Ok(nat_ty.clone()));
 }
 
 
