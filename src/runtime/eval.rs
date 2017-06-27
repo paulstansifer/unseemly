@@ -48,6 +48,33 @@ impl Clone for BIF {
     }
 }
 
+impl std::fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            &Int(ref bi) => { write!(f, "{}", bi) }
+            &Ident(n) => { write!(f, "{}", n) }
+            &Sequence(ref seq) => {
+                for elt in seq { try!(write!(f, "{}", &*elt)); }; Ok(())
+            }
+            &Function(ref clos) => { write!(f, "{:?}", clos) }
+            &BuiltInFunction(_) => { write!(f, "[built-in function]") }
+            &AbstractSyntax(n, ref ast) => { write!(f, "{}: {:?}", n, ast) }
+            &Struct(ref parts) => {
+                try!(write!(f, "{{"));
+                for (k,v) in parts.iter_pairs() {
+                    try!(write!(f, "{}: {} ", k, v));
+                }
+                write!(f, "}}")
+            }
+            &Enum(n, ref parts) => {
+                try!(write!(f, "{}(", n));
+                for p in parts.iter() { try!(write!(f, "{} ", p)); }
+                write!(f, ")")
+            }
+        }
+    }
+}
+
 impl std::fmt::Debug for BIF {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         formatter.write_str("[built-in function]")

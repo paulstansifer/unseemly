@@ -19,6 +19,7 @@ extern crate num;
 #[macro_use] extern crate custom_derive;
 #[macro_use] extern crate mac;
 #[macro_use] extern crate quote;
+extern crate rustyline;
 
 use std::path::Path;
 use std::fs::File;
@@ -53,13 +54,30 @@ use runtime::reify::Reifiable;
 
 fn main() {
     let arguments : Vec<String> = std::env::args().collect();
-    let ref filename = arguments[1];
 
-    let mut raw_input = String::new();
-    File::open(&Path::new(filename))
-        .expect("Error opening file")
-        .read_to_string(&mut raw_input)
-        .expect("Error reading file");
+    if arguments.len() == 1 {
+        let mut rl = rustyline::Editor::<()>::new();
+
+        let _ = rl.load_history("/tmp/unseemly_interp_history");
+        while let Ok(line) = rl.readline("≫ ") {
+            // TODO: count delimiters, and allow line continuation!
+            rl.add_history_entry(&line);
+            print!("≉ {}\n", eval_unseemly_program(&line));
+        }
+        let _ = rl.save_history("/tmp/unseemly_interp_history").unwrap();
+    } else {
+        let ref filename = arguments[1];
+
+        let mut raw_input = String::new();
+        File::open(&Path::new(filename))
+            .expect("Error opening file")
+            .read_to_string(&mut raw_input)
+            .expect("Error reading file");
+
+        let result = eval_unseemly_program(&raw_input);
+
+        print!("{:?}\n", result);
+    }
 }
 
 fn eval_unseemly_program(program: &str) -> runtime::eval::Value {
