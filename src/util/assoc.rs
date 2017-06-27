@@ -157,7 +157,7 @@ impl<K: PartialEq + Clone, V: Clone> Assoc<K,V> {
                 Assoc {
                     n: Some(Rc::new(AssocNode {
                         k: node.k.clone(),
-                        // Should we rewuire `K` and `V` to be `Debug` to use `find_or_panic`?
+                        // Should we require `K` and `V` to be `Debug` to use `find_or_panic`?
                         v: f(&node.v, other.find(&node.k).unwrap()),
                         next: node.next.map_with(other, f)
                     }))
@@ -167,11 +167,11 @@ impl<K: PartialEq + Clone, V: Clone> Assoc<K,V> {
     }
 }
 
-impl<K: PartialEq + fmt::Debug, V: fmt::Debug> Assoc<K, V> {
+impl<K: PartialEq + fmt::Debug + Clone, V: fmt::Debug + Clone> Assoc<K, V> {
     pub fn find_or_panic<'assoc, 'f>(&'assoc self, target: &'f K) -> &'assoc V {
         match self.find(target) {
             None => {
-                panic!("{:?} not found in {:?}", target, self)
+                panic!("{:?} not found in {:?}", target, self.map(&|_| "…"))
             },
             Some(v) => v
         }

@@ -20,19 +20,31 @@ pub fn erase_value(tv: &TypedValue) -> Ty { Ty::new(tv.ty.clone()) }
 
 
 pub fn core_typed_values() -> Assoc<Name, TypedValue> {
+    let a_to_b = ast!({"type" "fn" : "param" => [(vr "a")], "ret" => (vr "b")});
+
     assoc_n!(
-        /*
         "fix" =>
-        tyf!( { "type" "forall_type" : // TODO: maybe use `a⇒b` instead of `t`
-            "param" => ["t"],
+        tyf!( { "type" "forall_type" :
+            "param" => ["a", "b"],
             "body" => { "type" "fn" :
-                "param" => [ { "type" "fn" : "param" => [(vr "t")], "ret" => (vr "t")} ],
-                "ret" => (vr "t") }},
+                "param" => [ { "type" "fn" :
+                    "param" => [(, a_to_b.clone())], "ret" => (, a_to_b.clone())} ],
+                "ret" => (, a_to_b.clone()) }},
             // TODO: built-in functions, even though none of them work, shouldn't crash
             ( Function(cl) ) => {
-                cl.env.set(cl.params[0], )
+                let new_env = cl.env.set(cl.params[0],
+                    // reconstruct the invocation that caused this:
+                    Function(Rc::new(::runtime::eval::Closure {
+                        body: ast!({"expr" "apply" :
+                            "rator" => (vr "fix"),
+                            "rand" => [(vr "orig_arg")]}),
+                        params: vec![],
+                        env: assoc_n!("orig_arg" => Function(cl.clone()),
+                                      // TODO: `core_values` does the `map` every time...
+                                      "fix" => core_values().find_or_panic(&n("fix")).clone())})));
+                eval(&cl.body, new_env).unwrap() // TODO: should be able to return `Result`
             }
-        ),*/
+        ),
         "plus" =>
         tf!([( "int", "int" ) -> "int"],
              ( Int(a), Int(b) ) => { Int( a.clone() + b ) }),
@@ -86,4 +98,42 @@ fn basic_core_value_evaluation() {
         }),
         ce),
         Ok(Int(BigInt::from(2))));
+}
+
+#[test]
+fn fixpoint_evaluation() {
+
+    // Note that I'm cheating by leaving off the lambda imports because lambda evaluation
+    //  doesn't take advantage of the betas in the first place.
+    assert_eq!(eval(
+        &ast!( {"expr" "apply" : "rator" =>
+        { "expr" "apply" :
+            "rator" => (vr "fix"),
+            "rand" => [{ "expr" "lambda" :
+                 "param" => [ "again" ],
+                 "p_t" => [ /* TODO */ (vr "TODO")  ],
+                 "body" => { "expr" "lambda" :
+                     "param" => [ "n" ],
+                     "p_t" => [ { "type" "int" : } ],
+                     "body" => { "expr" "match" :
+                         "scrutinee" => { "expr" "apply" : "rator" => (vr "zero?"),
+                                                           "rand" => [(vr "n")] },
+                         "p" => [@"c" {"pat" "enum_pat" : "component" => [], "name" => "True"  },
+                                      {"pat" "enum_pat" : "component" => [], "name" => "False" }],
+                         "arm" =>
+                             [@"c"
+                              (import ["p" = "scrutinee"] (vr "one")),
+                              (import ["p" = "scrutinee"] { "expr" "apply" :
+                                   "rator" => (vr "times"),
+                                   "rand" =>
+                                       [(vr "n"),
+                                        { "expr" "apply" :
+                                            "rator" => { "expr" "apply" :
+                                                "rator" => (vr "again"), "rand" => []},
+                                            "rand" => [{ "expr" "apply" :
+                                                 "rator" => (vr "minus"),
+                                                 "rand" => [(vr "n"), (vr "one")]}]}]})]}}}]},
+        "rand" => [(vr "five")]}),
+        core_values()),
+        Ok(val!(i 120)));
 }

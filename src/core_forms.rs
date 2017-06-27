@@ -167,10 +167,6 @@ pub fn make_core_syn_env() -> SynEnv {
                     (import [* ["param" : "p_t"]], (call "expr")))]),
             /* type */
             cust_rc_box!( move | part_types | {
-                for p in part_types.march_all(&[n("param")]) {
-                    print!("$$$$ {}\n", try!(p.get_res(&n("p_t"))));
-                }
-
                 let lambda_type : Ty =
                     ty!({ find_type(&ctf_0, "fn") ;
                          "param" => [* part_types =>("param") part_types :
@@ -210,25 +206,13 @@ pub fn make_core_syn_env() -> SynEnv {
             cust_rc_box!( move | part_values | {
                 match try!(part_values.get_res(&n("rator"))) {
                     Function(clos) => {
-                        // Evaluate arguments into a fake LazyWalkReses,
-                        //  making a dummy form that has the actual arguments and the body together
-                        let mut params = vec![];
-                        for (p, t) in clos.params.iter().zip(
-                                part_values.get_rep_term(&n("rand"))) {
-                            let new_arg_parts = ::util::mbe::EnvMBE::new_from_leaves(
-                                assoc_n!("param" => Atom(*p), "p_t" => t));
-                            params.push(new_arg_parts);
-                            //new_env_parts.add_leaf(*p, t);
+                        let mut new_env = clos.env.clone();
+                        for (p, v) in clos.params.iter().zip(
+                                try!(part_values.get_rep_res(&n("rand")))) {
+                            new_env = new_env.set(*p, v);
                         }
 
-                        // All these colons suggest that maybe there's
-                        // some other interface that should exist.
-
-                        let new_env_parts = ::util::mbe::EnvMBE::new_from_anon_repeat(params);
-
-                        ::ast_walk::walk::<::runtime::eval::Eval>(&clos.body,
-                            &::ast_walk::LazyWalkReses::new(
-                                clos.env.clone(), new_env_parts, part_values.this_ast.clone()))
+                        ::runtime::eval::eval(&clos.body, new_env)
                     },
                     BuiltInFunction(::runtime::eval::BIF(f)) => {
                         Ok(f(try!(part_values.get_rep_res(&n("rand")))))

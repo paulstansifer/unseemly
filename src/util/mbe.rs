@@ -341,7 +341,7 @@ impl<T: Clone> EnvMBE<T> {
         }
 
         let march_loc = match first_march {
-            None => { panic!("None of {:?} are repeated.", driving_names) }
+            None => { return vec![]; } // FOOTGUN: assume that it is repeated zero times
             Some((loc, _)) => loc
         };
 
@@ -361,12 +361,14 @@ impl<T: Clone> EnvMBE<T> {
     pub fn get_rep_leaf(&self, n: &Name) -> Option<Vec<&T>> {
         let mut res = vec![];
         let leaf_loc = match self.leaf_locations.find(n) {
-            Some(ll) => ll, None => { return None; }
+            Some(ll) => ll,
+            // FOOTGUN: can't distinguish wrong leaf names from 0-repeated leaves
+            None => { return Some(vec![]); }
         };
         for r in &*self.repeats[leaf_loc.unwrap()] {
             match r.get_leaf(n) {
                 Some(leaf) => { res.push(leaf) }
-                None => { return None; }
+                None => { return None; } // TODO: maybe this should panic, and we can lose Option
             }
         }
         Some(res)
@@ -583,11 +585,7 @@ impl<T: Clone + fmt::Debug> EnvMBE<T> {
     }
 
     pub fn get_rep_leaf_or_panic(&self, n: &Name) -> Vec<&T> {
-        let mut res = vec![];
-        for r in &*self.repeats[self.leaf_locations.find_or_panic(n).unwrap()] {
-            res.push(r.get_leaf_or_panic(n))
-        }
-        res
+        self.get_rep_leaf(n).unwrap()
     }
 }
 

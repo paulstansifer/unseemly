@@ -86,7 +86,7 @@ macro_rules! ast_shape {
 
 macro_rules! ast {
     ( (import $beta:tt $sub:tt) ) => {
-        ExtendEnv(Box::new(ast!($sub)), beta!($beta))
+        ::ast::ExtendEnv(Box::new(ast!($sub)), beta!($beta))
     };
     /* // not sure we'll need this
     ( (* $env:expr => $new_env:ident / $($n:expr),* ; $($sub_ar"gs:tt)*) ) => {
@@ -158,6 +158,7 @@ macro_rules! ty_err_p { // type error pattern
  */
 macro_rules! mbe_one_name {
     // `elt` ought to have an interpolation that references `new_env`
+    // TODO: maybe this (and the parser!) ought to add 0-times-repeated leaves to `leaf_locations`
     /* TYPE PUN ALERT: $env has to be something with a `march_all` method;
         there's no trait enforcing this.
 
