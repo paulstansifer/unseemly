@@ -204,8 +204,7 @@ impl WalkMode for SynthTy {
 
     fn walk_var(n: Name, parts: &::ast_walk::LazyWalkReses<SynthTy>) -> Result<Ty, TypeError> {
         match parts.env.find(&n) {
-            None => // This is fine; e.g. we might be at the `X` in `forall X. List<[X]<`.
-                Ok(Ty(VariableReference(n))),
+            None => Err(::util::err::sp(TyErr::UnboundName(n), parts.this_ast.clone())),
             Some(ty) => Ok(ty.clone())
         }
     }

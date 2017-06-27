@@ -59,10 +59,13 @@ fn main() {
         let mut rl = rustyline::Editor::<()>::new();
 
         let _ = rl.load_history("/tmp/unseemly_interp_history");
-        while let Ok(line) = rl.readline("≫ ") {
+        while let Ok(line) = rl.readline("\x1b[1;36m≫\x1b[0m ") {
             // TODO: count delimiters, and allow line continuation!
             rl.add_history_entry(&line);
-            print!("≉ {}\n", eval_unseemly_program(&line));
+            match eval_unseemly_program(&line) {
+                Ok(v) => print!("\x1b[1;32m≉\x1b[0m {}\n", v),
+                Err(s) => print!("\x1b[1;31m✘\x1b[0m {}\n", s)
+            }
         }
         let _ = rl.save_history("/tmp/unseemly_interp_history").unwrap();
     } else {
@@ -80,24 +83,26 @@ fn main() {
     }
 }
 
-fn eval_unseemly_program(program: &str) -> runtime::eval::Value {
+fn eval_unseemly_program(program: &str) -> Result<runtime::eval::Value, String> {
     let tokens = read::read_tokens(program);
 
-    let ast = core_forms::core_forms.with(|cse| {
-        parse::parse(&core_forms::outermost_form(), &cse, &tokens).unwrap()
-    });
 
-    let _type = ty::synth_type(&ast, runtime::core_values::core_types()).unwrap();
+    let ast : ::ast::Ast = try!(core_forms::core_forms.with(|cse| {
+        parse::parse(&core_forms::outermost_form(), &cse, &tokens)
+    }).map_err(|e| e.msg));
 
-    runtime::eval::eval(&ast, runtime::core_values::core_values()).unwrap()
+    let _type = try!(ty::synth_type(&ast, runtime::core_values::core_types())
+        .map_err(|e| format!("{:?}", e)));
+
+    runtime::eval::eval(&ast, runtime::core_values::core_values()).map_err(|_| "???".to_string())
 }
 
 #[test]
 fn end_to_end_eval() {
-    assert_eq!(eval_unseemly_program("(zero? zero)"), val!(b true));
+    assert_eq!(eval_unseemly_program("(zero? zero)"), Ok(val!(b true)));
 
-    assert_eq!(eval_unseemly_program("(plus one one)"), val!(i 2));
+    assert_eq!(eval_unseemly_program("(plus one one)"), Ok(val!(i 2)));
 
     assert_eq!(eval_unseemly_program("(.[x : int  y : int . (plus x y)]. one one)"),
-               val!(i 2));
+               Ok(val!(i 2)));
 }

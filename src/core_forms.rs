@@ -270,9 +270,9 @@ pub fn make_core_syn_env() -> SynEnv {
            "real" languages infer the type from the (required-to-be-unique)
            component name. */
         typed_form!("enum_expr",
-            [(named "name", aat),
-             (delim "(", "(", /*))*/ [(star (named "component", (call "expr")))]),
-             (lit ":"), (named "t", (call "type"))],
+             [(delim "+[", "[", /*]]*/ [(named "name", aat),
+                                       (star (named "component", (call "expr")))]),
+              (lit ":"), (named "t", (call "type"))],
             /* Typesynth: */
             cust_rc_box!( move | part_types | {
                 let res : Ty = try!(part_types.get_res(&n("t")));
