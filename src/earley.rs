@@ -36,6 +36,8 @@ thread_local! {
     static next_id: RefCell<u32> = RefCell::new(0);
     static all_grammars: RefCell<::std::collections::HashMap<UniqueIdRef, SynEnv>>
         = RefCell::new(::std::collections::HashMap::new());
+
+    static best_token: RefCell<(usize, Name)> = RefCell::new((0, n("[nothing parsed]")));
 }
 
 fn get_next_id() -> UniqueId {
@@ -413,6 +415,12 @@ impl Item {
             vec![]
         };
 
+        if res.len() > 0 {
+            if let Some(&Simple(n)) = cur {
+                best_token.with(|bt| *bt.borrow_mut() = (cur_idx, n));
+            }
+        }
+
         res.append(&mut self.shift_or_predict(cur, cur_idx));
 
         res
@@ -684,7 +692,12 @@ pub fn parse(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> ParseResult {
     log!("-------\n");
     match final_item {
         Some(ref i) => i.c_parse(&chart, chart.len()-1),
-        None => { Err(ParseError{ msg: "TODO: no parse".to_string() })}
+        None => {
+            best_token.with(|bt| {
+                let (idx, tok) = *bt.borrow();
+                Err(ParseError{ msg: format!("Parse error near position {} ({})", idx, tok) })
+            })
+        }
     }
 }
 

@@ -83,7 +83,7 @@ pub fn read_tokens(s: &str) -> TokenTree {
 
     match leftover {
         None => tt,
-        Some(l) => { panic!("leftover! {:?}", l); }
+        Some(l) => { panic!("Read error: leftover {:?}", l); }
     }
 }
 
