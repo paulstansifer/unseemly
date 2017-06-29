@@ -425,8 +425,8 @@ pub fn make_core_syn_env() -> SynEnv {
 
     let main_pat_forms = forms_to_form_pat![
         negative_typed_form!("enum_pat",
-            [(named "name", aat),
-             (delim "(", "(", /*))*/ [(star (named "component", (call "pat")))])],
+            (delim "+[", "[", /*]]*/ [(named "name", aat),
+                                      (star (named "component", (call "pat")))]),
             /* (Negatively) Typecheck: */
             cust_rc_box!( move | part_types |
                 expect_ty_node!( (part_types.context_elt() ; find_type(&ctf_6, "enum"))

@@ -431,22 +431,30 @@ impl Item {
                     _ => vec![]
                 }
             },
+            // TODO: without checking for `end_of_delim()`, `(plus (plus (plus one one) one) one)`
+            //  parses incorrectly (one of the `end_of_delim()`s winds up in a VarRef).
+            // But this should just be an optimization...
+            // Maybe it has something to do with how we handle end-of-file?
             (0, &AnyToken) => {
                 match cur {
-                    Some(&Simple(n)) => self.finish_with(ParsedAtom(::ast::Atom(n)), true),
+                    Some(&Simple(n)) if Simple(n) != end_of_delim() => {
+                      self.finish_with(ParsedAtom(::ast::Atom(n)), true)
+                    }
                     Some(&Group(_,_,_)) => self.finish_with(ParsedAtom(::ast::Trivial), true), // TODO
                     _ => vec![]
                 }
             },
             (0, &AnyAtomicToken) => {
                 match cur {
-                    Some(&Simple(n)) => self.finish_with(ParsedAtom(::ast::Atom(n)), true),
+                    Some(&Simple(n)) if Simple(n) != end_of_delim() => {
+                      self.finish_with(ParsedAtom(::ast::Atom(n)), true)
+                    }
                     _ => vec![]
                 }
             },
             (0, &VarRef) => {
                 match cur {
-                    Some(&Simple(n)) => {
+                    Some(&Simple(n)) if Simple(n) != end_of_delim() => {
                         self.finish_with(ParsedAtom(::ast::VariableReference(n)), true)
                     },
                     _ => vec![]
@@ -654,13 +662,14 @@ impl Item {
             }
         };
         log!(">>>{:?}<<<\n", res);
+
         res
     }
 }
 
 type ParseResult = Result<Ast, ParseError>;
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ParseError {
     pub msg: String
 }
@@ -675,7 +684,7 @@ pub fn parse(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> ParseResult {
     log!("-------\n");
     match final_item {
         Some(ref i) => i.c_parse(&chart, chart.len()-1),
-        None => { Err(ParseError{ msg: "TODO".to_string() })}
+        None => { Err(ParseError{ msg: "TODO: no parse".to_string() })}
     }
 }
 
@@ -981,4 +990,12 @@ fn basic_parsing_e() {
                                    Rc::new(Literal(n("X")))]),
                      &tokens!("*" "*" "*" "*" "*" "X")),
                Ok(ast_shape!({- "c" => ["*", "*", "*", "*", "*"] } "X")));
+
+    assert_m!(parse_top(&form_pat!([(star (biased (lit "a"), (lit "b"))), (lit "b")]),
+                        &tokens!["a" "a" "b"]),
+              Ok(_));
+
+    assert_m!(parse_top(&form_pat!([(star (biased (lit "b"), (lit "a"))), (lit "b")]),
+                        &tokens!["a" "a" "b"]),
+              Ok(_));
 }

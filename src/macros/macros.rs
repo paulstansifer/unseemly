@@ -42,6 +42,10 @@ macro_rules! beta {
             ::beta::ShadowAll(Box::new(sub), drivers)
         }
     };
+    ( [ forall $name:tt $( $rest:tt )*] ) => {
+        ::beta::Shadow(Box::new(::beta::Underspecified(::name::n(expr_ify!($name)))),
+               Box::new(beta!( [ $( $rest )* ] )))
+    };
     ( [ $name:tt $connector:tt $t:tt
         $( $rest:tt )*
          ] ) => {
@@ -49,10 +53,6 @@ macro_rules! beta {
                                                     ::name::n(expr_ify!($t)))),
                Box::new(beta!( [ $( $rest )* ] )))
     };
-    ( [ forall $name:tt $( $rest:tt )*] ) => {
-        ::beta::Shadow(Box::new(::beta::Underspecified(::name::n(expr_ify!($name)))),
-               Box::new(beta!( [ $( $rest )* ] )))
-    }
 }
 
 
@@ -81,7 +81,7 @@ macro_rules! t_elt {
 /* Ast */
 
 macro_rules! ast_shape {
-    ($($contents:tt)*) => { Shape(vec![ $(  ast!($contents) ),* ] )};
+    ($($contents:tt)*) => { ::ast::Shape(vec![ $(  ast!($contents) ),* ] )};
 }
 
 macro_rules! ast {
