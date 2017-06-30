@@ -405,6 +405,31 @@ pub fn walk<Mode: WalkMode>(node: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
     }
 }
 
+// TODO: this isn't capture-avoiding
+fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Assoc<Name, Ast>) -> Ast {
+    match *node {
+        Node(ref f, ref new_parts) => {
+            //let new_cnc = parts.clone();
+            Node(f.clone(), new_parts.map(&|part: &Ast| substitute_rec(part, new_parts, env)))
+        }
+        VariableReference(n) => {
+            env.find(&n).unwrap_or(&node.clone()).clone()
+        }
+        ExtendEnv(ref body, ref beta) => {
+            let mut new_env = env.clone();
+            for bound_name in keys_from_beta(beta, cur_node_contents) {
+                new_env = new_env.unset(&bound_name);
+            }
+            ExtendEnv(Box::new(substitute_rec(body, cur_node_contents, &new_env)), beta.clone())
+        }
+        _ => node.clone()
+    }
+}
+
+pub fn substitute(node: &Ast, env: &Assoc<Name, Ast>) -> Ast {
+    substitute_rec(node, &EnvMBE::new(), env)
+}
+
 
 // ======================[ Interface to the outside world ]======================
 // Everything below this line is about how one makes specific walks work
@@ -673,4 +698,31 @@ pub fn var_lookup<Elt: Debug + Clone>(n: &Name, env: &Assoc<Name, Elt>)
 pub fn var_bind<Elt: Debug + Clone>(n: &Name, env: &Assoc<Name, Elt>)
         -> Result<Assoc<Name, Elt>, ()> {
     Ok(Assoc::new().set(*n, env.find(&negative_ret_val()).unwrap().clone()))
+}
+
+
+#[test]
+fn basic_substitution() {
+    assert_eq!(substitute(
+            &ast!({"expr" "apply" : "rator" => (vr "a"), "rand" => [(vr "b"), (vr "c")]}),
+            &assoc_n!("x" => ast!((vr "y")), "buchanan" => ast!((vr "lincoln")))),
+        ast!({"expr" "apply" : "rator" => (vr "a"), "rand" => [(vr "b"), (vr "c")]}));
+
+    assert_eq!(substitute(
+            &ast!({"expr" "apply" : "rator" => (vr "buchanan"),
+                                    "rand" => [(vr "buchanan"), (vr "c")]}),
+            &assoc_n!("x" => ast!((vr "y")), "buchanan" => ast!((vr "lincoln")))),
+        ast!({"expr" "apply" : "rator" => (vr "lincoln"), "rand" => [(vr "lincoln"), (vr "c")]}));
+
+
+    assert_eq!(substitute(
+            &ast!({"expr" "lambda" :
+                "param" => ["b", "x"],
+                "body" => (import [* ["param" : "[ignored]"]]
+                    {"expr" "apply" : "rator" => [(vr "a"), (vr "b"), (vr "c")]})}),
+            &assoc_n!("a" => ast!((vr "A")), "b" => ast!((vr "B")), "c" => ast!((vr "C")))),
+        ast!({"expr" "lambda" :
+            "param" => ["b", "x"],
+            "body" => (import [* ["param" : "[ignored]"]]
+                {"expr" "apply" : "rator" => [(vr "A"), (vr "b"), (vr "C")]})}));
 }

@@ -146,5 +146,28 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
     }
 }
 
+// Like just taking the keys from `env_from_beta`, but faster and non-failing
+pub fn keys_from_beta(b: &Beta, parts: &::util::mbe::EnvMBE<::ast::Ast>) -> Vec<Name> {
+    match *b {
+        Nothing => { vec![] }
+        Shadow(ref lhs, ref rhs) => {
+            let mut res = keys_from_beta(&*lhs, parts);
+            let mut res_r = keys_from_beta(&*rhs, parts);
+            res.append(&mut res_r);
+            res
+        }
+        ShadowAll(ref sub_beta, ref drivers) => {
+            let mut res = vec![];
+            for ref sub_parts in parts.march_all(drivers) {
+                res.append(&mut keys_from_beta(&*sub_beta, sub_parts));
+            }
+            res
+        }
+        Basic(ref n_s, _) | SameAs(ref n_s, _) | Underspecified(ref n_s)=> {
+            vec![::core_forms::ast_to_atom(parts.get_leaf_or_panic(n_s))]
+        }
+    }
+}
+
 //fn fold_beta<T>(b: Beta, over: Assoc<Name, T>,
 //                    leaf: Fn(&Ast ) -> S

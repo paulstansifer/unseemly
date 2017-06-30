@@ -214,10 +214,12 @@ pub fn make_core_syn_env_types() -> SynEnv {
         }),
         Both(
             cust_rc_box!(move |tbn_part| {
-                ::ty_compare::Canonicalize::walk_var(n("[ignored]"), &tbn_part)
+                ::ty_compare::Canonicalize::walk_var(
+                    ast_to_atom(&tbn_part.get_term(&n("name"))), &tbn_part)
             }),
             cust_rc_box!(move |tbn_part| {
-                ::ty_compare::Subtype::walk_var(n("[ignored]"), &tbn_part)
+                ::ty_compare::Subtype::walk_var(
+                    ast_to_atom(&tbn_part.get_term(&n("name"))), &tbn_part)
 
             })));
 

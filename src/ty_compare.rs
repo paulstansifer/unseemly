@@ -155,8 +155,16 @@ impl WalkMode for Canonicalize {
     type Err = TyErr;
     type D = ::ast_walk::Positive<Canonicalize>;
 
+    // Actually, always `LiteralLike`, but need to get the lifetime as long as `f`'s
     fn get_walk_rule(f: &Form) -> &WalkRule<Canonicalize> { &f.type_compare.pos() }
     fn automatically_extend_env() -> bool { true }
+
+    fn walk_var(n: Name, cnc: &LazyWalkReses<Canonicalize>) -> Result<Ty, TyErr> {
+        Ok(match cnc.env.find(&n) {
+            Some(t) => t.clone(),
+            None => Ty(VariableReference(n)) //TODO why can this happen?
+        })
+    }
 }
 
 impl WalkMode for Subtype {
@@ -184,6 +192,10 @@ impl ::ast_walk::NegativeWalkMode for Subtype {
             let lhs = resolve(&lhs, env, &unif.borrow()).clone();
             let rhs = resolve(&rhs, env, &unif.borrow()).clone();
 
+            // We need to capture the environment
+            let lhs = Ty(::ast_walk::substitute(&lhs.concrete(), &env.map(&|t| t.concrete())));
+            let rhs = Ty(::ast_walk::substitute(&rhs.concrete(), &env.map(&|t| t.concrete())));
+
             let lhs_name = lhs.destructure(u_f.clone()).map(
                 |p| ast_to_atom(p.get_leaf_or_panic(&n("id"))));
             let rhs_name = rhs.destructure(u_f.clone()).map(
@@ -204,7 +216,10 @@ impl ::ast_walk::NegativeWalkMode for Subtype {
     // TODO: should unbound variable references ever be walked at all? Maybe it should panic?
 }
 
-
+pub fn capture_environment(t: &Ty, env: Assoc<Name, Ty>) -> Ty {
+    let walk_env = &LazyWalkReses::<Canonicalize>::new_wrapper(env);
+    walk::<Canonicalize>(&t.concrete(), walk_env).expect("ICE: Ill-formed type")
+}
 
 pub fn must_subtype(sub: &Ty, sup: &Ty, env: Assoc<Name, Ty>) -> Result<Assoc<Name, Ty>, TyErr> {
     // TODO: I think we should be canonicalizing first...
@@ -302,4 +317,11 @@ fn basic_subtyping() {
 
     assert_m!(must_subtype(&incomplete_fn_ty(), &id_fn_ty, mt_ty_env.clone()),
               Ok(_));
+
+    assert_eq!(::ty::synth_type(&ast!({"expr" "apply" : "rator" => (vr "identity"),
+                                                        "rand" => [(vr "some_int")]}),
+                          parametric_ty_env.clone()),
+               Ok(ty!({"type" "int" : })));
+
+    // TODO: write a test that relies on the capture-the-environment behavior of `pre_match`
 }

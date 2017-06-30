@@ -72,8 +72,6 @@ impl ::std::fmt::Display for Ty {
                     write!(f, "nat")
                 } else if form == &find_core_form("type", "float") {
                     write!(f, "float")
-                } else if form == &find_core_form("type", "bool") {
-                    write!(f, "bool")
                 } else if form == &find_core_form("type", "fn") {
                     try!(write!(f, "["));
                     let mut first = true;

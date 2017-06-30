@@ -309,7 +309,7 @@ pub fn make_core_syn_env() -> SynEnv {
                     try!(part_values.get_rep_res(&n("component")))))
             })),
         typed_form!("struct_expr",
-            (delim "{", "{", /*}}*/
+            (delim "*[", "[", /*]]*/
                 (star [(named "component_name", aat), (lit ":"),
                        (named "component", (call "expr"))])),
             cust_rc_box!( move | part_types | {
