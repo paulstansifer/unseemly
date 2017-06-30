@@ -56,8 +56,12 @@ pub fn core_typed_values() -> Assoc<Name, TypedValue> {
         tf!([( "int", "int" ) -> "int"],
              ( Int(a), Int(b) ) => { Int( a.clone() * b ) }),
         "zero?" =>
-        tyf!( { "type" "fn" : "param" => [ {"type" "int" :}], "ret" => (vr "bool") },
+        tyf!( {"type" "fn" : "param" => [ {"type" "int" :}], "ret" => (vr "bool") },
               ( Int(a) ) => { val!(b   a == BigInt::from(0))}),
+        "equal?" =>
+        tyf!( {"type" "fn" : "param" => [ {"type" "int" :}, {"type" "int" :} ],
+                             "ret" => (vr "bool")},
+              ( Int(a), Int(b) ) => { val!(b a == b)} ),
         "zero" => tf!( "int", val!(i 0) ),
         "one" => tf!( "int", val!(i 1) ),
         "two" => tf!( "int", val!(i 2) ),

@@ -592,6 +592,9 @@ pub fn find_core_form(nt: &str, name: &str) -> Rc<Form> {
     core_forms.with(|cf| find_form(cf, nt, name))
 }
 
+pub fn get_core_forms() -> SynEnv {
+    core_forms.with(|cf| cf.clone())
+}
 
 
 

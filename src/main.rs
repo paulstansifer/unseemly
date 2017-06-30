@@ -20,6 +20,8 @@ extern crate num;
 #[macro_use] extern crate mac;
 #[macro_use] extern crate quote;
 extern crate rustyline;
+extern crate regex;
+
 
 use std::path::Path;
 use std::fs::File;
@@ -52,17 +54,85 @@ mod core_forms;
 
 use runtime::reify::Reifiable;
 
+use runtime::core_values;
+use std::cell::RefCell;
+use util::assoc::Assoc;
+use name::{Name, n};
+use ty::Ty;
+use ast::Ast;
+use runtime::eval::{eval, Value};
+
+thread_local! {
+    pub static ty_env : RefCell<Assoc<Name, Ty>> = RefCell::new(core_values::core_types());
+    pub static val_env : RefCell<Assoc<Name, Value>> = RefCell::new(core_values::core_values());
+}
+
+struct ValueCompleter {}
+
+impl rustyline::completion::Completer for ValueCompleter {
+    fn complete(&self, line: &str, pos: usize)
+            -> Result<(usize, Vec<String>), rustyline::error::ReadlineError> {
+        let mut break_chars = std::collections::BTreeSet::new();
+        break_chars.extend(vec!['[', '(', '{', ' ', '}', ')',  ']'].iter());
+        let mut res = vec![];
+        let (start, word_so_far) = rustyline::completion::extract_word(line, pos, &break_chars);
+        val_env.with(|vals| {
+            let vals = vals.borrow();
+            for k in vals.iter_keys() {
+                if k.sp().starts_with(word_so_far) { res.push(k.sp()); }
+            }
+        });
+        Ok((start, res))
+    }
+}
+
 fn main() {
     let arguments : Vec<String> = std::env::args().collect();
 
     if arguments.len() == 1 {
-        let mut rl = rustyline::Editor::<()>::new();
+        let mut rl = rustyline::Editor::<ValueCompleter>::new();
+        rl.set_completer(Some(ValueCompleter{}));
+
+        let just_type = regex::Regex::new("^:t (.*)$").unwrap();
+        let assign_value = regex::Regex::new("^(\\w+)\\s*:=(.*)$").unwrap();
+
+        print!("\n");
+        print!("                 \x1b[1;32mUnseemly\x1b[0m\n");
+        print!("   `:t <expr>` to synthesize the type of <expr>.\n");
+        print!("   `<name> := <expr>` to bind a name for this session.\n");
+        print!("   Tab-completion works on variables, and many Bash-isms work.\n");
 
         let _ = rl.load_history("/tmp/unseemly_interp_history");
         while let Ok(line) = rl.readline("\x1b[1;36m≫\x1b[0m ") {
             // TODO: count delimiters, and allow line continuation!
             rl.add_history_entry(&line);
-            match eval_unseemly_program(&line) {
+
+            let result_display = if let Some(caps) = just_type.captures(&line) {
+                type_unseemly_program(caps.at(1).unwrap()).map(|x| format!("{}", x))
+            } else if let Some(caps) = assign_value.captures(&line) {
+                let expr = caps.at(2).unwrap();
+                let res = eval_unseemly_program(expr);
+
+                if let Ok(ref v) = res {
+                    let var = n(caps.at(1).unwrap());
+                    let ty = type_unseemly_program(expr).unwrap();
+                    ty_env.with(|tys| {
+                        val_env.with(|vals| {
+                            let new_tys = tys.borrow().set(var, ty).clone();
+                            let new_vals = vals.borrow().set(var, v.clone());
+                            *tys.borrow_mut() = new_tys;
+                            *vals.borrow_mut() = new_vals;
+                        })
+                    })
+                }
+
+                res.map(|x| format!("{}", x))
+            } else {
+                eval_unseemly_program(&line).map(|x| format!("{}", x))
+            };
+
+
+            match result_display {
                 Ok(v) => print!("\x1b[1;32m≉\x1b[0m {}\n", v),
                 Err(s) => print!("\x1b[1;31m✘\x1b[0m {}\n", s)
             }
@@ -83,18 +153,33 @@ fn main() {
     }
 }
 
-fn eval_unseemly_program(program: &str) -> Result<runtime::eval::Value, String> {
+fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
     let tokens = read::read_tokens(program);
 
 
-    let ast : ::ast::Ast = try!(core_forms::core_forms.with(|cse| {
-        parse::parse(&core_forms::outermost_form(), &cse, &tokens)
-    }).map_err(|e| e.msg));
+    let ast = try!(
+        parse::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
+            .map_err(|e| e.msg));
 
-    let _type = try!(ty::synth_type(&ast, runtime::core_values::core_types())
-        .map_err(|e| format!("{:?}", e)));
+    ty_env.with(|types| {
+        ty::synth_type(&ast, types.borrow().clone()).map_err(|e| format!("{:?}", e))
+    })
+}
 
-    runtime::eval::eval(&ast, runtime::core_values::core_values()).map_err(|_| "???".to_string())
+fn eval_unseemly_program(program: &str) -> Result<runtime::eval::Value, String> {
+    let tokens = read::read_tokens(program);
+
+    let ast : ::ast::Ast = try!(
+        parse::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
+            .map_err(|e| e.msg));
+
+    let _type = try!(ty_env.with(|types| {
+        ty::synth_type(&ast, types.borrow().clone()).map_err(|e| format!("{:?}", e))
+    }));
+
+    val_env.with(|vals| {
+        runtime::eval::eval(&ast, vals.borrow().clone()).map_err(|_| "???".to_string())
+    })
 }
 
 #[test]

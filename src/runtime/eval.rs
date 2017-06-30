@@ -60,16 +60,16 @@ impl std::fmt::Display for Value {
             &BuiltInFunction(_) => { write!(f, "[built-in function]") }
             &AbstractSyntax(n, ref ast) => { write!(f, "{}: {:?}", n, ast) }
             &Struct(ref parts) => {
-                try!(write!(f, "{{"));
+                try!(write!(f, "*["));
                 for (k,v) in parts.iter_pairs() {
                     try!(write!(f, "{}: {} ", k, v));
                 }
-                write!(f, "}}")
+                write!(f, "]*")
             }
             &Enum(n, ref parts) => {
-                try!(write!(f, "{}(", n));
+                try!(write!(f, "+[{}", n));
                 for p in parts.iter() { try!(write!(f, "{} ", p)); }
-                write!(f, ")")
+                write!(f, "]+")
             }
         }
     }
