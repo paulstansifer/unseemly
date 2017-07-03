@@ -364,13 +364,10 @@ pub fn make_core_syn_env() -> SynEnv {
                 expect_ty_node!( (mu_typed.clone() ; find_type(&ctf_4, "mu_type") )
                     mu_parts;
                     {
-                        synth_type(
+                        // This acts like the `mu` was never there (and hiding the binding)
+                        Ok(Ty(::ast_walk::substitute(
                             mu_parts.get_leaf_or_panic(&n("body")),
-                            unfold_parts.env.set(
-                                ast_to_atom(mu_parts.get_leaf_or_panic(&n("param"))),
-                                // Maybe this ought to be a lookup of `param` in `ty_env`?
-                                // Is there ever a difference?
-                                mu_typed))
+                            &unfold_parts.env.map(&|x: &Ty| x.concrete()))))
                     })
             }),
             Body(n("body"))),
@@ -387,13 +384,9 @@ pub fn make_core_syn_env() -> SynEnv {
                 let folded_goal = expect_ty_node!( (goal_type.clone() ; find_type(&ctf_5, "mu_type"))
                     mu_parts;
                     {
-                        try!(synth_type(
+                        Ty(::ast_walk::substitute(
                             mu_parts.get_leaf_or_panic(&n("body")),
-                            fold_parts.env.set(
-                                ast_to_atom(mu_parts.get_leaf_or_panic(&n("param"))),
-                                // Maybe this ought to be a lookup of `param` in `ty_env`?
-                                // Is there ever a difference?
-                                goal_type.clone())))
+                            &fold_parts.env.map(&|x: &Ty| x.concrete())))
                     });
 
                 ty_exp!(&try!(fold_parts.get_res(&n("body"))), &folded_goal,
@@ -947,9 +940,9 @@ fn alg_eval() {
 
 #[test]
 fn recursive_types() {
-    let int_list_ty = ty!( { find_core_form("type", "mu_type") ;
+    let int_list_ty = ty!( { "type" "mu_type" :
         "param" => "int_list",
-        "body" => { find_core_form("type", "enum") ;
+        "body" => { "type" "enum" :
             "name" => [@"c" "Nil", "Cons"],
             "component" => [@"c" [], ["integer", (vr "int_list") ]]}});
 
@@ -958,10 +951,17 @@ fn recursive_types() {
         "il_direct" => int_list_ty.clone()  // ...and this is a value with a type
         // TODO: ... distinguish between these in the environment! Is the difference ... kind?
 
-        // We should never have `tbn`s in the environment unless "protected" by a μ.
+        // We should never have `vr`s in the environment unless "protected" by a μ.
         // TODO: enforce that:
-        //"il_named" => tbn("int_list")
+        //"il_named" => ty!((vr "int_list"))
     );
+
+    // Test that unfolding a type produces one that's "twice as large", minus the outer mu
+    assert_eq!(synth_type(
+        &ast!({"expr" "unfold" : "body" => (vr "il_direct")}), ty_env.clone()),
+        Ok(ty!({ "type" "enum" :
+                "name" => [@"c" "Nil", "Cons"],
+                "component" => [@"c" [], ["integer", (, int_list_ty.concrete()) ]]})));
 
     // folding an unfolded thing should give us back the same thing
     assert_eq!(synth_type(
@@ -986,6 +986,22 @@ fn recursive_types() {
         ty_env.clone()),
         Ok(ty!("integer"))
     );
+
+    // Unfold a type and then extract the part that should have the same type as the outer type
+    assert_eq!(synth_type(
+        &ast!( { find_core_form("expr", "match") ;
+            "scrutinee" => { find_core_form("expr", "unfold") ; "body" => (vr "il_direct") },
+            "p" => [@"arm" { find_core_form("pat", "enum_pat") ;
+                "name" => "Cons",
+                "component" => [(vr "car"), (vr "cdr")],
+                "t" => (vr "int_list")
+            }],
+            "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "cdr"))]
+        }),
+        ty_env.clone()),
+        Ok(int_list_ty.clone())
+    );
+
 
     // Test that missing an unfold fails
     assert_m!(synth_type(
