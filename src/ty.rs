@@ -133,7 +133,14 @@ impl ::std::fmt::Display for Ty {
                     }
                     write!(f, "]<")
                 } else if form == &undet_form {
-                    write!(f, "¿{}?", ast_to_atom(env.get_leaf_or_panic(&n("id"))))
+                    ::ty_compare::unification.with(|unif| {
+                        let var = ast_to_atom(&env.get_leaf_or_panic(&n("id")));
+                        let looked_up = unif.borrow().get(&var).map(|x| x.clone());
+                        match looked_up {
+                            Some(ref t) => write!(f, "{}", t),
+                            None => write!(f, "¿{}?", var)
+                        }
+                    })
                 } else {
                     panic!("{:?} is not a well-formed type", self.0);
                 }
