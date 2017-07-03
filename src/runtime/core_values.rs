@@ -47,34 +47,34 @@ pub fn core_typed_values() -> Assoc<Name, TypedValue> {
             }
         ),
         "plus" =>
-        tf!([( "int", "int" ) -> "int"],
+        tf!([( "Int", "Int" ) -> "Int"],
              ( Int(a), Int(b) ) => { Int( a.clone() + b ) }),
         "minus" =>
-        tf!([( "int", "int" ) -> "int"],
+        tf!([( "Int", "Int" ) -> "Int"],
              ( Int(a), Int(b) ) => { Int( a.clone() - b ) }),
         "times" =>
-        tf!([( "int", "int" ) -> "int"],
+        tf!([( "Int", "Int" ) -> "Int"],
              ( Int(a), Int(b) ) => { Int( a.clone() * b ) }),
         "zero?" =>
-        tyf!( {"type" "fn" : "param" => [ {"type" "int" :}], "ret" => (vr "bool") },
+        tyf!( {"type" "fn" : "param" => [ {"type" "Int" :}], "ret" => (vr "Bool") },
               ( Int(a) ) => { val!(b   a == BigInt::from(0))}),
         "equal?" =>
-        tyf!( {"type" "fn" : "param" => [ {"type" "int" :}, {"type" "int" :} ],
-                             "ret" => (vr "bool")},
+        tyf!( {"type" "fn" : "param" => [ {"type" "Int" :}, {"type" "Int" :} ],
+                             "ret" => (vr "Bool")},
               ( Int(a), Int(b) ) => { val!(b a == b)} ),
-        "zero" => tf!( "int", val!(i 0) ),
-        "one" => tf!( "int", val!(i 1) ),
-        "two" => tf!( "int", val!(i 2) ),
-        "three" => tf!( "int", val!(i 3) ),
-        "four" => tf!( "int", val!(i 4) ),
-        "five" => tf!( "int", val!(i 5) ),
-        "six" => tf!( "int", val!(i 6) ),
-        "seven" => tf!( "int", val!(i 7) ),
-        "eight" => tf!( "int", val!(i 8) ),
-        "nine" => tf!( "int", val!(i 9) ),
-        "ten" => tf!( "int", val!(i 10) ),
-        "false" => TypedValue { ty: ast!((vr "bool")), val: val!(b false)},
-        "true" => TypedValue { ty: ast!((vr "bool")), val: val!(b true)}
+        "zero" => tf!( "Int", val!(i 0) ),
+        "one" => tf!( "Int", val!(i 1) ),
+        "two" => tf!( "Int", val!(i 2) ),
+        "three" => tf!( "Int", val!(i 3) ),
+        "four" => tf!( "Int", val!(i 4) ),
+        "five" => tf!( "Int", val!(i 5) ),
+        "six" => tf!( "Int", val!(i 6) ),
+        "seven" => tf!( "Int", val!(i 7) ),
+        "eight" => tf!( "Int", val!(i 8) ),
+        "nine" => tf!( "Int", val!(i 9) ),
+        "ten" => tf!( "Int", val!(i 10) ),
+        "false" => TypedValue { ty: ast!((vr "Bool")), val: val!(b false)},
+        "true" => TypedValue { ty: ast!((vr "Bool")), val: val!(b true)}
     )
 }
 
@@ -84,7 +84,7 @@ pub fn core_values() -> Assoc<Name, Value> {
 
 pub fn core_types() -> Assoc<Name, Ty> {
     core_typed_values().map(&erase_value).set(
-        n("bool"), ty!(
+        n("Bool"), ty!(
             {"type" "enum" : "name" => [@"c" "True", "False"], "component" => [@"c" [], []]}))
 }
 
@@ -119,7 +119,7 @@ fn fixpoint_evaluation() {
                  "p_t" => [ /* TODO */ (vr "TODO")  ],
                  "body" => { "expr" "lambda" :
                      "param" => [ "n" ],
-                     "p_t" => [ { "type" "int" : } ],
+                     "p_t" => [ { "type" "Int" : } ],
                      "body" => { "expr" "match" :
                          "scrutinee" => { "expr" "apply" : "rator" => (vr "zero?"),
                                                            "rand" => [(vr "n")] },

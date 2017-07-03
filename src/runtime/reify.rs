@@ -77,12 +77,12 @@ macro_rules! basic_reifiability {
     }
 }
 
-basic_reifiability!(BigInt, "int", Int);
+basic_reifiability!(BigInt, "Int", Int);
 
-basic_reifiability!(Name, "ident", Ident);
+basic_reifiability!(Name, "Ident", Ident);
 
 impl Reifiable for bool {
-    fn ty_name() -> Name { n("bool") }
+    fn ty_name() -> Name { n("Bool") }
 
     fn reify(&self) -> Value {
         ::runtime::eval::Value::Enum(n( if *self {"True"} else {"False"} ) , vec![])
@@ -446,7 +446,7 @@ fn reified_types() {
                     "type_name" => "Option",
                     "arg" => [ (, tbn("rust_usize")) ]
                 },
-                (, tbn("int"))]
+                (, tbn("Int"))]
         }));
 
 

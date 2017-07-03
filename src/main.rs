@@ -105,7 +105,7 @@ fn main() {
         let save_type = regex::Regex::new("^:s +((\\w+)\\s*t=(.*))$").unwrap();
 
         print!("\n");
-        print!("                  \x1b[1;32mUnseemly\x1b[0m\n");
+        print!("                  \x1b[1;38mUnseemly\x1b[0m\n");
         print!("    `<name> := <expr>` to bind a name for this session.\n");
         print!("    `:t <expr>` to synthesize the type of <expr>.\n");
         print!("    `<name> t= <type>` to bind a type for this session.\n");
@@ -265,6 +265,6 @@ fn end_to_end_eval() {
 
     assert_eq!(eval_unseemly_program("(plus one one)"), Ok(val!(i 2)));
 
-    assert_eq!(eval_unseemly_program("(.[x : int  y : int . (plus x y)]. one one)"),
+    assert_eq!(eval_unseemly_program("(.[x : Int  y : Int . (plus x y)]. one one)"),
                Ok(val!(i 2)));
 }

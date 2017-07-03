@@ -250,9 +250,9 @@ fn basic_subtyping() {
     }
 
     let mt_ty_env = Assoc::new();
-    let int_ty = ty!({ "type" "int" : });
-    let nat_ty = ty!({ "type" "nat" : });
-    let float_ty = ty!({ "type" "float" : });
+    let int_ty = ty!({ "type" "Int" : });
+    let nat_ty = ty!({ "type" "Nat" : });
+    let float_ty = ty!({ "type" "Float" : });
 
 
     assert_m!(must_subtype(&int_ty, &int_ty, mt_ty_env.clone()), Ok(_));
@@ -287,7 +287,7 @@ fn basic_subtyping() {
               Err(Mismatch(_,_)));
 
     let parametric_ty_env = assoc_n!(
-        "some_int" => ty!( { "type" "int" : }),
+        "some_int" => ty!( { "type" "Int" : }),
         "convert_to_nat" => ty!({ "type" "forall_type" :
             "param" => ["t"],
             "body" => (import [* [forall "param"]]
@@ -307,7 +307,7 @@ fn basic_subtyping() {
     fn incomplete_fn_ty() -> Ty { // A function, so we get a fresh underspecified type each time.
         use ast_walk::WalkElt;
         ty!({ "type" "fn" :
-            "param" => [ { "type" "int" : } ],
+            "param" => [ { "type" "Int" : } ],
             "ret" => (, Ty::underspecified().concrete() )})
     }
 
@@ -321,7 +321,7 @@ fn basic_subtyping() {
     assert_eq!(::ty::synth_type(&ast!({"expr" "apply" : "rator" => (vr "identity"),
                                                         "rand" => [(vr "some_int")]}),
                           parametric_ty_env.clone()),
-               Ok(ty!({"type" "int" : })));
+               Ok(ty!({"type" "Int" : })));
 
     // TODO: write a test that relies on the capture-the-environment behavior of `pre_match`
 }

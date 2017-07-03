@@ -599,10 +599,10 @@ fn form_grammar() {
 
     assert_eq!(::parse::parse(&form_pat!((call "type")),
                               &cse.clone(),
-                              &tokens!([""; "ident" "->" "ident"])),
+                              &tokens!([""; "Ident" "->" "Ident"])),
                Ok(ast!({ find_form(&cse, "type", "fn");
-                   ["ret" => {find_form(&cse, "type", "ident") ; []},
-                    "param" => [{find_form(&cse, "type", "ident") ; []}]]})));
+                   ["ret" => {find_form(&cse, "type", "Ident") ; []},
+                    "param" => [{find_form(&cse, "type", "Ident") ; []}]]})));
 }
 
 
@@ -622,51 +622,51 @@ fn form_expect_node() {
 #[test]
 fn form_type() {
     let simple_ty_env = assoc_n!(
-        "x" => ty!({ find_core_form("type", "int") ; }),
-        "b" => ty!({ find_core_form("type", "nat") ; }));
+        "X" => ty!({ find_core_form("type", "Int") ; }),
+        "N" => ty!({ find_core_form("type", "Nat") ; }));
 
     let lam = find_core_form("expr", "lambda");
     let fun = find_core_form("type", "fn");
 
 
-    assert_eq!(synth_type(&ast!( (vr "x") ), simple_ty_env.clone()),
-               Ok(ty!( { find_core_form("type", "int") ; })));
+    assert_eq!(synth_type(&ast!( (vr "X") ), simple_ty_env.clone()),
+               Ok(ty!( { find_core_form("type", "Int") ; })));
 
     assert_eq!(synth_type(&ast!(
         { lam.clone() ;
             "param" => [@"p" "y"],
-            "p_t" => [@"p" { find_core_form("type", "nat") ; }],
-            "body" => (import [* [ "param" : "p_t" ]] (vr "x"))}),
+            "p_t" => [@"p" { find_core_form("type", "Nat") ; }],
+            "body" => (import [* [ "param" : "p_t" ]] (vr "X"))}),
         simple_ty_env.clone()),
         Ok(ty!({ fun.clone() ;
-            "param" => [{ find_core_form("type", "nat") ; }],
-            "ret" => { find_core_form("type", "int") ; }})));
+            "param" => [{ find_core_form("type", "Nat") ; }],
+            "ret" => { find_core_form("type", "Int") ; }})));
 }
 
 #[test]
 fn type_apply_with_subtype() { // Application can perform subtyping
 
-    let nat_ty = ty!({ "type" "nat" : });
+    let nat_ty = ty!({ "type" "Nat" : });
 
     let ty_env = assoc_n!(
-        "n" => nat_ty.clone(),
+        "N" => nat_ty.clone(),
         "nat_to_nat" => ty!({ "type" "fn" :
             "param" => [ (, nat_ty.concrete() ) ],
             "ret" => (, nat_ty.concrete() )}),
         "∀t_t_to_t" => ty!({ "type" "forall_type" :
-            "param" => ["t"],
+            "param" => ["T"],
             "body" => (import [* [forall "param"]]
                 { "type" "fn" :
-                    "param" => [ (vr "t") ],
-                    "ret" => (vr "t") })}));
+                    "param" => [ (vr "T") ],
+                    "ret" => (vr "T") })}));
 
     assert_eq!(synth_type(&ast!(
-            { "expr" "apply" : "rator" => (vr "nat_to_nat") , "rand" => [ (vr "n") ]}),
+            { "expr" "apply" : "rator" => (vr "nat_to_nat") , "rand" => [ (vr "N") ]}),
             ty_env.clone()),
         Ok(nat_ty.clone()));
 
     assert_eq!(synth_type(&ast!(
-            { "expr" "apply" : "rator" => (vr "∀t_t_to_t") , "rand" => [ (vr "n") ]}),
+            { "expr" "apply" : "rator" => (vr "∀t_t_to_t") , "rand" => [ (vr "N") ]}),
             ty_env.clone()),
         Ok(nat_ty.clone()));
 
@@ -694,7 +694,7 @@ fn form_eval() {
              "rator" =>
                 { lam.clone() ;
                     "param" => [@"p" "y"],
-                    "p_t" => [@"p" "integer"],
+                    "p_t" => [@"p" "Int"],
                     "body" => (import [* [ "param" : "p_t" ]]  (vr "w"))},
              "rand" => [(vr "x")]
             ]}),
@@ -708,7 +708,7 @@ fn form_eval() {
              "rator" =>
                 { lam.clone() ;
                     "param" => [@"p" "y"],
-                    "p_t" => [@"p" "integer"],
+                    "p_t" => [@"p" "Int"],
                     "body" => (import [* [ "param" : "p_t" ]]  (vr "y"))},
              "rand" => [(vr "x")]
             ]}),
@@ -723,7 +723,7 @@ fn alg_type() {
 
     let mt_ty_env = Assoc::new();
     let simple_ty_env = assoc_n!(
-        "x" => ty!("integer"), "b" => ty!("bool"), "f" => ty!("float"));
+        "x" => ty!("Int"), "b" => ty!("Bool"), "f" => ty!("Float"));
 
     // Typecheck enum pattern
     let enum_p = find_form(&cse, "pat", "enum_pat");
@@ -731,7 +731,7 @@ fn alg_type() {
 
     let my_enum = ty!({ enum_t.clone() ;
         "name" => [@"c" "Adams", "Jefferson", "Burr"],
-        "component" => [@"c" ["integer"], ["integer", "bool"], ["float", "float"]]
+        "component" => [@"c" ["Int"], ["Int", "Bool"], ["Float", "Float"]]
     });
 
     assert_eq!(neg_synth_type(&ast!(
@@ -740,7 +740,7 @@ fn alg_type() {
             "component" => [(vr "abc"), (vr "def")]
         }),
         mt_ty_env.set(negative_ret_val(), my_enum.clone())),
-        Ok(Assoc::new().set(n("abc"), ty!("integer")).set(n("def"), ty!("bool"))));
+        Ok(Assoc::new().set(n("abc"), ty!("Int")).set(n("def"), ty!("Bool"))));
 
     // Typecheck enum expression
     let enum_e = find_form(&cse, "expr", "enum_expr");
@@ -762,7 +762,7 @@ fn alg_type() {
 
     let my_struct = ty!({ struct_t.clone() ;
         "component_name" => [@"c" "x", "y"],
-        "component" => [@"c" "integer", "float"]
+        "component" => [@"c" "Int", "Float"]
     });
 
     assert_eq!(neg_synth_type(&ast!(
@@ -771,7 +771,7 @@ fn alg_type() {
                 "component" => [@"c" (vr "yy"), (vr "xx")]
             }),
             mt_ty_env.set(negative_ret_val(), my_struct.clone())),
-        Ok(assoc_n!("yy" => ty!("float"), "xx" => ty!("integer"))));
+        Ok(assoc_n!("yy" => ty!("Float"), "xx" => ty!("Int"))));
 
     // Typecheck struct expression
     let struct_e = find_form(&cse, "expr", "struct_expr");
@@ -797,7 +797,7 @@ fn alg_type() {
                                  (import ["p" = "scrutinee"] (vr "f"))]
             }),
             simple_ty_env.clone()),
-        Ok(ty!("float")));
+        Ok(ty!("Float")));
 
     assert_m!(synth_type(&ast!({ mtch.clone() ;
             "scrutinee" => (vr "b"),
@@ -840,7 +840,7 @@ fn alg_type() {
                                  (import ["p" = "scrutinee"] (vr "x"))]
         }),
         simple_ty_env.set(n("my_enum"), my_enum.clone())),
-        Ok(ty!("integer")));
+        Ok(ty!("Int")));
 }
 
 #[test]
@@ -875,7 +875,7 @@ fn alg_eval() {
 
     let my_enum_t = ast!({ enum_t.clone() ;
         "name" => [@"c" "choice0", "choice1", "choice2"],
-        "component" => [@"c" ["integer"], ["integer", "bool"], ["float", "float"]]
+        "component" => [@"c" ["Int"], ["Int", "Bool"], ["Float", "Float"]]
     });
 
     let enum_e = find_form(&cse, "expr", "enum_expr");
@@ -941,19 +941,19 @@ fn alg_eval() {
 #[test]
 fn recursive_types() {
     let int_list_ty = ty!( { "type" "mu_type" :
-        "param" => ["int_list"],
+        "param" => ["IntList"],
         "body" => { "type" "enum" :
             "name" => [@"c" "Nil", "Cons"],
-            "component" => [@"c" [], ["integer", (vr "int_list") ]]}});
+            "component" => [@"c" [], ["Int", (vr "IntList") ]]}});
 
     let ty_env = assoc_n!(
-        "int_list" => int_list_ty.clone(),  // this is a type definition...
+        "IntList" => int_list_ty.clone(),  // this is a type definition...
         "il_direct" => int_list_ty.clone()  // ...and this is a value with a type
         // TODO: ... distinguish between these in the environment! Is the difference ... kind?
 
         // We should never have `vr`s in the environment unless "protected" by a μ.
         // TODO: enforce that:
-        //"il_named" => ty!((vr "int_list"))
+        //"il_named" => ty!((vr "IntList"))
     );
 
     // Test that unfolding a type produces one that's "twice as large", minus the outer mu
@@ -961,7 +961,7 @@ fn recursive_types() {
         &ast!({"expr" "unfold" : "body" => (vr "il_direct")}), ty_env.clone()),
         Ok(ty!({ "type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
-                "component" => [@"c" [], ["integer", (, int_list_ty.concrete()) ]]})));
+                "component" => [@"c" [], ["Int", (, int_list_ty.concrete()) ]]})));
 
     // folding an unfolded thing should give us back the same thing
     assert_eq!(synth_type(
@@ -979,12 +979,12 @@ fn recursive_types() {
             "p" => [@"arm" { find_core_form("pat", "enum_pat") ;
                 "name" => "Cons",
                 "component" => [(vr "car"), (vr "cdr")],
-                "t" => (vr "int_list")
+                "t" => (vr "IntList")
             }],
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "car"))]
         }),
         ty_env.clone()),
-        Ok(ty!("integer"))
+        Ok(ty!("Int"))
     );
 
     // Unfold a type and then extract the part that should have the same type as the outer type
@@ -994,7 +994,7 @@ fn recursive_types() {
             "p" => [@"arm" { find_core_form("pat", "enum_pat") ;
                 "name" => "Cons",
                 "component" => [(vr "car"), (vr "cdr")],
-                "t" => (vr "int_list")
+                "t" => (vr "IntList")
             }],
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "cdr"))]
         }),
@@ -1009,7 +1009,7 @@ fn recursive_types() {
                 "p" => [@"arm" { find_core_form("pat", "enum_pat") ;
                 "name" => "Cons",
                 "component" => [(vr "car"), (vr "cdr")],
-                "t" => (vr "int_list")
+                "t" => (vr "IntList")
             }],
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "car"))]
         }),

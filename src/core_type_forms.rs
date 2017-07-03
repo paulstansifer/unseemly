@@ -287,10 +287,10 @@ pub fn make_core_syn_env_types() -> SynEnv {
 
     assoc_n!("type" => Rc::new(Biased(Rc::new(forms_to_form_pat![
         fn_type.clone(),
-        type_defn("ident", form_pat!((lit "ident"))),
-        type_defn("int", form_pat!((lit "int"))),
-        type_defn("nat", form_pat!((lit "nat"))),
-        type_defn("float", form_pat!((lit "float"))),
+        type_defn("Ident", form_pat!((lit "Ident"))),
+        type_defn("Int", form_pat!((lit "Int"))),
+        type_defn("Nat", form_pat!((lit "Nat"))),
+        type_defn("Float", form_pat!((lit "Float"))),
         enum_type.clone(),
         struct_type.clone(),
         forall_type.clone(),
@@ -303,8 +303,8 @@ pub fn make_core_syn_env_types() -> SynEnv {
 
 #[test]
 fn parametric_types() {
-    let ident_ty = ty!( { "type" "ident" : });
-    let nat_ty = ty!( { "type" "nat" : });
+    let ident_ty = ty!( { "type" "Ident" : });
+    let nat_ty = ty!( { "type" "Nat" : });
 
     fn tbn(nm: &'static str) -> Ty {
         ty!( { "type" "type_by_name" : "name" => (, ::ast::Ast::Atom(n(nm))) } )

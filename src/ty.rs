@@ -64,14 +64,14 @@ impl ::std::fmt::Display for Ty {
             // Not used, right? Maybe it should be...
             // Some(VariableReference(ref n)) => { write!(f, "{}", n) },
             Node(ref form, ref env) => {
-                if form == &find_core_form("type", "ident") {
-                    write!(f, "ident")
-                } else if form == &find_core_form("type", "int") {
-                    write!(f, "int")
-                } else if form == &find_core_form("type", "nat") {
-                    write!(f, "nat")
-                } else if form == &find_core_form("type", "float") {
-                    write!(f, "float")
+                if form == &find_core_form("type", "Ident") {
+                    write!(f, "Ident")
+                } else if form == &find_core_form("type", "Int") {
+                    write!(f, "Int")
+                } else if form == &find_core_form("type", "Nat") {
+                    write!(f, "Nat")
+                } else if form == &find_core_form("type", "Float") {
+                    write!(f, "Float")
                 } else if form == &find_core_form("type", "fn") {
                     try!(write!(f, "["));
                     let mut first = true;
@@ -322,8 +322,8 @@ pub fn expect_type(expected: &Ty, got: &Ty, loc: &Ast) -> TypeResult {
 #[test]
 fn basic_type_synth() {
     let mt_ty_env = Assoc::new();
-    let int_ty = ty!({ ::core_forms::find_core_form("type", "int") ; });
-    let nat_ty = ty!({ ::core_forms::find_core_form("type", "nat") ; });
+    let int_ty = ty!({ ::core_forms::find_core_form("type", "Int") ; });
+    let nat_ty = ty!({ ::core_forms::find_core_form("type", "Nat") ; });
 
     let simple_ty_env = mt_ty_env.set(n("x"), int_ty.clone());
 
@@ -351,7 +351,7 @@ fn basic_type_synth() {
             {basic_typed_form!(
                 at,
                 Custom(Rc::new(Box::new(
-                    |_| Ok(ty!({ ::core_forms::find_core_form("type", "nat") ; }))))),
+                    |_| Ok(ty!({ ::core_forms::find_core_form("type", "Nat") ; }))))),
                 NotWalked) ; []}),
             simple_ty_env.clone()),
         Ok(nat_ty.clone()));
@@ -360,14 +360,14 @@ fn basic_type_synth() {
 
 #[test]
 fn type_specialization() {
-    let nat_ty = ty!( { "type" "nat" : });
+    let nat_ty = ty!( { "type" "Nat" : });
 
     fn tbn(nm: &'static str) -> Ty {
         ty!( { "type" "type_by_name" : "name" => (, ::ast::Ast::Atom(n(nm))) } )
     }
 
     let _para_ty_env = assoc_n!(
-        "some_int" => ty!( { "type" "int" : }),
+        "some_int" => ty!( { "type" "Int" : }),
         "convert_to_nat" => ty!({ "type" "forall_type" :
             "param" => ["t"],
             "body" => { "type" "fn" :
@@ -383,13 +383,13 @@ fn type_specialization() {
                 "rator" => (vr "convert_to_nat"),
                 "rand" => [ (vr "some_int") ]
             }), para_ty_env.clone()),
-        Ok(ty!( { "type" "nat" : })));
+        Ok(ty!( { "type" "Nat" : })));
 
     assert_eq!(synth_type(&ast!({ "expr" "apply" :
                 "rator" => (vr "identity"),
                 "rand" => [ (vr "some_int") ]
             }), para_ty_env.clone()),
-        Ok(ty!( { "type" "int" : })));
+        Ok(ty!( { "type" "Int" : })));
     */
     // TODO: test that ∀ X. ∀ Y. [ X → Y ] is a (sortof) sensible type (for transmogrify)
     //        and that ∀ X. [ X → ∀ Y . Y ] is ridiculously permissive
