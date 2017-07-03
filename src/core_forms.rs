@@ -942,11 +942,12 @@ fn alg_eval() {
 
 #[test]
 fn recursive_types() {
-    let int_list_ty = ty!( { "type" "mu_type" :
-        "param" => ["IntList"],
-        "body" => { "type" "enum" :
-            "name" => [@"c" "Nil", "Cons"],
-            "component" => [@"c" [], ["Int", (vr "IntList") ]]}});
+    let int_list_ty =
+        ty!( { "type" "mu_type" :
+            "param" => ["IntList"],
+            "body" => { "type" "enum" :
+                "name" => [@"c" "Nil", "Cons"],
+                "component" => [@"c" [], ["Int", (vr "IntList") ]]}});
 
     let ty_env = assoc_n!(
         "IntList" => int_list_ty.clone(),  // this is a type definition...
@@ -957,6 +958,9 @@ fn recursive_types() {
         // TODO: enforce that:
         //"il_named" => ty!((vr "IntList"))
     );
+
+    // `IntList` shouldn't substitute
+    assert_eq!(synth_type(&ast!((vr "il_direct")), ty_env.clone()), Ok(int_list_ty.clone()));
 
     // Test that unfolding a type produces one that's "twice as large", minus the outer mu
     assert_eq!(synth_type(

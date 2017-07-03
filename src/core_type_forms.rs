@@ -186,7 +186,12 @@ pub fn make_core_syn_env_types() -> SynEnv {
             // This probably ought to eventually be a feature of betas...
             let mut env_without_params = mu_parts.env.clone();
             for param in mu_parts.get_rep_term(&n("param")) {
-                env_without_params = env_without_params.unset(&ast_to_atom(&param))
+                let param = ast_to_atom(&param);
+                // Prevent `param`s from being substituted.
+                // HACK: rely on the fact that `walk_var`
+                //  won't recursively substitute until it "hits bottom"
+                env_without_params
+                    = env_without_params.set(param, Ty(Ast::VariableReference(param)));
             }
 
             let without_param = mu_parts.with_environment(env_without_params);

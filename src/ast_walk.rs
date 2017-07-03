@@ -568,7 +568,7 @@ impl<Mode: WalkMode<D=Self>> Dir for Positive<Mode> {
         let walked : Result<EnvMBE<Ast>, <Self::Mode as WalkMode>::Err> = parts.map(
             &|p: &Ast| match *p {
                 // Yes, `walk`, not `w_q_l`; the mode is in charge of figuring things out.
-                Node(_, _) => walk(p, cnc),
+                Node(_, _) | VariableReference(_) => walk(p, cnc),
                 _ => Ok(<Self::Mode as WalkMode>::Elt::from_ast(&p.clone()))
             }.map(|e| <Self::Mode as WalkMode>::Elt::to_ast(&e))).lift_result();
 
