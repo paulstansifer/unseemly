@@ -130,7 +130,7 @@ macro_rules! ty {
 
 macro_rules! ty_err {
     ( $name:tt ( $($arg:expr),* ) at $loc:expr) => {
-        return Err(::util::err::sp(::ty::TyErr::$name( $($arg),* ), $loc));
+        return Err(::util::err::sp(::ty::TyErr::$name( $($arg),* ), $loc.clone()));
     }
 }
 

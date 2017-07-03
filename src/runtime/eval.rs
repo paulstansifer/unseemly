@@ -68,7 +68,7 @@ impl std::fmt::Display for Value {
             }
             &Enum(n, ref parts) => {
                 try!(write!(f, "+[{}", n));
-                for p in parts.iter() { try!(write!(f, "{} ", p)); }
+                for p in parts.iter() { try!(write!(f, " {}", p)); }
                 write!(f, "]+")
             }
         }

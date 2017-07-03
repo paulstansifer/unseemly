@@ -291,15 +291,15 @@ pub fn make_core_syn_env() -> SynEnv {
 
                             for (t, expected_t) in try!(part_types.get_rep_res(&n("component")))
                                 .iter().zip(component_types) {
-                                if t != &expected_t {
-                                    panic!("Expected type: {:?}, got: {:?}", expected_t, t)
-                                }
+                                ty_exp!(t, &expected_t, part_types.this_ast);
                             }
 
                             return Ok(res.clone());
                         }
-                        panic!("{:?} is not a valid arm for the type {:?}",
-                            part_types.get_term(&n("name")), res)
+
+                        ty_err!(NonexistentEnumArm
+                                    (ast_to_atom(&part_types.get_term(&n("name"))), res)
+                                at part_types.this_ast);
                     }
                 )
             }),
