@@ -6,7 +6,7 @@
  * After all, syntax sugar is the point of Unseemly!
  *
  * I didn't think that I could survive making a system out of + and × types, though,
- *  so there are `struct`s and `enum`s.
+ *  so there are n-ary `struct`s and `enum`s.
  */
 
  /*
@@ -359,4 +359,13 @@ fn parametric_types() {
         Ok(ty!({ "type" "fn" :
             "param" => [(, nat_ty.concrete() )],
             "ret" => (, ident_ty.concrete())})));
+}
+
+#[test]
+fn misc_core_type_stuff() {
+    let basic_enum = ty!({"type" "enum" :
+        "name" => [@"arm" "Aa", "Bb"],
+        "component" => [@"arm" [{"type" "Int" :}], []]});
+    assert_m!(::ty_compare::must_subtype(&basic_enum, &basic_enum, ::util::assoc::Assoc::new()),
+              Ok(_));
 }

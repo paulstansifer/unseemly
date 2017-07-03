@@ -107,6 +107,10 @@ impl WalkMode for Eval {
 
     fn get_walk_rule(f: &Form) -> &WalkRule<Eval> { &f.eval.pos() }
     fn automatically_extend_env() -> bool { false }
+
+    fn walk_var(n: Name, cnc: &LazyWalkReses<Eval>) -> Result<Value, ()> {
+        Ok(cnc.env.find(&n).expect("Undefined var; did you use a type name as a value?").clone())
+    }
 }
 
 impl WalkMode for Destructure {

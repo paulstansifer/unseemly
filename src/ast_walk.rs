@@ -363,7 +363,7 @@ pub fn walk<Mode: WalkMode>(node: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
     // TODO: can we get rid of the & in front of our arguments and save the cloning?
     let (node, cur_node_contents) = Mode::D::pre_walk(node.clone(), cur_node_contents.clone());
     // print!("#####: {:?}\n", node);
-    // print!("      {:?}\n", cur_node_contents.env.map(&|_| "…"));
+    // print!("       {:?}\n", cur_node_contents.env.map(&|_| "…"));
 
     match node {
         Node(ref f, ref parts) => {
@@ -623,7 +623,13 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
         // Continue the walk on subterms.
         expd_parts.map_reduce_with(&parts_actual,
             &|model: &Ast, actual: &Ast| {
-                walk(model, &cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(actual)))
+                match *model {
+                    Node(_, _) | VariableReference(_) => {
+                        walk(model,
+                            &cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(actual)))
+                    }
+                    _ => { Ok(Assoc::new()) }
+                }
             },
             &|result, next| { Ok(try!(result.clone()).set_assoc(&try!(next.clone()))) },
             Ok(cnc.env.clone()))

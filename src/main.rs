@@ -243,7 +243,7 @@ fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
     })
 }
 
-fn eval_unseemly_program(program: &str) -> Result<runtime::eval::Value, String> {
+fn eval_unseemly_program(program: &str) -> Result<Value, String> {
     let tokens = try!(read::read_tokens(program));
 
     let ast : ::ast::Ast = try!(
@@ -255,7 +255,7 @@ fn eval_unseemly_program(program: &str) -> Result<runtime::eval::Value, String> 
     }));
 
     val_env.with(|vals| {
-        runtime::eval::eval(&ast, vals.borrow().clone()).map_err(|_| "???".to_string())
+        eval(&ast, vals.borrow().clone()).map_err(|_| "???".to_string())
     })
 }
 
