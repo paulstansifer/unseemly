@@ -358,17 +358,20 @@ impl<T: Clone> EnvMBE<T> {
         self.leaves.find(n)
     }
 
-    pub fn get_rep_leaf(&self, n: &Name) -> Option<Vec<&T>> {
+    pub fn get_rep_leaf(&self, n: &Name) -> Option<Vec<&T>> where T: ::std::fmt::Debug{
+        // FOOTGUN: can't distinguish wrong leaf names from 0-repeated leaves
+        // TODO: remove get_rep_leaf_or_panic, as this never returns `None`
+
         let mut res = vec![];
         let leaf_loc = match self.leaf_locations.find(n) {
-            Some(ll) => ll,
-            // FOOTGUN: can't distinguish wrong leaf names from 0-repeated leaves
-            None => { return Some(vec![]); }
+            Some(&Some(ll)) => ll,
+            _ => { return Some(vec![]); }
         };
-        for r in &*self.repeats[leaf_loc.unwrap()] {
+
+        for r in &*self.repeats[leaf_loc] {
             match r.get_leaf(n) {
                 Some(leaf) => { res.push(leaf) }
-                None => { return None; } // TODO: maybe this should panic, and we can lose Option
+                None => { return Some(vec![]); } // `march` can leave us with dead leaf_locations
             }
         }
         Some(res)
