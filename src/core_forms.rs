@@ -347,7 +347,7 @@ pub fn make_core_syn_env() -> SynEnv {
             Body(n("body"))),
 
         /* e.g. where List = ∀ X. μ List. enum { Nil(), Cons(X, List<[X]<) }
-         * '[x : List <[X]<  . match (unfold x) ... ]'
+         * .[x : List <[X]<  . match (unfold x) ... ].
          * (unfold is needed because `match` wants an `enum`, not a `μ`)
          * Exposes the inside of a μ type by performing one level of substitution.
          */
@@ -375,8 +375,8 @@ pub fn make_core_syn_env() -> SynEnv {
             }),
             Body(n("body"))),
 
-        /* e.g. where List = ∀ X. μ List. enum { Nil(), Cons(X, List<[X]<) }
-         * '[x : List <[X]<  ...]' fold Nil() : List<[X]<
+        /* e.g. where List = ∀ X. μ List. enum { Nil (), Cons (X, List<[X]<) }
+         * (.[x : List <[X]< . ...]. (fold +[Nil]+) ) : List<[X]<
          */
         typed_form!("fold",
             [(lit "fold"), (named "body", (call "expr")), (lit ":"), (named "t", (call "type"))],
