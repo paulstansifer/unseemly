@@ -325,3 +325,25 @@ fn basic_subtyping() {
 
     // TODO: write a test that relies on the capture-the-environment behavior of `pre_match`
 }
+
+
+#[test]
+fn misc_subtyping_problems() {
+
+    // Don't walk `Atom`s!
+    let basic_enum = ty!({"type" "enum" :
+        "name" => [@"arm" "Aa", "Bb"],
+        "component" => [@"arm" [{"type" "Int" :}], []]});
+    assert_m!(::ty_compare::must_subtype(&basic_enum, &basic_enum, ::util::assoc::Assoc::new()),
+              Ok(_));
+
+    let basic_mu = ty!({"type" "mu_type" :
+        "param" => ["X"],
+        "body" => (import [* [prot "param"]] (vr "X"))});
+    let mu_env = assoc_n!("X" => basic_mu.clone());
+
+    // Don't diverge on `μ`!
+    assert_m!(::ty_compare::must_subtype(&basic_mu, &basic_mu, mu_env),
+              Ok(_));
+
+}

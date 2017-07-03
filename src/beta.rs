@@ -40,6 +40,8 @@ custom_derive! {
         SameAs(Name, Name),
         /// Name is introduced here, and its meaning is figured out from usage.
         Underspecified(Name),
+        /// Name is left alone (only makes sense in `LiteralLike` regimes, where var refs are okay)
+        Protected(Name),
         /// Shadow the names from two `Beta`s.
         Shadow(Box<Beta>, Box<Beta>),
         /// Shadow the names from a `Beta`, repeated.
@@ -67,6 +69,9 @@ impl fmt::Debug for Beta {
             Underspecified(ref name) => {
                 write!(f, "∀{:?}", name)
             }
+            Protected(ref name) => {
+                write!(f, "↫{:?}", name)
+            }
         }
     }
 }
@@ -85,7 +90,7 @@ impl Beta {
             Basic(n, v) => { vec![n, v] }
             SameAs(n, v_source) => { vec![n, v_source] }
             Underspecified(n) => { vec![n] }
-
+            Protected(n) => { vec![n] }
         }
     }
 }
@@ -143,6 +148,22 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
                     parts.parts.get_leaf_or_panic(name_source).term)
             }
         }
+
+        Protected(ref name_source) => {
+            if let LazilyWalkedTerm {term: Atom(ref name), ..}
+                    = **parts.parts.get_leaf_or_panic(name_source) {
+                use ast_walk::WalkElt;
+
+                // HACK: rely on the fact that `walk_var`
+                //  won't recursively substitute until it "hits bottom"
+                Ok(Assoc::new().set(*name,
+                    Mode::Elt::from_ast(&::ast::Ast::VariableReference(*name))))
+            } else {
+                panic!("{:?} is supposed to supply names, but is not an Atom.",
+                    parts.parts.get_leaf_or_panic(name_source).term)
+            }
+
+        }
     }
 }
 
@@ -163,7 +184,7 @@ pub fn keys_from_beta(b: &Beta, parts: &::util::mbe::EnvMBE<::ast::Ast>) -> Vec<
             }
             res
         }
-        Basic(ref n_s, _) | SameAs(ref n_s, _) | Underspecified(ref n_s)=> {
+        Basic(ref n_s, _) | SameAs(ref n_s, _) | Underspecified(ref n_s) | Protected(ref n_s) => {
             vec![::core_forms::ast_to_atom(parts.get_leaf_or_panic(n_s))]
         }
     }

@@ -179,29 +179,9 @@ pub fn make_core_syn_env_types() -> SynEnv {
      * The only thing that `mu` actually does is suppress substitution,
      *  to prevent the attempted generation of an infinite type.
      */
-    let mu_type = type_defn_complex("mu_type",
+    let mu_type = type_defn("mu_type",
         form_pat!([(lit "mu_type"), (star (named "param", aat)), (lit "."),
-             (named "body", (call "type"))]),
-        cust_rc_box!(move |mu_parts| {
-            // This probably ought to eventually be a feature of betas...
-            let mut env_without_params = mu_parts.env.clone();
-            for param in mu_parts.get_rep_term(&n("param")) {
-                let param = ast_to_atom(&param);
-                // Prevent `param`s from being substituted.
-                // HACK: rely on the fact that `walk_var`
-                //  won't recursively substitute until it "hits bottom"
-                env_without_params
-                    = env_without_params.set(param, Ty(Ast::VariableReference(param)));
-            }
-
-            let without_param = mu_parts.with_environment(env_without_params);
-
-            // Like LiteralLike, but with the above environment-mucking
-            Ok(ty!({ mu_parts.this_form() ;
-                "param" => (,seq mu_parts.get_rep_term(&n("param"))),
-                "body" => (, try!(without_param.get_res(&n("body"))).concrete() )}))
-         }),
-         Both(LiteralLike, LiteralLike)); // subtyping is normal (TODO: α-convert?)
+             (named "body", (import [* [prot "param"]], (call "type")))]));
 
     // This only makes sense inside a concrete syntax type or during typechecking.
     // For example, the type of the `let` macro is (where `dotdotdot_type` is `...[]...`):
@@ -359,13 +339,4 @@ fn parametric_types() {
         Ok(ty!({ "type" "fn" :
             "param" => [(, nat_ty.concrete() )],
             "ret" => (, ident_ty.concrete())})));
-}
-
-#[test]
-fn misc_core_type_stuff() {
-    let basic_enum = ty!({"type" "enum" :
-        "name" => [@"arm" "Aa", "Bb"],
-        "component" => [@"arm" [{"type" "Int" :}], []]});
-    assert_m!(::ty_compare::must_subtype(&basic_enum, &basic_enum, ::util::assoc::Assoc::new()),
-              Ok(_));
 }

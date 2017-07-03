@@ -361,15 +361,15 @@ pub fn make_core_syn_env() -> SynEnv {
                 // Maybe this points to a weakness in the LiteralLike approach to traversing types?
                 let mu_typed = try!(unfold_parts.get_res(&n("body")));
 
-                // (also, the fact that we're pulling out a piece of a `Ty` and re-synthing it
-                //   feels funny)
+                // Pull off the `mu` (and the `ExtendEnv` that it carries):
                 expect_ty_node!( (mu_typed.clone() ; find_type(&ctf_4, "mu_type") )
                     mu_parts;
                     {
-                        // This acts like the `mu` was never there (and hiding the binding)
-                        Ok(Ty(::ast_walk::substitute(
-                            mu_parts.get_leaf_or_panic(&n("body")),
-                            &unfold_parts.env.map(&|x: &Ty| x.concrete()))))
+                        if let &ExtendEnv(ref body, _) = mu_parts.get_leaf_or_panic(&n("body")) {
+                            let cur_env = unfold_parts.env.map(&|x: &Ty| x.concrete());
+                            // This acts like the `mu` was never there (and hiding the binding)
+                            Ok(Ty(::ast_walk::substitute(body, &cur_env)))
+                        } else { panic!("ICE: no protection to remove!"); }
                     })
             }),
             Body(n("body"))),
@@ -386,9 +386,11 @@ pub fn make_core_syn_env() -> SynEnv {
                 let folded_goal = expect_ty_node!( (goal_type.clone() ; find_type(&ctf_5, "mu_type"))
                     mu_parts;
                     {
-                        Ty(::ast_walk::substitute(
-                            mu_parts.get_leaf_or_panic(&n("body")),
-                            &fold_parts.env.map(&|x: &Ty| x.concrete())))
+                        if let &ExtendEnv(ref body, _) = mu_parts.get_leaf_or_panic(&n("body")) {
+                            let cur_env = fold_parts.env.map(&|x: &Ty| x.concrete());
+                            // This acts like the `mu` was never there (and hiding the binding)
+                            Ty(::ast_walk::substitute(body, &cur_env))
+                        } else { panic!("ICE: no protection to remove!"); }
                     });
 
                 ty_exp!(&try!(fold_parts.get_res(&n("body"))), &folded_goal,
@@ -945,9 +947,9 @@ fn recursive_types() {
     let int_list_ty =
         ty!( { "type" "mu_type" :
             "param" => ["IntList"],
-            "body" => { "type" "enum" :
+            "body" => (import [* [prot "param"]] { "type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
-                "component" => [@"c" [], ["Int", (vr "IntList") ]]}});
+                "component" => [@"c" [], ["Int", (vr "IntList") ]]})});
 
     let ty_env = assoc_n!(
         "IntList" => int_list_ty.clone(),  // this is a type definition...

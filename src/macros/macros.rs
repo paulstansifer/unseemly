@@ -46,6 +46,10 @@ macro_rules! beta {
         ::beta::Shadow(Box::new(::beta::Underspecified(::name::n(expr_ify!($name)))),
                Box::new(beta!( [ $( $rest )* ] )))
     };
+    ( [ prot $name:tt $( $rest:tt )*] ) => {
+        ::beta::Shadow(Box::new(::beta::Protected(     ::name::n(expr_ify!($name)))),
+               Box::new(beta!( [ $( $rest )* ] )))
+    };
     ( [ $name:tt $connector:tt $t:tt
         $( $rest:tt )*
          ] ) => {
