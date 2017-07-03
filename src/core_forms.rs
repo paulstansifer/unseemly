@@ -289,8 +289,10 @@ pub fn make_core_syn_env() -> SynEnv {
                                 enum_type_part.get_rep_leaf_or_panic(&n("component"))
                                     .iter().map(|a| Ty::new((*a).clone())).collect();
 
+                            // TODO: check that they're the same length!
+
                             for (t, expected_t) in try!(part_types.get_rep_res(&n("component")))
-                                .iter().zip(component_types) {
+                                    .iter().zip(component_types) {
                                 ty_exp!(t, &expected_t, part_types.this_ast);
                             }
 
@@ -390,7 +392,7 @@ pub fn make_core_syn_env() -> SynEnv {
                     });
 
                 ty_exp!(&try!(fold_parts.get_res(&n("body"))), &folded_goal,
-                        fold_parts.get_term(&n("body")));
+                        fold_parts.this_ast);
                 Ok(goal_type)
             }),
             Body(n("body"))),

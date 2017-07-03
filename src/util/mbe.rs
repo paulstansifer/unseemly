@@ -161,7 +161,7 @@ impl<T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
         if self.leaves.empty() && self.repeats.is_empty() {
             write!(f, "mbe∅")
         } else {
-            try!(write!(f, "mbe{{ 🍂 {:?}, ✶[", self.leaves));
+            try!(write!(f, "{{ 🍂 {:?}, ✶", self.leaves));
             let mut first = true;
             for (i, rep) in self.repeats.iter().enumerate() {
                 if !first { try!(write!(f, ", ")); }
@@ -175,7 +175,7 @@ impl<T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
                 }
                 try!(write!(f, "{:?}", rep));
             }
-            write!(f, "]}}")
+            write!(f, "}}")
         }
     }
 }
@@ -325,12 +325,12 @@ impl<T: Clone> EnvMBE<T> {
     /// This takes a `Vec` of `Name` instead of just one because a particular name might
     /// not be transcribed at all here, and thus can't tell us how to repeat.
     pub fn march_all(&self, driving_names: &[Name]) -> Vec<EnvMBE<T>> {
-        let mut first_march : Option<(usize, Name)> = None;
+        let mut march_loc : Option<(usize, Name)> = None;
 
         for &n in driving_names {
-            match (first_march, self.leaf_locations.find(&n).unwrap_or(&None)) {
+            match (march_loc, self.leaf_locations.find(&n).unwrap_or(&None)) {
                  (_, &None) => {}
-                 (None, &Some(loc)) => { first_march = Some((loc, n)) }
+                 (None, &Some(loc)) => { march_loc = Some((loc, n)) }
                  (Some((old_loc, old_name)), &Some(new_loc)) => {
                      if old_loc != new_loc {
                          panic!("{:?} and {:?} cannot march together; they weren't matched to have the same number of repeats",
@@ -340,7 +340,7 @@ impl<T: Clone> EnvMBE<T> {
             }
         }
 
-        let march_loc = match first_march {
+        let march_loc = match march_loc {
             None => { return vec![]; } // FOOTGUN: assume that it is repeated zero times
             Some((loc, _)) => loc
         };

@@ -85,7 +85,7 @@ impl ::std::fmt::Display for Ty {
                 } else if form == &find_core_form("type", "enum") {
                     try!(write!(f, "enum {{"));
                     for subenv in env.march_all(&[n("name")]) {
-                        try!(write!(f, " {}("/*)*/,
+                        try!(write!(f, " {} ("/*)*/,
                             ast_to_atom(&subenv.get_leaf_or_panic(&n("name")))));
                         if let Some(comps) = subenv.get_rep_leaf(&n("component")) {
                             let mut first = true;
@@ -260,7 +260,7 @@ impl ::std::fmt::Display for TyErr {
         use self::TyErr::*;
         match *self {
             Mismatch(ref got, ref exp) => {
-                write!(f, "[Mismatch] expected `{}`, found `{}`", exp, got)
+                write!(f, "[Mismatch] got:\n  `{}`\n   expected:\n  `{}`\n", got, exp)
             }
             NtInterpMismatch(got, exp) => {
                 write!(f, "[NtInterpMismatch] expected the nonterminal `{:?}`, \

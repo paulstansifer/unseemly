@@ -69,13 +69,17 @@ pub fn read_tokens(s: &str) -> Result<TokenTree, String> {
                         = (c.name("main_o"), c.name("open"), c.name("open_all")) {
                         let (inside, last) = try!(read_token_tree(flat_tokens));
 
-                        if format!("{}{}",last.unwrap().1, o_del) == all {
-                            this_level.push(Group(n(all), delim(o_del), inside));
+                        if let Some(last) = last {
+                            if format!("{}{}",last.1, o_del) == all {
+                                this_level.push(Group(n(all), delim(o_del), inside));
+                            } else {
+                                return Err(format!(
+                                    "Unmatched delimiter names: \"{}\" is closed by \"{}\". \
+                                     Remember(this tokenizer is weird)Remember",
+                                        all, last.1));
+                            }
                         } else {
-                            return Err(format!(
-                                "Unmatched delimiter names: \"{}\" is closed by \"{}\". \
-                                 Remember(this tokenizer is weird)Remember",
-                                    all, last.unwrap().1));
+                            return Err(format!("Unclosed delimiter at EOF: \"{}\"", o_del));
                         }
                     } else if let (Some(main), Some(c_del)) = (c.name("main_c"), c.name("close")) {
                         return Ok((TokenTree{ t: this_level }, Some((delim(c_del), main))));
