@@ -941,7 +941,7 @@ fn alg_eval() {
 #[test]
 fn recursive_types() {
     let int_list_ty = ty!( { "type" "mu_type" :
-        "param" => "int_list",
+        "param" => ["int_list"],
         "body" => { "type" "enum" :
             "name" => [@"c" "Nil", "Cons"],
             "component" => [@"c" [], ["integer", (vr "int_list") ]]}});
@@ -1001,7 +1001,6 @@ fn recursive_types() {
         ty_env.clone()),
         Ok(int_list_ty.clone())
     );
-
 
     // Test that missing an unfold fails
     assert_m!(synth_type(

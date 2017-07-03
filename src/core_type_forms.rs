@@ -184,12 +184,16 @@ pub fn make_core_syn_env_types() -> SynEnv {
              (named "body", (call "type"))]),
         cust_rc_box!(move |mu_parts| {
             // This probably ought to eventually be a feature of betas...
-            let without_param = mu_parts.with_environment(mu_parts.env.unset(
-                &ast_to_atom(&mu_parts.get_term(&n("param")))));
+            let mut env_without_params = mu_parts.env.clone();
+            for param in mu_parts.get_rep_term(&n("param")) {
+                env_without_params = env_without_params.unset(&ast_to_atom(&param))
+            }
+
+            let without_param = mu_parts.with_environment(env_without_params);
 
             // Like LiteralLike, but with the above environment-mucking
             Ok(ty!({ mu_parts.this_form() ;
-                "param" => (, mu_parts.get_term(&n("param"))),
+                "param" => (,seq mu_parts.get_rep_term(&n("param"))),
                 "body" => (, try!(without_param.get_res(&n("body"))).concrete() )}))
          }),
          Both(LiteralLike, LiteralLike)); // subtyping is normal (TODO: α-convert?)

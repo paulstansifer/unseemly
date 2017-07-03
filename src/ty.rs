@@ -83,7 +83,7 @@ impl ::std::fmt::Display for Ty {
                     }
                     write!(f, " -> {}]", Ty::new(env.get_leaf_or_panic(&n("ret")).clone()))
                 } else if form == &find_core_form("type", "enum") {
-                    try!(write!(f, "enum{{"));
+                    try!(write!(f, "enum {{"));
                     for subenv in env.march_all(&[n("name")]) {
                         try!(write!(f, " {}("/*)*/,
                             ast_to_atom(&subenv.get_leaf_or_panic(&n("name")))));
@@ -99,7 +99,7 @@ impl ::std::fmt::Display for Ty {
                     }
                     write!(f, "}}")
                 } else if form == &find_core_form("type", "struct") {
-                    try!(write!(f, "struct{{"));
+                    try!(write!(f, "struct {{"));
                     for subenv in env.march_all(&[n("component_name")]) {
                         try!(write!(f, " {}: {}",
                             ast_to_atom(&subenv.get_leaf_or_panic(&n("component_name"))),
@@ -116,9 +116,11 @@ impl ::std::fmt::Display for Ty {
                     }
                     write!(f, ". {}", Ty::new(env.get_leaf_or_panic(&n("body")).clone()))
                 } else if form == &find_core_form("type", "mu_type") {
-                    write!(f, "μ {}. {}",
-                        ast_to_atom(env.get_leaf_or_panic(&n("param"))),
-                        Ty::new(env.get_leaf_or_panic(&n("body")).clone()))
+                    try!(write!(f, "mu_type "));
+                    for p in env.get_rep_leaf_or_panic(&n("param")) {
+                        try!(write!(f, " {}", ast_to_atom(&p)))
+                    }
+                    write!(f, " . {}", Ty::new(env.get_leaf_or_panic(&n("body")).clone()))
                 } else if form == &find_core_form("type", "type_by_name") {
                     write!(f, "{}", ast_to_atom(env.get_leaf_or_panic(&n("name"))))
                 } else if form == &find_core_form("type", "type_apply") {
