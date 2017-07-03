@@ -100,15 +100,20 @@ fn main() {
 
         let just_type = regex::Regex::new("^:t (.*)$").unwrap();
         let assign_value = regex::Regex::new("^(\\w+)\\s*:=(.*)$").unwrap();
-        let save_value = regex::Regex::new("^:s +(\\w+\\s*:=(.*))$").unwrap();
+        let save_value = regex::Regex::new("^:s +((\\w+)\\s*:=(.*))$").unwrap();
+        let assign_type = regex::Regex::new("^(\\w+)\\s*t=(.*)$").unwrap();
+        let save_type = regex::Regex::new("^:s +((\\w+)\\s*t=(.*))$").unwrap();
 
         print!("\n");
         print!("                  \x1b[1;32mUnseemly\x1b[0m\n");
         print!("    `<name> := <expr>` to bind a name for this session.\n");
-        print!("    `:s <name> := <expr>` to save a binding to the prelude for the future.\n");
         print!("    `:t <expr>` to synthesize the type of <expr>.\n");
+        print!("    `<name> t= <type>` to bind a type for this session.\n");
+        print!("    `:s <name> := <expr>` to save a binding to the prelude for the future.\n");
+        print!("    `:s <name> t= <expr>` to save a type binding to the prelude.\n");
         print!("    Command history is saved over sessions.\n");
         print!("    Tab-completion works on variables, and many Bash-isms work.\n");
+        print!("\n");
 
         if let Ok(prelude_file) = File::open(&Path::new(&prelude_filename)) {
             let prelude = std::io::BufReader::new(prelude_file);
@@ -118,9 +123,13 @@ fn main() {
                     if let Err(e) = assign_variable(caps.at(1).unwrap(), caps.at(2).unwrap()) {
                         print!("    Error in prelude line: {}\n    {}\n", line, e);
                     }
+                } else if let Some(caps) = assign_type.captures(&line) {
+                    if let Err(e) = assign_t_var(caps.at(1).unwrap(), caps.at(2).unwrap()) {
+                        print!("    Error in prelude line: {}\n    {}\n", line, e);
+                    }
                 }
             }
-            print!("    [prelude loaded]\n");
+            print!("    [prelude loaded from {}]\n", prelude_filename);
         }
 
 
@@ -134,7 +143,20 @@ fn main() {
             } else if let Some(caps) = assign_value.captures(&line) {
                 assign_variable(caps.at(1).unwrap(), caps.at(2).unwrap()).map(|x| format!("{}", x))
             } else if let Some(caps) = save_value.captures(&line) {
-                match eval_unseemly_program(caps.at(2).unwrap()) {
+                match assign_variable(caps.at(2).unwrap(), caps.at(3).unwrap()) {
+                    Ok(_) => {
+                        use std::io::Write;
+                        let mut prel_file = ::std::fs::OpenOptions::new().create(true).append(true)
+                            .open(&prelude_filename).unwrap();
+                        writeln!(prel_file, "{}", caps.at(1).unwrap()).unwrap();
+                        Ok(format!("[saved to {}]", &prelude_filename))
+                    }
+                    Err(e) => Err(e)
+                }
+            } else if let Some(caps) = assign_type.captures(&line) {
+                assign_t_var(caps.at(1).unwrap(), caps.at(2).unwrap()).map(|x| format!("{}", x))
+            } else if let Some(caps) = save_type.captures(&line) {
+                match assign_t_var(caps.at(2).unwrap(), caps.at(3).unwrap()) {
                     Ok(_) => {
                         use std::io::Write;
                         let mut prel_file = ::std::fs::OpenOptions::new().create(true).append(true)
@@ -187,6 +209,27 @@ fn assign_variable(name: &str, expr: &str) -> Result<Value, String> {
     res
 }
 
+fn assign_t_var(name: &str, expr: &str) -> Result<ty::Ty, String> {
+    let tokens = try!(read::read_tokens(expr));
+
+    let ast = try!(parse::parse(&parse::FormPat::Call(n("type")),
+                                &core_forms::get_core_forms(), &tokens).map_err(|e| e.msg));
+
+    let res = ty_env.with(|tys| {
+        ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:?}", e))
+    });
+
+    if let Ok(ref t) = res {
+        ty_env.with(|tys| {
+            let new_tys = tys.borrow().set(n(name), t.clone());
+            *tys.borrow_mut() = new_tys;
+        })
+    }
+
+    res
+}
+
+
 fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
     let tokens = try!(read::read_tokens(program));
 
@@ -195,8 +238,8 @@ fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
         parse::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
             .map_err(|e| e.msg));
 
-    ty_env.with(|types| {
-        ty::synth_type(&ast, types.borrow().clone()).map_err(|e| format!("{:?}", e))
+    ty_env.with(|tys| {
+        ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:?}", e))
     })
 }
 
@@ -207,8 +250,8 @@ fn eval_unseemly_program(program: &str) -> Result<runtime::eval::Value, String> 
         parse::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
             .map_err(|e| e.msg));
 
-    let _type = try!(ty_env.with(|types| {
-        ty::synth_type(&ast, types.borrow().clone()).map_err(|e| format!("{:?}", e))
+    let _type = try!(ty_env.with(|tys| {
+        ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:?}", e))
     }));
 
     val_env.with(|vals| {
