@@ -61,6 +61,7 @@ use name::{Name, n};
 use ty::Ty;
 use ast::Ast;
 use runtime::eval::{eval, Value};
+use std::io::BufRead;
 
 thread_local! {
     pub static ty_env : RefCell<Assoc<Name, Ty>> = RefCell::new(core_values::core_types());
@@ -88,6 +89,10 @@ impl rustyline::completion::Completer for ValueCompleter {
 
 fn main() {
     let arguments : Vec<String> = std::env::args().collect();
+    let prelude_filename = format!("{}/.unseemly_prelude",
+                                   std::env::home_dir().unwrap().display());
+    let history_filename = format!("{}/.unseemly_history",
+                                   std::env::home_dir().unwrap().display());
 
     if arguments.len() == 1 {
         let mut rl = rustyline::Editor::<ValueCompleter>::new();
@@ -95,14 +100,31 @@ fn main() {
 
         let just_type = regex::Regex::new("^:t (.*)$").unwrap();
         let assign_value = regex::Regex::new("^(\\w+)\\s*:=(.*)$").unwrap();
+        let save_value = regex::Regex::new("^:s +(\\w+\\s*:=(.*))$").unwrap();
 
         print!("\n");
-        print!("                 \x1b[1;32mUnseemly\x1b[0m\n");
-        print!("   `:t <expr>` to synthesize the type of <expr>.\n");
-        print!("   `<name> := <expr>` to bind a name for this session.\n");
-        print!("   Tab-completion works on variables, and many Bash-isms work.\n");
+        print!("                  \x1b[1;32mUnseemly\x1b[0m\n");
+        print!("    `<name> := <expr>` to bind a name for this session.\n");
+        print!("    `:s <name> := <expr>` to save a binding to the prelude for the future.\n");
+        print!("    `:t <expr>` to synthesize the type of <expr>.\n");
+        print!("    Command history is saved over sessions.\n");
+        print!("    Tab-completion works on variables, and many Bash-isms work.\n");
 
-        let _ = rl.load_history("/tmp/unseemly_interp_history");
+        if let Ok(prelude_file) = File::open(&Path::new(&prelude_filename)) {
+            let prelude = std::io::BufReader::new(prelude_file);
+            for line in prelude.lines() {
+                let line = line.unwrap();
+                if let Some(caps) = assign_value.captures(&line) {
+                    if let Err(e) = assign_variable(caps.at(1).unwrap(), caps.at(2).unwrap()) {
+                        print!("    Error in prelude line: {}\n    {}\n", line, e);
+                    }
+                }
+            }
+            print!("    [prelude loaded]\n");
+        }
+
+
+        let _ = rl.load_history(&history_filename);
         while let Ok(line) = rl.readline("\x1b[1;36m≫\x1b[0m ") {
             // TODO: count delimiters, and allow line continuation!
             rl.add_history_entry(&line);
@@ -110,23 +132,18 @@ fn main() {
             let result_display = if let Some(caps) = just_type.captures(&line) {
                 type_unseemly_program(caps.at(1).unwrap()).map(|x| format!("{}", x))
             } else if let Some(caps) = assign_value.captures(&line) {
-                let expr = caps.at(2).unwrap();
-                let res = eval_unseemly_program(expr);
-
-                if let Ok(ref v) = res {
-                    let var = n(caps.at(1).unwrap());
-                    let ty = type_unseemly_program(expr).unwrap();
-                    ty_env.with(|tys| {
-                        val_env.with(|vals| {
-                            let new_tys = tys.borrow().set(var, ty).clone();
-                            let new_vals = vals.borrow().set(var, v.clone());
-                            *tys.borrow_mut() = new_tys;
-                            *vals.borrow_mut() = new_vals;
-                        })
-                    })
+                assign_variable(caps.at(1).unwrap(), caps.at(2).unwrap()).map(|x| format!("{}", x))
+            } else if let Some(caps) = save_value.captures(&line) {
+                match eval_unseemly_program(caps.at(2).unwrap()) {
+                    Ok(_) => {
+                        use std::io::Write;
+                        let mut prel_file = ::std::fs::OpenOptions::new().create(true).append(true)
+                            .open(&prelude_filename).unwrap();
+                        writeln!(prel_file, "{}", caps.at(1).unwrap()).unwrap();
+                        Ok(format!("[saved to {}]", &prelude_filename))
+                    }
+                    Err(e) => Err(e)
                 }
-
-                res.map(|x| format!("{}", x))
             } else {
                 eval_unseemly_program(&line).map(|x| format!("{}", x))
             };
@@ -137,7 +154,7 @@ fn main() {
                 Err(s) => print!("\x1b[1;31m✘\x1b[0m {}\n", s)
             }
         }
-        let _ = rl.save_history("/tmp/unseemly_interp_history").unwrap();
+        let _ = rl.save_history(&history_filename).unwrap();
     } else {
         let ref filename = arguments[1];
 
@@ -151,6 +168,23 @@ fn main() {
 
         print!("{:?}\n", result);
     }
+}
+
+fn assign_variable(name: &str, expr: &str) -> Result<Value, String> {
+    let res = eval_unseemly_program(expr);
+
+    if let Ok(ref v) = res {
+        let ty = type_unseemly_program(expr).unwrap();
+        ty_env.with(|tys| {
+            val_env.with(|vals| {
+                let new_tys = tys.borrow().set(n(name), ty).clone();
+                let new_vals = vals.borrow().set(n(name), v.clone());
+                *tys.borrow_mut() = new_tys;
+                *vals.borrow_mut() = new_vals;
+            })
+        })
+    }
+    res
 }
 
 fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
