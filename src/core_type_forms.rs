@@ -137,9 +137,8 @@ pub fn make_core_syn_env_types() -> SynEnv {
 
     let forall_type =
         type_defn_complex("forall_type",
-            form_pat!([(lit "forall_type"), (star (named "param", aat)), (lit "."),
-                (delim "forall[", "[", /*]]*/
-                    (named "body", (import [* [forall "param"]], (call "type"))))]),
+            form_pat!([(lit "forall"), (star (named "param", aat)), (lit "."),
+                       (named "body", (import [* [forall "param"]], (call "type")))]),
             LiteralLike, // synth is normal
             Both(
                 LiteralLike,

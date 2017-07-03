@@ -56,7 +56,7 @@ impl std::fmt::Display for Value {
             &Sequence(ref seq) => {
                 for elt in seq { try!(write!(f, "{}", &*elt)); }; Ok(())
             }
-            &Function(ref clos) => { write!(f, "{:?}", clos) }
+            &Function(_) => { write!(f, "[closure]") }
             &BuiltInFunction(_) => { write!(f, "[built-in function]") }
             &AbstractSyntax(n, ref ast) => { write!(f, "{}: {:?}", n, ast) }
             &Struct(ref parts) => {
