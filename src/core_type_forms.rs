@@ -127,7 +127,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
     let enum_type =
         type_defn("enum", form_pat!([(lit "enum"),
             (delim "{", "{", /*}}*/ (star [(named "name", aat),
-                (delim "(", "(", /*))*/ [(star (named "component", (call "type")))])]))]));
+                (delim "(", "(", /*))*/ (star (named "component", (call "type"))))]))]));
 
     let struct_type =
         type_defn("struct", form_pat!(

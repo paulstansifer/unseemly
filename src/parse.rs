@@ -30,7 +30,7 @@ impl Token {
 
 custom_derive! {
     /**
-      `FormPat` is a grammar. Think EBNF, but more extended. 
+      `FormPat` is a grammar. Think EBNF, but more extended.
 
       Most kinds of grammar nodes produce an `Ast` of either `Shape` or `Env`,
        but `Named` and `Scope` are special:
@@ -57,18 +57,18 @@ custom_derive! {
 
         /**
          * Lookup a nonterminal in the current syntactic environment.
-         */ 
+         */
         Call(Name),
-        /** 
+        /**
          * This is where syntax gets reflective.
          * Evaluates its body (one phase up)
-         *  as a function from the current `SynEnv` to a new one, 
-         *  and names the result in the current scope. 
+         *  as a function from the current `SynEnv` to a new one,
+         *  and names the result in the current scope.
          */
         ComputeSyntax(Name, Rc<FormPat>),
 
         /** Makes a node and limits the region where names are meaningful. */
-        Scope(Rc<Form>), 
+        Scope(Rc<Form>),
         Named(Name, Rc<FormPat>),
 
         /**
@@ -79,7 +79,7 @@ custom_derive! {
         SynImport(Name, SyntaxExtension),
         /**
          * FOOTGUN:  NameImport(Named(...), ...) is almost always wrong.
-         * (write Named(NameImport(..., ...)) instead) 
+         * (write Named(NameImport(..., ...)) instead)
          * TODO: make this better
          */
         NameImport(Rc<FormPat>, Beta),
@@ -87,7 +87,6 @@ custom_derive! {
     }
 }
 pub struct SyntaxExtension(pub Rc<Box<(Fn(SynEnv) -> SynEnv)>>);
-
 
 
 impl Clone for SyntaxExtension {
@@ -99,12 +98,12 @@ impl Clone for SyntaxExtension {
 // This kind of struct is theoretically possible to add to the `Reifiable!` macro,
 // but I don't feel like doing it right now
 impl ::runtime::reify::Reifiable for SyntaxExtension {
-    fn ty_name() -> Name { n("syntax_extension") } 
-    
-    fn reify(&self) -> ::runtime::eval::Value { 
+    fn ty_name() -> Name { n("syntax_extension") }
+
+    fn reify(&self) -> ::runtime::eval::Value {
         ::runtime::reify::reify_1ary_function(self.0.clone())
     }
-    
+
     fn reflect(v: &::runtime::eval::Value) -> Self {
         SyntaxExtension(::runtime::reify::reflect_1ary_function(v.clone()))
     }
@@ -125,7 +124,7 @@ pub use ::earley::parse;
  `Call` patterns are errors. */
 pub fn parse_top<'fun>(f: &'fun FormPat, tt: &'fun TokenTree)
         -> Result<Ast, /*ParseError<SliceStream<'fun, Token>>*/ ::earley::ParseError> {
-        
+
     parse(f, &Assoc::new(), tt)
 }
 
@@ -133,20 +132,20 @@ pub fn parse_top<'fun>(f: &'fun FormPat, tt: &'fun TokenTree)
 use self::FormPat::*;
 
 #[test]
-fn basic_parsing() {    
+fn basic_parsing() {
     assert_eq!(parse_top(&Seq(vec![Rc::new(AnyToken)]), &tokens!("asdf")).unwrap(), ast_shape!("asdf"));
-    
+
     assert_eq!(parse_top(&Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
                &tokens!("asdf" "fork" "asdf")).unwrap(),
                ast_shape!("asdf" "fork" "asdf"));
-               
+
     assert_eq!(parse_top(&Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
                &tokens!("asdf" "fork" "asdf")).unwrap(),
                ast_shape!("asdf" "fork" "asdf"));
-               
+
     parse_top(&Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
           &tokens!("asdf" "knife" "asdf")).unwrap_err();
-          
+
     assert_eq!(parse_top(&Seq(vec![Rc::new(Star(Rc::new(Named(n("c"), Rc::new(Literal(n("*"))))))),
                                    Rc::new(Literal(n("X")))]),
                      &tokens!("*" "*" "*" "*" "*" "X")).unwrap(),
@@ -155,31 +154,31 @@ fn basic_parsing() {
 
 #[test]
 fn alternation() {
-    assert_eq!(parse_top(&form_pat!((alt (lit "A"), (lit "B"))), &tokens!("A")), 
+    assert_eq!(parse_top(&form_pat!((alt (lit "A"), (lit "B"))), &tokens!("A")),
                Ok(ast!("A")));
-    assert_eq!(parse_top(&form_pat!((alt (lit "A"), (lit "B"))), &tokens!("B")), 
+    assert_eq!(parse_top(&form_pat!((alt (lit "A"), (lit "B"))), &tokens!("B")),
                Ok(ast!("B")));
 
     assert_eq!(parse_top(
         &form_pat!((alt (lit "A"), (lit "B"), [(lit "X"), (lit "B")])),
-            &tokens!("X" "B")), 
+            &tokens!("X" "B")),
                 Ok(ast!(("X" "B"))));
 
     assert_eq!(parse_top(
         &form_pat!((alt [(lit "A"), (lit "X")], (lit "B"), [(lit "A"), (lit "B")])),
-            &tokens!("A" "B")), 
+            &tokens!("A" "B")),
                 Ok(ast!(("A" "B"))));
 
     assert_eq!(parse_top(
         &form_pat!((alt (lit "A"), (lit "B"), [(lit "A"), (lit "B")])),
-            &tokens!("A" "B")), 
+            &tokens!("A" "B")),
                Ok(ast!(("A" "B"))));
-    
+
 
 }
 
 #[test]
-fn advanced_parsing() {    
+fn advanced_parsing() {
     assert_eq!(parse_top(&form_pat!([(star (named "c", (alt (lit "X"), (lit "O")))), (lit "!")]),
                          &tokens!("X" "O" "O" "O" "X" "X" "!")).unwrap(),
                ast_shape!({- "c" => ["X", "O", "O", "O", "X", "X"]} "!"));
@@ -187,21 +186,21 @@ fn advanced_parsing() {
     // TODO: this hits the bug where `earley.rs` doesn't like nullables in `Seq` or `Star`
 
     assert_eq!(parse_top(
-            &form_pat!((star (biased [(named "c", (anyways "ttt")), (alt (lit "X"), (lit "O"))], 
+            &form_pat!((star (biased [(named "c", (anyways "ttt")), (alt (lit "X"), (lit "O"))],
                                      [(named "c", (anyways "igi")), (alt (lit "O"), (lit "H"))]))),
             &tokens!("X" "O" "H" "O" "X" "H" "O")).unwrap(),
         ast!({ - "c" => ["ttt", "ttt", "igi", "ttt", "ttt", "igi", "ttt"]}));
 
 
-    let ttt = simple_form("tictactoe", 
+    let ttt = simple_form("tictactoe",
         form_pat!( [(named "c", (alt (lit "X"), (lit "O")))]));
-    let igi = simple_form("igetit", 
+    let igi = simple_form("igetit",
         form_pat!( [(named "c", (alt (lit "O"), (lit "H")))]));
-    
+
     assert_eq!(parse_top(
             &form_pat!((star (named "outer", (biased (scope ttt.clone()), (scope igi.clone()))))),
             &tokens!("X" "O" "H" "O" "X" "H" "O")).unwrap(),
-        ast!({ - "outer" => 
+        ast!({ - "outer" =>
             [{ttt.clone(); ["c" => "X"]}, {ttt.clone(); ["c" => "O"]},
              {igi.clone(); ["c" => "H"]}, {ttt.clone(); ["c" => "O"]},
              {ttt.clone(); ["c" => "X"]}, {igi; ["c" => "H"]},
@@ -214,22 +213,22 @@ fn advanced_parsing() {
                      &assoc_n!(
                          "other_1" => Rc::new(Scope(simple_form("o", form_pat!((lit "other"))))),
                          "expr" => Rc::new(Scope(pair_form.clone())),
-                         "other_2" => 
+                         "other_2" =>
                              Rc::new(Scope(simple_form("o", form_pat!((lit "otherother")))))),
                      &toks_a_b).unwrap(),
                ast!({pair_form ; ["rhs" => "b", "lhs" => "a"]}));
 }
 
 
-// TODO: We pretty much have to use Rc<> to store grammars in Earley 
-//  (that's fine; they're Rc<> already!). 
+// TODO: We pretty much have to use Rc<> to store grammars in Earley
+//  (that's fine; they're Rc<> already!).
 // But then, we pretty much have to store Earley rules in Rc<> also (ick!)...
-// ...and how do we test for equality on grammars and rules? 
+// ...and how do we test for equality on grammars and rules?
 // I think we pretty much need to force memoization on the syntax extension functions...
 
 #[test]
 fn extensible_parsing() {
-    
+
     fn synex(s: SynEnv) -> SynEnv {
         assoc_n!(
             "a" => Rc::new(form_pat!(
@@ -237,16 +236,16 @@ fn extensible_parsing() {
             "b" => Rc::new(form_pat!((lit "BB")))
         ).set_assoc(&s)
     }
-    
+
     assert_eq!(parse_top(&form_pat!((extend "b", synex)), &tokens!("BB")).unwrap(),
                ast!("BB"));
-               
-               
+
+
     let orig = Rc::new(assoc_n!(
         "o" => Rc::new(form_pat!(
             (star (named "c", (alt (lit "O"), [(lit "Extend"), (extend "a", synex), (lit ".")])))))
     ));
-    
+
     assert_eq!(
         parse(&form_pat!((call "o")), &orig,
             &tokens!("O" "O" "Extend" "AA" "AA" "Back" "O" "." "AA" "." "O")).unwrap(),
@@ -261,7 +260,7 @@ fn extensible_parsing() {
         parse(&form_pat!((call "o")), &orig,
             &tokens!("O" "O" "Extend" "O" "." "O")).is_err(),
         true);
-    
+
 
 }
 

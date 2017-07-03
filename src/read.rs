@@ -47,7 +47,7 @@ pub fn delim(s: &str) -> DelimChar {
     }
 }
 
-pub fn read_tokens(s: &str) -> TokenTree {
+pub fn read_tokens(s: &str) -> Result<TokenTree, String> {
     lazy_static! {
         static ref token : regex::Regex =
             regex::Regex::new(format!(r"(?P<open_all>(?P<main_o>{nd}*)(?P<open>{o}))|((?P<close>{c})(?P<main_c>{nd}*))|(?P<normal>{nd}+)",
@@ -57,21 +57,28 @@ pub fn read_tokens(s: &str) -> TokenTree {
     let mut flat_tokens = token.captures_iter(s);
 
     fn read_token_tree<'a>(flat_tokens: &mut regex::FindCaptures<'a, 'a>)
-            -> (TokenTree, Option<(DelimChar, &'a str)>) {
+            -> Result<(TokenTree, Option<(DelimChar, &'a str)>), String> {
         let mut this_level : Vec<Token> = vec![];
         loop{
             match flat_tokens.next() {
-                None => { return (TokenTree{ t: this_level }, None) }
+                None => { return Ok((TokenTree{ t: this_level }, None)) }
                 Some(c) => {
                     if let Some(normal) = c.name("normal") {
                         this_level.push(Simple(n(normal)));
                     } else if let (Some(_main), Some(o_del), Some(all))
                         = (c.name("main_o"), c.name("open"), c.name("open_all")) {
-                        let (inside, _last) = read_token_tree(flat_tokens);
-                        // TODO check last
-                        this_level.push(Group(n(all), delim(o_del), inside));
+                        let (inside, last) = try!(read_token_tree(flat_tokens));
+
+                        if format!("{}{}",last.unwrap().1, o_del) == all {
+                            this_level.push(Group(n(all), delim(o_del), inside));
+                        } else {
+                            return Err(format!(
+                                "Unmatched delimiter names: \"{}\" is closed by \"{}\". \
+                                 Remember(this tokenizer is weird)Remember",
+                                    all, last.unwrap().1));
+                        }
                     } else if let (Some(main), Some(c_del)) = (c.name("main_c"), c.name("close")) {
-                        return (TokenTree{ t: this_level }, Some((delim(c_del), main)));
+                        return Ok((TokenTree{ t: this_level }, Some((delim(c_del), main))));
                     } else { panic!("ICE") }
 
                 }
@@ -79,11 +86,11 @@ pub fn read_tokens(s: &str) -> TokenTree {
         }
     }
 
-    let (tt, leftover) = read_token_tree(&mut flat_tokens);
+    let (tt, leftover) = try!(read_token_tree(&mut flat_tokens));
 
     match leftover {
-        None => tt,
-        Some(l) => { panic!("Read error: leftover {:?}", l); }
+        None => Ok(tt),
+        Some(l) => { Err(format!("Read error: leftover {:?}", l)) }
     }
 }
 
@@ -92,19 +99,19 @@ pub fn read_tokens(s: &str) -> TokenTree {
 
 #[test]
 fn simple_reading()  {
-    assert_eq!(read_tokens(""), tokens!());
-    assert_eq!(read_tokens("asdf"), tokens!("asdf"));
+    assert_eq!(read_tokens(""), Ok(tokens!()));
+    assert_eq!(read_tokens("asdf"), Ok(tokens!("asdf")));
     assert_eq!(read_tokens("a s d-f d - f && a\na    8888"),
-               tokens!("a" "s" "d-f" "d" "-" "f" "&&" "a" "a" "8888"));
+               Ok(tokens!("a" "s" "d-f" "d" "-" "f" "&&" "a" "a" "8888")));
 }
 #[test]
 fn nested_reading() {
-    assert_eq!(read_tokens("()"), tokens!(("";)));
-    assert_eq!(read_tokens("a ()"), tokens!("a" ("";)));
-    assert_eq!(read_tokens("(b)"), tokens!(("";"b")));
-    assert_eq!(read_tokens("f x(c)x"), tokens!("f" ("x";"c")));
-    assert_eq!(read_tokens("f x[d]x"), tokens!("f" ["x";"d"]));
-    assert_eq!(read_tokens("$-[()]$- x"), tokens!(["$-";("";)] "x"));
+    assert_eq!(read_tokens("()"), Ok(tokens!(("";))));
+    assert_eq!(read_tokens("a ()"), Ok(tokens!("a" ("";))));
+    assert_eq!(read_tokens("(b)"), Ok(tokens!(("";"b"))));
+    assert_eq!(read_tokens("f x(c)x"), Ok(tokens!("f" ("x";"c"))));
+    assert_eq!(read_tokens("f x[d]x"), Ok(tokens!("f" ["x";"d"])));
+    assert_eq!(read_tokens("$-[()]$- x"), Ok(tokens!(["$-";("";)] "x")));
     assert_eq!(read_tokens("(#(5 6)# -[yy foo()foo aa]-)"),
-               tokens!((""; ("#"; "5" "6") ["-"; "yy" ("foo";) "aa"])))
+               Ok(tokens!((""; ("#"; "5" "6") ["-"; "yy" ("foo";) "aa"]))))
 }

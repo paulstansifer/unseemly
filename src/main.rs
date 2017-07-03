@@ -188,7 +188,7 @@ fn assign_variable(name: &str, expr: &str) -> Result<Value, String> {
 }
 
 fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
-    let tokens = read::read_tokens(program);
+    let tokens = try!(read::read_tokens(program));
 
 
     let ast = try!(
@@ -201,7 +201,7 @@ fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
 }
 
 fn eval_unseemly_program(program: &str) -> Result<runtime::eval::Value, String> {
-    let tokens = read::read_tokens(program);
+    let tokens = try!(read::read_tokens(program));
 
     let ast : ::ast::Ast = try!(
         parse::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
