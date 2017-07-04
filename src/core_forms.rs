@@ -89,7 +89,8 @@ fn unquote<Mode: ::ast_walk::WalkMode>(nt: Name, ctf: SynEnv, pos: bool) -> Rc<F
                     // suppose that this is an expr, and `body` has the type `expr <[string]<`:
                     cust_rc_box!( move | unquote_parts | {
                         let interpolate_type = try!(unquote_parts.get_res(&n("body")));
-                        expect_ty_node!( (interpolate_type ; find_type(&ctf, "type_apply"))
+                        expect_ty_node!( (interpolate_type ; find_type(&ctf, "type_apply") ;
+                                             &unquote_parts.this_ast)
                             apply_parts;
                             {
                                 let got_nt = ast_to_atom(
@@ -276,7 +277,7 @@ pub fn make_core_syn_env() -> SynEnv {
             /* Typesynth: */
             cust_rc_box!( move | part_types | {
                 let res : Ty = try!(part_types.get_res(&n("t")));
-                expect_ty_node!( (res ; find_type(&ctf_2, "enum"))
+                expect_ty_node!( (res ; find_type(&ctf_2, "enum") ; &part_types.this_ast)
                     enum_type_parts;
                     {
                         for enum_type_part in enum_type_parts.march_all(&[n("name")]) {
@@ -362,7 +363,8 @@ pub fn make_core_syn_env() -> SynEnv {
                 let mu_typed = try!(unfold_parts.get_res(&n("body")));
 
                 // Pull off the `mu` (and the `ExtendEnv` that it carries):
-                expect_ty_node!( (mu_typed.clone() ; find_type(&ctf_4, "mu_type") )
+                expect_ty_node!( (mu_typed.clone() ; find_type(&ctf_4, "mu_type") ;
+                                    &unfold_parts.this_ast)
                     mu_parts;
                     {
                         if let &ExtendEnv(ref body, _) = mu_parts.get_leaf_or_panic(&n("body")) {
@@ -383,7 +385,8 @@ pub fn make_core_syn_env() -> SynEnv {
                 let goal_type = try!(fold_parts.get_res(&n("t")));
                 // TODO: I can't figure out how to pull this out into a function
                 //  to invoke both here and above, since `mu_type_0` needs cloning...
-                let folded_goal = expect_ty_node!( (goal_type.clone() ; find_type(&ctf_5, "mu_type"))
+                let folded_goal = expect_ty_node!(
+                        (goal_type.clone() ; find_type(&ctf_5, "mu_type") ; &fold_parts.this_ast)
                     mu_parts;
                     {
                         if let &ExtendEnv(ref body, _) = mu_parts.get_leaf_or_panic(&n("body")) {
@@ -438,7 +441,8 @@ pub fn make_core_syn_env() -> SynEnv {
                                       (star (named "component", (call "pat")))]),
             /* (Negatively) Typecheck: */
             cust_rc_box!( move | part_types |
-                expect_ty_node!( (part_types.context_elt() ; find_type(&ctf_6, "enum"))
+                expect_ty_node!( (part_types.context_elt() ; find_type(&ctf_6, "enum") ;
+                                      &part_types.this_ast)
                     enum_type_parts;
                     {
                         let arm_name = &part_types.get_term(&n("name"));
@@ -492,7 +496,8 @@ pub fn make_core_syn_env() -> SynEnv {
                         (named "component", (call "pat"))]))],
             /* (Negatively) typesynth: */
             cust_rc_box!( move | part_types |
-                expect_ty_node!( (part_types.context_elt() ; find_type(&ctf_7, "struct"))
+                expect_ty_node!( (part_types.context_elt() ; find_type(&ctf_7, "struct") ;
+                                      &part_types.this_ast)
                     struct_type_parts;
                     {
                         let mut res = Assoc::new();

@@ -196,9 +196,9 @@ impl ::ast_walk::NegativeWalkMode for Subtype {
             let lhs = Ty(::ast_walk::substitute(&lhs.concrete(), &env.map(&|t| t.concrete())));
             let rhs = Ty(::ast_walk::substitute(&rhs.concrete(), &env.map(&|t| t.concrete())));
 
-            let lhs_name = lhs.destructure(u_f.clone()).map(
+            let lhs_name = lhs.destructure(u_f.clone(), &Trivial).map( // errors get swallowed ↓
                 |p| ast_to_atom(p.get_leaf_or_panic(&n("id"))));
-            let rhs_name = rhs.destructure(u_f.clone()).map(
+            let rhs_name = rhs.destructure(u_f.clone(), &Trivial).map(
                 |p| ast_to_atom(p.get_leaf_or_panic(&n("id"))));
 
             match (lhs_name, rhs_name) {

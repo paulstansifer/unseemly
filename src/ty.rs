@@ -39,16 +39,16 @@ impl Ty {
     }
 
     // TODO: use this more
-    pub fn destructure(&self, expected_form: Rc<Form>) -> Result<EnvMBE<Ast>, TypeError> {
+    pub fn destructure(&self, expd_form: Rc<Form>, loc: &Ast) -> Result<EnvMBE<Ast>, TypeError> {
         match self.0 {
             Node(ref f, ref env) => {
-                if f == &expected_form {
+                if f == &expd_form {
                     return Ok(env.clone());
                 }
-                ty_err!(UnableToDestructure(self.clone(), expected_form.name) at Trivial /*TODO*/);
+                ty_err!(UnableToDestructure(self.clone(), expd_form.name) at loc /*TODO*/);
             }
             _ => {
-                ty_err!(UnableToDestructure(self.clone(), expected_form.name) at Trivial /*TODO*/);
+                ty_err!(UnableToDestructure(self.clone(), expd_form.name) at loc /*TODO*/);
             }
         }
     }
