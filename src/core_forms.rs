@@ -399,6 +399,18 @@ pub fn make_core_syn_env() -> SynEnv {
             }),
             Body(n("body"))),
 
+        typed_form!("forall_expr",
+            [(lit "forall"), (star (named "param", aat)), (lit "."),
+             (named "body", (import [* [forall "param"]], (call "expr")))],
+            cust_rc_box!( move |forall_parts| {
+                Ok(ty!({"type" "forall_type" :
+                    "param" => (,seq forall_parts.get_rep_term(&n("param"))
+                /*.iter().map(|p| ast_to_atom(&p))*/),
+                    "body" => (, try!(forall_parts.get_res(&n("body"))).concrete())
+                }))
+            }),
+            Body(n("body"))),
+
 
         typed_form!("quote",
             [(delim "`[", "[", /*]]*/ [/* TODO, maybe after the parser is improved */])],

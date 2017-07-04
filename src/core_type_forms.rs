@@ -224,8 +224,8 @@ pub fn make_core_syn_env_types() -> SynEnv {
     */
     let type_apply = type_defn_complex("type_apply",
         // The technical term for `<[...]<` is "fish X-ray"
-        form_pat!([(lit "tbn"), (named "type_name", aat),
-         (delim "<[", "[", /*]]*/ (star [(named "arg", (call "type")), (lit ",")]))]),
+        form_pat!([(named "type_name", aat),
+         (delim "<[", "[", /*]]*/ (star [(named "arg", (call "type"))]))]),
         cust_rc_box!(move |tapp_parts| {
             let arg_res = try!(tapp_parts.get_rep_res(&n("arg")));
             match tapp_parts.env.find(&ast_to_atom(&tapp_parts.get_term(&n("type_name")))) {
