@@ -228,8 +228,10 @@ pub fn make_core_syn_env_types() -> SynEnv {
          (delim "<[", "[", /*]]*/ (star [(named "arg", (call "type"))]))]),
         cust_rc_box!(move |tapp_parts| {
             let arg_res = try!(tapp_parts.get_rep_res(&n("arg")));
-            match tapp_parts.env.find(&ast_to_atom(&tapp_parts.get_term(&n("type_name")))) {
-                None => { // e.g. `X<[int, Y]<` underneath `mu X. ...`
+
+            match tapp_parts.env.find_or_panic(&ast_to_atom(
+                    &tapp_parts.get_term(&n("type_name")))) {
+                &Ty(VariableReference(_)) => { // e.g. `X<[int, Y]<` underneath `mu X. ...`
                     // Rebuild a type_by_name, but evaulate its arguments
                     // This kind of thing is necessary because
                     //  we wish to avoid aliasing problems at the type level.
@@ -246,7 +248,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
 
                     Ok(Ty::new(Node(tapp_parts.this_form(), new__tapp_parts)))
                 }
-                Some(defined_type) => {
+                defined_type => {
                     // This might ought to be done by a specialized `beta`...
                     expect_ty_node!( (defined_type ; forall_type_0.clone() ; &tapp_parts.this_ast)
                         forall_type__parts;
@@ -294,36 +296,36 @@ fn parametric_types() {
         ty!( { "type" "type_by_name" : "name" => (, ::ast::Ast::Atom(n(nm))) } )
     }
 
-    let mt_ty_env = ::util::assoc::Assoc::new();
     let para_ty_env = assoc_n!(
         "unary" => ty!({ "type" "forall_type" :
             "param" => ["t"],
-            "body" => { "type" "fn" :
+            "body" => (import [* [forall "param"]] { "type" "fn" :
                 "param" => [ (, nat_ty.concrete()) ],
-                "ret" => (, tbn("t").concrete() ) }}),
+                "ret" => (, tbn("t").concrete() ) })}),
         "binary" => ty!({ "type" "forall_type" :
             "param" => ["t", "u"],
-            "body" => { "type" "fn" :
+            "body" => (import [* [forall "param"]] { "type" "fn" :
                 "param" => [ (, tbn("t").concrete() ), (, tbn("u").concrete() ) ],
-                "ret" => (, nat_ty.concrete()) }}));
+                "ret" => (, nat_ty.concrete()) })}));
+    let mued_ty_env = assoc_n!("unary" => ty!((vr "unary")), "binary" => ty!((vr "binary")));
 
-    // If `unary` is undefined, `unary <[ ident ]<` can't be simplified.
+    // If `unary` is `mu`ed, `unary <[ ident ]<` can't be simplified.
     assert_eq!(synth_type(
         &ast!( { "type" "type_apply" :
             "type_name" => "unary",
             "arg" => [ (, ident_ty.concrete()) ]}),
-        mt_ty_env.clone()),
+        mued_ty_env.clone()),
         Ok(ty!({ "type" "type_apply" :
             "type_name" => "unary",
             "arg" => [ (, ident_ty.concrete()) ]})));
 
-    // If `unary` is undefined, `unary <[ [nat -> nat] ]<` can't be simplified.
+    // If `unary` is `mu`ed, `unary <[ [nat -> nat] ]<` can't be simplified.
     assert_eq!(synth_type(
         &ast!( { "type" "type_apply" :
             "type_name" => "unary",
             "arg" => [ { "type" "fn" :
                 "param" => [(, nat_ty.concrete())], "ret" => (, nat_ty.concrete())} ]}),
-        mt_ty_env.clone()),
+        mued_ty_env.clone()),
         Ok(ty!({ "type" "type_apply" :
             "type_name" => "unary",
             "arg" => [ { "type" "fn" :
