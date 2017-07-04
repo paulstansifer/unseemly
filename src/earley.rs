@@ -73,6 +73,13 @@ impl ::std::fmt::Debug for UniqueIdRef {
     }
 }
 
+// TODO: this shouldn't be hardcoded into the parser; it should be ... how should it work?
+fn reserved(nm: Name) -> bool {
+    Simple(nm) == end_of_delim() || nm == n("forall") || nm == n("mu_type")
+        || nm == n("Int") || nm == n("Ident") || nm == n("Float") || nm == n("match")
+        || nm == n("enum") || nm == n("struct") || nm == n("fold") || nm == n("unfold")
+}
+
 // Hey, this doesn't need to be Reifiable!
 pub struct Item {
     /// Where (in the token input stream) this rule tried to start matching
@@ -445,7 +452,7 @@ impl Item {
             // Maybe it has something to do with how we handle end-of-file?
             (0, &AnyToken) => {
                 match cur {
-                    Some(&Simple(n)) if Simple(n) != end_of_delim() => {
+                    Some(&Simple(n)) if !reserved(n) => {
                       self.finish_with(ParsedAtom(::ast::Atom(n)), true)
                     }
                     Some(&Group(_,_,_)) => self.finish_with(ParsedAtom(::ast::Trivial), true), // TODO
@@ -454,7 +461,7 @@ impl Item {
             },
             (0, &AnyAtomicToken) => {
                 match cur {
-                    Some(&Simple(n)) if Simple(n) != end_of_delim() => {
+                    Some(&Simple(n)) if !reserved(n) => {
                       self.finish_with(ParsedAtom(::ast::Atom(n)), true)
                     }
                     _ => vec![]
@@ -462,7 +469,7 @@ impl Item {
             },
             (0, &VarRef) => {
                 match cur {
-                    Some(&Simple(n)) if Simple(n) != end_of_delim() => {
+                    Some(&Simple(n)) if !reserved(n) => {
                         self.finish_with(ParsedAtom(::ast::VariableReference(n)), true)
                     },
                     _ => vec![]
