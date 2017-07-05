@@ -199,9 +199,8 @@ pub fn make_core_syn_env() -> SynEnv {
                     part_types.env.clone())
                         .map_err(|e| ::util::err::sp(e, part_types.this_ast.clone())));
 
-                ::ty_compare::unification.with(|unif| {
-                    Ok(::ty_compare::resolve(&return_type, &part_types.env, &unif.borrow())
-                        .clone())
+                ::ty_compare::unification.with(|unif| { //TODO: try removing the `resolve`
+                    Ok(::ty_compare::resolve(return_type, &part_types.env, &unif.borrow()))
                 })
             }),
             cust_rc_box!( move | part_values | {

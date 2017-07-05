@@ -229,15 +229,17 @@ pub fn make_core_syn_env_types() -> SynEnv {
         cust_rc_box!(move |tapp_parts| {
             let arg_res = try!(tapp_parts.get_rep_res(&n("arg")));
 
-            match tapp_parts.env.find_or_panic(&ast_to_atom(
-                    &tapp_parts.get_term(&n("type_name")))) {
-                &Ty(VariableReference(_)) => { // e.g. `X<[int, Y]<` underneath `mu X. ...`
+            let type_name = ast_to_atom(&tapp_parts.get_term(&n("type_name")));
+
+            match tapp_parts.env.find(&type_name) {
+                None => ty_err!(UnboundName(type_name) at tapp_parts.this_ast),
+                Some(&Ty(VariableReference(_))) => { // e.g. `X<[int, Y]<` underneath `mu X. ...`
                     // Rebuild a type_by_name, but evaulate its arguments
                     // This kind of thing is necessary because
                     //  we wish to avoid aliasing problems at the type level.
-                    // In System F, this is avoided by capture-avoiding substitution.
+                    // In System F, this is avoided by performing capture-avoiding substitution.
                     let mut new__tapp_parts = ::util::mbe::EnvMBE::new_from_leaves(
-                        assoc_n!("type_name" => tapp_parts.get_term(&n("type_name"))));
+                        assoc_n!("type_name" => Atom(type_name)));
 
                     let mut args = vec![];
                     for individual__arg_res in arg_res {
@@ -248,7 +250,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
 
                     Ok(Ty::new(Node(tapp_parts.this_form(), new__tapp_parts)))
                 }
-                defined_type => {
+                Some(defined_type) => {
                     // This might ought to be done by a specialized `beta`...
                     expect_ty_node!( (defined_type ; forall_type_0.clone() ; &tapp_parts.this_ast)
                         forall_type__parts;
@@ -263,6 +265,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                                     = new__ty_env.set(ast_to_atom(name), actual_type);
                             }
 
+                            // This bypasses the binding in the type, which is what we want:
                             synth_type(&forall_type__parts.get_leaf_or_panic(&n("body")),
                                        new__ty_env)
                         })

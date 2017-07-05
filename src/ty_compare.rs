@@ -98,28 +98,26 @@ But let's not do that weird thing just yet.
 
 /// Follow variable references in `env` and underdeterminednesses in `unif`
 ///  until we hit something that can't move further.
-pub fn resolve<'a>(t: &'a Ty, env: &'a Assoc<Name, Ty>, unif: &'a HashMap<Name, Ty>) -> &'a Ty {
+pub fn resolve(t: Ty, env: &Assoc<Name, Ty>, unif: &HashMap<Name, Ty>) -> Ty {
     let u_f = underdetermined_form.with(|u_f| { u_f.clone() });
 
-    match t {
-        &Ty(VariableReference(vr)) => { // variable reference
-            env.find(&vr).map(|new_t| resolve(new_t, env, unif)).unwrap_or(t)
+    let resolved = match t {
+        Ty(VariableReference(vr)) => { env.find(&vr).map(Clone::clone) }
+        Ty(Node(ref form, _)) if form == &find_core_form("type", "type_apply") => {
+            Some(::ty::synth_type(&t.0, env.clone()).expect("ICE: broken type_apply"))
         }
-        &Ty(Node(ref form, ref parts)) if form == &find_core_form("type", "type_by_name") =>  {
+        Ty(Node(ref form, ref parts)) if form == &find_core_form("type", "type_by_name") =>  {
             // TODO: remove this stanza when type_by_name is gone
             let vr = ast_to_atom(&parts.get_leaf_or_panic(&n("name")));
-            env.find(&vr).map(|new_t| resolve(new_t, env, unif)).unwrap_or(t)
+            env.find(&vr).map(Clone::clone)
         }
-        &Ty(Node(ref form, ref parts)) if form == &u_f => { // underdetermined
-            match unif.get(&ast_to_atom(parts.get_leaf_or_panic(&n("id")))) {
-                Some(ref new_t) => resolve(new_t, env, unif),
-                // unfortunately, since I don't want to return a mutable reference here,
-                //  the client will have to re-do the above destructuring to insert into the table
-                None => t
-            }
+        Ty(Node(ref form, ref parts)) if form == &u_f => { // underdetermined
+            unif.get(&ast_to_atom(parts.get_leaf_or_panic(&n("id")))).map(Clone::clone)
         }
-        _ => t
-    }
+        _ => None
+    };
+
+    resolved.map(|new_t| resolve(new_t, env, unif)).unwrap_or(t)
 }
 
 thread_local! {
@@ -189,8 +187,8 @@ impl ::ast_walk::NegativeWalkMode for Subtype {
         let u_f = underdetermined_form.with(|u_f| { u_f.clone() });
 
         unification.with(|unif| {
-            let lhs = resolve(&lhs, env, &unif.borrow()).clone();
-            let rhs = resolve(&rhs, env, &unif.borrow()).clone();
+            let lhs = resolve(lhs, env, &unif.borrow()).clone();
+            let rhs = resolve(rhs, env, &unif.borrow()).clone();
 
             // We need to capture the environment
             let lhs = Ty(::ast_walk::substitute(&lhs.concrete(), &env.map(&|t| t.concrete())));
@@ -334,8 +332,9 @@ fn misc_subtyping_problems() {
     let basic_enum = ty!({"type" "enum" :
         "name" => [@"arm" "Aa", "Bb"],
         "component" => [@"arm" [{"type" "Int" :}], []]});
-    assert_m!(::ty_compare::must_subtype(&basic_enum, &basic_enum, ::util::assoc::Assoc::new()),
+    assert_m!(must_subtype(&basic_enum, &basic_enum, ::util::assoc::Assoc::new()),
               Ok(_));
+
 
     let basic_mu = ty!({"type" "mu_type" :
         "param" => ["X"],
@@ -343,7 +342,48 @@ fn misc_subtyping_problems() {
     let mu_env = assoc_n!("X" => basic_mu.clone());
 
     // Don't diverge on `μ`!
-    assert_m!(::ty_compare::must_subtype(&basic_mu, &basic_mu, mu_env),
+    assert_m!(must_subtype(&basic_mu, &basic_mu, mu_env),
               Ok(_));
+
+    let id_fn_ty = ty!({ "type" "forall_type" :
+        "param" => ["t"],
+        "body" => (import [* [forall "param"]]
+            { "type" "fn" :
+                "param" => [ (vr "t") ],
+                "ret" => (vr "t") })});
+
+    let int_ty = ty!({ "type" "Int" : });
+    let nat_ty = ty!({ "type" "Nat" : });
+
+
+    let int_to_int_fn_ty = ty!({ "type" "fn" :
+        "param" => [(, int_ty.concrete())],
+        "ret" => (, int_ty.concrete())});
+
+
+    let parametric_ty_env = assoc_n!(
+        "some_int" => ty!( { "type" "Int" : }),
+        "convert_to_nat" => ty!({ "type" "forall_type" :
+            "param" => ["t"],
+            "body" => (import [* [forall "param"]]
+                { "type" "fn" :
+                    "param" => [ (vr "t") ],
+                    "ret" => (, nat_ty.concrete() ) })}),
+        "identity" => id_fn_ty.clone(),
+        "int_to_int" => int_to_int_fn_ty.clone());
+
+    assert_m!(must_subtype(
+        &ty!({"type" "type_apply" : "type_name" => "identity", "arg" => [{"type" "Int" :}]}),
+        &ty!({"type" "type_apply" : "type_name" => "identity", "arg" => [{"type" "Int" :}]}),
+        parametric_ty_env.clone()),
+    Ok(_));
+
+
+    assert_m!(must_subtype(
+        &ty!({"type" "type_apply" : "type_name" => "identity", "arg" => [{"type" "Int" :}]}),
+        &ty!((vr "identity")),
+        parametric_ty_env.clone()),
+    Ok(_));
+
 
 }
