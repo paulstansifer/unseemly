@@ -110,7 +110,9 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     let expd_params = fn_parts.get_rep_term(&n("param"));
                     let actl_params = actual_parts.get_rep_leaf_or_panic(&n("param"));
                     if expd_params.len() != actl_params.len() {
-                        return Err(TyErr::Mismatch(ty!("TODO: length mismatch"), ty!("TODO")));
+                        return Err(TyErr::LengthMismatch(
+                            actl_params.iter().map(|&a| Ty(a.clone())).collect(),
+                            expd_params.len()));
                     }
                     for (p_expected, p_got) in expd_params.iter().zip(actl_params.iter()) {
                         // Parameters have reversed subtyping:

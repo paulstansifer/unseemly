@@ -235,6 +235,7 @@ custom_derive! {
     #[derive(Reifiable, Clone, PartialEq)]
     pub enum TyErr {
         Mismatch(Ty, Ty), // got, expected
+        LengthMismatch(Vec<Ty>, usize),
         NtInterpMismatch(Name, Name),
         NonexistentEnumArm(Name, Ty),
         NonexistentStructField(Name, Ty),
@@ -250,6 +251,13 @@ impl ::std::fmt::Display for TyErr {
         match *self {
             Mismatch(ref got, ref exp) => {
                 write!(f, "[Mismatch] got:\n  `{}`\n   expected:\n  `{}`\n", got, exp)
+            }
+            LengthMismatch(ref got, exp_len) => {
+                try!(write!(f, "[LengthMismatch] got:\n  "));
+                for g in got {
+                    try!(write!(f, "{}, ", g))
+                }
+                write!(f, "\n  expected {} arguments.\n", exp_len)
             }
             NtInterpMismatch(got, exp) => {
                 write!(f, "[NtInterpMismatch] expected the nonterminal `{:?}`, \

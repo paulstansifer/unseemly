@@ -20,17 +20,15 @@ pub fn erase_value(tv: &TypedValue) -> Ty { Ty::new(tv.ty.clone()) }
 
 
 pub fn core_typed_values() -> Assoc<Name, TypedValue> {
-    let a_to_b = ast!({"type" "fn" : "param" => [(vr "a")], "ret" => (vr "b")});
-    let a_to_b_thunk = ast!({"type" "fn" : "param" => [], "ret" => (, a_to_b.clone() )});
-
     assoc_n!(
         "fix" =>
         tyf!( { "type" "forall_type" :
-            "param" => ["a", "b"],
+            "param" => ["f"], // has to be a function, but we don't know its arity
             "body" => (import [* [forall "param"]] { "type" "fn" :
                 "param" => [ { "type" "fn" :
-                    "param" => [(, a_to_b_thunk.clone())], "ret" => (, a_to_b.clone())} ],
-                "ret" => (, a_to_b.clone()) })},
+                    "param" => [{"type" "fn" : "param" => [], "ret" => (vr "f") }],
+                    "ret" => (vr "f")} ],
+                "ret" => (vr "f") })},
             // TODO: built-in functions, even though none of them work, shouldn't crash
             ( Function(cl) ) => {
                 let new_env = cl.env.set(cl.params[0],
