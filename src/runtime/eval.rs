@@ -111,6 +111,9 @@ impl WalkMode for Eval {
     fn walk_var(n: Name, cnc: &LazyWalkReses<Eval>) -> Result<Value, ()> {
         Ok(cnc.env.find(&n).expect("Undefined var; did you use a type name as a value?").clone())
     }
+
+    // TODO: maybe keep this from being called?
+    fn underspecified(_: Name) -> Value { val!(enum "why is this here?", ) }
 }
 
 impl WalkMode for Destructure {

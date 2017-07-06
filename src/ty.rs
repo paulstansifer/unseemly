@@ -175,20 +175,6 @@ impl ::runtime::reify::Reifiable for Ty {
 impl ::ast_walk::WalkElt for Ty {
     fn from_ast(a: &Ast) -> Ty { Ty::new(a.clone()) }
     fn to_ast(&self) -> Ast { self.concrete() }
-
-    fn underspecified() -> Ty { // This sorta belongs in ty_compare.rs ) :
-        ::ty_compare::next_id.with(|id| {
-            ::ty_compare::underdetermined_form.with(|u_f| {
-                *id.borrow_mut() += 1;
-                // TODO: we need `gensym`!
-                let new_name = n(("⚁ ".to_string() + id.borrow().to_string().as_str()).as_str());
-
-                ty!({ u_f.clone() ; "id" => (, ::ast::Atom(new_name))})
-            })
-        })
-
-    }
-
 }
 
 custom_derive!{
@@ -215,6 +201,9 @@ impl WalkMode for SynthTy {
             Some(ty) => Ok(ty.clone())
         }
     }
+
+    // Simply protect the name; don't try to unify it.
+    fn underspecified(name: Name) -> Ty { Ty(VariableReference(name)) }
 }
 
 impl WalkMode for UnpackTy {

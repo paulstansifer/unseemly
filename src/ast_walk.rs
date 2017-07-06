@@ -443,15 +443,6 @@ pub fn substitute(node: &Ast, env: &Assoc<Name, Ast>) -> Ast {
 pub trait WalkElt: Clone + Debug + Reifiable {
     fn from_ast(a: &Ast) -> Self;
     fn to_ast(&self) -> Ast;
-
-    /**
-     Make up a special `Elt` that is currently "underspecified",
-      but which can be "unified" with some other `Elt`.
-     If that happens, all copies of this `Elt` will act like that other one.
-
-     Side-effects under the covers make this work.
-     */
-    fn underspecified() -> Self { panic!("ICE: no underspecified_elt") }
 }
 
 /**
@@ -519,6 +510,15 @@ pub trait WalkMode : Debug + Copy + Reifiable {
     fn walk_var(n: Name, cnc: &LazyWalkReses<Self>) -> Result<<Self::D as Dir>::Out, Self::Err> {
         Self::D::walk_var(n, cnc)
     }
+
+    /**
+     Make up a special `Elt` that is currently "underspecified",
+      but which can be "unified" with some other `Elt`.
+     If that happens, all copies of this `Elt` will act like that other one.
+
+     Side-effects under the covers make this work.
+     */
+    fn underspecified(Name) -> Self::Elt { panic!("ICE: no underspecified_elt") }
 }
 
 pub trait Dir : Debug + Copy + Clone

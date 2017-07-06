@@ -188,8 +188,8 @@ pub fn make_core_syn_env() -> SynEnv {
             (delim "(", "(", /*))*/ [(named "rator", (call "expr")),
              (star (named "rand", (call "expr")))]),
             cust_rc_box!(move | part_types | {
-                use ::ast_walk::WalkElt;
-                let return_type = Ty::underspecified();
+                use ::ast_walk::WalkMode;
+                let return_type = ::ty_compare::Subtype::underspecified(n("<return_type>"));
                 let _ = try!(::ty_compare::must_subtype(
                     &ty!({ "type" "fn" :
                         "param" => (,seq try!(part_types.get_rep_res(&n("rand")))

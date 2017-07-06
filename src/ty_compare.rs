@@ -173,6 +173,18 @@ impl WalkMode for Subtype {
 
     fn get_walk_rule(f: &Form) -> &WalkRule<Subtype> { &f.type_compare.neg() }
     fn automatically_extend_env() -> bool { true }
+
+    fn underspecified(name: Name) -> Ty {
+        ::ty_compare::next_id.with(|id| {
+            ::ty_compare::underdetermined_form.with(|u_f| {
+                *id.borrow_mut() += 1;
+                // TODO: we need `gensym`!
+                let new_name = n(format!("⚁ {} {}", name, *id.borrow()).as_str());
+
+                ty!({ u_f.clone() ; "id" => (, ::ast::Atom(new_name))})
+            })
+        })
+    }
 }
 
 
@@ -306,7 +318,7 @@ fn basic_subtyping() {
         use ast_walk::WalkElt;
         ty!({ "type" "fn" :
             "param" => [ { "type" "Int" : } ],
-            "ret" => (, Ty::underspecified().concrete() )})
+            "ret" => (, Subtype::underspecified(n("<return_type>")).concrete() )})
     }
 
 

@@ -140,9 +140,7 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
         Underspecified(ref name_source) => {
             if let LazilyWalkedTerm {term: Atom(ref name), ..}
                     = **parts.parts.get_leaf_or_panic(name_source) {
-                use ast_walk::WalkElt;
-
-                Ok(Assoc::new().set(*name, Mode::Elt::underspecified()))
+                Ok(Assoc::new().set(*name, Mode::underspecified(*name)))
             } else {
                 panic!("{:?} is supposed to supply names, but is not an Atom.",
                     parts.parts.get_leaf_or_panic(name_source).term)
