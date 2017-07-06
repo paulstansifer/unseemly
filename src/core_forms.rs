@@ -366,10 +366,11 @@ pub fn make_core_syn_env() -> SynEnv {
                                     &unfold_parts.this_ast)
                     mu_parts;
                     {
+                        // This acts like the `mu` was never there (and hiding the binding)
                         if let &ExtendEnv(ref body, _) = mu_parts.get_leaf_or_panic(&n("body")) {
                             let cur_env = unfold_parts.env.map(&|x: &Ty| x.concrete());
-                            // This acts like the `mu` was never there (and hiding the binding)
-                            Ok(Ty(::ast_walk::substitute(body, &cur_env)))
+                            synth_type(&::ast_walk::substitute(body, &cur_env),
+                                       unfold_parts.env.clone())
                         } else { panic!("ICE: no protection to remove!"); }
                     })
             }),
@@ -388,10 +389,11 @@ pub fn make_core_syn_env() -> SynEnv {
                         (goal_type.clone() ; find_type(&ctf_5, "mu_type") ; &fold_parts.this_ast)
                     mu_parts;
                     {
+                        // This acts like the `mu` was never there (and hiding the binding)
                         if let &ExtendEnv(ref body, _) = mu_parts.get_leaf_or_panic(&n("body")) {
                             let cur_env = fold_parts.env.map(&|x: &Ty| x.concrete());
-                            // This acts like the `mu` was never there (and hiding the binding)
-                            Ty(::ast_walk::substitute(body, &cur_env))
+                            try!(synth_type(&::ast_walk::substitute(body, &cur_env),
+                                            fold_parts.env.clone()))
                         } else { panic!("ICE: no protection to remove!"); }
                     });
 

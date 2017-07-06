@@ -102,7 +102,13 @@ pub fn resolve(t: Ty, env: &Assoc<Name, Ty>, unif: &HashMap<Name, Ty>) -> Ty {
     let u_f = underdetermined_form.with(|u_f| { u_f.clone() });
 
     let resolved = match t {
-        Ty(VariableReference(vr)) => { env.find(&vr).map(Clone::clone) }
+        Ty(VariableReference(vr)) => {
+            match env.find(&vr).map(Clone::clone) {
+                // HACK: leave mu-protected variables alone, instead of recurring forever
+                Some(Ty(VariableReference(new_vr))) if vr == new_vr => None,
+                different => different
+            }
+        }
         Ty(Node(ref form, _)) if form == &find_core_form("type", "type_apply") => {
             Some(::ty::synth_type(&t.0, env.clone()).expect("ICE: broken type_apply"))
         }
