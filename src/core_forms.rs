@@ -23,7 +23,7 @@ use ast_walk::WalkRule::*;
 use num::bigint::ToBigInt;
 use core_type_forms::*; // type forms are kinda bulky
 
-pub fn ast_to_atom(ast: &Ast) -> Name {
+pub fn ast_to_name(ast: &Ast) -> Name {
     match *ast { Atom(n) => n, _ => { panic!("internal error!") } }
 }
 
@@ -93,7 +93,7 @@ fn unquote<Mode: ::ast_walk::WalkMode>(nt: Name, ctf: SynEnv, pos: bool) -> Rc<F
                                              &unquote_parts.this_ast)
                             apply_parts;
                             {
-                                let got_nt = ast_to_atom(
+                                let got_nt = ast_to_name(
                                     apply_parts.get_leaf_or_panic(&n("type_name")));
                                 if  got_nt != nt {
                                     ty_err!(NtInterpMismatch(got_nt, nt) at
@@ -179,7 +179,7 @@ pub fn make_core_syn_env() -> SynEnv {
                 Ok(Function(Rc::new(Closure {
                     body: part_values.get_term(&n("body")),
                     params:
-                    part_values.get_rep_term(&n("param")).iter().map(ast_to_atom).collect(),
+                    part_values.get_rep_term(&n("param")).iter().map(ast_to_name).collect(),
                     env: part_values.env
                 })))
             })),
@@ -300,14 +300,14 @@ pub fn make_core_syn_env() -> SynEnv {
                         }
 
                         ty_err!(NonexistentEnumArm
-                                    (ast_to_atom(&part_types.get_term(&n("name"))), res)
+                                    (ast_to_name(&part_types.get_term(&n("name"))), res)
                                 at part_types.this_ast);
                     }
                 )
             }),
             /* Evaluate: */
             cust_rc_box!( move | part_values | {
-                Ok(Enum(ast_to_atom(&part_values.get_term(&n("name"))),
+                Ok(Enum(ast_to_name(&part_values.get_term(&n("name"))),
                     try!(part_values.get_rep_res(&n("component")))))
             })),
         typed_form!("struct_expr",
@@ -325,7 +325,7 @@ pub fn make_core_syn_env() -> SynEnv {
                 let mut res = Assoc::new();
 
                 for component_parts in part_values.march_parts(&[n("component")]) {
-                    res = res.set(ast_to_atom(&component_parts.get_term(&n("component_name"))),
+                    res = res.set(ast_to_name(&component_parts.get_term(&n("component_name"))),
                                   try!(component_parts.get_res(&n("component"))));
                 }
 
@@ -369,7 +369,7 @@ pub fn make_core_syn_env() -> SynEnv {
                         // This acts like the `mu` was never there (and hiding the binding)
                         if let &ExtendEnv(ref body, _) = mu_parts.get_leaf_or_panic(&n("body")) {
                             let cur_env = unfold_parts.env.map(&|x: &Ty| x.concrete());
-                            synth_type(&::ast_walk::substitute(body, &cur_env),
+                            synth_type(&::alpha::substitute(body, &cur_env),
                                        unfold_parts.env.clone())
                         } else { panic!("ICE: no protection to remove!"); }
                     })
@@ -392,7 +392,7 @@ pub fn make_core_syn_env() -> SynEnv {
                         // This acts like the `mu` was never there (and hiding the binding)
                         if let &ExtendEnv(ref body, _) = mu_parts.get_leaf_or_panic(&n("body")) {
                             let cur_env = fold_parts.env.map(&|x: &Ty| x.concrete());
-                            try!(synth_type(&::ast_walk::substitute(body, &cur_env),
+                            try!(synth_type(&::alpha::substitute(body, &cur_env),
                                             fold_parts.env.clone()))
                         } else { panic!("ICE: no protection to remove!"); }
                     });
@@ -409,7 +409,7 @@ pub fn make_core_syn_env() -> SynEnv {
             cust_rc_box!( move |forall_parts| {
                 Ok(ty!({"type" "forall_type" :
                     "param" => (,seq forall_parts.get_rep_term(&n("param"))
-                /*.iter().map(|p| ast_to_atom(&p))*/),
+                /*.iter().map(|p| ast_to_name(&p))*/),
                     "body" => (, try!(forall_parts.get_res(&n("body"))).concrete())
                 }))
             }),
@@ -466,7 +466,7 @@ pub fn make_core_syn_env() -> SynEnv {
 
                             return Ok(res);
                         }
-                        ty_err!(NonexistentEnumArm(ast_to_atom(arm_name),
+                        ty_err!(NonexistentEnumArm(ast_to_name(arm_name),
                             Ty::new(Trivial)) /* TODO `LazyWalkReses` needs more information */
                             at arm_name.clone())
                 }
@@ -476,7 +476,7 @@ pub fn make_core_syn_env() -> SynEnv {
                 match *part_values.context_elt() /* : Value */ {
                     Enum(ref name, ref elts) => {
                         // "Try another branch"
-                        if name != &ast_to_atom(&part_values.get_term(&n("name"))) {
+                        if name != &ast_to_name(&part_values.get_term(&n("name"))) {
                             return Err(());
                         }
 
@@ -521,7 +521,7 @@ pub fn make_core_syn_env() -> SynEnv {
                             }
                             if !component_found {
                                 ty_err!(NonexistentStructField(
-                                        ast_to_atom(&component_ctx.get_term(&n("component_name"))),
+                                        ast_to_name(&component_ctx.get_term(&n("component_name"))),
                                         part_types.context_elt().clone())
                                     at part_types.get_rep_term(&n("component"))[0].clone());
                             }
@@ -537,7 +537,7 @@ pub fn make_core_syn_env() -> SynEnv {
                             res = res.set_assoc(
                                 &try!(component_ctx
                                     .with_context(contents.find_or_panic(
-                                        &ast_to_atom(
+                                        &ast_to_name(
                                             &component_ctx.get_term(&n("component_name"))))
                                             .clone())
                                     .get_res(&n("component"))));

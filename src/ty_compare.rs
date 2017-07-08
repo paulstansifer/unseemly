@@ -9,7 +9,7 @@ use name::*;
 use std::cell::{Ref,RefCell};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
-use core_forms::{find_core_form, ast_to_atom};
+use core_forms::{find_core_form, ast_to_name};
 
 /* Let me write down an example subtyping hierarchy, to stop myself from getting confused.
     ⊤ (any type/dynamic type/"dunno"/∀X.X)
@@ -114,11 +114,11 @@ pub fn resolve(t: Ty, env: &Assoc<Name, Ty>, unif: &HashMap<Name, Ty>) -> Ty {
         }
         Ty(Node(ref form, ref parts)) if form == &find_core_form("type", "type_by_name") =>  {
             // TODO: remove this stanza when type_by_name is gone
-            let vr = ast_to_atom(&parts.get_leaf_or_panic(&n("name")));
+            let vr = ast_to_name(&parts.get_leaf_or_panic(&n("name")));
             env.find(&vr).map(Clone::clone)
         }
         Ty(Node(ref form, ref parts)) if form == &u_f => { // underdetermined
-            unif.get(&ast_to_atom(parts.get_leaf_or_panic(&n("id")))).map(Clone::clone)
+            unif.get(&ast_to_name(parts.get_leaf_or_panic(&n("id")))).map(Clone::clone)
         }
         _ => None
     };
@@ -209,13 +209,13 @@ impl ::ast_walk::NegativeWalkMode for Subtype {
             let rhs = resolve(rhs, env, &unif.borrow()).clone();
 
             // We need to capture the environment
-            let lhs = Ty(::ast_walk::substitute(&lhs.concrete(), &env.map(&|t| t.concrete())));
-            let rhs = Ty(::ast_walk::substitute(&rhs.concrete(), &env.map(&|t| t.concrete())));
+            let lhs = Ty(::alpha::substitute(&lhs.concrete(), &env.map(|t| t.concrete())));
+            let rhs = Ty(::alpha::substitute(&rhs.concrete(), &env.map(|t| t.concrete())));
 
             let lhs_name = lhs.destructure(u_f.clone(), &Trivial).map( // errors get swallowed ↓
-                |p| ast_to_atom(p.get_leaf_or_panic(&n("id"))));
+                |p| ast_to_name(p.get_leaf_or_panic(&n("id"))));
             let rhs_name = rhs.destructure(u_f.clone(), &Trivial).map(
-                |p| ast_to_atom(p.get_leaf_or_panic(&n("id"))));
+                |p| ast_to_name(p.get_leaf_or_panic(&n("id"))));
 
             match (lhs_name, rhs_name) {
                 // They are the same underdetermined type; nothing to do:

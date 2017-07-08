@@ -52,7 +52,7 @@ use parse::FormPat::*;
 use ast_walk::{WalkRule, WalkMode, walk, WalkElt, NegativeWalkMode};
 use ast_walk::WalkRule::*;
 use name::*;
-use core_forms::ast_to_atom;
+use core_forms::ast_to_name;
 use ty::{Ty, synth_type, UnpackTy, TyErr, SynthTy};
 use ty_compare::{Canonicalize, Subtype};
 use ast::*;
@@ -199,17 +199,17 @@ pub fn make_core_syn_env_types() -> SynEnv {
     let type_by_name = type_defn_complex("type_by_name",
         form_pat!([(lit "DEPRECATED"), (named "name", aat)]),
         cust_rc_box!(move |tbn_part| {
-            let name = ast_to_atom(&tbn_part.get_term(&n("name")));
+            let name = ast_to_name(&tbn_part.get_term(&n("name")));
             ::ty::SynthTy::walk_var(name, &tbn_part)
         }),
         Both(
             cust_rc_box!(move |tbn_part| {
                 ::ty_compare::Canonicalize::walk_var(
-                    ast_to_atom(&tbn_part.get_term(&n("name"))), &tbn_part)
+                    ast_to_name(&tbn_part.get_term(&n("name"))), &tbn_part)
             }),
             cust_rc_box!(move |tbn_part| {
                 ::ty_compare::Subtype::walk_var(
-                    ast_to_atom(&tbn_part.get_term(&n("name"))), &tbn_part)
+                    ast_to_name(&tbn_part.get_term(&n("name"))), &tbn_part)
 
             })));
 
@@ -231,7 +231,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         cust_rc_box!(move |tapp_parts| {
             let arg_res = try!(tapp_parts.get_rep_res(&n("arg")));
 
-            let type_name = ast_to_atom(&tapp_parts.get_term(&n("type_name")));
+            let type_name = ast_to_name(&tapp_parts.get_term(&n("type_name")));
 
             match tapp_parts.env.find(&type_name) {
                 None => ty_err!(UnboundName(type_name) at tapp_parts.this_ast),
@@ -264,7 +264,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                             let mut new__ty_env = tapp_parts.env.clone();
                             for (name, actual_type) in params.iter().zip(arg_res) {
                                 new__ty_env
-                                    = new__ty_env.set(ast_to_atom(name), actual_type);
+                                    = new__ty_env.set(ast_to_name(name), actual_type);
                             }
 
                             // This bypasses the binding in the type, which is what we want:

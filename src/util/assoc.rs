@@ -135,14 +135,18 @@ impl<K: PartialEq + Clone, V: Clone> Assoc<K,V> {
         Box::new(self.iter_pairs().map(|p| (*p.1).clone()))
     }
 
-    pub fn map<NewV>(&self, f: &Fn(&V) -> NewV) -> Assoc<K, NewV> {
+    pub fn map<NewV, F>(&self, mut f: F) -> Assoc<K, NewV> where F: FnMut(&V) -> NewV {
+        self.map_borrow_f(&mut f)
+    }
+
+    pub fn map_borrow_f<NewV, F>(&self, f: &mut F) -> Assoc<K, NewV> where F: FnMut(&V) -> NewV {
         match self.n {
             None => Assoc{ n: None },
             Some(ref node) => {
                 Assoc {
                     n: Some(Rc::new(AssocNode {
                         k: node.k.clone(), v: f(&node.v),
-                        next: node.next.map(f)
+                        next: node.next.map_borrow_f(f)
                     }))
                 }
             }
@@ -171,7 +175,7 @@ impl<K: PartialEq + fmt::Debug + Clone, V: fmt::Debug + Clone> Assoc<K, V> {
     pub fn find_or_panic<'assoc, 'f>(&'assoc self, target: &'f K) -> &'assoc V {
         match self.find(target) {
             None => {
-                panic!("{:?} not found in {:?}", target, self.map(&|_| "…"))
+                panic!("{:?} not found in {:?}", target, self.map(|_| "…"))
             },
             Some(v) => v
         }
@@ -380,7 +384,7 @@ fn assoc_r_and_r_roundtrip() {
 #[test]
 fn assoc_map() {
     let a1 = assoc_n!("x" => 1, "y" => 2, "z" => 3);
-    assert_eq!(a1.map(&|a| a+1), assoc_n!("x" => 2, "y" => 3, "z" => 4));
+    assert_eq!(a1.map(|a| a+1), assoc_n!("x" => 2, "y" => 3, "z" => 4));
 
     let a2 = assoc_n!("y" => -2, "z" => -3, "x" => -1);
     assert_eq!(a1.map_with(&a2, &|a, b| a+b),

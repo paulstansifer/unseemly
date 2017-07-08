@@ -280,9 +280,9 @@ impl<T: Clone> EnvMBE<T> {
             repeats: new_repeats,
             ddd_rep_idxes: new__ddd_rep_idxes,
             leaf_locations: self.leaf_locations.set_assoc(
-                &rhs.leaf_locations.map(&|idx_opt| idx_opt.map(|idx| idx+adjust_rhs_by))),
+                &rhs.leaf_locations.map(|idx_opt| idx_opt.map(|idx| idx+adjust_rhs_by))),
             named_repeats: self.named_repeats.set_assoc(
-                &rhs.named_repeats.map(&|idx_opt| idx_opt.map(|idx| idx+adjust_rhs_by)))
+                &rhs.named_repeats.map(|idx_opt| idx_opt.map(|idx| idx+adjust_rhs_by)))
         }
     }
 
@@ -433,12 +433,12 @@ impl<T: Clone> EnvMBE<T> {
     }
 
 
-    pub fn map<NewT>(&self, f: &Fn(&T) -> NewT) -> EnvMBE<NewT> {
+    pub fn map<NewT, F>(&self, f: &mut F) -> EnvMBE<NewT> where F: FnMut(&T) -> NewT {
         EnvMBE {
-            leaves: self.leaves.map(f),
+            leaves: self.leaves.map_borrow_f(f),
             repeats: self.repeats.iter().map(
-                &|rc_vec_mbe : &Rc<Vec<EnvMBE<T>>>| Rc::new(rc_vec_mbe.iter().map(
-                    &|mbe : &EnvMBE<T>| mbe.map(f)
+                |rc_vec_mbe : &Rc<Vec<EnvMBE<T>>>| Rc::new(rc_vec_mbe.iter().map(
+                    |mbe : &EnvMBE<T>| mbe.map(f)
                 ).collect())).collect(),
             ddd_rep_idxes: self.ddd_rep_idxes.clone(),
             leaf_locations: self.leaf_locations.clone(),
@@ -487,7 +487,7 @@ impl<T: Clone> EnvMBE<T> {
 
                     let mapped : Vec<_>
                         = Self::resolve_ddd(rc_vec_mbe, ddd_idx, o_rc_vec_mbe, o_ddd_idx).iter()
-                        .map(&|&(mbe, o_mbe) : &(&EnvMBE<T>, &EnvMBE<T>)| mbe.map_with(o_mbe, f))
+                        .map(|&(mbe, o_mbe) : &(&EnvMBE<T>, &EnvMBE<T>)| mbe.map_with(o_mbe, f))
                         .collect();
 
                   Rc::new(mapped)}).collect(),
@@ -661,7 +661,8 @@ fn basic_mbe() {
         assert_eq!(sub_mbe.get_leaf(&n("t")), Some(&0));
         assert_eq!(sub_mbe.get_leaf(&n("nt")), Some(&0));
 
-        for (sub_sub_mbe, _) in sub_mbe.march_all(&vec![n("y"), n("eight")]).iter().zip(vec![9001, 9002]) {
+        for (sub_sub_mbe, _) in sub_mbe.march_all(&vec![n("y"), n("eight")]).iter()
+                .zip(vec![9001, 9002]) {
             assert_eq!(sub_sub_mbe.get_leaf(&n("eight")), Some(&0));
             assert_eq!(sub_sub_mbe.get_leaf(&n("nine")), Some(&0));
             assert_eq!(sub_sub_mbe.get_leaf(&n("t")), Some(&0));
@@ -671,8 +672,8 @@ fn basic_mbe() {
     }
 
     assert_eq!(mbe, mbe);
-    assert!(mbe != mbe.map(&|x| x - 1));
-    assert_eq!(mbe, mbe.map(&|x| x - 0));
+    assert!(mbe != mbe.map(&mut |x| x - 1));
+    assert_eq!(mbe, mbe.map(&mut |x| x - 0));
     assert!(mbe != EnvMBE::new());
     assert!(EnvMBE::new() != mbe);
 
@@ -685,13 +686,13 @@ fn basic_mbe() {
 
     assert_eq!(
         Err(()),
-        mbe.clone().map(&|x: &i32| if *x == 12     { Err(()) } else { Ok(*x)} ).lift_result());
+        mbe.clone().map(&mut |x: &i32| if *x == 12     { Err(()) } else { Ok(*x)} ).lift_result());
     assert_eq!(
         Ok(mbe.clone()),
-        mbe.clone().map(&|x: &i32| if *x == 121212 { Err(()) } else { Ok(*x)} ).lift_result());
+        mbe.clone().map(&mut |x: &i32| if *x == 121212 { Err(()) } else { Ok(*x)} ).lift_result());
 
 
-    let mapped_mbe = mbe.map(&|x : &i32| (*x, *x - 9000));
+    let mapped_mbe = mbe.map(&mut |x : &i32| (*x, *x - 9000));
 
     let first_sub_mbe = &mapped_mbe.march_all(&vec![n("y")])[0];
 

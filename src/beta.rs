@@ -4,7 +4,8 @@ use std::fmt;
 use name::*;
 use ast_walk::{ResEnv, LazyWalkReses, LazilyWalkedTerm, WalkMode};
 use util::assoc::Assoc;
-use ast::{Atom};
+use ast::{Ast,Atom};
+use util::mbe::EnvMBE;
 
 
 /**
@@ -23,9 +24,9 @@ use ast::{Atom};
   (b) where to get the type annotation (`Basic`)
        or an expression producting the type (`SameAs`)
        for that name.
+
+ I have no idea where the name "β" came from, and whether it has any connection to α-equivalence.
  */
-
-
 
 custom_derive! {
     #[derive(PartialEq, Eq, Clone, Reifiable)]
@@ -166,7 +167,7 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
 }
 
 // Like just taking the keys from `env_from_beta`, but faster and non-failing
-pub fn keys_from_beta(b: &Beta, parts: &::util::mbe::EnvMBE<::ast::Ast>) -> Vec<Name> {
+pub fn keys_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>) -> Vec<Name> {
     match *b {
         Nothing => { vec![] }
         Shadow(ref lhs, ref rhs) => {
@@ -183,7 +184,39 @@ pub fn keys_from_beta(b: &Beta, parts: &::util::mbe::EnvMBE<::ast::Ast>) -> Vec<
             res
         }
         Basic(ref n_s, _) | SameAs(ref n_s, _) | Underspecified(ref n_s) | Protected(ref n_s) => {
-            vec![::core_forms::ast_to_atom(parts.get_leaf_or_panic(n_s))]
+            vec![::core_forms::ast_to_name(parts.get_leaf_or_panic(n_s))]
+        }
+    }
+}
+
+thread_local! {
+    pub static next_id: ::std::cell::RefCell<u32> = ::std::cell::RefCell::new(0);
+}
+
+pub fn freshening_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>,
+                            memo: &mut ::std::collections::HashMap<Name, Name>)
+         -> Assoc<Name, Ast> {
+    match *b {
+        Nothing => { Assoc::new() }
+        Shadow(ref lhs, ref rhs) => {
+            freshening_from_beta(&*lhs, parts, memo)
+                .set_assoc(&freshening_from_beta(&*rhs, parts, memo))
+        }
+        ShadowAll(ref sub_beta, ref drivers) => {
+            let mut res = Assoc::new();
+            for parts in parts.march_all(drivers) {
+                res = res.set_assoc(&freshening_from_beta(&*sub_beta, &parts, memo));
+            }
+            res
+        }
+        Basic(ref n_s, _) | SameAs(ref n_s, _) | Underspecified(ref n_s) | Protected(ref n_s) => {
+            let this_name = ::core_forms::ast_to_name(parts.get_leaf_or_panic(n_s));
+
+            Assoc::new().set(this_name, ::ast::VariableReference(*memo.entry(this_name)
+                .or_insert_with(||{
+                    next_id.with(|n_i| {
+                        *n_i.borrow_mut() += 1; n(&format!("🍅{}{}", this_name, *n_i.borrow()))
+                    })})))
         }
     }
 }

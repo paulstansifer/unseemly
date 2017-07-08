@@ -2,7 +2,6 @@
 // You shouldn't write code in Unseemly.
 // Instead, you should implement your programming language as Unseemly macros.
 
-
 #![allow(dead_code,non_snake_case,unused_imports,non_upper_case_globals, unused_macros)]
 // dead_code and unused_macros are hopefully temporary allowances
 // non_snake_case is stylistic, unused_imports is inaccurate because of macros
@@ -33,6 +32,7 @@ mod name; // should maybe be moved to `util`; `mbe` needs it
 
 mod util;
 
+mod alpha;
 mod beta;
 mod read;
 mod ast;

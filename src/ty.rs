@@ -57,7 +57,7 @@ impl Ty {
 // this kinda belongs in core_forms.rs
 impl ::std::fmt::Display for Ty {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        use core_forms::{find_core_form, ast_to_atom};
+        use core_forms::{find_core_form, ast_to_name};
         let undet_form = ::ty_compare::underdetermined_form.with(|u_f| { u_f.clone() });
 
         match self.0 {
@@ -86,7 +86,7 @@ impl ::std::fmt::Display for Ty {
                     try!(write!(f, "enum {{"));
                     for subenv in env.march_all(&[n("name")]) {
                         try!(write!(f, " {} ("/*)*/,
-                            ast_to_atom(&subenv.get_leaf_or_panic(&n("name")))));
+                            ast_to_name(&subenv.get_leaf_or_panic(&n("name")))));
                         if let Some(comps) = subenv.get_rep_leaf(&n("component")) {
                             let mut first = true;
                             for comp in comps {
@@ -102,7 +102,7 @@ impl ::std::fmt::Display for Ty {
                     try!(write!(f, "struct {{"));
                     for subenv in env.march_all(&[n("component_name")]) {
                         try!(write!(f, " {}: {}",
-                            ast_to_atom(&subenv.get_leaf_or_panic(&n("component_name"))),
+                            ast_to_name(&subenv.get_leaf_or_panic(&n("component_name"))),
                             Ty::new(subenv.get_leaf_or_panic(&n("component")).clone())));
                     }
                     write!(f, " }}")
@@ -111,20 +111,20 @@ impl ::std::fmt::Display for Ty {
                     try!(write!(f, "∀"));
                     if let Some(args) = env.get_rep_leaf(&n("param")) {
                         for name in args {
-                            try!(write!(f, " {}", ast_to_atom(name)));
+                            try!(write!(f, " {}", ast_to_name(name)));
                         }
                     }
                     write!(f, ". {}", Ty::new(env.get_leaf_or_panic(&n("body")).clone()))
                 } else if form == &find_core_form("type", "mu_type") {
                     try!(write!(f, "mu_type "));
                     for p in env.get_rep_leaf_or_panic(&n("param")) {
-                        try!(write!(f, " {}", ast_to_atom(&p)))
+                        try!(write!(f, " {}", ast_to_name(&p)))
                     }
                     write!(f, " . {}", Ty::new(env.get_leaf_or_panic(&n("body")).clone()))
                 } else if form == &find_core_form("type", "type_by_name") {
-                    write!(f, "{}", ast_to_atom(env.get_leaf_or_panic(&n("name"))))
+                    write!(f, "{}", ast_to_name(env.get_leaf_or_panic(&n("name"))))
                 } else if form == &find_core_form("type", "type_apply") {
-                    try!(write!(f, "{}<[", ast_to_atom(env.get_leaf_or_panic(&n("type_name")))));
+                    try!(write!(f, "{}<[", ast_to_name(env.get_leaf_or_panic(&n("type_name")))));
                     let mut first = true;
                     if let Some(args) = env.get_rep_leaf(&n("arg")) {
                         for arg in args {
@@ -136,7 +136,7 @@ impl ::std::fmt::Display for Ty {
                     write!(f, "]<")
                 } else if form == &undet_form {
                     ::ty_compare::unification.with(|unif| {
-                        let var = ast_to_atom(&env.get_leaf_or_panic(&n("id")));
+                        let var = ast_to_name(&env.get_leaf_or_panic(&n("id")));
                         let looked_up = unif.borrow().get(&var).map(|x| x.clone());
                         match looked_up {
                             Some(ref t) => write!(f, "{}", t),
