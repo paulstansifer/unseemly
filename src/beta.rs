@@ -193,8 +193,13 @@ thread_local! {
     pub static next_id: ::std::cell::RefCell<u32> = ::std::cell::RefCell::new(0);
 }
 
+
+// We keep a table, keyed on leaf names and actual atoms, to keep track of the freshening.
+// This means that shadowing in leaf-named atom set doesn't get separated.
+// (e.g. `.[a : Int  a : Int . ⋯].` freshens to `.[🍅a5 : Int  🍅a5 : Int . ⋯].`).
+// As long as betas can't select a different shadowing direction, this isn't a problem.
 pub fn freshening_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>,
-                            memo: &mut ::std::collections::HashMap<Name, Name>)
+                            memo: &mut ::std::collections::HashMap<(Name, Name), Name>)
          -> Assoc<Name, Ast> {
     match *b {
         Nothing => { Assoc::new() }
@@ -209,10 +214,10 @@ pub fn freshening_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>,
             }
             res
         }
-        Basic(ref n_s, _) | SameAs(ref n_s, _) | Underspecified(ref n_s) | Protected(ref n_s) => {
-            let this_name = ::core_forms::ast_to_name(parts.get_leaf_or_panic(n_s));
+        Basic(n_s, _) | SameAs(n_s, _) | Underspecified(n_s) | Protected(n_s) => {
+            let this_name = ::core_forms::ast_to_name(parts.get_leaf_or_panic(&n_s));
 
-            Assoc::new().set(this_name, ::ast::VariableReference(*memo.entry(this_name)
+            Assoc::new().set(this_name, ::ast::VariableReference(*memo.entry((n_s, this_name))
                 .or_insert_with(||{
                     next_id.with(|n_i| {
                         *n_i.borrow_mut() += 1; n(&format!("🍅{}{}", this_name, *n_i.borrow()))

@@ -153,6 +153,22 @@ impl<K: PartialEq + Clone, V: Clone> Assoc<K,V> {
         }
     }
 
+    pub fn keyed_map_borrow_f<NewV, F>(&self, f: &mut F) -> Assoc<K, NewV>
+            where F: FnMut(&K, &V) -> NewV {
+        match self.n {
+            None => Assoc{ n: None },
+            Some(ref node) => {
+                Assoc {
+                    n: Some(Rc::new(AssocNode {
+                        k: node.k.clone(), v: f(&node.k, &node.v),
+                        next: node.next.keyed_map_borrow_f(f)
+                    }))
+                }
+            }
+        }
+    }
+
+
     pub fn map_with<NewV>(&self, other: &Assoc<K, V>, f: &Fn(&V, &V) -> NewV)
             -> Assoc<K, NewV> {
         match self.n {

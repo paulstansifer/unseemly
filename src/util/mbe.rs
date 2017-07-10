@@ -446,9 +446,23 @@ impl<T: Clone> EnvMBE<T> {
         }
     }
 
+    pub fn map_with_leaf_names<NewT, F>(&self, f: &mut F) -> EnvMBE<NewT>
+            where F: FnMut(&Name, &T) -> NewT {
+        EnvMBE {
+            leaves: self.leaves.keyed_map_borrow_f(f),
+            repeats: self.repeats.iter().map(
+                |rc_vec_mbe : &Rc<Vec<EnvMBE<T>>>| Rc::new(rc_vec_mbe.iter().map(
+                    |mbe : &EnvMBE<T>| mbe.map_with_leaf_names(f)
+                ).collect())).collect(),
+            ddd_rep_idxes: self.ddd_rep_idxes.clone(),
+            leaf_locations: self.leaf_locations.clone(),
+            named_repeats: self.named_repeats.clone()
+        }
+    }
+
     // TODO: for efficiency, this ought to return iterators
     fn resolve_ddd<'a>(lhs: &'a Rc<Vec<EnvMBE<T>>>, lhs_ddd: &'a Option<usize>,
-                           rhs: &'a Rc<Vec<EnvMBE<T>>>, rhs_ddd: &'a Option<usize>)
+                       rhs: &'a Rc<Vec<EnvMBE<T>>>, rhs_ddd: &'a Option<usize>)
             -> Vec<(&'a EnvMBE<T>, &'a EnvMBE<T>)> {
 
         let len_diff = lhs.len() as i32 - (rhs.len() as i32);
