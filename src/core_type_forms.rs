@@ -57,8 +57,6 @@ use ty::{Ty, synth_type, UnpackTy, TyErr, SynthTy};
 use ty_compare::{Canonicalize, Subtype};
 use ast::*;
 
-
-
 //TODO: I think we need to extend `Form` with `synth_kind`...
 fn type_defn(form_name: &str, p: FormPat) -> Rc<Form> {
     Rc::new(Form {
@@ -104,8 +102,9 @@ pub fn make_core_syn_env_types() -> SynEnv {
             LiteralLike, // synth is normal
             Both(LiteralLike,
                 cust_rc_box!(move |fn_parts| {
+                    let actual = fn_parts.context_elt().concrete();
                     let actual_parts = try!(Subtype::context_match(
-                        &fn_parts.this_ast, fn_parts.context_elt(), fn_parts.env.clone()));
+                        &fn_parts.this_ast, &actual, fn_parts.env.clone()));
 
                     let expd_params = fn_parts.get_rep_term(&n("param"));
                     let actl_params = actual_parts.get_rep_leaf_or_panic(&n("param"));
@@ -147,7 +146,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 cust_rc_box!(move |forall_parts| {
                     match Subtype::context_match(
                             &forall_parts.this_ast,
-                            forall_parts.context_elt(),
+                            &forall_parts.context_elt().concrete(),
                             forall_parts.env.clone()) {
                         // ∀ X. ⋯ <: ∀ Y. ⋯ ? (so force X=Y)
                         Ok(actual_forall_parts) => {
@@ -250,7 +249,11 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     }
                     new__tapp_parts.add_anon_repeat(args, None);
 
-                    Ok(Ty::new(Node(tapp_parts.this_form(), new__tapp_parts)))
+                    if let Node(ref f, _, ref exp) = tapp_parts.this_ast {
+                        Ok(Ty::new(Node(f.clone(), new__tapp_parts, exp.clone())))
+                    } else {
+                        panic!("ICE")
+                    }
                 }
                 Some(defined_type) => {
                     // This might ought to be done by a specialized `beta`...

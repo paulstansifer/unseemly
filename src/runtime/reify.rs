@@ -33,7 +33,8 @@ pub trait Reifiable {
                                      ::ast_walk::WalkRule::LiteralLike),
             eval: ::form::Positive(::ast_walk::WalkRule::NotWalked),
         }),
-        ::util::mbe::EnvMBE::new())
+        ::util::mbe::EnvMBE::new(),
+        ::beta::ExportBeta::Nothing)
     }
 
     /// A name for that type, so that recursive types are okay.

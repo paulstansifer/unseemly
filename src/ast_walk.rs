@@ -77,6 +77,7 @@ use beta::*;
 use std::fmt::{Debug, Display};
 use runtime::{reify, eval};
 use runtime::reify::Reifiable;
+use alpha::freshen;
 
 
 pub enum WalkRule<Mode: WalkMode> {
@@ -237,7 +238,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
 
     pub fn this_form(&self) -> Rc<Form> {
         match self.this_ast {
-            Node(ref f, _) => f.clone(),  _ => panic!("ICE")
+            Node(ref f, _, _) => f.clone(),  _ => panic!("ICE")
         }
     }
 
@@ -365,8 +366,8 @@ pub fn walk<Mode: WalkMode>(node: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
     // print!("#####: {:?}\n", node);
     // print!("       {:?}\n", cur_node_contents.env.map(&|_| "…"));
 
-    match node {
-        Node(ref f, ref parts) => {
+    match freshen(&node) {
+        Node(ref f, ref parts, ref export) => {
             // certain walks only work on certain kinds of AST nodes
             match *Mode::get_walk_rule(f) {
                 Custom(ref ts_fn) => {
@@ -536,17 +537,19 @@ impl<Mode: WalkMode<D=Self>> Dir for Positive<Mode> {
 
     fn walk_quasi_literally(expected: Ast, cnc: &LazyWalkReses<Self::Mode>)
             -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
-        let (f, parts) = match expected {Node(f,p) => (f,p), _ => panic!("ICE")};
+        let (f, parts, exports) = match freshen(&expected) {
+            Node(f,p,e) => (f,p,e), _ => panic!("ICE")
+        };
 
         // TODO: I think we need a separate version of `walk` that doesn't panic on `MatchFailure`
         let walked : Result<EnvMBE<Ast>, <Self::Mode as WalkMode>::Err> = parts.map(
             &mut |p: &Ast| match *p {
                 // Yes, `walk`, not `w_q_l`; the mode is in charge of figuring things out.
-                Node(_, _) | VariableReference(_) => walk(p, cnc),
+                Node(_, _, _) | VariableReference(_) => walk(p, cnc),
                 _ => Ok(<Self::Mode as WalkMode>::Elt::from_ast(&p.clone()))
             }.map(|e| <Self::Mode as WalkMode>::Elt::to_ast(&e))).lift_result();
 
-        walked.map(|out| <Self::Mode as WalkMode>::Elt::from_ast(&Node(f.clone(), out)))
+        walked.map(|out| <Self::Mode as WalkMode>::Elt::from_ast(&Node(f, out, exports)))
     }
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Self::Mode>)
@@ -558,7 +561,6 @@ impl<Mode: WalkMode<D=Self>> Dir for Positive<Mode> {
     fn out_as_env(_: Self::Out) -> Assoc<Name, <Self::Mode as WalkMode>::Elt> {
         panic!("ICE: out_as_env")
     }
-
 }
 
 impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
@@ -586,19 +588,18 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
     fn walk_quasi_literally(expected: Ast, cnc: &LazyWalkReses<Self::Mode>)
             -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
 
-        let (expd, got) = (<Self::Mode as WalkMode>::Elt::from_ast(&expected), cnc.context_elt().clone());
-        let expd_ast = Mode::Elt::to_ast(&expd);
+        let got = <Mode::Elt as WalkElt>::to_ast(&cnc.context_elt().clone());
 
-        let parts_actual = try!(Mode::context_match(&expd_ast, &got, cnc.env.clone()));
+        let parts_actual = try!(Mode::context_match(&expected, &got, cnc.env.clone()));
 
         let its_a_trivial_node = EnvMBE::new(); // No more walking to do
-        let expd_parts = match expd_ast { Node(_, ref p) => p,  _ => &its_a_trivial_node };
+        let expd_parts = match expected { Node(_, ref p, _) => p,  _ => &its_a_trivial_node };
 
-        // Continue the walk on subterms.
+        // Continue the walk on subterms. (`context_match` does the freshening)
         expd_parts.map_reduce_with(&parts_actual,
             &|model: &Ast, actual: &Ast| {
                 match *model {
-                    Node(_, _) | VariableReference(_) => {
+                    Node(_, _, _) | VariableReference(_) => {
                         walk(model,
                             &cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(actual)))
                     }
@@ -639,20 +640,14 @@ pub trait NegativeWalkMode : WalkMode {
     /// Note that this should come after `pre_match`,
     ///  so any remaining variables will be not be resolved.
     /// TODO: I should think about whether to use `Ast` or `Elt` during matches in `ast_walk`
-    fn context_match(expected: &Ast, got: &Self::Elt, _env: Assoc<Name, Self::Elt>)
+    fn context_match(expected: &Ast, got: &Ast, _env: Assoc<Name, Self::Elt>)
             -> Result<EnvMBE<Ast>, <Self as WalkMode>::Err> {
-        let got_ast = Self::Elt::to_ast(got);
-
-        // TODO Needs freshening (like what Romeo does)!
-        // I only spent three years or so on hygenic destructuring,
-        //  so it's not surprising that I forgot that I'd need to do it.
-
         // break apart the node, and walk it element-wise
-        match (expected, got_ast) {
-            (&Node(ref f, _), Node(ref f_actual, ref parts_actual)) if *f == *f_actual => {
+        match (freshen(expected), freshen(got)) {
+            (Node(ref f, _, _), Node(ref f_actual, ref parts_actual, _)) if *f == *f_actual => {
                 Ok(parts_actual.clone())
             }
-            (&VariableReference(n_lhs), VariableReference(n_rhs)) if n_lhs == n_rhs => {
+            (VariableReference(n_lhs), VariableReference(n_rhs)) if n_lhs == n_rhs => {
                 Ok(EnvMBE::new()) // Nothing left to match. Is this a hack?
             }
             _ => {
@@ -660,7 +655,8 @@ pub trait NegativeWalkMode : WalkMode {
                 //  contained useful `diff`-like information for debugging,
                 //   when a match was expected to succeed?
                 // (I really like using pattern-matching in unit tests!)
-                Err(Self::qlit_mismatch_error(got.clone(), Self::Elt::from_ast(&expected)))
+                Err(Self::qlit_mismatch_error(Self::Elt::from_ast(&got),
+                                              Self::Elt::from_ast(&expected)))
             }
         }
     }

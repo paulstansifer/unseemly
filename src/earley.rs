@@ -401,7 +401,7 @@ impl Item {
                             waiting_item.finish_with(me_justif, false)
                         }
                         Alt(_) | Call(_) | ComputeSyntax(_,_)
-                        | Scope(_) | Named(_,_) | SynImport(_,_) | NameImport(_,_) => {
+                        | Scope(_,_) | Named(_,_) | SynImport(_,_) | NameImport(_,_) => {
                             waiting_item.finish_with(me_justif, false)
                         }
                         Biased(ref _plan_a, ref plan_b) => {
@@ -532,7 +532,7 @@ impl Item {
             (0, &Call(n)) => {
                 self.start(self.grammar.find_or_panic(&n).clone(), cur_idx)
             },
-            (0, &Scope(ref f)) => { // form.grammar is a FormPat. Confusing!
+            (0, &Scope(ref f, _)) => { // form.grammar is a FormPat. Confusing!
                 self.start(f.grammar.clone(), cur_idx)
             },
             (0, &SynImport(ref name, ref f)) => {
@@ -667,9 +667,9 @@ impl Item {
                 Ok(Ast::IncompleteNode(::util::mbe::EnvMBE::new_from_leaves(
                     ::util::assoc::Assoc::single(name, sub_parsed))))
             },
-            Scope(ref form) => {
+            Scope(ref form, ref export) => {
                 let sub_parsed = try!(self.find_wanted(chart, done_tok).c_parse(chart, done_tok));
-                Ok(Ast::Node(form.clone(), sub_parsed.flatten()))
+                Ok(Ast::Node(form.clone(), sub_parsed.flatten(), export.clone()))
             },
             NameImport(_, ref beta) => {
                 let sub_parsed = try!(self.find_wanted(chart, done_tok).c_parse(chart, done_tok));

@@ -24,7 +24,7 @@ use num::bigint::ToBigInt;
 use core_type_forms::*; // type forms are kinda bulky
 
 pub fn ast_to_name(ast: &Ast) -> Name {
-    match *ast { Atom(n) => n, _ => { panic!("internal error!") } }
+    match *ast { Atom(n) => n, _ => { panic!("ICE: {:?} is not an atom", ast) } }
 }
 
 // A brief digression about types and syntax quotation...
@@ -138,9 +138,6 @@ fn eval_quoted_stx(a: Ast, env: Assoc<Name, Value>) -> Ast {
     }
 }
 */
-macro_rules! utry {
-    ($e:expr) => { $e.unwrap() }
-}
 
 /// This is the Unseemly language.
 pub fn make_core_syn_env() -> SynEnv {
@@ -436,7 +433,7 @@ pub fn make_core_syn_env() -> SynEnv {
     ];
 
 
-    let main_pat_forms = forms_to_form_pat![
+    let main_pat_forms = forms_to_form_pat_export![
         negative_typed_form!("enum_pat",
             (delim "+[", "[", /*]]*/ [(named "name", aat),
                                       (star (named "component", (call "pat")))]),
@@ -490,7 +487,7 @@ pub fn make_core_syn_env() -> SynEnv {
                     }
                     _ => panic!("Type ICE: non-enum")
                 }
-            })),
+            })) => [* ["component"]],
         negative_typed_form!("struct_pat",
             [(delim "{", "{", /*}}*/
                  (star [(named "component_name", aat), (lit ":"),
@@ -547,10 +544,10 @@ pub fn make_core_syn_env() -> SynEnv {
                     }
                     _ => panic!("Type ICE: non-struct")
                 }
-            }))];
+            }))  => [* ["component"]]];
 
     assoc_n!(
-        "pat" => Rc::new(Biased(Rc::new(main_pat_forms), Rc::new(VarRef))),
+        "pat" => Rc::new(Biased(Rc::new(main_pat_forms), Rc::new(AnyAtomicToken))),
         "expr" => Rc::new(Biased(Rc::new(main_expr_forms), Rc::new(VarRef)))
     )
         .set_assoc(&ctf) /* throw in the types! */
@@ -564,7 +561,7 @@ pub fn find_form(se: &SynEnv, nt: &str, form_name: &str) -> Rc<Form> {
 
     fn find_form_rec(f: &FormPat, form_name: &str) -> Option<Rc<Form>> {
         match *f {
-            Scope(ref f) => {
+            Scope(ref f, _) => {
                 if f.name.is(form_name) {
                     Some(f.clone())
                 } else {

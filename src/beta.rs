@@ -94,6 +94,29 @@ impl Beta {
             Protected(n) => { vec![n] }
         }
     }
+
+    // This has an overly-specific type to match implementation details of alpha::freshen_binders.
+    // Not sure if we need a generalization, though.
+    pub fn extract_from_mbe(&self, parts: &EnvMBE<(Ast, Assoc<Name,Ast>)>) -> Assoc<Name,Ast> {
+        match *self {
+            Nothing => { Assoc::new() }
+            Shadow(ref lhs, ref rhs) => {
+                lhs.extract_from_mbe(parts).set_assoc(&rhs.extract_from_mbe(parts))
+            }
+            ShadowAll(ref sub_beta, ref drivers) => {
+                let mut res = Assoc::new();
+                for parts in parts.march_all(drivers) { // Maybe `march_all` should memoize?
+                    res = res.set_assoc(&sub_beta.extract_from_mbe(&parts));
+                }
+                res
+            }
+            Basic(n_s, _) | SameAs(n_s, _) | Underspecified(n_s) | Protected(n_s) => {
+                parts.get_leaf_or_panic(&n_s).1.clone()
+            }
+        }
+    }
+
+
 }
 
 // Mode is expected to be positive
@@ -166,6 +189,73 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
     }
 }
 
+// Like `Beta`, but without type information (which gets added at the `import` stage).
+// At the moment, this seems to work better...
+custom_derive! {
+    #[derive(PartialEq, Eq, Clone, Reifiable)]
+    pub enum ExportBeta {
+        /// Like `Basic`/`SameAs`/`Underspecified`/`Protected`, but without committing to a type
+        Use(Name),
+        Shadow(Box<ExportBeta>, Box<ExportBeta>),
+        /// Shadow the names from a `ExportBeta`, repeated.
+        /// The `Vec` should always be equal to `names_mentioned(...)` of the `ExportBeta`.
+        ShadowAll(Box<ExportBeta>, Vec<Name>),
+        /// No names
+        Nothing
+    }
+}
+
+impl fmt::Debug for ExportBeta {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ExportBeta::Nothing => { write!(f, "∅") },
+            ExportBeta::Shadow(ref lhs, ref rhs) => { write!(f, "({:?} ▷ {:?})", lhs, rhs) },
+            ExportBeta::ShadowAll(ref sub_beta, ref drivers) => {
+                write!(f, "( {:?} ▷ ... by {:?})", sub_beta, drivers)
+            }
+            ExportBeta::Use(ref name) => { write!(f, "{:?}", name) }
+        }
+    }
+}
+
+impl ExportBeta {
+    pub fn names_mentioned(&self) -> Vec<Name> {
+        match *self {
+            ExportBeta::Nothing => { vec![] }
+            ExportBeta::Shadow(ref lhs, ref rhs) => {
+                let mut res = lhs.names_mentioned();
+                let mut r_res = rhs.names_mentioned();
+                res.append(&mut r_res);
+                res
+            }
+            ExportBeta::ShadowAll(_, ref drivers) => { drivers.clone() }
+            ExportBeta::Use(n) => { vec![n] }
+        }
+    }
+
+    // This has an overly-specific type to match implementation details of alpha::freshen_binders.
+    // Not sure if we need a generalization, though.
+    pub fn extract_from_mbe(&self, parts: &EnvMBE<(Ast, Assoc<Name,Ast>)>) -> Assoc<Name,Ast> {
+        match *self {
+            ExportBeta::Nothing => { Assoc::new() }
+            ExportBeta::Shadow(ref lhs, ref rhs) => {
+                lhs.extract_from_mbe(parts).set_assoc(&rhs.extract_from_mbe(parts))
+            }
+            ExportBeta::ShadowAll(ref sub_beta, ref drivers) => {
+                let mut res = Assoc::new();
+                for parts in parts.march_all(drivers) { // Maybe `march_all` should memoize?
+                    res = res.set_assoc(&sub_beta.extract_from_mbe(&parts));
+                }
+                res
+            }
+            ExportBeta::Use(n_s) => {
+                parts.get_leaf_or_panic(&n_s).1.clone()
+            }
+        }
+    }
+}
+
+
 // Like just taking the keys from `env_from_beta`, but faster and non-failing
 pub fn keys_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>) -> Vec<Name> {
     match *b {
@@ -193,6 +283,7 @@ thread_local! {
     pub static next_id: ::std::cell::RefCell<u32> = ::std::cell::RefCell::new(0);
 }
 
+// TODO NOW: make this return the atom-freshened node (possibly freshening recursive nodes)
 
 // We keep a table, keyed on leaf names and actual atoms, to keep track of the freshening.
 // This means that shadowing in leaf-named atom set doesn't get separated.

@@ -13,7 +13,7 @@ use util::assoc::Assoc;
 use util::mbe::EnvMBE;
 use std::rc::Rc;
 use std::marker::PhantomData;
-use beta::Beta;
+use beta::{Beta, ExportBeta};
 use std;
 
 impl Token {
@@ -67,8 +67,8 @@ custom_derive! {
          */
         ComputeSyntax(Name, Rc<FormPat>),
 
-        /** Makes a node and limits the region where names are meaningful. */
-        Scope(Rc<Form>),
+        /** Makes a node and limits the region where names are meaningful. `Beta` defines export.*/
+        Scope(Rc<Form>, ExportBeta),
         Named(Name, Rc<FormPat>),
 
         /**
@@ -211,10 +211,12 @@ fn advanced_parsing() {
     let toks_a_b = tokens!("a" "b");
     assert_eq!(parse(&form_pat!((call "expr")),
                      &assoc_n!(
-                         "other_1" => Rc::new(Scope(simple_form("o", form_pat!((lit "other"))))),
-                         "expr" => Rc::new(Scope(pair_form.clone())),
+                         "other_1" => Rc::new(Scope(simple_form("o", form_pat!((lit "other"))),
+                                                    ::beta::ExportBeta::Nothing)),
+                         "expr" => Rc::new(Scope(pair_form.clone(), ::beta::ExportBeta::Nothing)),
                          "other_2" =>
-                             Rc::new(Scope(simple_form("o", form_pat!((lit "otherother")))))),
+                             Rc::new(Scope(simple_form("o", form_pat!((lit "otherother"))),
+                                           ::beta::ExportBeta::Nothing))),
                      &toks_a_b).unwrap(),
                ast!({pair_form ; ["rhs" => "b", "lhs" => "a"]}));
 }

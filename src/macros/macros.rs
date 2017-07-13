@@ -59,6 +59,20 @@ macro_rules! beta {
     };
 }
 
+macro_rules! ebeta {
+    ( [] ) => { ::beta::ExportBeta::Nothing };
+    ( [* $body:tt ]) => {
+        {
+            let sub = ebeta!($body);
+            let drivers = sub.names_mentioned();
+            ::beta::ExportBeta::ShadowAll(Box::new(sub), drivers)
+        }
+    };
+    ( [ $name:tt $( $rest:tt )*] ) => {
+        ::beta::ExportBeta::Shadow(Box::new(::beta::ExportBeta::Use(::name::n(expr_ify!($name)))),
+               Box::new(ebeta!( [ $( $rest )* ] )))
+    };
+}
 
 
 /* Read */
@@ -110,15 +124,20 @@ macro_rules! ast {
     ( ( $( $list:tt )* ) ) => { ast_shape!($($list)*)};
     ( { - $($mbe_arg:tt)* } ) => {
         ::ast::IncompleteNode(mbe!( $($mbe_arg)* ))
-    };
+    };/* // Why can't I make this work?
+    ( { => ($beta:tt) $nt:tt $form:tt : $(mbe_arg:tt)* }) => {
+        ::ast::Node(::core_forms::find_core_form($nt, $form), mbe!( $($mbe_arg)* ),
+                    ebeta!($beta))
+    };*/
     ( { $form:expr; [ $($mbe_arg:tt)* ] }) => {
         ast!( { $form ; $($mbe_arg)* } )
     };
     ( { $form:expr; $($mbe_arg:tt)* }) => {
-        ::ast::Node($form, mbe!( $($mbe_arg)* ))
+        ::ast::Node($form, mbe!( $($mbe_arg)* ), ::beta::ExportBeta::Nothing)
     };
     ( { $nt:tt $form:tt : $($mbe_arg:tt)* }) => {
-        ::ast::Node(::core_forms::find_core_form($nt, $form), mbe!( $($mbe_arg)* ))
+        ::ast::Node(::core_forms::find_core_form($nt, $form), mbe!( $($mbe_arg)* ),
+                    ::beta::ExportBeta::Nothing)
     };
 
     ($e:expr) => { ::ast::Atom(::name::n($e))}
@@ -268,7 +287,8 @@ macro_rules! form_pat {
         ::parse::FormPat::Biased(::std::rc::Rc::new(form_pat!($lhs)),
                                  ::std::rc::Rc::new(form_pat!($rhs))) };
     ((call $n:expr)) => { ::parse::FormPat::Call(::name::n($n)) };
-    ((scope $f:expr)) => { ::parse::FormPat::Scope($f) };
+    ((scope $f:expr)) => { ::parse::FormPat::Scope($f, ::beta::ExportBeta::Nothing) };
+    ((scope $f:expr, $ebeta:tt)) => { ::parse::FormPat::Scope($f, ebeta!($ebeta)) };
     ((named $n:expr, $body:tt)) => {
         ::parse::FormPat::Named(::name::n($n), ::std::rc::Rc::new(form_pat!($body)))
     };
@@ -286,7 +306,7 @@ macro_rules! form_pat {
 
 
 /* utility, for core_forms and core_type_forms */
-
+// This has to be a macro for type reasons involving sizedness I don't understand.
 macro_rules! cust_rc_box {
     ($contents:expr) => { Custom(Rc::new(Box::new($contents))) }
 }
@@ -438,7 +458,7 @@ macro_rules! core_fn {
 macro_rules! expect_node {
     ( ($node:expr ; $form:expr) $env:ident ; $body:expr ) => (
         // This is tied to the signature of `Custom`
-        if let Node(ref f, ref $env) = $node {
+        if let Node(ref f, ref $env, _) = $node {
             if *f == $form {
                 $body
             } else {
@@ -475,6 +495,12 @@ macro_rules! destructure_node {
 macro_rules! forms_to_form_pat {
     ( $( $form:expr ),* ) => {
         form_pat!((alt $( (scope $form) ),* ))
+    }
+}
+
+macro_rules! forms_to_form_pat_export {
+    ( $( $form:expr => $export:tt),* ) => {
+        form_pat!((alt $( (scope $form, $export) ),* ))
     }
 }
 

@@ -109,15 +109,15 @@ pub fn resolve(t: Ty, env: &Assoc<Name, Ty>, unif: &HashMap<Name, Ty>) -> Ty {
                 different => different
             }
         }
-        Ty(Node(ref form, _)) if form == &find_core_form("type", "type_apply") => {
+        Ty(Node(ref form, _, _)) if form == &find_core_form("type", "type_apply") => {
             Some(::ty::synth_type(&t.0, env.clone()).expect("ICE: broken type_apply"))
         }
-        Ty(Node(ref form, ref parts)) if form == &find_core_form("type", "type_by_name") =>  {
+        Ty(Node(ref form, ref parts, _)) if form == &find_core_form("type", "type_by_name") =>  {
             // TODO: remove this stanza when type_by_name is gone
             let vr = ast_to_name(&parts.get_leaf_or_panic(&n("name")));
             env.find(&vr).map(Clone::clone)
         }
-        Ty(Node(ref form, ref parts)) if form == &u_f => { // underdetermined
+        Ty(Node(ref form, ref parts, _)) if form == &u_f => { // underdetermined
             unif.get(&ast_to_name(parts.get_leaf_or_panic(&n("id")))).map(Clone::clone)
         }
         _ => None

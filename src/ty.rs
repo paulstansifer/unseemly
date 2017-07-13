@@ -41,7 +41,7 @@ impl Ty {
     // TODO: use this more
     pub fn destructure(&self, expd_form: Rc<Form>, loc: &Ast) -> Result<EnvMBE<Ast>, TypeError> {
         match self.0 {
-            Node(ref f, ref env) => {
+            Node(ref f, ref env, _) => {
                 if f == &expd_form {
                     return Ok(env.clone());
                 }
@@ -63,7 +63,7 @@ impl ::std::fmt::Display for Ty {
         match self.0 {
             // Not used, right? Maybe it should be...
             // Some(VariableReference(ref n)) => { write!(f, "{}", n) },
-            Node(ref form, ref env) => {
+            Node(ref form, ref env, _) => { // exports are clear from the form
                 if form == &find_core_form("type", "Ident") {
                     write!(f, "Ident")
                 } else if form == &find_core_form("type", "Int") {

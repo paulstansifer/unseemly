@@ -446,13 +446,38 @@ impl<T: Clone> EnvMBE<T> {
         }
     }
 
-    pub fn map_with_leaf_names<NewT, F>(&self, f: &mut F) -> EnvMBE<NewT>
-            where F: FnMut(&Name, &T) -> NewT {
+    pub fn named_map<NewT, F>(&self, f: &mut F) -> EnvMBE<NewT> where F: FnMut(&Name, &T) -> NewT {
         EnvMBE {
             leaves: self.leaves.keyed_map_borrow_f(f),
             repeats: self.repeats.iter().map(
                 |rc_vec_mbe : &Rc<Vec<EnvMBE<T>>>| Rc::new(rc_vec_mbe.iter().map(
-                    |mbe : &EnvMBE<T>| mbe.map_with_leaf_names(f)
+                    |mbe : &EnvMBE<T>| mbe.named_map(f)
+                ).collect())).collect(),
+            ddd_rep_idxes: self.ddd_rep_idxes.clone(),
+            leaf_locations: self.leaf_locations.clone(),
+            named_repeats: self.named_repeats.clone()
+        }
+    }
+
+
+    /// Provide the map map function with the name of the current leaf,
+    /// and the appropriately-marched context element
+    pub fn marched_map<NewT, F>(&self, f: &mut F) -> EnvMBE<NewT>
+            where F: FnMut(Name, &EnvMBE<T>, &T) -> NewT {
+        self.marched_map_rec(self, f)
+    }
+
+    fn marched_map_rec<NewT, F>(&self, outer: &EnvMBE<T>, f: &mut F) -> EnvMBE<NewT>
+            where F: FnMut(Name, &EnvMBE<T>, &T) -> NewT {
+        let local_mbe = outer.combine_overriding(self);
+
+        let new_leaves
+            = self.leaves.keyed_map_borrow_f(&mut |n: &Name, elt: &T| f(*n, &local_mbe, elt));
+        EnvMBE {
+            leaves: new_leaves,
+            repeats: self.repeats.iter().map(
+                |rc_vec_mbe : &Rc<Vec<EnvMBE<T>>>| Rc::new(rc_vec_mbe.iter().map(
+                    |marched_out : &EnvMBE<T>| marched_out.marched_map_rec(outer, f)
                 ).collect())).collect(),
             ddd_rep_idxes: self.ddd_rep_idxes.clone(),
             leaf_locations: self.leaf_locations.clone(),

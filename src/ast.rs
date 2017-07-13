@@ -8,7 +8,7 @@
 
 use util::mbe::EnvMBE;
 use name::*;
-use beta::Beta;
+use beta::{Beta, ExportBeta};
 use std::iter;
 use std::fmt;
 use std::rc::Rc;
@@ -19,16 +19,18 @@ custom_derive! {
     #[derive(Clone, PartialEq, Reifiable)]
     pub enum Ast {
         Trivial,
-        /// TODO: Are we going to have a proper reference/binder dichotomy, or something weird?
+        /// Typically, a binder
         Atom(Name),
         VariableReference(Name),
-        Shape(Vec<Ast>),
 
-        /// A meaningful chunk of syntax, governed by a form, containing an environment
-        Node(Rc<Form>, EnvMBE<Ast>),
+        /// A meaningful chunk of syntax, governed by a form, containing an environment,
+        ///  potentially exporting some names.
+        Node(Rc<Form>, EnvMBE<Ast>, ExportBeta),
 
         /// For parsing purposes.
         IncompleteNode(EnvMBE<Ast>),
+        /// For parsing purposes. Is this used for anything other than writing simple tests?
+        Shape(Vec<Ast>),
 
         /// Variable binding
         ExtendEnv(Box<Ast>, Beta)
@@ -53,8 +55,13 @@ impl fmt::Debug for Ast {
                 }
                 write!(f, ")")
             },
-            Node(ref form, ref body) => {
-                write!(f, "{{ ({}); {:?} }}", form.name.sp(), body)
+            Node(ref form, ref body, ref export) => {
+                try!(write!(f, "{{ ({}); {:?}", form.name.sp(), body));
+                match export {
+                    &::beta::ExportBeta::Nothing => {}
+                    _ => try!(write!(f, " ⇑{:?}", export))
+                }
+                write!(f, "}}")
             }
             IncompleteNode(ref body) => {
                 write!(f, "{{ INCOMPLETE; {:?} }}", body)
@@ -82,7 +89,7 @@ impl Ast {
                 accum
             },
             IncompleteNode(ref env) => { env.clone() }
-            Node(ref _f, ref _body) => {
+            Node(ref _f, ref _body, ref _export) => {
                 // TODO: think about what should happen when
                 //  `Scope` contains a `Scope` without an intervening `Named`
                 panic!("I don't know what to do here!")
