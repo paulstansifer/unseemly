@@ -367,7 +367,7 @@ pub fn walk<Mode: WalkMode>(node: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
     // print!("       {:?}\n", cur_node_contents.env.map(&|_| "…"));
 
     match freshen(&node) {
-        Node(ref f, ref parts, ref export) => {
+        Node(ref f, ref parts, _) => {
             // certain walks only work on certain kinds of AST nodes
             match *Mode::get_walk_rule(f) {
                 Custom(ref ts_fn) => {
@@ -391,8 +391,9 @@ pub fn walk<Mode: WalkMode>(node: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
         IncompleteNode(ref parts) => { panic!("ICE: {:?} isn't a complete node", parts)}
 
         VariableReference(n) => { Mode::walk_var(n, &cur_node_contents) }
+        Atom(n) => { Mode::walk_atom(n, &cur_node_contents) }
 
-        Trivial | Atom(_) | Shape(_) => {
+        Trivial | Shape(_) => {
             panic!("ICE: {:?} is not a walkable node", node);
         }
 
@@ -486,6 +487,11 @@ pub trait WalkMode : Debug + Copy + Reifiable {
         Self::D::walk_var(n, cnc)
     }
 
+    fn walk_atom(n: Name, cnc: &LazyWalkReses<Self>) -> Result<<Self::D as Dir>::Out, Self::Err> {
+        Self::D::walk_atom(n, cnc)
+    }
+
+
     /**
      Make up a special `Elt` that is currently "underspecified",
       but which can be "unified" with some other `Elt`.
@@ -514,6 +520,9 @@ pub trait Dir : Debug + Copy + Clone
     /// Look up variable in the environment!
     fn walk_var(Name, &LazyWalkReses<Self::Mode>)
         -> Result<Self::Out, <Self::Mode as WalkMode>::Err>;
+
+    fn walk_atom(Name, &LazyWalkReses<Self::Mode>)
+            -> Result<Self::Out, <Self::Mode as WalkMode>::Err>;
 
     fn out_as_elt(Self::Out) -> <Self::Mode as WalkMode>::Elt;
     fn out_as_env(Self::Out) -> Assoc<Name, <Self::Mode as WalkMode>::Elt>;
@@ -557,6 +566,11 @@ impl<Mode: WalkMode<D=Self>> Dir for Positive<Mode> {
         Ok(cnc.env.find_or_panic(&n).clone())
     }
 
+    fn walk_atom(_: Name, _: &LazyWalkReses<Self::Mode>)
+            -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
+        panic!("ICE: Atoms are positively unwalkable");
+    }
+
     fn out_as_elt(o: Self::Out) -> <Self::Mode as WalkMode>::Elt { o }
     fn out_as_env(_: Self::Out) -> Assoc<Name, <Self::Mode as WalkMode>::Elt> {
         panic!("ICE: out_as_env")
@@ -579,7 +593,7 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
             },
             None => {
                 // HACK: force walking to automatically succeed, avoiding return type muckery
-                (VariableReference(negative_ret_val()),
+                (Atom(negative_ret_val()),
                  cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(&Trivial)))
             }
         }
@@ -610,8 +624,13 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
             Ok(cnc.env.clone()))
     }
 
-    /// Bind variable to the context!
-    fn walk_var(n: Name, cnc: &LazyWalkReses<Self::Mode>)
+    fn walk_var(n: Name, _: &LazyWalkReses<Self::Mode>)
+            -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
+        panic!("{} is a VarRef, which is negatively unwalkable", n);
+    }
+
+    /// Bind atom to the context!
+    fn walk_atom(n: Name, cnc: &LazyWalkReses<Self::Mode>)
             -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
         Ok(Assoc::new().set(n, cnc.context_elt().clone()))
     }

@@ -756,7 +756,7 @@ fn alg_type() {
     assert_eq!(neg_synth_type(&ast!(
         { enum_p.clone() ;
             "name" => "Jefferson",
-            "component" => [(vr "abc"), (vr "def")]
+            "component" => ["abc", "def"]
         }),
         mt_ty_env.set(negative_ret_val(), my_enum.clone())),
         Ok(Assoc::new().set(n("abc"), ty!("Int")).set(n("def"), ty!("Bool"))));
@@ -787,7 +787,7 @@ fn alg_type() {
     assert_eq!(neg_synth_type(&ast!(
             { struct_p.clone() ;
                 "component_name" => [@"c" "y", "x"],
-                "component" => [@"c" (vr "yy"), (vr "xx")]
+                "component" => [@"c" "yy", "xx"]
             }),
             mt_ty_env.set(negative_ret_val(), my_struct.clone())),
         Ok(assoc_n!("yy" => ty!("Float"), "xx" => ty!("Int"))));
@@ -811,7 +811,7 @@ fn alg_type() {
 
     assert_eq!(synth_type(&ast!({ mtch.clone() ;
                 "scrutinee" => (vr "f"),
-                "p" => [@"arm" (vr "my_new_name"), (vr "unreachable")],
+                "p" => [@"arm" "my_new_name", "unreachable"],
                 "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")),
                                  (import ["p" = "scrutinee"] (vr "f"))]
             }),
@@ -820,7 +820,7 @@ fn alg_type() {
 
     assert_m!(synth_type(&ast!({ mtch.clone() ;
             "scrutinee" => (vr "b"),
-            "p" => [@"arm" (vr "my_new_name"), (vr "unreachable")],
+            "p" => [@"arm" "my_new_name", "unreachable"],
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")),
                              (import ["p" = "scrutinee"] (vr "f"))]
         }),
@@ -831,7 +831,7 @@ fn alg_type() {
                 "scrutinee" => (vr "my_enum"),
                 "p" => [@"arm" {
                     enum_p.clone() ;
-                    "name" => "Hamilton", "component" => [(vr "ii")] // Never gonna be president...
+                    "name" => "Hamilton", "component" => ["ii"] // Never gonna be president...
                 }],
                 "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "ii"))]
         }),
@@ -844,15 +844,15 @@ fn alg_type() {
                 "scrutinee" => (vr "my_enum"),
                 "p" => [@"arm" {
                     enum_p.clone() ;
-                    "name" => "Adams", "component" => [(vr "ii")]
+                    "name" => "Adams", "component" => ["ii"]
                 },
                 {
                     enum_p.clone() ;
-                    "name" => "Jefferson", "component" => [(vr "ii"), (vr "bb")]
+                    "name" => "Jefferson", "component" => ["ii", "bb"]
                 },
                 {
                     enum_p.clone() ;
-                    "name" => "Burr", "component" => [(vr "xx"), (vr "yy")]
+                    "name" => "Burr", "component" => ["xx", "yy"]
                 }],
                 "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "ii")),
                                  (import ["p" = "scrutinee"] (vr "ii")),
@@ -875,7 +875,7 @@ fn alg_eval() {
     assert_eq!(neg_eval(&ast!(
         { enum_p.clone() ;
             "name" => "choice1",
-            "component" => [(vr "abc"), (vr "def")]
+            "component" => ["abc", "def"]
         }),
         mt_env.set(negative_ret_val(), val!(enum "choice1", (i 9006), (b true)))),
         Ok(assoc_n!("abc" => val!(i 9006), "def" => val!(b true))));
@@ -883,7 +883,7 @@ fn alg_eval() {
     assert_eq!(neg_eval(&ast!(
         { enum_p.clone() ;
             "name" => "choice1",
-            "component" => [(vr "abc"), (vr "def")]
+            "component" => ["abc", "def"]
         }),
         mt_env.set(negative_ret_val(), val!(enum "choice0", (i 12321)))),
         Err(()));
@@ -915,7 +915,7 @@ fn alg_eval() {
     assert_eq!(neg_eval(&ast!(
         { struct_p.clone() ;
             "component_name" => [@"c" "x", "y"],
-            "component" => [@"c" (vr "xx"), (vr "yy")]
+            "component" => [@"c" "xx", "yy"]
         }),
         mt_env.set(negative_ret_val(),
                    Struct(assoc_n!("x" => val!(i 0), "y" => val!(b true))))),
@@ -927,7 +927,7 @@ fn alg_eval() {
 
     assert_eq!(eval(&ast!({ mtch.clone() ;
                 "scrutinee" => (vr "x"),
-                "p" => [@"arm" (vr "my_new_name"), (vr "unreachable")],
+                "p" => [@"arm" "my_new_name", "unreachable"],
                 "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")),
                                  (import ["p" = "scrutinee"] (vr "x"))]
         }),
@@ -938,15 +938,15 @@ fn alg_eval() {
                 "scrutinee" => (, choice1_e),
                 "p" => [@"arm" {
                     enum_p.clone() ;
-                    "name" => "choice2", "component" => [(vr "xx"), (vr "yy")]
+                    "name" => "choice2", "component" => ["xx", "yy"]
                 },
                 {
                     enum_p.clone() ;
-                    "name" => "choice1", "component" => [(vr "ii"), (vr "bb")]
+                    "name" => "choice1", "component" => ["ii", "bb"]
                 },
                 {
                     enum_p.clone() ;
-                    "name" => "choice0", "component" => [(vr "ii")]
+                    "name" => "choice0", "component" => ["ii"]
                 }],
                 "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "yy")),
                                  (import ["p" = "scrutinee"] (vr "bb")),
@@ -1001,7 +1001,7 @@ fn recursive_types() {
             "scrutinee" => { find_core_form("expr", "unfold") ; "body" => (vr "il_direct") },
             "p" => [@"arm" { find_core_form("pat", "enum_pat") ;
                 "name" => "Cons",
-                "component" => [(vr "car"), (vr "cdr")],
+                "component" => ["car", "cdr"],
                 "t" => (vr "IntList")
             }],
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "car"))]
@@ -1016,7 +1016,7 @@ fn recursive_types() {
             "scrutinee" => { find_core_form("expr", "unfold") ; "body" => (vr "il_direct") },
             "p" => [@"arm" { find_core_form("pat", "enum_pat") ;
                 "name" => "Cons",
-                "component" => [(vr "car"), (vr "cdr")],
+                "component" => ["car", "cdr"],
                 "t" => (vr "IntList")
             }],
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "cdr"))]
@@ -1031,7 +1031,7 @@ fn recursive_types() {
                 "scrutinee" =>  (vr "il_direct") ,
                 "p" => [@"arm" { find_core_form("pat", "enum_pat") ;
                 "name" => "Cons",
-                "component" => [(vr "car"), (vr "cdr")],
+                "component" => ["car", "cdr"],
                 "t" => (vr "IntList")
             }],
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "car"))]
