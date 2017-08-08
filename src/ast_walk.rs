@@ -491,7 +491,6 @@ pub trait WalkMode : Debug + Copy + Reifiable {
         Self::D::walk_atom(n, cnc)
     }
 
-
     /**
      Make up a special `Elt` that is currently "underspecified",
       but which can be "unified" with some other `Elt`.

@@ -124,11 +124,11 @@ macro_rules! ast {
     ( ( $( $list:tt )* ) ) => { ast_shape!($($list)*)};
     ( { - $($mbe_arg:tt)* } ) => {
         ::ast::IncompleteNode(mbe!( $($mbe_arg)* ))
-    };/* // Why can't I make this work?
-    ( { => ($beta:tt) $nt:tt $form:tt : $(mbe_arg:tt)* }) => {
+    };
+    ( { $nt:tt $form:tt => $beta:tt : $($mbe_arg:tt)*} ) => {
         ::ast::Node(::core_forms::find_core_form($nt, $form), mbe!( $($mbe_arg)* ),
                     ebeta!($beta))
-    };*/
+    };
     ( { $form:expr; [ $($mbe_arg:tt)* ] }) => {
         ast!( { $form ; $($mbe_arg)* } )
     };

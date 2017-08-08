@@ -693,44 +693,36 @@ fn type_apply_with_subtype() { // Application can perform subtyping
 
 #[test]
 fn form_eval() {
-    let cse = make_core_syn_env();
-
     let simple_env = assoc_n!("x" => val!(i 18),
                               "w" => val!(i 99),
                               "b" => val!(b false));
-
-    let lam = find_form(&cse, "expr", "lambda");
-    let app = find_form(&cse, "expr", "apply");
-
 
     assert_eq!(eval(&ast!((vr "x")), simple_env.clone()),
                Ok(Int(18.to_bigint().unwrap())));
 
     // (λy.w) x
     assert_eq!(eval(&ast!(
-        { app.clone() ;
-            [
+        { "expr" "apply" :
              "rator" =>
-                { lam.clone() ;
+                { "expr" "lambda" :
                     "param" => [@"p" "y"],
                     "p_t" => [@"p" "Int"],
                     "body" => (import [* [ "param" : "p_t" ]]  (vr "w"))},
              "rand" => [(vr "x")]
-            ]}),
+            }),
         simple_env.clone()),
         Ok(Int(99.to_bigint().unwrap())));
 
     // (λy.y) x
     assert_eq!(eval(&ast!(
-        { app.clone() ;
-            [
+        { "expr" "apply" :
              "rator" =>
-                { lam.clone() ;
+                { "expr" "lambda" :
                     "param" => [@"p" "y"],
                     "p_t" => [@"p" "Int"],
                     "body" => (import [* [ "param" : "p_t" ]]  (vr "y"))},
              "rand" => [(vr "x")]
-            ]}),
+            }),
         simple_env.clone()),
         Ok(Int(18.to_bigint().unwrap())));
 
@@ -738,23 +730,18 @@ fn form_eval() {
 
 #[test]
 fn alg_type() {
-    let cse = make_core_syn_env();
-
     let mt_ty_env = Assoc::new();
     let simple_ty_env = assoc_n!(
         "x" => ty!("Int"), "b" => ty!("Bool"), "f" => ty!("Float"));
 
-    // Typecheck enum pattern
-    let enum_p = find_form(&cse, "pat", "enum_pat");
-    let enum_t = find_form(&cse, "type", "enum");
-
-    let my_enum = ty!({ enum_t.clone() ;
+    let my_enum = ty!({ "type" "enum" :
         "name" => [@"c" "Adams", "Jefferson", "Burr"],
         "component" => [@"c" ["Int"], ["Int", "Bool"], ["Float", "Float"]]
     });
 
+    // Typecheck enum pattern
     assert_eq!(neg_synth_type(&ast!(
-        { enum_p.clone() ;
+        { "pat" "enum_pat" :
             "name" => "Jefferson",
             "component" => ["abc", "def"]
         }),
@@ -762,10 +749,8 @@ fn alg_type() {
         Ok(Assoc::new().set(n("abc"), ty!("Int")).set(n("def"), ty!("Bool"))));
 
     // Typecheck enum expression
-    let enum_e = find_form(&cse, "expr", "enum_expr");
-
     assert_eq!(synth_type(&ast!(
-        { enum_e.clone() ;
+        { "expr" "enum_expr" :
             "name" => "Jefferson",
             "component" => [(vr "x"), (vr "b")],
             "t" => (, my_enum.concrete() )
@@ -774,18 +759,14 @@ fn alg_type() {
         Ok(my_enum.clone()));
 
 
-    // Typecheck struct pattern
-
-    let struct_p = find_form(&cse, "pat", "struct_pat");
-    let struct_t = find_form(&cse, "type", "struct");
-
-    let my_struct = ty!({ struct_t.clone() ;
+    let my_struct = ty!({ "type" "struct" :
         "component_name" => [@"c" "x", "y"],
         "component" => [@"c" "Int", "Float"]
     });
 
+    // Typecheck struct pattern
     assert_eq!(neg_synth_type(&ast!(
-            { struct_p.clone() ;
+            { "pat" "struct_pat" :
                 "component_name" => [@"c" "y", "x"],
                 "component" => [@"c" "yy", "xx"]
             }),
@@ -793,12 +774,11 @@ fn alg_type() {
         Ok(assoc_n!("yy" => ty!("Float"), "xx" => ty!("Int"))));
 
     // Typecheck struct expression
-    let struct_e = find_form(&cse, "expr", "struct_expr");
 
     // TODO: currently {x: integer, y: float} ≠ {y: float, x: integer}
     // Implement proper type equality!
     assert_eq!(synth_type(&ast!(
-            { struct_e.clone() ;
+            { "expr" "struct_expr" :
                 "component_name" => [@"c" "x", "y"],
                 "component" => [@"c" (vr "x"), (vr "f")]
             }),
@@ -807,9 +787,7 @@ fn alg_type() {
 
     // Simple match...
 
-    let mtch = find_form(&cse, "expr", "match");
-
-    assert_eq!(synth_type(&ast!({ mtch.clone() ;
+    assert_eq!(synth_type(&ast!({ "expr" "match" :
                 "scrutinee" => (vr "f"),
                 "p" => [@"arm" "my_new_name", "unreachable"],
                 "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")),
@@ -818,7 +796,7 @@ fn alg_type() {
             simple_ty_env.clone()),
         Ok(ty!("Float")));
 
-    assert_m!(synth_type(&ast!({ mtch.clone() ;
+    assert_m!(synth_type(&ast!({ "expr" "match" :
             "scrutinee" => (vr "b"),
             "p" => [@"arm" "my_new_name", "unreachable"],
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")),
@@ -827,10 +805,9 @@ fn alg_type() {
         simple_ty_env.clone()),
         ty_err_p!(Mismatch(_,_)));
 
-    assert_m!(synth_type(&ast!({ mtch.clone() ;
+    assert_m!(synth_type(&ast!({ "expr" "match" :
                 "scrutinee" => (vr "my_enum"),
-                "p" => [@"arm" {
-                    enum_p.clone() ;
+                "p" => [@"arm" { "pat" "enum_pat" :
                     "name" => "Hamilton", "component" => ["ii"] // Never gonna be president...
                 }],
                 "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "ii"))]
@@ -840,18 +817,16 @@ fn alg_type() {
     );
 
 
-    assert_eq!(synth_type(&ast!({ mtch.clone() ;
+    assert_eq!(synth_type(&ast!({ "expr" "match" :
                 "scrutinee" => (vr "my_enum"),
-                "p" => [@"arm" {
-                    enum_p.clone() ;
+                "p" => [@"arm"
+                { "pat" "enum_pat" => [* ["component"]] :
                     "name" => "Adams", "component" => ["ii"]
                 },
-                {
-                    enum_p.clone() ;
+                { "pat" "enum_pat" => [* ["component"]] :
                     "name" => "Jefferson", "component" => ["ii", "bb"]
                 },
-                {
-                    enum_p.clone() ;
+                { "pat" "enum_pat" => [* ["component"]] :
                     "name" => "Burr", "component" => ["xx", "yy"]
                 }],
                 "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "ii")),
@@ -870,10 +845,8 @@ fn alg_eval() {
     let simple_env = assoc_n!("x" => val!(i 18), "w" => val!(i 99), "b" => val!(b false));
 
     // Evaluate enum pattern
-    let enum_p = find_form(&cse, "pat", "enum_pat");
-
     assert_eq!(neg_eval(&ast!(
-        { enum_p.clone() ;
+        { "pat" "enum_pat" => [* ["component"]] :
             "name" => "choice1",
             "component" => ["abc", "def"]
         }),
@@ -881,7 +854,7 @@ fn alg_eval() {
         Ok(assoc_n!("abc" => val!(i 9006), "def" => val!(b true))));
 
     assert_eq!(neg_eval(&ast!(
-        { enum_p.clone() ;
+        { "pat" "enum_pat" => [* ["component"]] :
             "name" => "choice1",
             "component" => ["abc", "def"]
         }),
@@ -911,9 +884,8 @@ fn alg_eval() {
 
     // Evaluate struct pattern
 
-    let struct_p = find_form(&cse, "pat", "struct_pat");
     assert_eq!(neg_eval(&ast!(
-        { struct_p.clone() ;
+        {  "pat" "struct_pat" => [* ["component"]] :
             "component_name" => [@"c" "x", "y"],
             "component" => [@"c" "xx", "yy"]
         }),
@@ -923,9 +895,8 @@ fn alg_eval() {
 
     // Evaluate match
 
-    let mtch = find_form(&cse, "expr", "match");
 
-    assert_eq!(eval(&ast!({ mtch.clone() ;
+    assert_eq!(eval(&ast!({ "expr" "match" :
                 "scrutinee" => (vr "x"),
                 "p" => [@"arm" "my_new_name", "unreachable"],
                 "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")),
@@ -934,18 +905,16 @@ fn alg_eval() {
         simple_env.clone()),
         Ok(val!(i 18)));
 
-    assert_eq!(eval(&ast!({ mtch.clone() ;
+    assert_eq!(eval(&ast!({ "expr" "match" :
                 "scrutinee" => (, choice1_e),
-                "p" => [@"arm" {
-                    enum_p.clone() ;
+                "p" => [@"arm"
+                { "pat" "enum_pat" => [* ["component"]] :
                     "name" => "choice2", "component" => ["xx", "yy"]
                 },
-                {
-                    enum_p.clone() ;
+                { "pat" "enum_pat" => [* ["component"]] :
                     "name" => "choice1", "component" => ["ii", "bb"]
                 },
-                {
-                    enum_p.clone() ;
+                { "pat" "enum_pat" => [* ["component"]] :
                     "name" => "choice0", "component" => ["ii"]
                 }],
                 "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "yy")),
@@ -997,9 +966,9 @@ fn recursive_types() {
 
     // Unfold a type and then match it
     assert_eq!(synth_type(
-        &ast!( { find_core_form("expr", "match") ;
-            "scrutinee" => { find_core_form("expr", "unfold") ; "body" => (vr "il_direct") },
-            "p" => [@"arm" { find_core_form("pat", "enum_pat") ;
+        &ast!( { "expr" "match" :
+            "scrutinee" => { "expr" "unfold" : "body" => (vr "il_direct") },
+            "p" => [@"arm" { "pat" "enum_pat" => [* ["component"]] :
                 "name" => "Cons",
                 "component" => ["car", "cdr"],
                 "t" => (vr "IntList")
@@ -1012,9 +981,9 @@ fn recursive_types() {
 
     // Unfold a type and then extract the part that should have the same type as the outer type
     assert_eq!(synth_type(
-        &ast!( { find_core_form("expr", "match") ;
-            "scrutinee" => { find_core_form("expr", "unfold") ; "body" => (vr "il_direct") },
-            "p" => [@"arm" { find_core_form("pat", "enum_pat") ;
+        &ast!( { "expr" "match" :
+            "scrutinee" => { "expr" "unfold" : "body" => (vr "il_direct") },
+            "p" => [@"arm" { "pat" "enum_pat" => [* ["component"]] :
                 "name" => "Cons",
                 "component" => ["car", "cdr"],
                 "t" => (vr "IntList")
@@ -1027,9 +996,9 @@ fn recursive_types() {
 
     // Test that missing an unfold fails
     assert_m!(synth_type(
-            &ast!( { find_core_form("expr", "match") ;
+            &ast!( { "expr" "match" :
                 "scrutinee" =>  (vr "il_direct") ,
-                "p" => [@"arm" { find_core_form("pat", "enum_pat") ;
+                "p" => [@"arm" { "pat" "enum_pat" => [* ["component"]] :
                 "name" => "Cons",
                 "component" => ["car", "cdr"],
                 "t" => (vr "IntList")

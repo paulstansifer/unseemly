@@ -144,7 +144,7 @@ impl ::std::fmt::Display for Ty {
                         }
                     })
                 } else {
-                    panic!("{:?} is not a well-formed type", self.0);
+                    write!(f, "[Ill-formed type {:?}]", self.0)
                 }
             }
             VariableReference(vr) => {

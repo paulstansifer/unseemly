@@ -314,7 +314,7 @@ impl<'assoc, K: PartialEq, V> Iterator for ValueIter<'assoc, K, V> {
 }
 
 pub struct PairIter<'assoc, K: PartialEq + 'assoc, V: 'assoc> {
-    seen: Assoc<K, ()>,
+    seen: Assoc<K, ()>, // TODO: this should probably be a HashMap to avoid quadratic behavior.
     cur: &'assoc Assoc<K, V>
 }
 

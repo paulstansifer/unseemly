@@ -191,14 +191,11 @@ fn basic_binder_freshening() {
 
     assert_eq!(freshen_binders(&ast!("a")), (ast!("🍅a0"), assoc_n!("a" => ast!((vr "🍅a0")))));
 
-    // I just can't figure out how to add export syntax to `ast!`
     assert_eq!(freshen_binders(
-        &::ast::Node(::core_forms::find_core_form("pat", "enum_pat"),
-            mbe!("name" => "[ignored]", "component" => ["a", "b"]),
-            ebeta!([* ["component"]]))),
-        (::ast::Node(::core_forms::find_core_form("pat", "enum_pat"),
-            mbe!("name" => "[ignored]", "component" => ["🍅a1", "🍅b2"]),
-            ebeta!([* ["component"]])),
+        &ast!({ "pat" "enum_pat" => [* ["component"]] :
+            "name" => "[ignored]", "component" => ["a", "b"] })),
+        (ast!({ "pat" "enum_pat" => [* ["component"]] :
+            "name" => "[ignored]", "component" => ["🍅a1", "🍅b2"] }),
         assoc_n!("a" => ast!((vr "🍅a1")), "b" => ast!((vr "🍅b2")))));
 }
 

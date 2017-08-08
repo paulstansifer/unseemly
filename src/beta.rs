@@ -152,13 +152,41 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
         // TODO: I need more help understanding this
         // treats the node `name_source` mentions as a negative node, and gets names from it
         SameAs(ref name_source, ref res_source) => {
-            // TODO: `env_from_beta` needs to return a Result
             let ty = try!(parts.get_res(res_source));
 
-            Ok(Mode::Negated::out_as_env(
+            let res = Mode::Negated::out_as_env(
                 try!(parts.switch_mode::<Mode::Negated>()
                     .with_context(Mode::out_as_elt(ty))
-                    .get_res(name_source))))
+                    .get_res(name_source)));
+
+            // Somewhat awkward (but not unsound!) run-time error in the case that
+            //  the declared export does not match the actual result of negative type synthesis.
+            // This is parallel to unbound variable name errors that we also don't protect against.
+            // (This is more like FreshML/Redex than Pure FreshML/Romeo.
+            //   The latter have heavyweight logic systems that really aren't worth it,
+            //    because the errors in question aren't that bad to debug.)
+
+            match parts.get_term(name_source) {
+                Ast::Node(_, ref sub_parts, ref export) => {
+                    let expected_res_keys = keys_from_export_beta(export, sub_parts);
+
+                    let mut count = 0;
+                    for (ref k, _) in res.iter_pairs() {
+                        if !expected_res_keys.contains(k) {
+                            panic!("{} was unexpectedly exported (vs. {:?} via {:?})", k, expected_res_keys, parts.get_term(res_source));
+                            // TODO: make this an `Err`. And test it with ill-formed `Form`s
+                        }
+                        count += 1;
+                    }
+
+                    if count != expected_res_keys.len() { // TODO: Likewise:
+                        panic!("expected {} exports, only got {}", expected_res_keys.len(), count)
+                    }
+                }
+                _ => {}
+            }
+
+            Ok(res)
         }
 
         Underspecified(ref name_source) => {
@@ -273,8 +301,46 @@ pub fn keys_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>) -> Vec<Name> {
             }
             res
         }
-        Basic(ref n_s, _) | SameAs(ref n_s, _) | Underspecified(ref n_s) | Protected(ref n_s) => {
+        SameAs(ref n_s, _) => { // Can be a non-atom
+            match parts.get_leaf_or_panic(n_s) {
+                &Ast::Atom(n) => vec![n],
+                &Ast::Node(_, ref sub_parts, ref export) => {
+                    keys_from_export_beta(export, sub_parts)
+                }
+                _ => panic!("ICE: beta SameAs refers to a non-node, non-atom")
+            }
+        }
+        Basic(ref n_s, _) | Underspecified(ref n_s) | Protected(ref n_s) => {
             vec![::core_forms::ast_to_name(parts.get_leaf_or_panic(n_s))]
+        }
+    }
+}
+
+// Like just taking the keys from `env_from_export_beta`, but faster and non-failing
+pub fn keys_from_export_beta(b: &ExportBeta, parts: &EnvMBE<::ast::Ast>) -> Vec<Name> {
+    match *b {
+        ExportBeta::Nothing => { vec![] }
+        ExportBeta::Shadow(ref lhs, ref rhs) => {
+            let mut res = keys_from_export_beta(&*lhs, parts);
+            let mut res_r = keys_from_export_beta(&*rhs, parts);
+            res.append(&mut res_r);
+            res
+        }
+        ExportBeta::ShadowAll(ref sub_beta, ref drivers) => {
+            let mut res = vec![];
+            for ref sub_parts in parts.march_all(drivers) {
+                res.append(&mut keys_from_export_beta(&*sub_beta, sub_parts));
+            }
+            res
+        }
+        ExportBeta::Use(ref n_s) => { // Can be a non-atom
+            match parts.get_leaf_or_panic(n_s) {
+                &Ast::Atom(n) => vec![n],
+                &Ast::Node(_, ref sub_parts, ref export) => {
+                    keys_from_export_beta(export, sub_parts)
+                }
+                _ => panic!("ICE: beta SameAs refers to a non-node, non-atom")
+            }
         }
     }
 }
