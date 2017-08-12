@@ -145,7 +145,7 @@ thread_local! {
 
 custom_derive!{
     #[derive(Copy, Clone, Debug, Reifiable)]
-    // Canonicalize isn't currently used, so its name is arbitrary
+    // Canonicalize isn't currently used explicitly, so its name is arbitrary
     pub struct Canonicalize {}
 }
 custom_derive!{
@@ -217,6 +217,9 @@ impl ::ast_walk::NegativeWalkMode for Subtype {
             let rhs_name = rhs.destructure(u_f.clone(), &Trivial).map(
                 |p| ast_to_name(p.get_leaf_or_panic(&n("id"))));
 
+            // print!("%%: {:?}\n%%: {:?}\n", lhs, rhs);
+            // print!("in: {:?}\n", env.map(|_| "…"));
+
             match (lhs_name, rhs_name) {
                 // They are the same underdetermined type; nothing to do:
                 (Ok(l), Ok(r)) if l == r => { None }
@@ -224,7 +227,7 @@ impl ::ast_walk::NegativeWalkMode for Subtype {
                 (Ok(l), _) => { unif.borrow_mut().insert(l, rhs.clone()); None }
                 (_, Ok(r)) => { unif.borrow_mut().insert(r, lhs.clone()); None }
                 // They are (potentially) different:
-                _ => { Some((lhs.clone(), rhs.clone()))}
+                _ => { Some((lhs.clone(), rhs.clone())) }
             }
         })
     }
@@ -261,13 +264,9 @@ fn basic_subtyping() {
     use ::ty::TyErr::*;
     use ::util::assoc::Assoc;
 
-    fn tbn(nm: &'static str) -> Ty {
-        ty!( { "type" "type_by_name" : "name" => (, ::ast::Ast::Atom(n(nm))) } )
-    }
-
     let mt_ty_env = Assoc::new();
     let int_ty = ty!({ "type" "Int" : });
-    let nat_ty = ty!({ "type" "Nat" : });
+    //let nat_ty = ty!({ "type" "Nat" : });
     let float_ty = ty!({ "type" "Float" : });
 
 
@@ -275,14 +274,12 @@ fn basic_subtyping() {
 
     assert_eq!(must_subtype(&float_ty, &int_ty, mt_ty_env.clone()),
         Err(Mismatch(float_ty.clone(), int_ty.clone())));
-
+/*
     let id_fn_ty = ty!({ "type" "forall_type" :
         "param" => ["t"],
         "body" => (import [* [forall "param"]]
-            { "type" "fn" :
-                "param" => [ (, tbn("t").concrete()) ],
-                "ret" => (, tbn("t").concrete()) })});
-
+            { "type" "fn" : "param" => [ (vr "t") ], "ret" => (vr "t") })});
+*/
     let int_to_int_fn_ty = ty!({ "type" "fn" :
          "param" => [(, int_ty.concrete())],
          "ret" => (, int_ty.concrete())});
@@ -290,9 +287,10 @@ fn basic_subtyping() {
     assert_m!(must_subtype(&int_to_int_fn_ty, &int_to_int_fn_ty, mt_ty_env.clone()),
                Ok(_));
 
+    /*
+
     assert_m!(must_subtype(&id_fn_ty, &id_fn_ty, mt_ty_env.clone()),
                Ok(_));
-
 
     // actually subtype interestingly!
     assert_m!(must_subtype(&int_to_int_fn_ty, &id_fn_ty, mt_ty_env.clone()),
@@ -308,16 +306,18 @@ fn basic_subtyping() {
             "param" => ["t"],
             "body" => (import [* [forall "param"]]
                 { "type" "fn" :
-                    "param" => [ (, tbn("t").concrete() ) ],
+                    "param" => [ (vr "t") ],
                     "ret" => (, nat_ty.concrete() ) })}),
         "identity" => id_fn_ty.clone(),
         "int_to_int" => int_to_int_fn_ty.clone());
 
 
-    assert_m!(must_subtype(&tbn("int_to_int"), &tbn("identity"), parametric_ty_env.clone()),
+    assert_m!(must_subtype(&ty!((vr "int_to_int")), &ty!((vr "identity")),
+                  parametric_ty_env.clone()),
               Ok(_));
 
-    assert_m!(must_subtype(&tbn("identity"), &tbn("int_to_int"), parametric_ty_env.clone()),
+    assert_m!(must_subtype(&ty!((vr "identity")), &ty!((vr "int_to_int")),
+                  parametric_ty_env.clone()),
               Err(Mismatch(_,_)));
 
     fn incomplete_fn_ty() -> Ty { // A function, so we get a fresh underspecified type each time.
@@ -338,6 +338,7 @@ fn basic_subtyping() {
                                                         "rand" => [(vr "some_int")]}),
                           parametric_ty_env.clone()),
                Ok(ty!({"type" "Int" : })));
+    */
 
     // TODO: write a test that relies on the capture-the-environment behavior of `pre_match`
 }
@@ -345,6 +346,29 @@ fn basic_subtyping() {
 
 #[test]
 fn misc_subtyping_problems() {
+    /*
+    let int_list_ty =
+        ty!( { "type" "mu_type" :
+            "param" => ["IntList"],
+            "body" => (import [* [prot "param"]] { "type" "enum" :
+                "name" => [@"c" "Nil", "Cons"],
+                "component" => [@"c" [], ["Int", (vr "IntList") ]]})});
+    let bool_list_ty =
+        ty!( { "type" "mu_type" :
+            "param" => ["BoolList"],
+            "body" => (import [* [prot "param"]] { "type" "enum" :
+                "name" => [@"c" "Nil", "Cons"],
+                "component" => [@"c" [], ["Bool", (vr "BoolList") ]]})});
+
+    let ty_env = assoc_n!(
+        "IntList" => int_list_ty.clone(),
+        "BoolList" => bool_list_ty.clone()
+    );
+
+    // μ also has binding:
+    assert_m!(must_subtype(&int_list_ty, &int_list_ty, ty_env.clone()), Ok(_));
+    assert_m!(must_subtype(&int_list_ty, &bool_list_ty, ty_env.clone()), Err(_));
+    */
 
     // Don't walk `Atom`s!
     let basic_enum = ty!({"type" "enum" :
@@ -353,16 +377,17 @@ fn misc_subtyping_problems() {
     assert_m!(must_subtype(&basic_enum, &basic_enum, ::util::assoc::Assoc::new()),
               Ok(_));
 
-
+/*
     let basic_mu = ty!({"type" "mu_type" :
         "param" => ["X"],
         "body" => (import [* [prot "param"]] (vr "X"))});
     let mu_env = assoc_n!("X" => basic_mu.clone());
 
+
     // Don't diverge on `μ`!
     assert_m!(must_subtype(&basic_mu, &basic_mu, mu_env),
               Ok(_));
-
+              */
     let id_fn_ty = ty!({ "type" "forall_type" :
         "param" => ["t"],
         "body" => (import [* [forall "param"]]

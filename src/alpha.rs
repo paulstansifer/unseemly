@@ -15,7 +15,6 @@ use std::collections::HashMap;
 
 // TODO: this isn't capture-avoiding
 fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Assoc<Name, Ast>) -> Ast {
-    print!("{:?} ({:?}) with {:?}\n", node, cur_node_contents, env);
     match *node {
         Node(ref f, ref new_parts, ref export) => {
             //let new_cnc = parts.clone();
@@ -66,19 +65,14 @@ fn mentioned_in_import(parts: &EnvMBE<Ast>) -> Vec<Name> {
 }
 
 fn freshen_rec(node: &Ast, renamings: &EnvMBE<(Ast, Assoc<Name,Ast>)>, env: &Assoc<Name, Ast>) -> Ast {
-    print!("FR: {:?}\nat: {:?}\n", node, renamings);
     //  `env` is used to update the references to those atoms to match
     match *node {
-        Node(_, _, _) => {
-            print!("subst...\n");
-            substitute(node, env) }
+        Node(_, _, _) => { substitute(node, env) }
         VariableReference(n) => {
-            print!("→{:?}\n", env.find(&n));
             env.find(&n).unwrap_or(&node.clone()).clone()
         }
         ExtendEnv(ref body, ref beta) => {
             let new_env = env.set_assoc(&beta.extract_from_mbe(renamings));
-            print!("EE: {:?} {:?}\n", body, new_env);
 
             ExtendEnv(Box::new(
                 freshen_rec(body, renamings, &new_env)), beta.clone())
@@ -88,6 +82,7 @@ fn freshen_rec(node: &Ast, renamings: &EnvMBE<(Ast, Assoc<Name,Ast>)>, env: &Ass
 }
 
 thread_local! {
+    pub static freshening_enabled: ::std::cell::RefCell<bool> = ::std::cell::RefCell::new(true);
     pub static next_id: ::std::cell::RefCell<u32> = ::std::cell::RefCell::new(0);
 }
 
@@ -99,7 +94,6 @@ fn freshen_with_map(a: &Ast) -> Ast {
             let mentioned = mentioned_in_import(p);
             // ...needs to have its binders freshend:
             let fresh_ast_and_rens = freshen_binders_inside_node(p, &mentioned);
-            print!("faar: {:?}\n", fresh_ast_and_rens);
 
             Node(f.clone(),
                  fresh_ast_and_rens.marched_map(
@@ -112,8 +106,14 @@ fn freshen_with_map(a: &Ast) -> Ast {
 }
 
 pub fn freshen(a: &Ast) -> Ast {
-    //freshen_with_map(a, &mut HashMap::new())
-    a.clone()
+    if freshening_enabled.with(|f| *f.borrow()) {
+        print!("=== {:?}\n", a);
+        let res = freshen_with_map(a);
+        print!(">>> {:?}\n", res);
+        res
+    } else {
+        a.clone()
+    }
 }
 
 pub fn freshen_binders_inside_node(parts: &EnvMBE<Ast>, mentioned: &Vec<Name>)

@@ -151,7 +151,7 @@ impl ::std::fmt::Display for Ty {
                 write!(f, "{}", vr)
             }
             ExtendEnv(ref t, ref _beta) => {
-                write!(f, "{}", Ty::new((**t).clone())) // the beta is clear from the form
+                write!(f, "{}↓⋯", Ty::new((**t).clone())) // the beta is clear from the form
             }
             ref other_ast => {
                 write!(f, "(ill-formed type: {:?})", other_ast)

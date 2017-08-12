@@ -450,6 +450,21 @@ macro_rules! core_fn {
 }
 
 
+/* Alpha */
+
+macro_rules! without_freshening {
+    ($( $body:tt )*) => {{
+        let mut orig: bool = false;
+        ::alpha::freshening_enabled.with(|f| {
+            orig = *f.borrow();
+            *f.borrow_mut() = false;
+        });
+        { $( $body )* }
+        ::alpha::freshening_enabled.with(|f| {
+            *f.borrow_mut() = orig;
+        });
+    }}
+}
 
 
 /* for core_forms */

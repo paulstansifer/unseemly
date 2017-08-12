@@ -359,6 +359,7 @@ pub fn make_core_syn_env() -> SynEnv {
                 let mu_typed = try!(unfold_parts.get_res(&n("body")));
 
                 // Pull off the `mu` (and the `ExtendEnv` that it carries):
+                // (This is sound because `mu`'s param must already be in the environment.)
                 expect_ty_node!( (mu_typed.clone() ; find_type(&ctf_4, "mu_type") ;
                                     &unfold_parts.this_ast)
                     mu_parts;
@@ -948,6 +949,8 @@ fn recursive_types() {
     // `IntList` shouldn't substitute
     assert_eq!(synth_type(&ast!((vr "il_direct")), ty_env.clone()), Ok(int_list_ty.clone()));
 
+    // I don't want these tests to depend on alpha-equivalence, so just disable freshening here.
+    without_freshening!{
     // Test that unfolding a type produces one that's "twice as large", minus the outer mu
     assert_eq!(synth_type(
         &ast!({"expr" "unfold" : "body" => (vr "il_direct")}), ty_env.clone()),
@@ -976,8 +979,7 @@ fn recursive_types() {
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "car"))]
         }),
         ty_env.clone()),
-        Ok(ty!("Int"))
-    );
+        Ok(ty!("Int")));
 
     // Unfold a type and then extract the part that should have the same type as the outer type
     assert_eq!(synth_type(
@@ -993,6 +995,7 @@ fn recursive_types() {
         ty_env.clone()),
         Ok(int_list_ty.clone())
     );
+    };
 
     // Test that missing an unfold fails
     assert_m!(synth_type(

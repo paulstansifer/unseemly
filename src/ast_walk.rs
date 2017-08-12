@@ -356,36 +356,37 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
 
 /**
  * Make a `<Mode::D as Dir>::Out` by walking `node` in the environment from `cur_node_contents`.
- * HACK: The parts in `cur_node_contents` are ignored; it's just an environment to us.
+ * `cur_node_contents` is used as an environment,
+ *  and by betas to access other parts of the current node.
  */
-pub fn walk<Mode: WalkMode>(node: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
+pub fn walk<Mode: WalkMode>(a: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
         -> Result<<Mode::D as Dir>::Out, Mode::Err> {
 
     // TODO: can we get rid of the & in front of our arguments and save the cloning?
-    let (node, cur_node_contents) = Mode::D::pre_walk(node.clone(), cur_node_contents.clone());
-    // print!("#####: {:?}\n", node);
-    // print!("       {:?}\n", cur_node_contents.env.map(&|_| "…"));
+    let (a, cur_node_contents) = Mode::D::pre_walk(a.clone(), cur_node_contents.clone());
+    // print!("#####: {:?}\n", a);
+    // print!("       {:?}\n", cur_node_contents.env.map_borrow_f(&mut |_| "…"));
 
-    match freshen(&node) {
+    match freshen(&a) {
         Node(ref f, ref parts, _) => {
             // certain walks only work on certain kinds of AST nodes
             match *Mode::get_walk_rule(f) {
                 Custom(ref ts_fn) => {
                     ts_fn(LazyWalkReses::new(
-                        cur_node_contents.env.clone(), parts.clone(), node.clone()))
+                        cur_node_contents.env.clone(), parts.clone(), a.clone()))
                 }
 
                 Body(n) => {
                     walk(parts.get_leaf(&n).unwrap(),
                          &LazyWalkReses::<Mode>::new(
-                             cur_node_contents.env.clone(), parts.clone(), node.clone()))
+                             cur_node_contents.env.clone(), parts.clone(), a.clone()))
                 }
 
                 LiteralLike => {
-                    Mode::walk_quasi_literally(node.clone(), &cur_node_contents)
+                    Mode::walk_quasi_literally(a.clone(), &cur_node_contents)
                 }
 
-                NotWalked => { panic!( "ICE: {:?} should not be walked at all!", node ) }
+                NotWalked => { panic!( "ICE: {:?} should not be walked at all!", a ) }
             }
         }
         IncompleteNode(ref parts) => { panic!("ICE: {:?} isn't a complete node", parts)}
@@ -394,13 +395,14 @@ pub fn walk<Mode: WalkMode>(node: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
         Atom(n) => { Mode::walk_atom(n, &cur_node_contents) }
 
         Trivial | Shape(_) => {
-            panic!("ICE: {:?} is not a walkable node", node);
+            panic!("ICE: {:?} is not a walkable AST", a);
         }
 
         // TODO: `env_from_beta` only works in positive modes... what should we do otherwise?
         ExtendEnv(ref body, ref beta) => {
             let new_env = cur_node_contents.env.set_assoc(
                 &try!(env_from_beta(beta, &cur_node_contents)));
+            // print!("↓↓↓↓: {:?}\n    : {:?}\n", beta, new_env.map(|_| "…"));
 
             walk(&**body, &cur_node_contents.with_environment(new_env))
         }
@@ -543,13 +545,12 @@ impl<Mode: WalkMode<D=Self>> Dir for Positive<Mode> {
         (node, cnc) // No-op
     }
 
-    fn walk_quasi_literally(expected: Ast, cnc: &LazyWalkReses<Self::Mode>)
+    fn walk_quasi_literally(a: Ast, cnc: &LazyWalkReses<Self::Mode>)
             -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
-        let (f, parts, exports) = match freshen(&expected) {
+        let (f, parts, exports) = match freshen(&a) {
             Node(f,p,e) => (f,p,e), _ => panic!("ICE")
         };
 
-        // TODO: I think we need a separate version of `walk` that doesn't panic on `MatchFailure`
         let walked : Result<EnvMBE<Ast>, <Self::Mode as WalkMode>::Err> = parts.map(
             &mut |p: &Ast| match *p {
                 // Yes, `walk`, not `w_q_l`; the mode is in charge of figuring things out.
@@ -612,7 +613,7 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
         expd_parts.map_reduce_with(&parts_actual,
             &|model: &Ast, actual: &Ast| {
                 match *model {
-                    Node(_, _, _) | VariableReference(_) => {
+                    Node(_,_,_) | VariableReference(_) | ExtendEnv(_,_) => {
                         walk(model,
                             &cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(actual)))
                     }
@@ -661,13 +662,15 @@ pub trait NegativeWalkMode : WalkMode {
     fn context_match(expected: &Ast, got: &Ast, _env: Assoc<Name, Self::Elt>)
             -> Result<EnvMBE<Ast>, <Self as WalkMode>::Err> {
         // break apart the node, and walk it element-wise
+        // TODO: hasn't `expected` already been freshened?
         match (freshen(expected), freshen(got)) {
             (Node(ref f, _, _), Node(ref f_actual, ref parts_actual, _)) if *f == *f_actual => {
                 Ok(parts_actual.clone())
             }
+            /* // Why did we need this? Do we still need this?
             (VariableReference(n_lhs), VariableReference(n_rhs)) if n_lhs == n_rhs => {
                 Ok(EnvMBE::new()) // Nothing left to match. Is this a hack?
-            }
+            }*/
             _ => {
                 // TODO: wouldn't it be nice to have match failures that
                 //  contained useful `diff`-like information for debugging,

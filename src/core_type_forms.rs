@@ -56,6 +56,7 @@ use core_forms::ast_to_name;
 use ty::{Ty, synth_type, UnpackTy, TyErr, SynthTy};
 use ty_compare::{Canonicalize, Subtype};
 use ast::*;
+use ::util::assoc::Assoc;
 
 //TODO: I think we need to extend `Form` with `synth_kind`...
 fn type_defn(form_name: &str, p: FormPat) -> Rc<Form> {
@@ -144,18 +145,16 @@ pub fn make_core_syn_env_types() -> SynEnv {
             Both(
                 LiteralLike,
                 cust_rc_box!(move |forall_parts| {
+                    // print!("∀∀∀∀: {:?}\n", forall_parts.get_term(&n("body")));
+
                     match Subtype::context_match(
                             &forall_parts.this_ast,
                             &forall_parts.context_elt().concrete(),
                             forall_parts.env.clone()) {
                         // ∀ X. ⋯ <: ∀ Y. ⋯ ? (so force X=Y)
                         Ok(actual_forall_parts) => {
-                            // TODO: does this actually work? I'm just doing it because it's easy…
-
-                            // This is an ugly way of extracting the body of the context_elt
-                            //  without handling the `beta`,
-                            //  leaving the `param`s of the forall unbound.
-                            // There's got to be some case in which this goes wrong.
+                            // TODO: we need to implement "co-freshening", then pulling off the EE
+                            // will be sound
                             let a_b = match actual_forall_parts.get_leaf_or_panic(&n("body")) {
                                 &ExtendEnv(ref body, _) => body,
                                 _ => panic!("can't happen, by structure of forall's `form_pat!`")
