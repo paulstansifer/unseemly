@@ -87,30 +87,23 @@ thread_local! {
 }
 
 // broken out for testing purposes
-fn freshen_with_map(a: &Ast) -> Ast {
-    match a {
-        &Node(ref f, ref p, ref export) => {
-            // Every part that gets mentioned inside this node...
-            let mentioned = mentioned_in_import(p);
-            // ...needs to have its binders freshend:
-            let fresh_ast_and_rens = freshen_binders_inside_node(p, &mentioned);
-
-            Node(f.clone(),
-                 fresh_ast_and_rens.marched_map(
-                     &mut |_, marched: &EnvMBE<(Ast, Assoc<Name, Ast>)>, &(ref part, _)|
-                         freshen_rec(part, marched, &Assoc::new())),
-                 export.clone())
-        }
-        non_node => non_node.clone()
-    }
-}
-
 pub fn freshen(a: &Ast) -> Ast {
     if freshening_enabled.with(|f| *f.borrow()) {
-        print!("=== {:?}\n", a);
-        let res = freshen_with_map(a);
-        print!(">>> {:?}\n", res);
-        res
+        match a {
+            &Node(ref f, ref p, ref export) => {
+                // Every part that gets mentioned inside this node...
+                let mentioned = mentioned_in_import(p);
+                // ...needs to have its binders freshend:
+                let fresh_ast_and_rens = freshen_binders_inside_node(p, &mentioned);
+
+                Node(f.clone(),
+                    fresh_ast_and_rens.marched_map(
+                        &mut |_, marched: &EnvMBE<(Ast, Assoc<Name, Ast>)>, &(ref part, _)|
+                            freshen_rec(part, marched, &Assoc::new())),
+                            export.clone())
+            }
+            non_node => non_node.clone()
+        }
     } else {
         a.clone()
     }
@@ -135,7 +128,6 @@ pub fn freshen_binders(a: &Ast) -> (Ast, Assoc<Name, Ast>){
             })
         }
         Node(ref f, ref parts, ref export) => {
-            print!("FB:n {:?}\n", a);
             if export == &::beta::ExportBeta::Nothing {
                 return (a.clone(), Assoc::new()); // short-circuit (should this at least warn?)
             }
@@ -153,7 +145,6 @@ pub fn freshen_binders(a: &Ast) -> (Ast, Assoc<Name, Ast>){
             (ExtendEnv(Box::new(new_sub), beta.clone()), subst)
         }
     }
-
 }
 
 
@@ -205,7 +196,7 @@ fn basic_freshening() {
     next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
 
     assert_eq!(
-        freshen_with_map(
+        freshen(
             &ast!({"expr" "lambda" :
                 "param" => ["a", "b"],
                 "body" => (import [* ["param" : "[ignored]"]]
@@ -218,7 +209,7 @@ fn basic_freshening() {
     next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
 
     assert_eq!(
-        freshen_with_map(
+        freshen(
             &ast!({"expr" "match" :
                 "scrutinee" => (vr "x"),
                 "p" => [@"arm" "a", "b"],
@@ -237,7 +228,7 @@ fn basic_freshening() {
     //  not `VariableReference`s!!
     // Test that importing non-atoms works
     assert_eq!(
-        freshen_with_map(
+        freshen(
             &ast!({"expr" "match" :
                 "scrutinee" => (vr "x"),
                 "p" => [@"arm" /*{"pat" "enum_pat" : "name" => "asdf", "component" => ["a"]}*/
