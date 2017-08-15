@@ -95,23 +95,23 @@ impl Beta {
         }
     }
 
-    // This has an overly-specific type to match implementation details of alpha::freshen_binders.
-    // Not sure if we need a generalization, though.
-    pub fn extract_from_mbe(&self, parts: &EnvMBE<(Ast, Assoc<Name,Ast>)>) -> Assoc<Name,Ast> {
+    // alpha::freshen_binders wants this to extract from complex payloads, hence `f`
+    pub fn extract_from_mbe<T: Clone + ::std::fmt::Debug>(
+                &self, parts: &EnvMBE<T>, f: &Fn(&T) -> &Assoc<Name, Ast>) -> Assoc<Name,Ast> {
         match *self {
             Nothing => { Assoc::new() }
             Shadow(ref lhs, ref rhs) => {
-                lhs.extract_from_mbe(parts).set_assoc(&rhs.extract_from_mbe(parts))
+                lhs.extract_from_mbe(parts, f).set_assoc(&rhs.extract_from_mbe(parts, f))
             }
             ShadowAll(ref sub_beta, ref drivers) => {
                 let mut res = Assoc::new();
                 for parts in parts.march_all(drivers) { // Maybe `march_all` should memoize?
-                    res = res.set_assoc(&sub_beta.extract_from_mbe(&parts));
+                    res = res.set_assoc(&sub_beta.extract_from_mbe(&parts, f));
                 }
                 res
             }
             Basic(n_s, _) | SameAs(n_s, _) | Underspecified(n_s) | Protected(n_s) => {
-                parts.get_leaf_or_panic(&n_s).1.clone()
+                f(parts.get_leaf_or_panic(&n_s)).clone()
             }
         }
     }
@@ -263,21 +263,22 @@ impl ExportBeta {
 
     // This has an overly-specific type to match implementation details of alpha::freshen_binders.
     // Not sure if we need a generalization, though.
-    pub fn extract_from_mbe(&self, parts: &EnvMBE<(Ast, Assoc<Name,Ast>)>) -> Assoc<Name,Ast> {
+    pub fn extract_from_mbe<T: Clone + ::std::fmt::Debug>(
+            &self, parts: &EnvMBE<T>, f: &Fn(&T) -> &Assoc<Name, Ast>) -> Assoc<Name,Ast> {
         match *self {
             ExportBeta::Nothing => { Assoc::new() }
             ExportBeta::Shadow(ref lhs, ref rhs) => {
-                lhs.extract_from_mbe(parts).set_assoc(&rhs.extract_from_mbe(parts))
+                lhs.extract_from_mbe(parts, f).set_assoc(&rhs.extract_from_mbe(parts, f))
             }
             ExportBeta::ShadowAll(ref sub_beta, ref drivers) => {
                 let mut res = Assoc::new();
                 for parts in parts.march_all(drivers) { // Maybe `march_all` should memoize?
-                    res = res.set_assoc(&sub_beta.extract_from_mbe(&parts));
+                    res = res.set_assoc(&sub_beta.extract_from_mbe(&parts, f));
                 }
                 res
             }
             ExportBeta::Use(n_s) => {
-                parts.get_leaf_or_panic(&n_s).1.clone()
+                f(parts.get_leaf_or_panic(&n_s)).clone()
             }
         }
     }

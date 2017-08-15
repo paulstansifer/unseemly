@@ -185,6 +185,24 @@ impl<K: PartialEq + Clone, V: Clone> Assoc<K,V> {
             }
         }
     }
+
+    pub fn keyed_map_with<NewV>(&self, other: &Assoc<K, V>, f: &Fn(&K, &V, &V) -> NewV)
+            -> Assoc<K, NewV> {
+        match self.n {
+            None => Assoc{ n: None },
+            Some(ref node) => {
+                Assoc {
+                    n: Some(Rc::new(AssocNode {
+                        k: node.k.clone(),
+                        // Should we require `K` and `V` to be `Debug` to use `find_or_panic`?
+                        v: f(&node.k, &node.v, other.find(&node.k).unwrap()),
+                        next: node.next.keyed_map_with(other, f)
+                    }))
+                }
+            }
+        }
+    }
+
 }
 
 impl<K: PartialEq + fmt::Debug + Clone, V: fmt::Debug + Clone> Assoc<K, V> {

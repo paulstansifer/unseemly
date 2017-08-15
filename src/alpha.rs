@@ -1,6 +1,9 @@
 // Alpha-equivalence utilities.
 // Based on https://repository.library.northeastern.edu/files/neu:cj82mb52h
 
+// `freshen` gets a value ready for destructuring.
+// `freshen_rec` gets a value and its pattern ready for destructuring.
+
 use name::*;
 use util::mbe::EnvMBE;
 use ast::Ast;
@@ -8,13 +11,12 @@ use ast::Ast::*;
 use util::assoc::Assoc;
 use std::collections::HashMap;
 
+// Renaming:
+type Ren = Assoc<Name, Ast>;
 
-// TODO: at walk time, we must calculate the set of imported names
-//  and enforce that the environment change matches.
 
-
-// TODO: this isn't capture-avoiding
-fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Assoc<Name, Ast>) -> Ast {
+// TODO: this isn't capture-avoiding (and shouldn't be, when called by `freshen_rec`)
+fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Ren) -> Ast {
     match *node {
         Node(ref f, ref new_parts, ref export) => {
             //let new_cnc = parts.clone();
@@ -39,7 +41,7 @@ fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Assoc<Name,
 }
 
 /// Substitute `VariableReference`s in `node`, according to `env`.
-pub fn substitute(node: &Ast, env: &Assoc<Name, Ast>) -> Ast {
+pub fn substitute(node: &Ast, env: &Ren) -> Ast {
     substitute_rec(node, &EnvMBE::new(), env)
 }
 
@@ -64,7 +66,7 @@ fn mentioned_in_import(parts: &EnvMBE<Ast>) -> Vec<Name> {
     res
 }
 
-fn freshen_rec(node: &Ast, renamings: &EnvMBE<(Ast, Assoc<Name,Ast>)>, env: &Assoc<Name, Ast>) -> Ast {
+fn freshen_rec(node: &Ast, renamings: &EnvMBE<(Ast, Ren)>, env: &Ren) -> Ast {
     //  `env` is used to update the references to those atoms to match
     match *node {
         Node(_, _, _) => { substitute(node, env) }
@@ -72,7 +74,7 @@ fn freshen_rec(node: &Ast, renamings: &EnvMBE<(Ast, Assoc<Name,Ast>)>, env: &Ass
             env.find(&n).unwrap_or(&node.clone()).clone()
         }
         ExtendEnv(ref body, ref beta) => {
-            let new_env = env.set_assoc(&beta.extract_from_mbe(renamings));
+            let new_env = env.set_assoc(&beta.extract_from_mbe(renamings, &|x| &x.1));
 
             ExtendEnv(Box::new(
                 freshen_rec(body, renamings, &new_env)), beta.clone())
@@ -86,7 +88,6 @@ thread_local! {
     pub static next_id: ::std::cell::RefCell<u32> = ::std::cell::RefCell::new(0);
 }
 
-// broken out for testing purposes
 pub fn freshen(a: &Ast) -> Ast {
     if freshening_enabled.with(|f| *f.borrow()) {
         match a {
@@ -98,7 +99,7 @@ pub fn freshen(a: &Ast) -> Ast {
 
                 Node(f.clone(),
                     fresh_ast_and_rens.marched_map(
-                        &mut |_, marched: &EnvMBE<(Ast, Assoc<Name, Ast>)>, &(ref part, _)|
+                        &mut |_, marched: &EnvMBE<(Ast, Ren)>, &(ref part, _)|
                             freshen_rec(part, marched, &Assoc::new())),
                             export.clone())
             }
@@ -109,15 +110,65 @@ pub fn freshen(a: &Ast) -> Ast {
     }
 }
 
+pub fn freshen_with(lhs: &Ast, rhs: &Ast) -> (Ast, Ast) {
+    if freshening_enabled.with(|f| *f.borrow()) {
+        match (lhs, rhs) {
+            (&Node(ref f, ref p_lhs, ref export), &Node(_, ref p_rhs, _)) => {
+                // Every part that gets mentioned inside this node...
+                let mentioned = mentioned_in_import(p_lhs);
+                //  (if it matters which `p_{l,r}hs` we used, the match below will be `None`)
+                // ...needs to have its binders freshend:
+                match freshen_binders_inside_node_with(p_lhs, p_rhs, &mentioned) {
+                    Some(fresh_ast_and_rens) => {
+                        let new_p_lhs = fresh_ast_and_rens.marched_map(
+                            &mut |_, marched: &EnvMBE<(Ast, Ren, Ast, Ren)>, &(ref parts, _, _, _)|
+                                freshen_rec(parts,
+                                            &marched.map(&mut |q| (q.0.clone(), q.1.clone())),
+                                            &Assoc::new()));
+                        let new_p_rhs = fresh_ast_and_rens.marched_map(
+                            &mut |_, marched: &EnvMBE<(Ast, Ren, Ast, Ren)>, &(_, _, ref parts, _)|
+                                freshen_rec(parts,
+                                            &marched.map(&mut |q| (q.2.clone(), q.3.clone())),
+                                            &Assoc::new()));
+                        (Node(f.clone(), new_p_lhs, export.clone()),
+                         Node(f.clone(), new_p_rhs, export.clone()))
+
+                    }
+                    None => (lhs.clone(), rhs.clone()) // No destructuring will be performed!
+                }
+            }
+            _ => (lhs.clone(), rhs.clone()) // No binding
+        }
+    } else {
+        (lhs.clone(), rhs.clone()) // Freshening is disabled
+    }
+}
+
+
 pub fn freshen_binders_inside_node(parts: &EnvMBE<Ast>, mentioned: &Vec<Name>)
-        -> EnvMBE<(Ast, Assoc<Name, Ast>)> {
+        -> EnvMBE<(Ast, Ren)> {
     parts.named_map(
         &mut |n: &Name, a: &Ast| {
             if mentioned.contains(n) { freshen_binders(a) } else { (a.clone(), Assoc::new()) }})
 }
 
+pub fn freshen_binders_inside_node_with(p_lhs: &EnvMBE<Ast>, p_rhs: &EnvMBE<Ast>, men: &Vec<Name>)
+        -> Option<EnvMBE<(Ast, Ren, Ast, Ren)>> {
+    p_lhs.named_map_with(
+        p_rhs,
+        &mut |n: &Name, a_lhs: &Ast, a_rhs: &Ast| {
+            if men.contains(n) {
+                freshen_binders_with(a_lhs, a_rhs).ok_or(())
+            } else {
+                Ok((a_lhs.clone(), Assoc::new(), a_rhs.clone(), Assoc::new()))
+            }
+        }).lift_result().ok()
+}
 
-pub fn freshen_binders(a: &Ast) -> (Ast, Assoc<Name, Ast>){
+
+/// Returns an `Ast` like `a`, but with fresh `Atom`s
+///  and a map to change references in the same manner
+pub fn freshen_binders(a: &Ast) -> (Ast, Ren){
     match *a {
         Trivial | VariableReference(_) => (a.clone(), Assoc::new()),
         Atom(old_name) => {
@@ -135,7 +186,7 @@ pub fn freshen_binders(a: &Ast) -> (Ast, Assoc<Name, Ast>){
 
             let fresh_pairs = freshen_binders_inside_node(parts, &exported);
             let fresh_ast = fresh_pairs.map(&mut |&(ref a, _) : &(Ast, _)| a.clone());
-            let renaming = export.extract_from_mbe(&fresh_pairs);
+            let renaming = export.extract_from_mbe(&fresh_pairs, &|x| &x.1);
 
             (Node(f.clone(), fresh_ast, export.clone()), renaming)
         }
@@ -144,6 +195,58 @@ pub fn freshen_binders(a: &Ast) -> (Ast, Assoc<Name, Ast>){
             let (new_sub, subst) = freshen_binders(&*sub);
             (ExtendEnv(Box::new(new_sub), beta.clone()), subst)
         }
+    }
+}
+
+/// Like `freshen_binders`, but to unite two `Ast`s with identical structure (else returns `None`).
+pub fn freshen_binders_with(lhs: &Ast, rhs: &Ast) -> Option<(Ast, Ren, Ast, Ren)>{
+    match (lhs, rhs) {
+        (&Trivial, &Trivial) | (&VariableReference(_), &VariableReference(_)) => {
+            Some((lhs.clone(), Assoc::new(), rhs.clone(), Assoc::new()))
+        },
+        (&Atom(old_name_lhs), &Atom(old_name_rhs)) => {
+            next_id.with(|n_i| {
+                let new_name = n(&format!("🍅{}{}", old_name_lhs, *n_i.borrow()));
+                *n_i.borrow_mut() += 1;
+                Some((Atom(new_name), Assoc::new().set(old_name_lhs, VariableReference(new_name)),
+                      Atom(new_name), Assoc::new().set(old_name_rhs, VariableReference(new_name))))
+            })
+        }
+        // TODO: Handle matching `'[let (a,b) = ⋯]'` against the pattern `'[let ,[p], = ⋯]'` !!
+        (&Node(ref f, ref parts_lhs, ref export),
+         &Node(ref f_rhs, ref parts_rhs, ref export_rhs)) => {
+            if f != f_rhs || export != export_rhs { return None }
+
+            if export == &::beta::ExportBeta::Nothing { // short-circuit:
+                return Some((lhs.clone(), Assoc::new(), rhs.clone(), Assoc::new()));
+            }
+            let exported = export.names_mentioned(); // Unmentioned atoms shouldn't be touched
+
+            match freshen_binders_inside_node_with(parts_lhs, parts_rhs, &exported) {
+                Some(fresh_pairs) => {
+                    let fresh_ast_lhs = fresh_pairs.map(&mut |&(ref a, _, _, _)| a.clone());
+                    let fresh_ast_rhs = fresh_pairs.map(&mut |&(_, _, ref a, _)| a.clone());
+                    let ren_lhs = export.extract_from_mbe(&fresh_pairs, &|t| &t.1);
+                    let ren_rhs = export.extract_from_mbe(&fresh_pairs, &|t| &t.3);
+                    Some((Node(f.clone(), fresh_ast_lhs, export.clone()), ren_lhs,
+                          Node(f.clone(), fresh_ast_rhs, export.clone()), ren_rhs))
+                }
+                None => { None }
+            }
+        }
+        (&IncompleteNode(_), _) | (&Shape(_), _) => { panic!("ICE: didn't think this was needed") }
+        (&ExtendEnv(ref sub_lhs, ref beta), &ExtendEnv(ref sub_rhs, ref beta_rhs)) => {
+            if beta != beta_rhs { return None; }
+            // We're only looking at `Atom`s, so this is transparent
+            match freshen_binders_with(&*sub_lhs, &*sub_rhs) {
+                Some((n_lhs, ren_lhs, n_rhs, ren_rhs)) => {
+                    Some((ExtendEnv(Box::new(n_lhs), beta.clone()), ren_lhs,
+                          ExtendEnv(Box::new(n_rhs), beta.clone()), ren_rhs))
+                }
+                None => None
+            }
+        }
+        _ => None // Match failure
     }
 }
 
@@ -224,29 +327,78 @@ fn basic_freshening() {
 
     next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
 
-    // TODO: For this to work, negative terms need to bottom out at `Atom`s,
-    //  not `VariableReference`s!!
     // Test that importing non-atoms works
     assert_eq!(
         freshen(
             &ast!({"expr" "match" :
                 "scrutinee" => (vr "x"),
-                "p" => [@"arm" /*{"pat" "enum_pat" : "name" => "asdf", "component" => ["a"]}*/
-                (, ::ast::Node(::core_forms::find_core_form("pat", "enum_pat"),
-                    mbe!("name" => "[ignored]", "component" => ["a"]),
-                    ebeta!([* ["component"]])))
-                ],
+                "p" => [@"arm" { "pat" "enum_pat" => [* ["component"]] :
+                    "name" => "[ignored]", "component" => ["a"]
+                }],
                 "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "a"))]
             })),
         ast!({"expr" "match" :
             "scrutinee" => (vr "x"),
-            "p" => [@"arm" /* {"pat" "enum_pat" : "name" => "asdf", "component" => ["🍅a0"]} */
-            (, ::ast::Node(::core_forms::find_core_form("pat", "enum_pat"),
-                mbe!("name" => "[ignored]", "component" => ["🍅a0"]),
-                ebeta!([* ["component"]])))
-            ],
+            "p" => [@"arm" { "pat" "enum_pat" => [* ["component"]] :
+                "name" => "[ignored]", "component" => ["🍅a0"]
+            }],
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "🍅a0"))]}));
 
     //TODO: test more!
+}
 
+#[test]
+fn basic_freshening_with() {
+    next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
+
+    assert_eq!(
+        freshen_with(
+            &ast!({"expr" "lambda" :
+                "param" => ["a", "b"],
+                "body" => (import [* ["param" : "[ignored]"]]
+                    {"expr" "apply" : "??" => [(vr "a"), (vr "b"), (vr "c"), (vr "d")]})}),
+            &ast!({"expr" "lambda" :
+                "param" => ["aaa", "bbb"],
+                "body" => (import [* ["param" : "[ignored]"]]
+                    {"expr" "apply" : "??" => [(vr "aaa"), (vr "bbb"), (vr "x"), (vr "x")]})})),
+
+        (ast!({"expr" "lambda" :
+             "param" => ["🍅a0", "🍅b1"],
+             "body" => (import [* ["param" : "[ignored]"]]
+                 {"expr" "apply" : "??" => [(vr "🍅a0"), (vr "🍅b1"), (vr "c"), (vr "d")]})}),
+         ast!({"expr" "lambda" :
+             "param" => ["🍅a0", "🍅b1"],
+             "body" => (import [* ["param" : "[ignored]"]]
+                 {"expr" "apply" : "??" => [(vr "🍅a0"), (vr "🍅b1"), (vr "x"), (vr "x")]})})));
+
+    next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
+
+    assert_eq!(
+        freshen_with(
+            &ast!({"expr" "match" :
+                "scrutinee" => (vr "x"),
+                "p" => [@"arm" { "pat" "enum_pat" => [* ["component"]] :
+                    "name" => "[ignored]", "component" => ["a"]
+                }],
+                "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "a"))]
+            }),
+            &ast!({"expr" "match" :
+                "scrutinee" => (vr "x"),
+                "p" => [@"arm" { "pat" "enum_pat" => [* ["component"]] :
+                    "name" => "[ignored]", "component" => ["aaa"]
+                }],
+                "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "aaa"))]
+            })),
+        (ast!({"expr" "match" :
+             "scrutinee" => (vr "x"),
+             "p" => [@"arm" { "pat" "enum_pat" => [* ["component"]] :
+                 "name" => "[ignored]", "component" => ["🍅a0"]
+             }],
+             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "🍅a0"))]}),
+         ast!({"expr" "match" :
+              "scrutinee" => (vr "x"),
+              "p" => [@"arm" { "pat" "enum_pat" => [* ["component"]] :
+                  "name" => "[ignored]", "component" => ["🍅a0"]
+              }],
+              "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "🍅a0"))]})));
 }

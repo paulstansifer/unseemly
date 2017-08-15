@@ -536,6 +536,31 @@ impl<T: Clone> EnvMBE<T> {
         }
     }
 
+    pub fn named_map_with<NewT: Clone>(&self, o: &EnvMBE<T>, f: &Fn(&Name, &T, &T) -> NewT)
+            -> EnvMBE<NewT> {
+        EnvMBE {
+            leaves: self.leaves.keyed_map_with(&o.leaves, f),
+            repeats:
+            self.repeats.iter().zip(self.ddd_rep_idxes.iter())
+                .zip(o.repeats.iter().zip(o.ddd_rep_idxes.iter())).map(
+
+                &|((rc_vec_mbe, ddd_idx), (o_rc_vec_mbe, o_ddd_idx)) :
+                  ((&Rc<Vec<EnvMBE<T>>>, &Option<usize>), (&Rc<Vec<EnvMBE<T>>>, &Option<usize>))| {
+
+                    let mapped : Vec<_>
+                        = Self::resolve_ddd(rc_vec_mbe, ddd_idx, o_rc_vec_mbe, o_ddd_idx).iter()
+                        .map(|&(mbe, o_mbe) : &(&EnvMBE<T>, &EnvMBE<T>)|
+                                 mbe.named_map_with(o_mbe, f))
+                        .collect();
+
+                  Rc::new(mapped)}).collect(),
+            ddd_rep_idxes: self.repeats.iter().map(|_| None).collect(), // remove all dotdotdots
+            leaf_locations: self.leaf_locations.clone(),
+            named_repeats: self.named_repeats.clone()
+        }
+    }
+
+
     pub fn map_reduce_with<NewT: Clone>(&self,  other: &EnvMBE<T>,
             f: &Fn(&T, &T) -> NewT, red: &Fn(&NewT, &NewT) -> NewT, base: NewT) -> NewT {
         // TODO: this panics all over the place if anything goes wrong
