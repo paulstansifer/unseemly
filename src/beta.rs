@@ -95,6 +95,23 @@ impl Beta {
         }
     }
 
+    // `Protected` doens't actually bind, so we shouldn't rename under it!
+    pub fn names_mentioned_and_bound(&self) -> Vec<Name> {
+        match *self {
+            Nothing | Protected(_) => { vec![] }
+            Shadow(ref lhs, ref rhs) => {
+                let mut res = lhs.names_mentioned_and_bound();
+                let mut r_res = rhs.names_mentioned_and_bound();
+                res.append(&mut r_res);
+                res
+            }
+            ShadowAll(ref sub, _) => { sub.names_mentioned_and_bound() } // drivers is too broad!
+            Basic(n, v) => { vec![n, v] }
+            SameAs(n, v_source) => { vec![n, v_source] }
+            Underspecified(n) => { vec![n] }
+        }
+    }
+
     // alpha::freshen_binders wants this to extract from complex payloads, hence `f`
     pub fn extract_from_mbe<T: Clone + ::std::fmt::Debug>(
                 &self, parts: &EnvMBE<T>, f: &Fn(&T) -> &Assoc<Name, Ast>) -> Assoc<Name,Ast> {

@@ -129,7 +129,9 @@ impl WalkMode for Destructure {
     fn automatically_extend_env() -> bool { false } // TODO: think about this
 }
 
-impl NegativeWalkMode for Destructure {}
+impl NegativeWalkMode for Destructure {
+    fn needs_pre_match() -> bool { false } // Values don't have binding (in this mode!)
+}
 
 impl ::ast_walk::WalkElt for Ast {
     fn from_ast(a: &Ast) -> Ast { a.clone() }
@@ -179,4 +181,6 @@ impl WalkMode for QQuoteDestr {
     fn automatically_extend_env() -> bool { true } // This is the point of Unseemly!
 }
 
-impl NegativeWalkMode for QQuoteDestr {}
+impl NegativeWalkMode for QQuoteDestr {
+    fn needs_pre_match() -> bool { true } // Quoted syntax does have binding!
+}

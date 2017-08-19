@@ -216,7 +216,9 @@ impl WalkMode for UnpackTy {
     fn automatically_extend_env() -> bool { true }
 }
 
-impl ::ast_walk::NegativeWalkMode for UnpackTy {}
+impl ::ast_walk::NegativeWalkMode for UnpackTy {
+    fn needs_pre_match() -> bool { true }
+}
 
 pub fn synth_type_top(expr: &Ast) -> TypeResult {
     walk::<SynthTy>(expr, &LazyWalkReses::new_wrapper(Assoc::new()))

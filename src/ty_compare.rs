@@ -191,6 +191,19 @@ impl WalkMode for Subtype {
             })
         })
     }
+
+    /// Look up the reference and keep going.
+    fn walk_var(n: Name, cnc: &LazyWalkReses<Subtype>) -> Result<Assoc<Name, Ty>, TyErr> {
+        let lhs: &Ty = cnc.env.find_or_panic(&n);
+        if lhs == &Ty(VariableReference(n)) { // mu-protected!
+            return match cnc.context_elt() {
+                // mu-protected type variables have to exactly match by name:
+                &Ty(VariableReference(other_n)) if other_n == n => Ok(Assoc::new()),
+                different => Err(TyErr::Mismatch(different.clone(), lhs.clone()))
+            }
+        }
+        walk::<Subtype>(&lhs.concrete(), cnc)
+    }
 }
 
 
@@ -208,7 +221,7 @@ impl ::ast_walk::NegativeWalkMode for Subtype {
             let lhs = resolve(lhs, env, &unif.borrow()).clone();
             let rhs = resolve(rhs, env, &unif.borrow()).clone();
 
-            // We need to capture the environment
+            // We need to capture the environment (but only for storing unification)
             let lhs = Ty(::alpha::substitute(&lhs.concrete(), &env.map(|t| t.concrete())));
             let rhs = Ty(::alpha::substitute(&rhs.concrete(), &env.map(|t| t.concrete())));
 
@@ -266,7 +279,7 @@ fn basic_subtyping() {
 
     let mt_ty_env = Assoc::new();
     let int_ty = ty!({ "type" "Int" : });
-    //let nat_ty = ty!({ "type" "Nat" : });
+    let nat_ty = ty!({ "type" "Nat" : });
     let float_ty = ty!({ "type" "Float" : });
 
 
@@ -274,12 +287,12 @@ fn basic_subtyping() {
 
     assert_eq!(must_subtype(&float_ty, &int_ty, mt_ty_env.clone()),
         Err(Mismatch(float_ty.clone(), int_ty.clone())));
-/*
+
     let id_fn_ty = ty!({ "type" "forall_type" :
         "param" => ["t"],
         "body" => (import [* [forall "param"]]
             { "type" "fn" : "param" => [ (vr "t") ], "ret" => (vr "t") })});
-*/
+
     let int_to_int_fn_ty = ty!({ "type" "fn" :
          "param" => [(, int_ty.concrete())],
          "ret" => (, int_ty.concrete())});
@@ -287,7 +300,7 @@ fn basic_subtyping() {
     assert_m!(must_subtype(&int_to_int_fn_ty, &int_to_int_fn_ty, mt_ty_env.clone()),
                Ok(_));
 
-    /*
+
 
     assert_m!(must_subtype(&id_fn_ty, &id_fn_ty, mt_ty_env.clone()),
                Ok(_));
@@ -338,7 +351,6 @@ fn basic_subtyping() {
                                                         "rand" => [(vr "some_int")]}),
                           parametric_ty_env.clone()),
                Ok(ty!({"type" "Int" : })));
-    */
 
     // TODO: write a test that relies on the capture-the-environment behavior of `pre_match`
 }
@@ -346,29 +358,28 @@ fn basic_subtyping() {
 
 #[test]
 fn misc_subtyping_problems() {
-    /*
+
     let int_list_ty =
         ty!( { "type" "mu_type" :
             "param" => ["IntList"],
             "body" => (import [* [prot "param"]] { "type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
-                "component" => [@"c" [], ["Int", (vr "IntList") ]]})});
+                "component" => [@"c" [], [{"type" "Int" :}, (vr "IntList") ]]})});
     let bool_list_ty =
         ty!( { "type" "mu_type" :
-            "param" => ["BoolList"],
+            "param" => ["FloatList"],
             "body" => (import [* [prot "param"]] { "type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
-                "component" => [@"c" [], ["Bool", (vr "BoolList") ]]})});
+                "component" => [@"c" [], [{"type" "Float" :}, (vr "FloatList") ]]})});
 
     let ty_env = assoc_n!(
         "IntList" => int_list_ty.clone(),
-        "BoolList" => bool_list_ty.clone()
+        "FloatList" => bool_list_ty.clone()
     );
 
     // μ also has binding:
     assert_m!(must_subtype(&int_list_ty, &int_list_ty, ty_env.clone()), Ok(_));
     assert_m!(must_subtype(&int_list_ty, &bool_list_ty, ty_env.clone()), Err(_));
-    */
 
     // Don't walk `Atom`s!
     let basic_enum = ty!({"type" "enum" :
@@ -377,7 +388,6 @@ fn misc_subtyping_problems() {
     assert_m!(must_subtype(&basic_enum, &basic_enum, ::util::assoc::Assoc::new()),
               Ok(_));
 
-/*
     let basic_mu = ty!({"type" "mu_type" :
         "param" => ["X"],
         "body" => (import [* [prot "param"]] (vr "X"))});
@@ -387,7 +397,7 @@ fn misc_subtyping_problems() {
     // Don't diverge on `μ`!
     assert_m!(must_subtype(&basic_mu, &basic_mu, mu_env),
               Ok(_));
-              */
+
     let id_fn_ty = ty!({ "type" "forall_type" :
         "param" => ["t"],
         "body" => (import [* [forall "param"]]

@@ -153,8 +153,6 @@ pub fn make_core_syn_env_types() -> SynEnv {
                             forall_parts.env.clone()) {
                         // ∀ X. ⋯ <: ∀ Y. ⋯ ? (so force X=Y)
                         Ok(actual_forall_parts) => {
-                            // TODO: we need to implement "co-freshening", then pulling off the EE
-                            // will be sound
                             let a_b = match actual_forall_parts.get_leaf_or_panic(&n("body")) {
                                 &ExtendEnv(ref body, _) => body,
                                 _ => panic!("can't happen, by structure of forall's `form_pat!`")
@@ -178,9 +176,43 @@ pub fn make_core_syn_env_types() -> SynEnv {
      * The only thing that `mu` actually does is suppress substitution,
      *  to prevent the attempted generation of an infinite type.
      */
-    let mu_type = type_defn("mu_type",
+    let mu_type = type_defn_complex("mu_type",
         form_pat!([(lit "mu_type"), (star (named "param", aat)), (lit "."),
-             (named "body", (import [* [prot "param"]], (call "type")))]));
+             (named "body", (import [* [prot "param"]], (call "type")))]),
+        LiteralLike,
+        Both(
+            LiteralLike,
+            cust_rc_box!(move |mu_parts| {
+                let rhs_mu_parts = try!(Subtype::context_match(
+                    &mu_parts.this_ast,
+                    &mu_parts.context_elt().concrete(),
+                    mu_parts.env.clone()));
+
+                // HACK: Rip off the `EE` from the RHS (not respecting its beta; removing its protection, 
+                //  but the params are the same, so it's okay).
+                let rhs_body = match rhs_mu_parts.get_leaf_or_panic(&n("body")) {
+                    &ExtendEnv(ref r, _) => r,
+                    _ => panic!("can't happen, by structure of forall's `form_pat!`")
+                };
+
+                let r_params = rhs_mu_parts.get_rep_leaf_or_panic(&n("param"));
+                let l_params = mu_parts.get_rep_term(&n("param"));
+                if r_params.len() != l_params.len() {
+                    return Err(TyErr::LengthMismatch(
+                        r_params.iter().map(|a| Ty((*a).clone())).collect(), l_params.len()));
+                }
+                for (p_r, p_l) in r_params.iter().zip(l_params.iter()) {
+                    if p_r != &p_l {
+                        return Err(TyErr::Mismatch(Ty((*p_r).clone()), Ty(p_l.clone())));
+                    }
+                }
+
+                // print!("μμ {:?}\nμμ {:?}\n", lhs_body, rhs_body);
+
+                walk::<Subtype>(&mu_parts.get_term(&n("body")),
+                    &mu_parts.with_context(Ty::new((**rhs_body).clone())))
+            })));
+
 
     // This only makes sense inside a concrete syntax type or during typechecking.
     // For example, the type of the `let` macro is (where `dotdotdot_type` is `...[]...`):

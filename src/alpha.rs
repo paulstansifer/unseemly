@@ -51,7 +51,7 @@ fn mentioned_in_import(parts: &EnvMBE<Ast>) -> Vec<Name> {
         match *a {
             Node(_,_,_) => {} // new scope
             ExtendEnv(ref body, ref beta) => {
-                let mut beta_mentions = beta.names_mentioned();
+                let mut beta_mentions = beta.names_mentioned_and_bound();
                 v.append(&mut beta_mentions);
                 process_ast(&*body, v);
             }
@@ -62,7 +62,6 @@ fn mentioned_in_import(parts: &EnvMBE<Ast>) -> Vec<Name> {
 
     let mut res = vec![];
     parts.map(&mut |a| { process_ast(a, &mut res) });
-
     res
 }
 
@@ -88,7 +87,7 @@ thread_local! {
     pub static next_id: ::std::cell::RefCell<u32> = ::std::cell::RefCell::new(0);
 }
 
-pub fn freshen(a: &Ast) -> Ast {
+pub fn freshen(a: &Ast) -> Ast { // TODO: I think this shouldn't take a reference for performance
     if freshening_enabled.with(|f| *f.borrow()) {
         match a {
             &Node(ref f, ref p, ref export) => {
@@ -113,7 +112,8 @@ pub fn freshen(a: &Ast) -> Ast {
 pub fn freshen_with(lhs: &Ast, rhs: &Ast) -> (Ast, Ast) {
     if freshening_enabled.with(|f| *f.borrow()) {
         match (lhs, rhs) {
-            (&Node(ref f, ref p_lhs, ref export), &Node(_, ref p_rhs, _)) => {
+            (&Node(ref f, ref p_lhs, ref export), &Node(ref f_rhs, ref p_rhs, ref export_rhs)) => {
+                if f != f_rhs || export != export_rhs { return (lhs.clone(), rhs.clone()); }
                 // Every part that gets mentioned inside this node...
                 let mentioned = mentioned_in_import(p_lhs);
                 //  (if it matters which `p_{l,r}hs` we used, the match below will be `None`)
@@ -350,6 +350,10 @@ fn basic_freshening() {
 #[test]
 fn basic_freshening_with() {
     next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
+
+    assert_eq!(
+        freshen_with(&ast!({"type" "Int" :}), &ast!({"type" "Float" :})),
+        (ast!({"type" "Int" :}), ast!({"type" "Float" :})));
 
     assert_eq!(
         freshen_with(
