@@ -9,6 +9,19 @@ custom_derive! {
     pub enum DelimChar { Paren, SquareBracket, CurlyBracket }
 }
 
+impl DelimChar {
+    pub fn open(self) -> char {
+        match self {
+            Paren => '(', SquareBracket => '[', CurlyBracket => '{'
+        }
+    }
+    pub fn close(self) -> char {
+        match self {
+            Paren => ')', SquareBracket => ']', CurlyBracket => '}'
+        }
+    }
+}
+
 use self::DelimChar::*;
 
 #[derive(Debug,PartialEq,Eq)]

@@ -91,7 +91,7 @@ pub fn walk<Mode: WalkMode>(a: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
     // TODO: can we get rid of the & in front of our arguments and save the cloning?
     let (a, cur_node_contents) = Mode::D::pre_walk(a.clone(), cur_node_contents.clone());
 
-    // print!("#####: {:?}\n", a);
+    // print!("#####: {}\n", a);
     // print!("#from: {:?}\n", cur_node_contents.this_ast);
     // match cur_node_contents.env.find(&negative_ret_val()) {
     //     Some(ref ctxt) => print!("##c##: {:?}\n", ctxt), _ => {}}

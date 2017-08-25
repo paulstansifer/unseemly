@@ -347,7 +347,10 @@ impl<T: Clone> EnvMBE<T> {
 
         let mut result = vec![];
         for marched_out in self.repeats[march_loc].iter() {
-            result.push(self.combine_overriding(marched_out));
+            // TODO: should we allow cross-product marching by keeping around unused repeats?
+            // Don't lose the current leaves:
+            result.push(EnvMBE::new_from_leaves(self.leaves.clone())
+                .combine_overriding(marched_out));
         }
 
         result
@@ -671,7 +674,7 @@ fn basic_mbe() {
         EnvMBE::new_from_leaves(assoc_n!("t" => 13))
     ];
 
-    mbe.add_named_repeat(n("low_two_digits"), teens_mbe, None);
+    mbe.add_named_repeat(n("low_two_digits"), teens_mbe.clone(), None);
 
     let big_mbe = vec![
         EnvMBE::new_from_leaves(assoc_n!("y" => 9001)),
@@ -763,6 +766,27 @@ fn basic_mbe() {
     assert_eq!(first_sub_mbe.get_leaf(&n("y")), Some(&(9001, 1)));
     assert_eq!(first_sub_mbe.get_leaf(&n("eight")), Some(&(8, (8 - 9000))));
     assert_eq!(first_sub_mbe.get_leaf(&n("x")), None);
+
+    // test that phantoms from the previous level don't cause us trouble when repeats are empty
+
+    let mut teens_with_outer = EnvMBE::new_from_anon_repeat(teens_mbe);
+    teens_with_outer.add_leaf(n("outer"), 0);
+    let mut nothing_with_other = EnvMBE::new_from_anon_repeat(vec![]);
+    nothing_with_other.add_leaf(n("outer"), 1);
+
+    let teens_and_nothing
+        = EnvMBE::new_from_anon_repeat(vec![teens_with_outer, nothing_with_other]);
+
+    let mut output = vec![];
+    for outer in teens_and_nothing.march_all(&vec![n("outer")]) {
+        for inner in outer.march_all(&vec![n("t")]) {
+            output.push( (inner.get_leaf(&n("outer")).map(|x| x.clone()),
+                          inner.get_leaf(&n("t")).map(|x| x.clone()) ));
+        }
+    }
+    assert_eq!(output, vec![(Some(0), Some(11)), (Some(0), Some(12)), (Some(0), Some(13))]);
+
+
 }
 
 #[test]

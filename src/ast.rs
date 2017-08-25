@@ -73,6 +73,23 @@ impl fmt::Debug for Ast {
     }
 }
 
+// Warning: this assumes the core language! To properly display an `Ast`, you need the `SynEnv`.
+impl fmt::Display for Ast {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Atom(ref n) => { write!(f, "{}", n) },
+            VariableReference(ref v) => { write!(f, "{}", v) }
+            Node(ref form, ref body, _) => {
+                let s = ::unparse::unparse_mbe(
+                    &form.grammar, self, body, &::core_forms::get_core_forms());
+                write!(f, "{}", s)
+            }
+            ExtendEnv(ref body, _) => { write!(f, "{}↓", body) }
+            _ => write!(f, "{:?}", self)
+        }
+    }
+}
+
 
 impl Ast {
     // TODO: this ought to at least warn if we're losing anything other than `Shape`

@@ -39,6 +39,7 @@ mod ast;
 
 mod earley;
 mod parse;
+mod unparse;
 
 mod form;
 
@@ -292,7 +293,7 @@ fn simple_end_to_end_eval() {
 }
 
 
-//#[test]
+#[test]
 fn end_to_end_list_tools() {
 
     assert_m!(assign_t_var("IntList", "mu_type IntList . enum { Nil () Cons (Int IntList) }"),
@@ -335,7 +336,7 @@ fn end_to_end_list_tools() {
         Ok(_));
 
     assert_eq!(eval_unseemly_program("(int_list_len 123_list)"), Ok(val!(i 3)));
-
+/*
     assert_m!(assign_variable("list_len",
         "(fix forall S . .[again : [-> [List <[S]< -> Int]] .
             .[ lst : List <[S]< .
@@ -343,6 +344,6 @@ fn end_to_end_list_tools() {
                     +[Nil]+ => zero
                     +[Cons hd tl]+ => (plus one ((again) tl))} ]. ].)"),
         Ok(_));
-
+*/
 
 }

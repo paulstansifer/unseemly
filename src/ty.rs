@@ -326,8 +326,8 @@ fn basic_type_synth() {
 
     let simple_ty_env = mt_ty_env.set(n("x"), int_ty.clone());
 
-    let body = basic_typed_form!(at, Body(n("body")), NotWalked);
-    let untypeable = basic_typed_form!(at, NotWalked, NotWalked);
+    let body = basic_typed_form!(aat, Body(n("body")), NotWalked);
+    let untypeable = basic_typed_form!(aat, NotWalked, NotWalked);
 
     assert_eq!(synth_type(&ast!((vr "x")), simple_ty_env.clone()),
                Ok(int_ty.clone()));
@@ -348,7 +348,7 @@ fn basic_type_synth() {
     assert_eq!(synth_type(
         &ast!(
             {basic_typed_form!(
-                at,
+                aat,
                 Custom(Rc::new(Box::new(
                     |_| Ok(ty!({ ::core_forms::find_core_form("type", "Nat") ; }))))),
                 NotWalked) ; []}),
