@@ -110,7 +110,9 @@ pub fn resolve(t: Ty, env: &Assoc<Name, Ty>, unif: &HashMap<Name, Ty>) -> Ty {
             }
         }
         Ty(Node(ref form, _, _)) if form == &find_core_form("type", "type_apply") => {
-            Some(::ty::synth_type(&t.0, env.clone()).expect("ICE: broken type_apply"))
+            let res = ::ty::synth_type(&t.0, env.clone()).expect("ICE: broken type_apply");
+            // HACK: because of mu-protection, this may output the same thing. Don't recur:
+            if res == t { None } else { Some(res) }
         }
         Ty(Node(ref form, ref parts, _)) if form == &find_core_form("type", "type_by_name") =>  {
             // TODO: remove this stanza when type_by_name is gone
@@ -358,6 +360,14 @@ fn basic_subtyping() {
 
 #[test]
 fn misc_subtyping_problems() {
+    let list_ty =
+        ty!( { "type" "forall_type" :
+            "param" => ["Datum"],
+            "body" => (import [* [forall "param"]] { "type" "mu_type" :
+                "param" => ["List"],
+                "body" => (import [* [prot "param"]] { "type" "enum" :
+                    "name" => [@"c" "Nil", "Cons"],
+                    "component" => [@"c" [], [(vr "Datum"), (vr "IntList") ]]})})});
 
     let int_list_ty =
         ty!( { "type" "mu_type" :
@@ -374,7 +384,8 @@ fn misc_subtyping_problems() {
 
     let ty_env = assoc_n!(
         "IntList" => int_list_ty.clone(),
-        "FloatList" => bool_list_ty.clone()
+        "FloatList" => bool_list_ty.clone(),
+        "List" => list_ty.clone()
     );
 
     // μ also has binding:
@@ -436,6 +447,40 @@ fn misc_subtyping_problems() {
         &ty!({"type" "type_apply" : "type_name" => "identity", "arg" => [{"type" "Int" :}]}),
         &ty!((vr "identity")),
         parametric_ty_env.clone()),
+    Ok(_));
+
+    // Some things that involve mu
+
+    assert_m!(must_subtype(
+        &ty!((vr "List")), &ty!((vr "List")), ty_env.clone()),
+    Ok(_));
+
+
+    assert_m!(must_subtype(
+        &ty!({"type" "type_apply" : "type_name" => "List", "arg" => [{"type" "Int" :}]}),
+        &ty!({"type" "type_apply" : "type_name" => "List", "arg" => [{"type" "Int" :}]}),
+        ty_env.clone()),
+    Ok(_));
+
+    assert_m!(must_subtype(
+        &ty!({"type" "mu_type" :
+            "param" => ["List"],
+            "body" =>  (import [* [prot "param"]]
+                {"type" "type_apply" : "type_name" => "List", "arg" => [{"type" "Int" :}]})}),
+        &ty!({"type" "mu_type" :
+            "param" => ["List"],
+            "body" =>  (import [* [prot "param"]]
+                {"type" "type_apply" : "type_name" => "List", "arg" => [{"type" "Int" :}]})}),
+        ty_env.clone()),
+    Ok(_));
+
+    assert_m!(must_subtype(
+        &ty!( { "type" "forall_type" :
+            "param" => ["Datum2"],
+            "body" => (import [* [forall "param"]]
+                {"type" "type_apply" : "type_name" => "List", "arg" => [(vr "Datum2")]})}),
+        &ty!((vr "List")),
+        ty_env.clone()),
     Ok(_));
 
 

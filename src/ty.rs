@@ -195,9 +195,9 @@ impl WalkMode for SynthTy {
     fn get_walk_rule(f: &Form) -> &WalkRule<SynthTy> { &f.synth_type.pos() }
     fn automatically_extend_env() -> bool { true }
 
-    fn walk_var(n: Name, parts: &::ast_walk::LazyWalkReses<SynthTy>) -> Result<Ty, TypeError> {
-        match parts.env.find(&n) {
-            None => Err(::util::err::sp(TyErr::UnboundName(n), parts.this_ast.clone())),
+    fn walk_var(name: Name, parts: &::ast_walk::LazyWalkReses<SynthTy>) -> Result<Ty, TypeError> {
+        match parts.env.find(&name) {
+            None => Err(::util::err::sp(TyErr::UnboundName(name), parts.this_ast.clone())),
             Some(ty) => Ok(ty.clone())
         }
     }

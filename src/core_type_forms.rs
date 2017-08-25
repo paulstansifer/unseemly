@@ -145,21 +145,17 @@ pub fn make_core_syn_env_types() -> SynEnv {
             Both(
                 LiteralLike,
                 cust_rc_box!(move |forall_parts| {
-                    // print!("∀∀∀∀: {:?}\n", forall_parts.get_term(&n("body")));
-
                     match Subtype::context_match(
                             &forall_parts.this_ast,
                             &forall_parts.context_elt().concrete(),
                             forall_parts.env.clone()) {
                         // ∀ X. ⋯ <: ∀ Y. ⋯ ? (so force X=Y)
                         Ok(actual_forall_parts) => {
-                            let a_b = match actual_forall_parts.get_leaf_or_panic(&n("body")) {
-                                &ExtendEnv(ref body, _) => body,
-                                _ => panic!("can't happen, by structure of forall's `form_pat!`")
-                            };
+                            let actl_inner_body =
+                                actual_forall_parts.get_leaf_or_panic(&n("body"));
 
                             walk::<Subtype>(&forall_parts.get_term(&n("body")),
-                                &forall_parts.with_context(Ty::new((**a_b).clone())))
+                                &forall_parts.with_context(Ty::new(actl_inner_body.clone())))
                         }
                         // ∀ X. ⋯ <: ⋯ ?  (so try to specialize X)
                         Err(_) => {
@@ -188,12 +184,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     &mu_parts.context_elt().concrete(),
                     mu_parts.env.clone()));
 
-                // HACK: Rip off the `EE` from the RHS (not respecting its beta; removing its protection, 
-                //  but the params are the same, so it's okay).
-                let rhs_body = match rhs_mu_parts.get_leaf_or_panic(&n("body")) {
-                    &ExtendEnv(ref r, _) => r,
-                    _ => panic!("can't happen, by structure of forall's `form_pat!`")
-                };
+                let rhs_body = rhs_mu_parts.get_leaf_or_panic(&n("body"));
 
                 let r_params = rhs_mu_parts.get_rep_leaf_or_panic(&n("param"));
                 let l_params = mu_parts.get_rep_term(&n("param"));
@@ -210,7 +201,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 // print!("μμ {:?}\nμμ {:?}\n", lhs_body, rhs_body);
 
                 walk::<Subtype>(&mu_parts.get_term(&n("body")),
-                    &mu_parts.with_context(Ty::new((**rhs_body).clone())))
+                    &mu_parts.with_context(Ty::new(rhs_body.clone())))
             })));
 
 
@@ -265,7 +256,9 @@ pub fn make_core_syn_env_types() -> SynEnv {
 
             match tapp_parts.env.find(&type_name) {
                 None => ty_err!(UnboundName(type_name) at tapp_parts.this_ast),
-                Some(&Ty(VariableReference(_))) => { // e.g. `X<[int, Y]<` underneath `mu X. ...`
+                Some(&Ty(VariableReference(same))) if same == type_name => {
+                    // e.g. `X<[int, Y]<` underneath `mu X. ...`
+
                     // Rebuild a type_by_name, but evaulate its arguments
                     // This kind of thing is necessary because
                     //  we wish to avoid aliasing problems at the type level.
@@ -302,8 +295,9 @@ pub fn make_core_syn_env_types() -> SynEnv {
                             }
 
                             // This bypasses the binding in the type, which is what we want:
-                            synth_type(&forall_type__parts.get_leaf_or_panic(&n("body")),
-                                       new__ty_env)
+                            synth_type(&::core_forms::strip_ee(
+                                    &forall_type__parts.get_leaf_or_panic(&n("body"))),
+                                new__ty_env)
                         })
                 }
             }
@@ -328,6 +322,17 @@ pub fn make_core_syn_env_types() -> SynEnv {
 
 #[test]
 fn parametric_types() {
+
+    // Are plain parametric types valid?
+    without_freshening! { // (so we don't have to compute alpha-equivalence)
+    assert_eq!(
+        synth_type(&ast!({"type" "forall_type" : "param" => ["t"],
+                          "body" => (import [* [forall "param"]] (vr "t"))}),
+                   Assoc::new()),
+       Ok(ty!({"type" "forall_type" : "param" => ["t"],
+               "body" => (import [* [forall "param"]] (vr "t"))})));
+   }
+
     let ident_ty = ty!( { "type" "Ident" : });
     let nat_ty = ty!( { "type" "Nat" : });
 

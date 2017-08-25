@@ -85,36 +85,28 @@ use alpha::{freshen, freshen_with};
  * `cur_node_contents` is used as an environment,
  *  and by betas to access other parts of the current node.
  */
-pub fn walk<Mode: WalkMode>(a: &Ast, xcur_node_contents: &LazyWalkReses<Mode>)
+pub fn walk<Mode: WalkMode>(a: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
         -> Result<<Mode::D as Dir>::Out, Mode::Err> {
 
     // TODO: can we get rid of the & in front of our arguments and save the cloning?
-    let (a, cur_node_contents) = Mode::D::pre_walk(a.clone(), xcur_node_contents.clone());
+    let (a, cur_node_contents) = Mode::D::pre_walk(a.clone(), cur_node_contents.clone());
+
     // print!("#####: {:?}\n", a);
+    // print!("#from: {:?}\n", cur_node_contents.this_ast);
     // match cur_node_contents.env.find(&negative_ret_val()) {
     //     Some(ref ctxt) => print!("##c##: {:?}\n", ctxt), _ => {}}
-    // print!("       {:?}\n", cur_node_contents.env/*.map_borrow_f(&mut |_| "…")*/);
+    // print!("       {:?}\n", cur_node_contents.env.map_borrow_f(&mut |_| "…"));
 
     match a {
         Node(ref f, ref parts, _) => {
+            let new_cnc = LazyWalkReses::new(
+                cur_node_contents.env.clone(), parts.clone(), a.clone());
             // certain walks only work on certain kinds of AST nodes
             match *Mode::get_walk_rule(f) {
-                Custom(ref ts_fn) => {
-                    ts_fn(LazyWalkReses::new(
-                        cur_node_contents.env.clone(), parts.clone(), a.clone()))
-                }
-
-                Body(n) => {
-                    walk(parts.get_leaf(&n).unwrap(),
-                         &LazyWalkReses::<Mode>::new(
-                             cur_node_contents.env.clone(), parts.clone(), a.clone()))
-                }
-
-                LiteralLike => {
-                    Mode::walk_quasi_literally(a.clone(), &cur_node_contents)
-                }
-
-                NotWalked => { panic!( "ICE: {:?} should not be walked at all!", a ) }
+                Custom(ref ts_fn) =>  ts_fn(new_cnc),
+                Body(n) =>            walk(parts.get_leaf(&n).unwrap(), &new_cnc),
+                LiteralLike =>        Mode::walk_quasi_literally(a.clone(), &new_cnc),
+                NotWalked =>          panic!( "ICE: {:?} should not be walked at all!", a )
             }
         }
         IncompleteNode(ref parts) => { panic!("ICE: {:?} isn't a complete node", parts)}
@@ -130,9 +122,33 @@ pub fn walk<Mode: WalkMode>(a: &Ast, xcur_node_contents: &LazyWalkReses<Mode>)
         ExtendEnv(ref body, ref beta) => {
             let new_env = cur_node_contents.env.set_assoc(
                 &try!(env_from_beta(beta, &cur_node_contents)));
+
             // print!("↓↓↓↓: {:?}\n    : {:?}\n", beta, new_env.map(|_| "…"));
 
-            walk(&**body, &cur_node_contents.with_environment(new_env))
+            let new_cnc = cur_node_contents.with_environment(new_env);
+            let new_cnc = // Walk context_elt too, if it's also `ExtendEnv`
+                match cur_node_contents.env.find(&negative_ret_val()) // HACK are we even negative?
+                        .map(<Mode as WalkMode>::Elt::to_ast) {
+                    Some(ExtendEnv(ref rhs_body, _)) => {
+                        new_cnc.with_context(
+                            <Mode as WalkMode>::Elt::from_ast(&*rhs_body))
+                    }
+                    _ => new_cnc
+            };
+
+            // HACK: if a `Node` is `LiteralLike`, its imports should be, too!
+            // I'm not sure what the pretty way to do this is.
+            let literal_like = match new_cnc.this_ast {
+                Node(ref f, _, _) =>
+                    match Mode::get_walk_rule(f) { &LiteralLike => true, _ => false},
+                a => panic!("ICE: `ExtendEnv` must be inside a node, got {:?}", a)
+            };
+
+            if literal_like {
+                Mode::walk_quasi_literally(a.clone(), &new_cnc)
+            } else {
+                walk(&**body, &new_cnc)
+            }
         }
     }
 }
@@ -561,18 +577,25 @@ impl<Mode: WalkMode<D=Self>> Dir for Positive<Mode> {
 
     fn walk_quasi_literally(a: Ast, cnc: &LazyWalkReses<Self::Mode>)
             -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
-        let (f, parts, exports) = match freshen(&a) {
-            Node(f,p,e) => (f,p,e), _ => panic!("ICE")
-        };
+        match a {
+            Node(f, parts, exports) => {
+                let walked : Result<EnvMBE<Ast>, <Self::Mode as WalkMode>::Err> = parts.map(
+                    &mut |p: &Ast| match *p {
+                        // Yes, `walk`, not `w_q_l`; the mode is in charge of figuring things out.
+                        Node(_,_,_) | VariableReference(_) | ExtendEnv(_,_) => walk(p, cnc),
+                        _ => Ok(<Self::Mode as WalkMode>::Elt::from_ast(&p.clone()))
+                    }.map(|e| <Self::Mode as WalkMode>::Elt::to_ast(&e))).lift_result();
 
-        let walked : Result<EnvMBE<Ast>, <Self::Mode as WalkMode>::Err> = parts.map(
-            &mut |p: &Ast| match *p {
-                // Yes, `walk`, not `w_q_l`; the mode is in charge of figuring things out.
-                Node(_, _, _) | VariableReference(_) => walk(p, cnc),
-                _ => Ok(<Self::Mode as WalkMode>::Elt::from_ast(&p.clone()))
-            }.map(|e| <Self::Mode as WalkMode>::Elt::to_ast(&e))).lift_result();
-
-        walked.map(|out| <Self::Mode as WalkMode>::Elt::from_ast(&Node(f, out, exports)))
+                walked.map(|out| <Self::Mode as WalkMode>::Elt::from_ast(&Node(f, out, exports)))
+            },
+            ExtendEnv(body, beta) => { // Environment extension is handled at `walk`
+                Ok(<Self::Mode as WalkMode>::Elt::from_ast(
+                    &ExtendEnv(Box::new(
+                        <Self::Mode as WalkMode>::Elt::to_ast(&try!(walk(&*body, cnc)))),
+                               beta)))
+            }
+            _ => panic!("ICE")
+        }
     }
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Self::Mode>)
@@ -599,19 +622,17 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
         if !<Self::Mode as NegativeWalkMode>::needs_pre_match() {
             return (freshen(&node), cnc)
         }
-        let (fresh_node, fresh_elt)
-            = freshen_with(&node, &<Self::Mode as WalkMode>::Elt::to_ast(&cnc.context_elt()));
-        // print!("$$ {:?}\n$$ {:?}\n", fresh_node, fresh_elt);
-        let node_ast = <Self::Mode as WalkMode>::Elt::from_ast(&fresh_node);
-
-        match Mode::pre_match(
-                node_ast, <Self::Mode as WalkMode>::Elt::from_ast(&fresh_elt), &cnc.env) {
-            Some((l, r)) => (<Self::Mode as WalkMode>::Elt::to_ast(&l), cnc.with_context(r)),
-            None => {
-                // HACK: force walking to automatically succeed, avoiding return type muckery
-                (Atom(negative_ret_val()),
-                 cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(&Trivial)))
+        let node_ast = <Self::Mode as WalkMode>::Elt::from_ast(&node);
+        // `pre_match` brings things together, which we want to do before attempting to co-freshen.
+        match Mode::pre_match(node_ast, cnc.context_elt().clone(), &cnc.env) {
+            Some((l, r)) => {
+                let (l_fresh, r_fresh) = freshen_with(&<Self::Mode as WalkMode>::Elt::to_ast(&l),
+                    &<Self::Mode as WalkMode>::Elt::to_ast(&r));
+                (l_fresh, cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(&r_fresh)))
             }
+            // HACK: force walking to automatically succeed, avoiding return type muckery
+            None => (Atom(negative_ret_val()),
+             cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(&Trivial)))
         }
     }
 

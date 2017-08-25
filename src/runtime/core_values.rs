@@ -105,20 +105,19 @@ fn basic_core_value_evaluation() {
 
 #[test]
 fn fixpoint_evaluation() {
-
-    // Note that I'm cheating by leaving off the lambda imports because lambda evaluation
-    //  doesn't take advantage of the betas in the first place.
     assert_eq!(eval(
         &ast!( {"expr" "apply" : "rator" =>
         { "expr" "apply" :
             "rator" => (vr "fix"),
             "rand" => [{ "expr" "lambda" :
-                 "param" => [ "again" ],
-                 "p_t" => [ /* TODO */ (vr "TODO")  ],
-                 "body" => { "expr" "lambda" :
-                     "param" => [ "n" ],
-                     "p_t" => [ { "type" "Int" : } ],
-                     "body" => { "expr" "match" :
+                 "param" => [@"p" "again" ],
+                 "p_t" => [@"p" /* TODO */ (vr "TODO")  ],
+                 "body" => (import [* ["param" : "p_t"]]
+                 { "expr" "lambda" :
+                     "param" => [@"p" "n" ],
+                     "p_t" => [@"p" { "type" "Int" : } ],
+                     "body" => (import [* ["param" : "p_t"]]
+                     { "expr" "match" :
                          "scrutinee" => { "expr" "apply" : "rator" => (vr "zero?"),
                                                            "rand" => [(vr "n")] },
                          "p" => [@"c" {"pat" "enum_pat" : "component" => [], "name" => "True"  },
@@ -135,7 +134,7 @@ fn fixpoint_evaluation() {
                                                 "rator" => (vr "again"), "rand" => []},
                                             "rand" => [{ "expr" "apply" :
                                                  "rator" => (vr "minus"),
-                                                 "rand" => [(vr "n"), (vr "one")]}]}]})]}}}]},
+                                                 "rand" => [(vr "n"), (vr "one")]}]}]})]})})}]},
         "rand" => [(vr "five")]}),
         core_values()),
         Ok(val!(i 120)));

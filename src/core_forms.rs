@@ -139,6 +139,13 @@ fn eval_quoted_stx(a: Ast, env: Assoc<Name, Value>) -> Ast {
 }
 */
 
+/// Remove an `ExtendEnv` without respecting its binding behavior.
+/// This is safe if directly inside a `Node` that was just freshened.
+/// (TODO: think about what "just" means here. It's super-subtle!)
+pub fn strip_ee(a: &Ast) -> &Ast {
+    match a { &ExtendEnv(ref body, _) => (&**body), _ => panic!("ICE: malformed thing") }
+}
+
 /// This is the Unseemly language.
 pub fn make_core_syn_env() -> SynEnv {
 
@@ -174,7 +181,7 @@ pub fn make_core_syn_env() -> SynEnv {
             /* evaluation */
             cust_rc_box!( move | part_values | {
                 Ok(Function(Rc::new(Closure {
-                    body: part_values.get_term(&n("body")),
+                    body: strip_ee(part_values.get_term_ref(&n("body"))).clone(),
                     params:
                     part_values.get_rep_term(&n("param")).iter().map(ast_to_name).collect(),
                     env: part_values.env

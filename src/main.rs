@@ -99,6 +99,7 @@ fn main() {
         rl.set_completer(Some(ValueCompleter{}));
 
         let just_type = regex::Regex::new("^:t (.*)$").unwrap();
+        let canon_type = regex::Regex::new("^:tt (.*)$").unwrap();
         let assign_value = regex::Regex::new("^(\\w+)\\s*:=(.*)$").unwrap();
         let save_value = regex::Regex::new("^:s +((\\w+)\\s*:=(.*))$").unwrap();
         let assign_type = regex::Regex::new("^(\\w+)\\s*t=(.*)$").unwrap();
@@ -108,6 +109,7 @@ fn main() {
         print!("                  \x1b[1;38mUnseemly\x1b[0m\n");
         print!("    `<name> := <expr>` to bind a name for this session.\n");
         print!("    `:t <expr>` to synthesize the type of <expr>.\n");
+        print!("    `:tt <type>` to canonicalize <type>.\n");
         print!("    `<name> t= <type>` to bind a type for this session.\n");
         print!("    `:s <name> := <expr>` to save a binding to the prelude for the future.\n");
         print!("    `:s <name> t= <expr>` to save a type binding to the prelude.\n");
@@ -140,6 +142,8 @@ fn main() {
 
             let result_display = if let Some(caps) = just_type.captures(&line) {
                 type_unseemly_program(caps.at(1).unwrap()).map(|x| format!("{}", x))
+            } else if let Some(caps) = canon_type.captures(&line) {
+                canonicalize_type(caps.at(1).unwrap()).map(|x| format!("{}", x))
             } else if let Some(caps) = assign_value.captures(&line) {
                 assign_variable(caps.at(1).unwrap(), caps.at(2).unwrap()).map(|x| format!("{}", x))
             } else if let Some(caps) = save_value.captures(&line) {
@@ -209,8 +213,8 @@ fn assign_variable(name: &str, expr: &str) -> Result<Value, String> {
     res
 }
 
-fn assign_t_var(name: &str, expr: &str) -> Result<ty::Ty, String> {
-    let tokens = try!(read::read_tokens(expr));
+fn assign_t_var(name: &str, t: &str) -> Result<ty::Ty, String> {
+    let tokens = try!(read::read_tokens(t));
 
     let ast = try!(parse::parse(&parse::FormPat::Call(n("type")),
                                 &core_forms::get_core_forms(), &tokens).map_err(|e| e.msg));
@@ -229,6 +233,16 @@ fn assign_t_var(name: &str, expr: &str) -> Result<ty::Ty, String> {
     res
 }
 
+fn canonicalize_type(t: &str) -> Result<ty::Ty, String> {
+    let tokens = try!(read::read_tokens(t));
+
+    let ast = try!(parse::parse(&parse::FormPat::Call(n("type")),
+                                &core_forms::get_core_forms(), &tokens).map_err(|e| e.msg));
+
+    ty_env.with(|tys| {
+        ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:?}", e))
+    })
+}
 
 fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
     let tokens = try!(read::read_tokens(program));
@@ -260,11 +274,75 @@ fn eval_unseemly_program(program: &str) -> Result<Value, String> {
 }
 
 #[test]
-fn end_to_end_eval() {
+fn simple_end_to_end_eval() {
     assert_eq!(eval_unseemly_program("(zero? zero)"), Ok(val!(b true)));
 
     assert_eq!(eval_unseemly_program("(plus one one)"), Ok(val!(i 2)));
 
     assert_eq!(eval_unseemly_program("(.[x : Int  y : Int . (plus x y)]. one one)"),
                Ok(val!(i 2)));
+
+    assert_eq!(eval_unseemly_program(
+        "((fix .[ again : [ -> [ Int -> Int ]] .
+            .[ n : Int .
+                match (zero? n) {
+                    +[True]+ => one
+                    +[False]+ => (times n ((again) (minus n one))) } ]. ].) five)"),
+        Ok(val!(i 120)));
+}
+
+
+//#[test]
+fn end_to_end_list_tools() {
+
+    assert_m!(assign_t_var("IntList", "mu_type IntList . enum { Nil () Cons (Int IntList) }"),
+        Ok(_));
+
+    assert_m!(assign_t_var("IntListUF", "enum { Nil () Cons (Int IntList) }"),
+        Ok(_));
+
+    assert_m!(assign_variable(
+        "empty_list", "fold +[Nil]+ : enum { Nil () Cons (Int IntList) } : IntList"),
+        Ok(_));
+
+    assert_m!(assign_variable("3_list", "fold +[Cons three empty_list]+ : IntListUF : IntList"),
+        Ok(_));
+
+    assert_m!(assign_variable("23_list", "fold +[Cons two 3_list]+ : IntListUF : IntList"),
+        Ok(_));
+
+    assert_m!(assign_variable("123_list", "fold +[Cons one 23_list]+ : IntListUF : IntList"),
+        Ok(_));
+
+    assert_m!(assign_variable("sum_list",
+        "(fix .[again : [-> [IntList -> Int]] .
+             .[ lst : IntList .
+                 match unfold lst {
+                     +[Nil]+ => zero +[Cons hd tl]+ => (plus hd ((again) tl))} ]. ]. )"),
+        Ok(_));
+
+    assert_eq!(eval_unseemly_program("(sum_list 123_list)"), Ok(val!(i 6)));
+
+    assert_m!(
+        assign_t_var("List", "forall T . mu_type List . enum { Nil () Cons (T List <[T]<) }"),
+        Ok(_));
+
+    assert_m!(assign_variable("int_list_len",
+        "(fix .[again : [-> [IntList -> Int]] .
+             .[ lst : IntList .
+                 match unfold lst {
+                     +[Nil]+ => zero +[Cons hd tl]+ => (plus one ((again) tl))} ]. ].)"),
+        Ok(_));
+
+    assert_eq!(eval_unseemly_program("(int_list_len 123_list)"), Ok(val!(i 3)));
+
+    assert_m!(assign_variable("list_len",
+        "(fix forall S . .[again : [-> [List <[S]< -> Int]] .
+            .[ lst : List <[S]< .
+                match unfold lst {
+                    +[Nil]+ => zero
+                    +[Cons hd tl]+ => (plus one ((again) tl))} ]. ].)"),
+        Ok(_));
+
+
 }

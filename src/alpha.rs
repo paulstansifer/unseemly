@@ -108,7 +108,7 @@ pub fn freshen(a: &Ast) -> Ast { // TODO: I think this shouldn't take a referenc
         a.clone()
     }
 }
-
+// TODO: verify that this handles internal `ExtendEnv`s right
 pub fn freshen_with(lhs: &Ast, rhs: &Ast) -> (Ast, Ast) {
     if freshening_enabled.with(|f| *f.borrow()) {
         match (lhs, rhs) {
