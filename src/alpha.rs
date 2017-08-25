@@ -173,7 +173,7 @@ pub fn freshen_binders(a: &Ast) -> (Ast, Ren){
         Trivial | VariableReference(_) => (a.clone(), Assoc::new()),
         Atom(old_name) => {
             next_id.with(|n_i| {
-                let new_name = n(&format!("🍅{}{}", old_name, *n_i.borrow()));
+                let new_name = n(&format!("{}🍅{}", old_name, *n_i.borrow()));
                 *n_i.borrow_mut() += 1;
                 (Atom(new_name), Assoc::new().set(old_name, VariableReference(new_name)))
             })
@@ -206,7 +206,7 @@ pub fn freshen_binders_with(lhs: &Ast, rhs: &Ast) -> Option<(Ast, Ren, Ast, Ren)
         },
         (&Atom(old_name_lhs), &Atom(old_name_rhs)) => {
             next_id.with(|n_i| {
-                let new_name = n(&format!("🍅{}{}", old_name_lhs, *n_i.borrow()));
+                let new_name = n(&format!("{}🍅{}", old_name_lhs, *n_i.borrow()));
                 *n_i.borrow_mut() += 1;
                 Some((Atom(new_name), Assoc::new().set(old_name_lhs, VariableReference(new_name)),
                       Atom(new_name), Assoc::new().set(old_name_rhs, VariableReference(new_name))))
@@ -283,14 +283,14 @@ fn basic_binder_freshening() {
 
     assert_eq!(freshen_binders(&ast!((vr "a"))), (ast!((vr "a")), assoc_n!()));
 
-    assert_eq!(freshen_binders(&ast!("a")), (ast!("🍅a0"), assoc_n!("a" => ast!((vr "🍅a0")))));
+    assert_eq!(freshen_binders(&ast!("a")), (ast!("a🍅0"), assoc_n!("a" => ast!((vr "a🍅0")))));
 
     assert_eq!(freshen_binders(
         &ast!({ "pat" "enum_pat" => [* ["component"]] :
             "name" => "[ignored]", "component" => ["a", "b"] })),
         (ast!({ "pat" "enum_pat" => [* ["component"]] :
-            "name" => "[ignored]", "component" => ["🍅a1", "🍅b2"] }),
-        assoc_n!("a" => ast!((vr "🍅a1")), "b" => ast!((vr "🍅b2")))));
+            "name" => "[ignored]", "component" => ["a🍅1", "b🍅2"] }),
+        assoc_n!("a" => ast!((vr "a🍅1")), "b" => ast!((vr "b🍅2")))));
 }
 
 
@@ -305,9 +305,9 @@ fn basic_freshening() {
                 "body" => (import [* ["param" : "[ignored]"]]
                     {"expr" "apply" : "??" => [(vr "a"), (vr "b"), (vr "c"), (vr "d")]})})),
         ast!({"expr" "lambda" :
-            "param" => ["🍅a0", "🍅b1"],
+            "param" => ["a🍅0", "b🍅1"],
             "body" => (import [* ["param" : "[ignored]"]]
-                {"expr" "apply" : "??" => [(vr "🍅a0"), (vr "🍅b1"), (vr "c"), (vr "d")]})}));
+                {"expr" "apply" : "??" => [(vr "a🍅0"), (vr "b🍅1"), (vr "c"), (vr "d")]})}));
 
     next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
 
@@ -321,8 +321,8 @@ fn basic_freshening() {
             })),
         ast!({"expr" "match" :
             "scrutinee" => (vr "x"),
-            "p" => [@"arm" "🍅a0", "🍅b1"],
-            "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "🍅a0")),
+            "p" => [@"arm" "a🍅0", "b🍅1"],
+            "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "a🍅0")),
                              (import ["p" = "scrutinee"] (vr "x"))]}));
 
     next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
@@ -340,9 +340,9 @@ fn basic_freshening() {
         ast!({"expr" "match" :
             "scrutinee" => (vr "x"),
             "p" => [@"arm" { "pat" "enum_pat" => [* ["component"]] :
-                "name" => "[ignored]", "component" => ["🍅a0"]
+                "name" => "[ignored]", "component" => ["a🍅0"]
             }],
-            "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "🍅a0"))]}));
+            "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "a🍅0"))]}));
 
     //TODO: test more!
 }
@@ -367,13 +367,13 @@ fn basic_freshening_with() {
                     {"expr" "apply" : "??" => [(vr "aaa"), (vr "bbb"), (vr "x"), (vr "x")]})})),
 
         (ast!({"expr" "lambda" :
-             "param" => ["🍅a0", "🍅b1"],
+             "param" => ["a🍅0", "b🍅1"],
              "body" => (import [* ["param" : "[ignored]"]]
-                 {"expr" "apply" : "??" => [(vr "🍅a0"), (vr "🍅b1"), (vr "c"), (vr "d")]})}),
+                 {"expr" "apply" : "??" => [(vr "a🍅0"), (vr "b🍅1"), (vr "c"), (vr "d")]})}),
          ast!({"expr" "lambda" :
-             "param" => ["🍅a0", "🍅b1"],
+             "param" => ["a🍅0", "b🍅1"],
              "body" => (import [* ["param" : "[ignored]"]]
-                 {"expr" "apply" : "??" => [(vr "🍅a0"), (vr "🍅b1"), (vr "x"), (vr "x")]})})));
+                 {"expr" "apply" : "??" => [(vr "a🍅0"), (vr "b🍅1"), (vr "x"), (vr "x")]})})));
 
     next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
 
@@ -396,13 +396,13 @@ fn basic_freshening_with() {
         (ast!({"expr" "match" :
              "scrutinee" => (vr "x"),
              "p" => [@"arm" { "pat" "enum_pat" => [* ["component"]] :
-                 "name" => "[ignored]", "component" => ["🍅a0"]
+                 "name" => "[ignored]", "component" => ["a🍅0"]
              }],
-             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "🍅a0"))]}),
+             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "a🍅0"))]}),
          ast!({"expr" "match" :
               "scrutinee" => (vr "x"),
               "p" => [@"arm" { "pat" "enum_pat" => [* ["component"]] :
-                  "name" => "[ignored]", "component" => ["🍅a0"]
+                  "name" => "[ignored]", "component" => ["a🍅0"]
               }],
-              "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "🍅a0"))]})));
+              "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "a🍅0"))]})));
 }
