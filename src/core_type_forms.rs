@@ -290,8 +290,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                             }
                             let mut new__ty_env = tapp_parts.env.clone();
                             for (name, actual_type) in params.iter().zip(arg_res) {
-                                new__ty_env
-                                    = new__ty_env.set(ast_to_name(name), actual_type);
+                                new__ty_env = new__ty_env.set(ast_to_name(name), actual_type);
                             }
 
                             // This bypasses the binding in the type, which is what we want:

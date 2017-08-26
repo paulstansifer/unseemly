@@ -413,9 +413,9 @@ pub fn make_core_syn_env() -> SynEnv {
              (named "body", (import [* [forall "param"]], (call "expr")))],
             cust_rc_box!( move |forall_parts| {
                 Ok(ty!({"type" "forall_type" :
-                    "param" => (,seq forall_parts.get_rep_term(&n("param"))
-                /*.iter().map(|p| ast_to_name(&p))*/),
-                    "body" => (, try!(forall_parts.get_res(&n("body"))).concrete())
+                    "param" => (,seq forall_parts.get_rep_term(&n("param"))),
+                    "body" => (import [* [forall "param"]]
+                        (, try!(forall_parts.get_res(&n("body"))).concrete()))
                 }))
             }),
             Body(n("body"))),

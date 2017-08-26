@@ -33,6 +33,23 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
 }
 
 pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv) -> String {
+
+    //HACK: handle underdetermined forms
+    let undet = ::ty_compare::underdetermined_form.with(|u| u.clone());
+    match actl {
+        &Node(ref form, ref body, _) if form == &undet => {
+            return ::ty_compare::unification.with(|unif| {
+                let var = ::core_forms::ast_to_name(&body.get_leaf_or_panic(&n("id")));
+                let looked_up = unif.borrow().get(&var).map(|x| x.clone());
+                match looked_up {
+                    Some(ref t) => format!("{}", t),
+                    None => format!("¿{}?", var)
+                }
+            });
+        }
+        _ => {}
+    }
+
     match (pat, actl) {
         (&Named(name, ref body), _) => {
             unparse_mbe(&*body, &context.get_leaf_or_panic(&name), context, s)
@@ -89,7 +106,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
         (&NameImport(ref body, _), &ExtendEnv(ref actl_body, _)) => {
             unparse_mbe(&*body, &*actl_body, context, s)
         }
-        (&NameImport(_, _), _) => panic!("Missing import in {:?}!", context),
+        (&NameImport(_, _), _) => panic!("Missing import in {:?}!", actl),
         (&SynImport(_, _), _) => panic!("Geee. What do we do here?"),
     }
 }

@@ -91,10 +91,10 @@ pub fn walk<Mode: WalkMode>(a: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
     // TODO: can we get rid of the & in front of our arguments and save the cloning?
     let (a, cur_node_contents) = Mode::D::pre_walk(a.clone(), cur_node_contents.clone());
 
-    // print!("#####: {}\n", a);
+    print!("#####: {}\n", a);
     // print!("#from: {:?}\n", cur_node_contents.this_ast);
-    // match cur_node_contents.env.find(&negative_ret_val()) {
-    //     Some(ref ctxt) => print!("##c##: {:?}\n", ctxt), _ => {}}
+    match cur_node_contents.env.find(&negative_ret_val()) {
+        Some(ref ctxt) => print!("##c##: {}\n", ctxt), _ => {}}
     // print!("       {:?}\n", cur_node_contents.env.map_borrow_f(&mut |_| "…"));
 
     match a {
@@ -445,7 +445,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
  */
 
  // The fact that we need this type parameter makes me unhappy. Is there any way around it?
-pub trait WalkElt: Clone + Debug + Reifiable {
+pub trait WalkElt: Clone + Debug + Display + Reifiable {
     fn from_ast(a: &Ast) -> Self;
     fn to_ast(&self) -> Ast;
 }
