@@ -488,6 +488,7 @@ impl<T: Clone> EnvMBE<T> {
         }
     }
 
+    // TODO: this needs to return `Option` (and so does everything `_with`)
     // TODO: for efficiency, this ought to return iterators
     fn resolve_ddd<'a>(lhs: &'a Rc<Vec<EnvMBE<T>>>, lhs_ddd: &'a Option<usize>,
                        rhs: &'a Rc<Vec<EnvMBE<T>>>, rhs_ddd: &'a Option<usize>)
@@ -514,6 +515,36 @@ impl<T: Clone> EnvMBE<T> {
         };
 
         matched
+    }
+
+    // TODO: we should just have the relevant functions return None...
+    pub fn can_map_with(&self, o: &EnvMBE<T>) -> bool {
+        let mut lhs_keys = ::std::collections::HashSet::<Name>::new();
+        for (k,_) in self.leaves.iter_pairs() { lhs_keys.insert(*k); }
+        let mut rhs_keys = ::std::collections::HashSet::<Name>::new();
+        for (k,_) in o.leaves.iter_pairs() { rhs_keys.insert(*k); }
+
+        if lhs_keys != rhs_keys { return false; }
+
+        for ((subs, subs_ddd), (o_subs, o_subs_ddd)) in
+                self.repeats.iter().zip(self.ddd_rep_idxes.iter())
+                    .zip(o.repeats.iter().zip(o.ddd_rep_idxes.iter())) {
+            if subs_ddd != &None && o_subs_ddd != &None { panic!("Ill-formed; can't walk two DDDs") }
+            if subs_ddd == &None && o_subs_ddd == &None {
+                if subs.len() != o_subs.len() { return false; }
+            }
+            if subs_ddd != &None {
+                if o_subs.len() < subs.len() - 1 { return false; }
+            }
+            if o_subs_ddd != &None {
+                if subs.len() < o_subs.len() - 1 { return false; }
+            }
+
+            for (mbe, o_mbe) in Self::resolve_ddd(subs, subs_ddd, o_subs, o_subs_ddd) {
+                if !mbe.can_map_with(o_mbe) { return false; }
+            }
+        }
+        return true;
     }
 
     pub fn map_with<NewT: Clone>(&self, o: &EnvMBE<T>, f: &Fn(&T, &T) -> NewT)

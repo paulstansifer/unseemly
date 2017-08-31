@@ -89,12 +89,17 @@ pub fn walk<Mode: WalkMode>(a: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
         -> Result<<Mode::D as Dir>::Out, Mode::Err> {
 
     // TODO: can we get rid of the & in front of our arguments and save the cloning?
-    let (a, cur_node_contents) = Mode::D::pre_walk(a.clone(), cur_node_contents.clone());
+    let (a, cur_node_contents) = match a {
+      // HACK: We want to process EE before pre_match before everything else.
+      // This probably means we should find a way to get rid of pre_match.
+      &ExtendEnv(_,_) => { (a.clone(), cur_node_contents.clone()) }
+      _ => Mode::D::pre_walk(a.clone(), cur_node_contents.clone())
+    };
 
-    print!("#####: {}\n", a);
+    // print!("#####: {}\n", a);
     // print!("#from: {:?}\n", cur_node_contents.this_ast);
-    match cur_node_contents.env.find(&negative_ret_val()) {
-        Some(ref ctxt) => print!("##c##: {}\n", ctxt), _ => {}}
+    // match cur_node_contents.env.find(&negative_ret_val()) {
+    //    Some(ref ctxt) => print!("##c##: {}\n", ctxt), _ => {}}
     // print!("       {:?}\n", cur_node_contents.env.map_borrow_f(&mut |_| "…"));
 
     match a {
@@ -126,8 +131,9 @@ pub fn walk<Mode: WalkMode>(a: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
             // print!("↓↓↓↓: {:?}\n    : {:?}\n", beta, new_env.map(|_| "…"));
 
             let new_cnc = cur_node_contents.with_environment(new_env);
-            let new_cnc = // Walk context_elt too, if it's also `ExtendEnv`
-                match cur_node_contents.env.find(&negative_ret_val()) // HACK are we even negative?
+            let new_cnc = // If the RHS is also binding, assume it's the same
+            // TODO: we should make this only happen if we're actually negative.
+                match cur_node_contents.env.find(&negative_ret_val())
                         .map(<Mode as WalkMode>::Elt::to_ast) {
                     Some(ExtendEnv(ref rhs_body, _)) => {
                         new_cnc.with_context(

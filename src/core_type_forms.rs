@@ -192,16 +192,22 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     return Err(TyErr::LengthMismatch(
                         r_params.iter().map(|a| Ty((*a).clone())).collect(), l_params.len()));
                 }
-                for (p_r, p_l) in r_params.iter().zip(l_params.iter()) {
-                    if p_r != &p_l {
-                        return Err(TyErr::Mismatch(Ty((*p_r).clone()), Ty(p_l.clone())));
-                    }
+                // Apply the Amber rule; assume the `mu`ed names are subtypes to subtype the bodies
+                let mut amber_environment = mu_parts.env.clone();
+                for (&p_r, p_l) in r_params.iter().zip(l_params.iter()) {
+                    if p_r == p_l // short-circuit if the names are the same...
+                        || mu_parts.env.find(&ast_to_name(p_r)) // ...or Amber assumed so already
+                             == Some(&Ty(VariableReference(ast_to_name(&p_l)))) { continue; }
+
+                    amber_environment = amber_environment.set(
+                        ast_to_name(p_r), Ty(VariableReference(::core_forms::ast_to_name(p_l))));
                 }
 
                 // print!("μμ {:?}\nμμ {:?}\n", lhs_body, rhs_body);
 
                 walk::<Subtype>(&mu_parts.get_term(&n("body")),
-                    &mu_parts.with_context(Ty::new(rhs_body.clone())))
+                    &mu_parts.with_environment(amber_environment)
+                        .with_context(Ty::new(rhs_body.clone())))
             })));
 
 

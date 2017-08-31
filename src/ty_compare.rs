@@ -512,6 +512,37 @@ fn misc_subtyping_problems() {
 }
 
 #[test]
+fn subtype_different_mus() { // testing the Amber rule:
+
+    // These types are non-contractive, but it doesn't matter for subtyping purposes.
+    let jane_author = ty!({"type" "mu_type" :
+        "param" => ["CharlotteBrontë"],
+        "body" => (import [* [prot "param"]]
+            {"type" "fn" : "param" => [{"type" "Float" :}], "ret" => (vr "CharlotteBrontë")})});
+    let jane_psuedonym = ty!({"type" "mu_type" :
+        "param" => ["CurrerBell"],
+        "body" => (import [* [prot "param"]]
+            {"type" "fn" : "param" => [{"type" "Float" :}], "ret" => (vr "CurrerBell")})});
+    let wuthering_author = ty!({"type" "mu_type" :
+        "param" => ["EmilyBrontë"],
+        "body" => (import [* [prot "param"]]
+            {"type" "fn" : "param" => [{"type" "Int" :}], "ret" => (vr "EmilyBrontë")})});
+    let mu_env = assoc_n!(
+        "CharlotteBrontë" => jane_author.clone(),
+        "CurrerBell" => jane_psuedonym.clone(),
+        "EmilyBrontë" => wuthering_author.clone());
+    assert_m!(must_subtype(&jane_author, &jane_author, mu_env.clone()),
+        Ok(_));
+
+    assert_m!(must_subtype(&jane_author, &jane_psuedonym, mu_env.clone()),
+        Ok(_));
+
+    assert_m!(must_subtype(&jane_author, &wuthering_author, mu_env.clone()),
+        Err(_));
+
+}
+
+#[test]
 fn basic_resolve() {
     let u_f = underdetermined_form.with(|u_f| { u_f.clone() });
     let ud0 = ast!({ u_f.clone() ; "id" => "a⚁99" });

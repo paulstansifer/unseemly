@@ -154,6 +154,7 @@ pub fn freshen_binders_inside_node(parts: &EnvMBE<Ast>, mentioned: &Vec<Name>)
 
 pub fn freshen_binders_inside_node_with(p_lhs: &EnvMBE<Ast>, p_rhs: &EnvMBE<Ast>, men: &Vec<Name>)
         -> Option<EnvMBE<(Ast, Ren, Ast, Ren)>> {
+    if ! p_lhs.can_map_with(p_rhs) { return None; }
     p_lhs.named_map_with(
         p_rhs,
         &mut |n: &Name, a_lhs: &Ast, a_rhs: &Ast| {
@@ -269,12 +270,14 @@ fn basic_substitution() {
             &ast!({"expr" "lambda" :
                 "param" => ["b", "x"],
                 "body" => (import [* ["param" : "[ignored]"]]
-                    {"expr" "apply" : "??" => [(vr "a"), (vr "b"), (vr "c")]})}),
+                    {"expr" "apply" : "rator" => (vr "f"),
+                                      "rand" => [(vr "a"), (vr "b"), (vr "c")]})}),
             &assoc_n!("a" => ast!((vr "A")), "b" => ast!((vr "B")), "c" => ast!((vr "C")))),
         ast!({"expr" "lambda" :
             "param" => ["b", "x"],
             "body" => (import [* ["param" : "[ignored]"]]
-                {"expr" "apply" : "??" => [(vr "A"), (vr "b"), (vr "C")]})}));
+                {"expr" "apply" : "rator" => (vr "f"),
+                                  "rand" => [(vr "A"), (vr "b"), (vr "C")]})}));
 }
 
 #[test]
@@ -303,11 +306,13 @@ fn basic_freshening() {
             &ast!({"expr" "lambda" :
                 "param" => ["a", "b"],
                 "body" => (import [* ["param" : "[ignored]"]]
-                    {"expr" "apply" : "??" => [(vr "a"), (vr "b"), (vr "c"), (vr "d")]})})),
+                    {"expr" "apply" : "rator" => (vr "f"),
+                                      "rand" => [(vr "a"), (vr "b"), (vr "c"), (vr "d")]})})),
         ast!({"expr" "lambda" :
             "param" => ["a🍅0", "b🍅1"],
             "body" => (import [* ["param" : "[ignored]"]]
-                {"expr" "apply" : "??" => [(vr "a🍅0"), (vr "b🍅1"), (vr "c"), (vr "d")]})}));
+                {"expr" "apply" : "rator" => (vr "f"),
+                                  "rand" => [(vr "a🍅0"), (vr "b🍅1"), (vr "c"), (vr "d")]})}));
 
     next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
 
@@ -355,25 +360,31 @@ fn basic_freshening_with() {
         freshen_with(&ast!({"type" "Int" :}), &ast!({"type" "Float" :})),
         (ast!({"type" "Int" :}), ast!({"type" "Float" :})));
 
+    next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
+
     assert_eq!(
         freshen_with(
             &ast!({"expr" "lambda" :
                 "param" => ["a", "b"],
                 "body" => (import [* ["param" : "[ignored]"]]
-                    {"expr" "apply" : "??" => [(vr "a"), (vr "b"), (vr "c"), (vr "d")]})}),
+                    {"expr" "apply" : "rator" => (vr "f"),
+                                      "rand" => [(vr "a"), (vr "b"), (vr "c"), (vr "d")]})}),
             &ast!({"expr" "lambda" :
                 "param" => ["aaa", "bbb"],
                 "body" => (import [* ["param" : "[ignored]"]]
-                    {"expr" "apply" : "??" => [(vr "aaa"), (vr "bbb"), (vr "x"), (vr "x")]})})),
+                    {"expr" "apply" : "rator" => (vr "f"),
+                                      "rand" => [(vr "aaa"), (vr "bbb"), (vr "x"), (vr "x")]})})),
 
         (ast!({"expr" "lambda" :
              "param" => ["a🍅0", "b🍅1"],
              "body" => (import [* ["param" : "[ignored]"]]
-                 {"expr" "apply" : "??" => [(vr "a🍅0"), (vr "b🍅1"), (vr "c"), (vr "d")]})}),
+                 {"expr" "apply" : "rator" => (vr "f"),
+                                   "rand" => [(vr "a🍅0"), (vr "b🍅1"), (vr "c"), (vr "d")]})}),
          ast!({"expr" "lambda" :
              "param" => ["a🍅0", "b🍅1"],
              "body" => (import [* ["param" : "[ignored]"]]
-                 {"expr" "apply" : "??" => [(vr "a🍅0"), (vr "b🍅1"), (vr "x"), (vr "x")]})})));
+                 {"expr" "apply" : "rator" => (vr "f"),
+                                   "rand" => [(vr "a🍅0"), (vr "b🍅1"), (vr "x"), (vr "x")]})})));
 
     next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
 
@@ -405,4 +416,30 @@ fn basic_freshening_with() {
                   "name" => "[ignored]", "component" => ["a🍅0"]
               }],
               "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "a🍅0"))]})));
+
+      next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
+
+      // Terms that don't match are unaffected
+      assert_eq!(
+          freshen_with(
+              &ast!({"expr" "lambda" :
+                  "param" => ["a", "b"],
+                  "body" => (import [* ["param" : "[ignored]"]]
+                      {"expr" "apply" : "rator" => (vr "f"),
+                                        "rand" => [(vr "a"), (vr "b"), (vr "c"), (vr "d")]})}),
+              &ast!({"expr" "lambda" :
+                  "param" => ["abc"],
+                  "body" => (import [* ["param" : "[ignored]"]]
+                      {"expr" "apply" : "rator" => (vr "f"),
+                                        "rand" => [(vr "a"), (vr "b"), (vr "x"), (vr "x")]})})),
+          (ast!({"expr" "lambda" :
+              "param" => ["a", "b"],
+              "body" => (import [* ["param" : "[ignored]"]]
+                  {"expr" "apply" : "rator" => (vr "f"),
+                                    "rand" => [(vr "a"), (vr "b"), (vr "c"), (vr "d")]})}),
+           ast!({"expr" "lambda" :
+              "param" => ["abc"],
+              "body" => (import [* ["param" : "[ignored]"]]
+                  {"expr" "apply" : "rator" => (vr "f"),
+                                    "rand" => [(vr "a"), (vr "b"), (vr "x"), (vr "x")]})})));
 }

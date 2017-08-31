@@ -50,6 +50,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
         _ => {}
     }
 
+    // TODO: this really ought to notice when `actl` is all-formed for `pat`.
     match (pat, actl) {
         (&Named(name, ref body), _) => {
             unparse_mbe(&*body, &context.get_leaf_or_panic(&name), context, s)

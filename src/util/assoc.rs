@@ -168,7 +168,7 @@ impl<K: PartialEq + Clone, V: Clone> Assoc<K,V> {
         }
     }
 
-
+    // TODO: this should handle missing keys symmetrically
     pub fn map_with<NewV>(&self, other: &Assoc<K, V>, f: &Fn(&V, &V) -> NewV)
             -> Assoc<K, NewV> {
         match self.n {
@@ -216,31 +216,27 @@ impl<K: PartialEq + fmt::Debug + Clone, V: fmt::Debug + Clone> Assoc<K, V> {
     }
 }
 
-impl<K : PartialEq + fmt::Debug, V : fmt::Debug> fmt::Debug for Assoc<K, V> {
+impl<K : PartialEq + Clone + fmt::Debug, V : fmt::Debug> fmt::Debug for Assoc<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(write!(f, "⟦"));
-        let mut cur = &self.n;
         let mut first = true;
-        while let Some(ref node) = *cur {
+        for (k,v) in self.iter_pairs() {
             if !first { try!(write!(f, ", ")); }
-            try!(write!(f, "{:?} ⇒ {:?}", node.k, node.v));
+            try!(write!(f, "{:?} ⇒ {:?}", k, v));
             first = false;
-            cur = &node.next.n;
         }
         write!(f, "⟧")
     }
 }
 
-impl<K : PartialEq + fmt::Display, V : fmt::Display> fmt::Display for Assoc<K, V> {
+impl<K : PartialEq + Clone + fmt::Display, V : fmt::Display> fmt::Display for Assoc<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(write!(f, "⟦"));
-        let mut cur = &self.n;
         let mut first = true;
-        while let Some(ref node) = *cur {
-            if !first { try!(write!(f, ",\n ")); }
-            try!(write!(f, "{} ⇒ {}", node.k, node.v));
+        for (k,v) in self.iter_pairs() {
+            if !first { try!(write!(f, ", ")); }
+            try!(write!(f, "{} ⇒ {}", k, v));
             first = false;
-            cur = &node.next.n;
         }
         write!(f, "⟧")
     }
