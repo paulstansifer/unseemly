@@ -105,9 +105,11 @@ fn main() {
         let save_value = regex::Regex::new("^:s +((\\w+)\\s*:=(.*))$").unwrap();
         let assign_type = regex::Regex::new("^(\\w+)\\s*t=(.*)$").unwrap();
         let save_type = regex::Regex::new("^:s +((\\w+)\\s*t=(.*))$").unwrap();
+        let comment = regex::Regex::new("^#").unwrap();
 
         print!("\n");
         print!("                  \x1b[1;38mUnseemly\x1b[0m\n");
+        print!("    `<expr>` to (typecheck and) evaluate `<expr>`.\n");
         print!("    `<name> := <expr>` to bind a name for this session.\n");
         print!("    `:t <expr>` to synthesize the type of <expr>.\n");
         print!("    `:tt <type>` to canonicalize <type>.\n");
@@ -122,7 +124,8 @@ fn main() {
             let prelude = std::io::BufReader::new(prelude_file);
             for line in prelude.lines() {
                 let line = line.unwrap();
-                if let Some(caps) = assign_value.captures(&line) {
+                if let Some(_) = comment.captures(&line) { /*comment*/
+                } else if let Some(caps) = assign_value.captures(&line) {
                     if let Err(e) = assign_variable(caps.at(1).unwrap(), caps.at(2).unwrap()) {
                         print!("    Error in prelude line: {}\n    {}\n", line, e);
                     }
