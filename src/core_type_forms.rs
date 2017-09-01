@@ -199,11 +199,10 @@ pub fn make_core_syn_env_types() -> SynEnv {
                         || mu_parts.env.find(&ast_to_name(p_r)) // ...or Amber assumed so already
                              == Some(&Ty(VariableReference(ast_to_name(&p_l)))) { continue; }
 
+                    // print!("Ambering: {} = {}\n", p_r, p_l);
                     amber_environment = amber_environment.set(
                         ast_to_name(p_r), Ty(VariableReference(::core_forms::ast_to_name(p_l))));
                 }
-
-                // print!("μμ {:?}\nμμ {:?}\n", lhs_body, rhs_body);
 
                 walk::<Subtype>(&mu_parts.get_term(&n("body")),
                     &mu_parts.with_environment(amber_environment)

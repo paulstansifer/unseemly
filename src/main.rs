@@ -294,7 +294,7 @@ fn simple_end_to_end_eval() {
 
 
 #[test]
-fn end_to_end_list_tools() {
+fn end_to_end_int_list_tools() {
 
     assert_m!(assign_t_var("IntList", "mu_type IntList . enum { Nil () Cons (Int IntList) }"),
         Ok(_));
@@ -303,30 +303,26 @@ fn end_to_end_list_tools() {
         Ok(_));
 
     assert_m!(assign_variable(
-        "empty_list", "fold +[Nil]+ : enum { Nil () Cons (Int IntList) } : IntList"),
+        "mt_ilist", "fold +[Nil]+ : enum { Nil () Cons (Int IntList) } : IntList"),
         Ok(_));
 
-    assert_m!(assign_variable("3_list", "fold +[Cons three empty_list]+ : IntListUF : IntList"),
+    assert_m!(assign_variable("3_ilist", "fold +[Cons three mt_ilist]+ : IntListUF : IntList"),
         Ok(_));
 
-    assert_m!(assign_variable("23_list", "fold +[Cons two 3_list]+ : IntListUF : IntList"),
+    assert_m!(assign_variable("23_ilist", "fold +[Cons two 3_ilist]+ : IntListUF : IntList"),
         Ok(_));
 
-    assert_m!(assign_variable("123_list", "fold +[Cons one 23_list]+ : IntListUF : IntList"),
+    assert_m!(assign_variable("123_ilist", "fold +[Cons one 23_ilist]+ : IntListUF : IntList"),
         Ok(_));
 
-    assert_m!(assign_variable("sum_list",
+    assert_m!(assign_variable("sum_int_list",
         "(fix .[again : [-> [IntList -> Int]] .
              .[ lst : IntList .
                  match unfold lst {
                      +[Nil]+ => zero +[Cons hd tl]+ => (plus hd ((again) tl))} ]. ]. )"),
         Ok(_));
 
-    assert_eq!(eval_unseemly_program("(sum_list 123_list)"), Ok(val!(i 6)));
-
-    assert_m!(
-        assign_t_var("List", "forall T . mu_type List . enum { Nil () Cons (T List <[T]<) }"),
-        Ok(_));
+    assert_eq!(eval_unseemly_program("(sum_int_list 123_ilist)"), Ok(val!(i 6)));
 
     assert_m!(assign_variable("int_list_len",
         "(fix .[again : [-> [IntList -> Int]] .
@@ -335,7 +331,36 @@ fn end_to_end_list_tools() {
                      +[Nil]+ => zero +[Cons hd tl]+ => (plus one ((again) tl))} ]. ].)"),
         Ok(_));
 
-    assert_eq!(eval_unseemly_program("(int_list_len 123_list)"), Ok(val!(i 3)));
+    assert_eq!(eval_unseemly_program("(int_list_len 123_ilist)"), Ok(val!(i 3)));
+
+}
+
+#[test]
+
+fn end_to_end_list_tools() {
+    assert_m!(
+        assign_t_var("List", "forall T . mu_type List . enum { Nil () Cons (T List <[T]<) }"),
+        Ok(_));
+
+    assert_m!(
+        assign_t_var("ListUF", "forall T . enum { Nil () Cons (T List <[T]<) }"),
+        Ok(_));
+
+    assert_m!(assign_variable(
+        "mt_list", "fold +[Nil]+ : enum { Nil () Cons (Int List <[Int]<) } : List <[Int]<"),
+        Ok(_));
+
+    assert_m!(
+        assign_variable("3_list", "fold +[Cons three mt_list]+ : ListUF <[Int]< : List <[Int]<"),
+        Ok(_));
+
+    assert_m!(
+        assign_variable("23_list", "fold +[Cons two 3_list]+ : ListUF <[Int]< : List <[Int]<"),
+        Ok(_));
+
+    assert_m!(
+        assign_variable("123_list", "fold +[Cons one 23_list]+ : ListUF <[Int]< : List <[Int]<"),
+        Ok(_));
 
     assert_m!(assign_variable("list_len",
         "(fix forall S . .[again : [-> [List <[S]< -> Int]] .
@@ -345,7 +370,24 @@ fn end_to_end_list_tools() {
                     +[Cons hd tl]+ => (plus one ((again) tl))} ]. ].)"),
         Ok(_));
 
-    // assert_eq!(eval_unseemly_program("(list_len 123_list)"), Ok(val!(i 3)));
+    assert_eq!(eval_unseemly_program("(list_len 123_list)"), Ok(val!(i 3)));
+
+    assert_m!(assign_variable("map",
+        "forall T S . (fix  .[again : [-> [List <[T]<  [T -> S] -> List <[S]< ]] .
+            .[ lst : List <[T]<   f : [T -> S] .
+                match unfold lst {
+                    +[Nil]+ => fold +[Nil]+ : ListUF <[S]< : List <[S]<
+                    +[Cons hd tl]+ =>
+                      fold +[Cons (f hd) ((again) tl f)]+ : ListUF <[S]< : List <[S]< } ]. ].)"),
+        Ok(_));
+    // TODO: what should even happen if you have `forall` not on the "outside"?
+    // It should probably be an error have a value typed with an underdetermined type.
+
+
+    // TODO: it's way too much of a pain to define each different expected result list.
+    assert_m!(eval_unseemly_program("(map 123_list .[x : Int . (plus x one)]. )"), Ok(_));
+
+    assert_m!(eval_unseemly_program("(map 123_list .[x : Int . (equal? x two)]. )"), Ok(_));
 
 
 }
