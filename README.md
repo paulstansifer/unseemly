@@ -19,12 +19,12 @@ Unseemly has a bare minimum of forms
 
 Install Rust:
 
- curl https://sh.rustup.rs -sSf | sh
+    curl https://sh.rustup.rs -sSf | sh
 
 (Optional but recommended) Get the default prelude:
 
- cp .unseemly_prelude ~/
+    cp .unseemly_prelude ~/
 
 Start the REPL:
 
- cargo run
+    cargo run
