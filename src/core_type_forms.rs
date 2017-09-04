@@ -52,7 +52,7 @@ use parse::FormPat::*;
 use ast_walk::{WalkRule, WalkMode, walk, WalkElt, NegativeWalkMode};
 use ast_walk::WalkRule::*;
 use name::*;
-use core_forms::ast_to_name;
+use core_forms::{ast_to_name, vr_to_name};
 use ty::{Ty, synth_type, UnpackTy, TyErr, SynthTy};
 use ty_compare::{Canonicalize, Subtype};
 use ast::*;
@@ -252,16 +252,13 @@ pub fn make_core_syn_env_types() -> SynEnv {
     */
     let type_apply = type_defn_complex("type_apply",
         // The technical term for `<[...]<` is "fish X-ray"
-        form_pat!([(named "type_name", aat),
+        form_pat!([(named "type_rator", (call "type")),
          (delim "<[", "[", /*]]*/ (star [(named "arg", (call "type"))]))]),
         cust_rc_box!(move |tapp_parts| {
             let arg_res = try!(tapp_parts.get_rep_res(&n("arg")));
-
-            let type_name = ast_to_name(&tapp_parts.get_term(&n("type_name")));
-
-            match tapp_parts.env.find(&type_name) {
-                None => ty_err!(UnboundName(type_name) at tapp_parts.this_ast),
-                Some(&Ty(VariableReference(same))) if same == type_name => {
+            let rator_res = try!(tapp_parts.get_res(&n("type_rator")));
+            match rator_res.0 {
+                VariableReference(rator_vr) => {
                     // e.g. `X<[int, Y]<` underneath `mu X. ...`
 
                     // Rebuild a type_by_name, but evaulate its arguments
@@ -269,7 +266,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     //  we wish to avoid aliasing problems at the type level.
                     // In System F, this is avoided by performing capture-avoiding substitution.
                     let mut new__tapp_parts = ::util::mbe::EnvMBE::new_from_leaves(
-                        assoc_n!("type_name" => Atom(type_name)));
+                        assoc_n!("type_rator" => VariableReference(rator_vr)));
 
                     let mut args = vec![];
                     for individual__arg_res in arg_res {
@@ -284,25 +281,25 @@ pub fn make_core_syn_env_types() -> SynEnv {
                         panic!("ICE")
                     }
                 }
-                Some(defined_type) => {
+                Node(ref got_f, ref forall_type__parts, _)
+                        if got_f == &forall_type_0 => {
                     // This might ought to be done by a specialized `beta`...
-                    expect_ty_node!( (defined_type ; forall_type_0.clone() ; &tapp_parts.this_ast)
-                        forall_type__parts;
-                        {
-                            let params = forall_type__parts.get_rep_leaf_or_panic(&n("param"));
-                            if params.len() != arg_res.len() {
-                                panic!("Kind error: wrong number of arguments");
-                            }
-                            let mut new__ty_env = tapp_parts.env.clone();
-                            for (name, actual_type) in params.iter().zip(arg_res) {
-                                new__ty_env = new__ty_env.set(ast_to_name(name), actual_type);
-                            }
+                    let params = forall_type__parts.get_rep_leaf_or_panic(&n("param"));
+                    if params.len() != arg_res.len() {
+                        panic!("Kind error: wrong number of arguments");
+                    }
+                    let mut new__ty_env = tapp_parts.env.clone();
+                    for (name, actual_type) in params.iter().zip(arg_res) {
+                        new__ty_env = new__ty_env.set(ast_to_name(name), actual_type);
+                    }
 
-                            // This bypasses the binding in the type, which is what we want:
-                            synth_type(&::core_forms::strip_ee(
-                                    &forall_type__parts.get_leaf_or_panic(&n("body"))),
-                                new__ty_env)
-                        })
+                    // This bypasses the binding in the type, which is what we want:
+                    synth_type(&::core_forms::strip_ee(
+                            &forall_type__parts.get_leaf_or_panic(&n("body"))),
+                        new__ty_env)
+                }
+                _ => {
+                    panic!("Kind error: {} is not a forall.", rator_res);
                 }
             }
         }),
@@ -360,29 +357,29 @@ fn parametric_types() {
     // If `unary` is `mu`ed, `unary <[ ident ]<` can't be simplified.
     assert_eq!(synth_type(
         &ast!( { "type" "type_apply" :
-            "type_name" => "unary",
+            "type_rator" => (vr "unary"),
             "arg" => [ (, ident_ty.concrete()) ]}),
         mued_ty_env.clone()),
         Ok(ty!({ "type" "type_apply" :
-            "type_name" => "unary",
+            "type_rator" => (vr "unary"),
             "arg" => [ (, ident_ty.concrete()) ]})));
 
     // If `unary` is `mu`ed, `unary <[ [nat -> nat] ]<` can't be simplified.
     assert_eq!(synth_type(
         &ast!( { "type" "type_apply" :
-            "type_name" => "unary",
+            "type_rator" => (vr "unary"),
             "arg" => [ { "type" "fn" :
                 "param" => [(, nat_ty.concrete())], "ret" => (, nat_ty.concrete())} ]}),
         mued_ty_env.clone()),
         Ok(ty!({ "type" "type_apply" :
-            "type_name" => "unary",
+            "type_rator" => (vr "unary"),
             "arg" => [ { "type" "fn" :
                 "param" => [(, nat_ty.concrete())], "ret" => (, nat_ty.concrete())} ]})));
 
     // Expand the definition of `unary`.
     assert_eq!(synth_type(
         &ast!( { "type" "type_apply" :
-            "type_name" => "unary",
+            "type_rator" => (vr "unary"),
             "arg" => [ (, ident_ty.concrete()) ]}),
         para_ty_env),
         Ok(ty!({ "type" "fn" :

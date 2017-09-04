@@ -26,6 +26,9 @@ use core_type_forms::*; // type forms are kinda bulky
 pub fn ast_to_name(ast: &Ast) -> Name {
     match *ast { Atom(n) => n, _ => { panic!("ICE: {:?} is not an atom", ast) } }
 }
+pub fn vr_to_name(ast: &Ast) -> Name {
+    match *ast { VariableReference(n) => n, _ => { panic!("ICE: {:?} is not an atom", ast) } }
+}
 
 // A brief digression about types and syntax quotation...
 // Expressions are "positive", and are traversed leaf-to-root in an environment, producing a type.
@@ -497,7 +500,7 @@ pub fn make_core_syn_env() -> SynEnv {
                 }
             })) => [* ["component"]],
         negative_typed_form!("struct_pat",
-            [(delim "{", "{", /*}}*/
+            [(delim "*[", "[", /*]]*/
                  (star [(named "component_name", aat), (lit ":"),
                         (named "component", (call "pat"))]))],
             /* (Negatively) typesynth: */

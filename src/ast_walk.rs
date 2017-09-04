@@ -99,7 +99,7 @@ pub fn walk<Mode: WalkMode>(a: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
     // print!("#####: {}\n", a);
     // print!("#from: {:?}\n", cur_node_contents.this_ast);
     // match cur_node_contents.env.find(&negative_ret_val()) {
-    //    Some(ref ctxt) => print!("##c##: {}\n", ctxt), _ => {}}
+    //     Some(ref ctxt) => print!("##c##: {}\n", ctxt), _ => {}}
     // print!("       {:?}\n", cur_node_contents.env.map_borrow_f(&mut |_| "…"));
 
     match a {
