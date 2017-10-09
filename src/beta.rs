@@ -4,7 +4,7 @@ use std::fmt;
 use name::*;
 use ast_walk::{ResEnv, LazyWalkReses, LazilyWalkedTerm, WalkMode};
 use util::assoc::Assoc;
-use ast::{Ast,Atom};
+use ast::{Ast,Atom,VariableReference};
 use util::mbe::EnvMBE;
 
 
@@ -26,6 +26,10 @@ use util::mbe::EnvMBE;
        for that name.
 
  I have no idea where the name "β" came from, and whether it has any connection to α-equivalence.
+
+ There's probably a very elegant way to make `Beta` just another kind of `Ast`.
+ Finding it might require some time in the math mines, though.
+
  */
 
 custom_derive! {
@@ -136,7 +140,9 @@ impl Beta {
 
 }
 
-// Mode is expected to be positive
+/// Find the environment represented by `b`.
+/// `SameAs` and `Basic` nodes will cause walking in `Mode`, which should be positive.
+/// TODO: Unfortunately, this means that they don't work well in the subtyping walk, for instance.
 pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
          -> Result<Assoc<Name, Mode::Elt>, Mode::Err> {
     match *b {
@@ -161,7 +167,7 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
 
                 Ok(Assoc::new().set(*name, Mode::out_as_elt(ty.clone())))
             } else {
-                panic!("{:?} is supposed to supply names, but is not an Atom.",
+                panic!("User error: {:?} is supposed to supply names, but is not an Atom.",
                     parts.parts.get_leaf_or_panic(name_source).term)
             }
         }
@@ -185,7 +191,7 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
 
             match parts.get_term(name_source) {
                 Ast::Node(_, ref sub_parts, ref export) => {
-                    let expected_res_keys = keys_from_export_beta(export, sub_parts);
+                    let expected_res_keys = bound_from_export_beta(export, sub_parts);
 
                     let mut count = 0;
                     for (ref k, _) in res.iter_pairs() {
@@ -217,19 +223,19 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
         }
 
         Protected(ref name_source) => {
-            if let LazilyWalkedTerm {term: Atom(ref name), ..}
+            // Since protection isn't binding, it gets variable references instead
+            if let LazilyWalkedTerm {term: VariableReference(ref name), ..}
                     = **parts.parts.get_leaf_or_panic(name_source) {
                 use ast_walk::WalkElt;
 
                 // HACK: rely on the fact that `walk_var`
                 //  won't recursively substitute until it "hits bottom"
-                Ok(Assoc::new().set(*name,
-                    Mode::Elt::from_ast(&::ast::Ast::VariableReference(*name))))
+                // Drop the variable reference right into the environment.
+                Ok(Assoc::new().set(*name, Mode::Elt::from_ast(&parts.get_term(name_source))))
             } else {
                 panic!("{:?} is supposed to supply names, but is not an Atom.",
                     parts.parts.get_leaf_or_panic(name_source).term)
             }
-
         }
     }
 }
@@ -302,20 +308,20 @@ impl ExportBeta {
 }
 
 
-// Like just taking the keys from `env_from_beta`, but faster and non-failing
-pub fn keys_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>) -> Vec<Name> {
+// Like just taking the (non-Protected) keys from `env_from_beta`, but faster and non-failing
+pub fn bound_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>) -> Vec<Name> {
     match *b {
         Nothing => { vec![] }
         Shadow(ref lhs, ref rhs) => {
-            let mut res = keys_from_beta(&*lhs, parts);
-            let mut res_r = keys_from_beta(&*rhs, parts);
+            let mut res = bound_from_beta(&*lhs, parts);
+            let mut res_r = bound_from_beta(&*rhs, parts);
             res.append(&mut res_r);
             res
         }
         ShadowAll(ref sub_beta, ref drivers) => {
             let mut res = vec![];
             for ref sub_parts in parts.march_all(drivers) {
-                res.append(&mut keys_from_beta(&*sub_beta, sub_parts));
+                res.append(&mut bound_from_beta(&*sub_beta, sub_parts));
             }
             res
         }
@@ -323,31 +329,32 @@ pub fn keys_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>) -> Vec<Name> {
             match parts.get_leaf_or_panic(n_s) {
                 &Ast::Atom(n) => vec![n],
                 &Ast::Node(_, ref sub_parts, ref export) => {
-                    keys_from_export_beta(export, sub_parts)
+                    bound_from_export_beta(export, sub_parts)
                 }
                 _ => panic!("ICE: beta SameAs refers to a non-node, non-atom")
             }
         }
-        Basic(ref n_s, _) | Underspecified(ref n_s) | Protected(ref n_s) => {
+        Protected(ref _n_s) => { vec![] } // Non-binding
+        Basic(ref n_s, _) | Underspecified(ref n_s) => {
             vec![::core_forms::ast_to_name(parts.get_leaf_or_panic(n_s))]
         }
     }
 }
 
 // Like just taking the keys from `env_from_export_beta`, but faster and non-failing
-pub fn keys_from_export_beta(b: &ExportBeta, parts: &EnvMBE<::ast::Ast>) -> Vec<Name> {
+pub fn bound_from_export_beta(b: &ExportBeta, parts: &EnvMBE<::ast::Ast>) -> Vec<Name> {
     match *b {
         ExportBeta::Nothing => { vec![] }
         ExportBeta::Shadow(ref lhs, ref rhs) => {
-            let mut res = keys_from_export_beta(&*lhs, parts);
-            let mut res_r = keys_from_export_beta(&*rhs, parts);
+            let mut res = bound_from_export_beta(&*lhs, parts);
+            let mut res_r = bound_from_export_beta(&*rhs, parts);
             res.append(&mut res_r);
             res
         }
         ExportBeta::ShadowAll(ref sub_beta, ref drivers) => {
             let mut res = vec![];
             for ref sub_parts in parts.march_all(drivers) {
-                res.append(&mut keys_from_export_beta(&*sub_beta, sub_parts));
+                res.append(&mut bound_from_export_beta(&*sub_beta, sub_parts));
             }
             res
         }
@@ -355,7 +362,7 @@ pub fn keys_from_export_beta(b: &ExportBeta, parts: &EnvMBE<::ast::Ast>) -> Vec<
             match parts.get_leaf_or_panic(n_s) {
                 &Ast::Atom(n) => vec![n],
                 &Ast::Node(_, ref sub_parts, ref export) => {
-                    keys_from_export_beta(export, sub_parts)
+                    bound_from_export_beta(export, sub_parts)
                 }
                 _ => panic!("ICE: beta SameAs refers to a non-node, non-atom")
             }

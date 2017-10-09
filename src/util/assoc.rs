@@ -253,6 +253,22 @@ impl<K : PartialEq + Clone, V : Clone> Assoc<K, V> {
         }
     }
 
+    /// Generates a version of `self` that lacks the common suffix it shares with `other` (if any)
+    pub fn cut_common(&self, other: &Assoc<K, V>) -> Assoc<K, V> {
+        match self.n {
+            None => Assoc::new(),
+            Some(ref node) => {
+                if let Some(other_v) = other.find(&node.k) {
+                    if &node.v as *const V == other_v as *const V {
+                        return Assoc::new(); // we found the common suffix
+                    }
+                }
+                node.next.cut_common(other).set(node.k.clone(), node.v.clone())
+            }
+        }
+    }
+
+
     pub fn unset(&self, k: &K) -> Assoc<K, V> {
         match self.n {
             None => Assoc{ n: None },
@@ -398,6 +414,25 @@ fn assoc_equality() {
     assert_eq!(a2, a2_opposite);
     assert_eq!(a_override, a_override_direct);
     assert!(a2 != a_override);
+
+    let a1_again = mt.set(5,6);
+
+    // Nothing shared: no-op
+    assert_eq!(mt.cut_common(&mt), mt);
+    assert_eq!(a1.cut_common(&mt), a1);
+    assert_eq!(mt.cut_common(&a1), mt);
+    assert_eq!(a1_again.cut_common(&a1), a1_again); // Needs pointer equality!
+    assert_eq!(a_override_direct.cut_common(&a_override), a_override_direct);
+    assert_eq!(a_override.cut_common(&a_override_direct), a_override);
+
+
+    // Everything shared: empty result
+    assert_eq!(a1.cut_common(&a1), mt);
+    assert_eq!(a2.cut_common(&a2), mt);
+
+    // Partial share:
+    assert_eq!(a2.cut_common(&a1), mt.set(6,7));
+    assert_eq!(a_override.cut_common(&a2), mt.set(5,500));
 }
 
 #[test]

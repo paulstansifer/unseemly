@@ -21,7 +21,7 @@ impl Name {
 // TODO: move to `ast_walk`
 // TODO: this interner doesn't support `gensym`...
 pub fn negative_ret_val() -> Name {
-    Name { id: lalrpop_intern::intern("⋄")}
+    Name { id: lalrpop_intern::intern("⋄") }
 }
 
 impl fmt::Debug for Name {

@@ -21,7 +21,7 @@ custom_derive! {
     pub struct Form {
         /// The name of the form. Mainly for internal use.
         pub name: Name,
-        /** The grammar the programmer should use to invoke this form. 
+        /** The grammar the programmer should use to invoke this form.
          * This contains information about bindings and syntax extension; this is where it belongs!
          */
         pub grammar: Rc<FormPat>,
@@ -51,14 +51,14 @@ pub use self::EitherPN::*;
 
 impl<L, R> EitherPN<L, R> {
     pub fn pos(&self) -> &L {
-        match *self { 
-            Positive(ref l) | Both(ref l, _) => l, 
+        match *self {
+            Positive(ref l) | Both(ref l, _) => l,
             Negative(_) => panic!("ICE: wanted positive walk"),
         }
     }
     pub fn neg(&self) -> &R {
         match *self {
-            Negative(ref r) | Both(_, ref r)=> r, 
+            Negative(ref r) | Both(_, ref r)=> r,
             Positive(_) => panic!("ICE: wanted negative walk"),
         }
     }
@@ -69,7 +69,7 @@ impl<L, R> EitherPN<L, R> {
 
 impl PartialEq for Form {
     /// pointer equality on the underlying structure!
-    fn eq(&self, other: &Form) -> bool { 
+    fn eq(&self, other: &Form) -> bool {
         self as *const Form == other as *const Form
     }
 }

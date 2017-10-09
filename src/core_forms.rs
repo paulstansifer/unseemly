@@ -186,7 +186,7 @@ pub fn make_core_syn_env() -> SynEnv {
                 Ok(Function(Rc::new(Closure {
                     body: strip_ee(part_values.get_term_ref(&n("body"))).clone(),
                     params:
-                    part_values.get_rep_term(&n("param")).iter().map(ast_to_name).collect(),
+                        part_values.get_rep_term(&n("param")).iter().map(ast_to_name).collect(),
                     env: part_values.env
                 })))
             })),
@@ -206,8 +206,14 @@ pub fn make_core_syn_env() -> SynEnv {
                     part_types.env.clone())
                         .map_err(|e| ::util::err::sp(e, part_types.this_ast.clone())));
 
-                ::ty_compare::unification.with(|unif| { //TODO: try removing the `resolve`
-                    Ok(::ty_compare::resolve(return_type, &part_types.env, &unif.borrow()))
+
+                ::ty_compare::unification.with(|unif| {
+                    // TODO: using `.it` discards the environment!
+                    // This has got to be unsound.
+                    // But we can't extend the environment from here, so what do we do?
+                    Ok(::ty_compare::resolve(
+                        ::ast_walk::Clo{ it: return_type, env: part_types.env.clone()},
+                        &unif.borrow()).it)
                 })
             }),
             cust_rc_box!( move | part_values | {
@@ -348,8 +354,9 @@ pub fn make_core_syn_env() -> SynEnv {
         typed_form!("let_type",
             [(lit "let_type"),
              (named "type_kind_stx", (anyways "*")),
-             (import [* ["type_name" = "type_def"]], // put `pair` and `point` in type env
-                 (star [(named "type_name", aat), (lit "="), (named "type_def", (call "type"))])),
+             (star [(named "type_name", aat),
+                    (lit "="),
+                    (named "type_def", (import [* ["type_name" = "type_def"]], (call "type")))]),
              (lit "in"),
              (named "body", (import [* ["type_name" = "type_def"]], (call "expr")))],
             Body(n("body")),
@@ -376,9 +383,8 @@ pub fn make_core_syn_env() -> SynEnv {
                     {
                         // This acts like the `mu` was never there (and hiding the binding)
                         if let &ExtendEnv(ref body, _) = mu_parts.get_leaf_or_panic(&n("body")) {
-                            let cur_env = unfold_parts.env.map(&|x: &Ty| x.concrete());
-                            synth_type(&::alpha::substitute(body, &cur_env),
-                                       unfold_parts.env.clone())
+                            let res = synth_type(&body, unfold_parts.env.clone());
+                            res
                         } else { panic!("ICE: no protection to remove!"); }
                     })
             }),
@@ -399,9 +405,7 @@ pub fn make_core_syn_env() -> SynEnv {
                     {
                         // This acts like the `mu` was never there (and hiding the binding)
                         if let &ExtendEnv(ref body, _) = mu_parts.get_leaf_or_panic(&n("body")) {
-                            let cur_env = fold_parts.env.map(&|x: &Ty| x.concrete());
-                            try!(synth_type(&::alpha::substitute(body, &cur_env),
-                                            fold_parts.env.clone()))
+                            try!(synth_type(&body, fold_parts.env.clone()))
                         } else { panic!("ICE: no protection to remove!"); }
                     });
 
@@ -941,7 +945,7 @@ fn alg_eval() {
 fn recursive_types() {
     let int_list_ty =
         ty!( { "type" "mu_type" :
-            "param" => ["IntList"],
+            "param" => [(vr "IntList")],
             "body" => (import [* [prot "param"]] { "type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
                 "component" => [@"c" [], ["Int", (vr "IntList") ]]})});
@@ -1022,4 +1026,54 @@ fn recursive_types() {
         ty_err_p!(UnableToDestructure(_,name_enum)),
         name_enum == n("enum")
     );
+}
+
+#[test]
+fn use__let_type() {
+    // Basic usage:
+    assert_eq!(synth_type(&ast!( { "expr" "let_type" :
+            "type_name" => [@"t" "T"],
+            "type_def" => [@"t" (import [* ["type_name" = "type_def"]] { "type" "Nat" :})],
+            "body" => (import [* ["type_name" = "type_def"]] { "expr" "lambda" :
+                "param" => [@"p" "x"],
+                "p_t" => [@"p" (vr "T")],
+                "body" => (import [* ["param" : "p_t"]] (vr "x"))
+            })
+        }), Assoc::new()),
+    Ok(ty!( { "type" "fn" : "param" => [ {"type" "Nat" :}], "ret" => {"type" "Nat" :}})));
+
+    // useless type, but self-referential:
+    let trivial_mu_type =
+        ty!( { "type" "mu_type" : "param" => [(vr "T")],
+                                  "body" => (import [* [prot "param"]] (vr "T")) }).concrete();
+
+    without_freshening!{
+    // Recursive usage:
+    assert_eq!(synth_type(&ast!( { "expr" "let_type" :
+            "type_name" => [@"t" "T"],
+            "type_def" => [@"t" (import [* ["type_name" = "type_def"]]
+                 (, trivial_mu_type.clone()))],
+            "body" => (import [* ["type_name" = "type_def"]] { "expr" "lambda" :
+                "param" => [@"p" "x"],
+                "p_t" => [@"p" (vr "T")],
+                // The unfold is a no-op, but it needs `T` to be defined:
+                "body" => (import [* ["param" : "p_t"]] { "expr" "unfold" : "body" => (vr "x") })
+            })
+        }), Assoc::new()),
+    Ok(ty!( { "type" "fn" :
+        "param" => [(,trivial_mu_type.clone())], "ret" => (,trivial_mu_type.clone())})));
+    }
+/*
+    // Basic usage, evaluated:
+    assert_m!(eval(&ast!( { "expr" "let_type" :
+            "type_name" => [@"t" "T"],
+            "type_def" => [@"t" (import [* ["type_name" = "type_def"]] { "type" "Nat" :})],
+            "body" => (import [* ["type_name" = "type_def"]] { "expr" "lambda" :
+                "param" => [@"p" "x"],
+                "p_t" => [@"p" (vr "T")],
+                "body" => (import [* ["param" : "p_t"]] (vr "x"))
+            })
+        }), Assoc::new()),
+    Ok(_));
+*/
 }

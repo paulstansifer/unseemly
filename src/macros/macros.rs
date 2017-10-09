@@ -272,6 +272,7 @@ macro_rules! mbe {
 macro_rules! form_pat {
     ((lit $e:expr)) => { ::parse::FormPat::Literal(::name::n($e)) };
     ((anyways $a:tt)) => { ::parse::FormPat::Anyways(ast!($a)) };
+    ((impossible)) => { ::parse::FormPat::Impossible };
     (at) => { ::parse::FormPat::AnyToken };
     (aat) => { ::parse::FormPat::AnyAtomicToken };
     (varref) => { ::parse::FormPat::VarRef };

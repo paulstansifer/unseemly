@@ -1,4 +1,4 @@
-use ast_walk::{walk, LazyWalkReses, WalkMode, WalkRule, NegativeWalkMode};
+use ast_walk::{walk, LazyWalkReses, WalkMode, WalkRule, NegativeWalkMode, Clo};
 use ast_walk::WalkRule::*;
 use form::Form;
 use util::assoc::Assoc;
@@ -98,7 +98,7 @@ But let's not do that weird thing just yet.
 
 /// Follow variable references in `env` and underdeterminednesses in `unif`
 ///  until we hit something that can't move further.
-pub fn resolve(t: Ty, env: &Assoc<Name, Ty>, unif: &HashMap<Name, Ty>) -> Ty {
+pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Clo<Ty> {
     let u_f = underdetermined_form.with(|u_f| { u_f.clone() });
 
     let resolved = match t {
@@ -106,7 +106,8 @@ pub fn resolve(t: Ty, env: &Assoc<Name, Ty>, unif: &HashMap<Name, Ty>) -> Ty {
             match env.find(&vr).map(Clone::clone) {
                 // HACK: leave mu-protected variables alone, instead of recurring forever
                 Some(Ty(VariableReference(new_vr))) if vr == new_vr => None,
-                different => different
+                Some(different) => Some(Clo{it: different, env: env.clone()}),
+                None => None
             }
         }
         Ty(Node(ref form, ref parts, _)) if form == &find_core_form("type", "type_apply") => {
@@ -115,8 +116,12 @@ pub fn resolve(t: Ty, env: &Assoc<Name, Ty>, unif: &HashMap<Name, Ty>) -> Ty {
             //  but it does not recursively process the arguments (which may be underdetermined!).
             let arg_terms = parts.get_rep_leaf_or_panic(&n("arg"));
 
-            match resolve(Ty(parts.get_leaf_or_panic(&n("type_rator")).clone()), env, unif) {
-                Ty(VariableReference(rator_vr)) => {
+            let resolved = resolve(
+                Clo{it: Ty(parts.get_leaf_or_panic(&n("type_rator")).clone()), env: env.clone()},
+                unif);
+
+            match resolved {
+                Clo{it: Ty(VariableReference(rator_vr)), env} => {
                     // e.g. `X<[int, Y]<` underneath `mu X. ...`
 
                     // Rebuild a type_by_name, but evaulate its arguments
@@ -136,9 +141,9 @@ pub fn resolve(t: Ty, env: &Assoc<Name, Ty>, unif: &HashMap<Name, Ty>) -> Ty {
                     let res = Ty::new(Node(find_core_form("type", "type_apply"),
                         new__tapp_parts, ::beta::ExportBeta::Nothing));
 
-                    if res != t { Some(res) } else { None }
+                    if res != t { Some(Clo{it: res, env: env.clone()}) } else { None }
                 }
-                defined_type => {
+                Clo{it: defined_type, env} => {
                     match defined_type.destructure(
                             find_core_form("type", "forall_type"), &t.0) {
                         Err(_) => None, // Broken "type_apply", but let it fail elsewhere
@@ -148,15 +153,18 @@ pub fn resolve(t: Ty, env: &Assoc<Name, Ty>, unif: &HashMap<Name, Ty>) -> Ty {
                                 panic!("Kind error: wrong number of arguments: {} vs {}",
                                     params.len(), arg_terms.len());
                             }
-                            let mut new__ty_env = Assoc::new();
+                            let mut actual_params = Assoc::new();
                             for (name, arg_term) in params.iter().zip(arg_terms) {
-                                new__ty_env = new__ty_env.set(ast_to_name(name),
-                                                              arg_term.clone());
+                                actual_params = actual_params.set(ast_to_name(name),
+                                                                  arg_term.clone());
                             }
-                            Some(Ty(::alpha::substitute(
-                                &::core_forms::strip_ee(
-                                    &got_forall.get_leaf_or_panic(&n("body"))),
-                                &new__ty_env)))
+
+                            Some(Clo{
+                                it: Ty(::alpha::substitute(
+                                    &::core_forms::strip_ee(
+                                        &got_forall.get_leaf_or_panic(&n("body"))),
+                                    &actual_params)),
+                                env: env.clone()})
                         }
                     }
                 }
@@ -165,7 +173,7 @@ pub fn resolve(t: Ty, env: &Assoc<Name, Ty>, unif: &HashMap<Name, Ty>) -> Ty {
         Ty(Node(ref form, ref parts, _)) if form == &find_core_form("type", "type_by_name") =>  {
             // TODO: remove this stanza when type_by_name is gone
             let vr = ast_to_name(&parts.get_leaf_or_panic(&n("name")));
-            env.find(&vr).map(Clone::clone)
+            env.find(&vr).map(|t| Clo{ it: t.clone(), env: env.clone() })
         }
         Ty(Node(ref form, ref parts, _)) if form == &u_f => { // underdetermined
             unif.get(&ast_to_name(parts.get_leaf_or_panic(&n("id")))).map(Clone::clone)
@@ -173,17 +181,17 @@ pub fn resolve(t: Ty, env: &Assoc<Name, Ty>, unif: &HashMap<Name, Ty>) -> Ty {
         _ => None
     };
 
-    resolved.map(|new_t| resolve(new_t, env, unif)).unwrap_or(t)
+    resolved.map(|clo| resolve(clo, unif)).unwrap_or(Clo{ it: t, env: env })
 }
 
 thread_local! {
     pub static next_id: RefCell<u32> = RefCell::new(0);
 
     // Invariant: `underdetermined_form`s in the HashMap must not form a cycle.
-    pub static unification: RefCell<HashMap<Name, Ty>>
+    pub static unification: RefCell<HashMap<Name, Clo<Ty>>>
         = RefCell::new(HashMap::new());
     pub static underdetermined_form : ::std::rc::Rc<Form> = ::std::rc::Rc::new(Form {
-        name: n("underdetermined"),
+        name: n("<underdetermined>"),
         grammar: ::std::rc::Rc::new(form_pat!((named "id", aat))),
         type_compare: ::form::Both(WalkRule::NotWalked,WalkRule::NotWalked),
         synth_type:   ::form::Both(WalkRule::NotWalked,WalkRule::NotWalked),
@@ -264,20 +272,17 @@ impl ::ast_walk::NegativeWalkMode for Subtype {
 
     /// Push through all variable references and underdeterminednesses on both sides,
     ///  returning types that are ready to compare, or `None` if they're definitionally equal
-    fn pre_match(lhs: Ty, rhs: Ty, env: &Assoc<Name, Ty>) -> Option<(Ty, Ty)> {
+    fn pre_match(lhs: Ty, rhs: Ty, env: &Assoc<Name, Ty>) -> Option<(Clo<Ty>, Clo<Ty>)> {
         let u_f = underdetermined_form.with(|u_f| { u_f.clone() });
 
         unification.with(|unif| {
-            let lhs = resolve(lhs, env, &unif.borrow()).clone();
-            let rhs = resolve(rhs, env, &unif.borrow()).clone();
+            // Capture the environment and resolve:
+            let lhs = resolve(Clo{it: lhs, env: env.clone()}, &unif.borrow()).clone();
+            let rhs = resolve(Clo{it: rhs, env: env.clone()}, &unif.borrow()).clone();
 
-            // We need to capture the environment (but only for storing unification)
-            let lhs = Ty(::alpha::substitute(&lhs.concrete(), &env.map(|t| t.concrete())));
-            let rhs = Ty(::alpha::substitute(&rhs.concrete(), &env.map(|t| t.concrete())));
-
-            let lhs_name = lhs.destructure(u_f.clone(), &Trivial).map( // errors get swallowed ↓
+            let lhs_name = lhs.it.destructure(u_f.clone(), &Trivial).map( // errors get swallowed ↓
                 |p| ast_to_name(p.get_leaf_or_panic(&n("id"))));
-            let rhs_name = rhs.destructure(u_f.clone(), &Trivial).map(
+            let rhs_name = rhs.it.destructure(u_f.clone(), &Trivial).map(
                 |p| ast_to_name(p.get_leaf_or_panic(&n("id"))));
 
             // print!("%%: {}\n%%: {}\n", lhs, rhs);
@@ -290,7 +295,7 @@ impl ::ast_walk::NegativeWalkMode for Subtype {
                 (Ok(l), _) => { unif.borrow_mut().insert(l, rhs.clone()); None }
                 (_, Ok(r)) => { unif.borrow_mut().insert(r, lhs.clone()); None }
                 // They are (potentially) different:
-                _ => { Some((lhs.clone(), rhs.clone())) }
+                _ => { Some((lhs, rhs)) }
             }
         })
     }
@@ -412,7 +417,7 @@ fn misc_subtyping_problems() {
         ty!( { "type" "forall_type" :
             "param" => ["Datum"],
             "body" => (import [* [forall "param"]] { "type" "mu_type" :
-                "param" => ["List"],
+                "param" => [(vr "List")],
                 "body" => (import [* [prot "param"]] { "type" "enum" :
                     "name" => [@"c" "Nil", "Cons"],
                     "component" => [@"c" [],
@@ -422,13 +427,13 @@ fn misc_subtyping_problems() {
 
     let int_list_ty =
         ty!( { "type" "mu_type" :
-            "param" => ["IntList"],
+            "param" => [(vr "IntList")],
             "body" => (import [* [prot "param"]] { "type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
                 "component" => [@"c" [], [{"type" "Int" :}, (vr "IntList") ]]})});
     let bool_list_ty =
         ty!( { "type" "mu_type" :
-            "param" => ["FloatList"],
+            "param" => [(vr "FloatList")],
             "body" => (import [* [prot "param"]] { "type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
                 "component" => [@"c" [], [{"type" "Float" :}, (vr "FloatList") ]]})});
@@ -451,7 +456,7 @@ fn misc_subtyping_problems() {
               Ok(_));
 
     let basic_mu = ty!({"type" "mu_type" :
-        "param" => ["X"],
+        "param" => [(vr "X")],
         "body" => (import [* [prot "param"]] (vr "X"))});
     let mu_env = assoc_n!("X" => basic_mu.clone());
 
@@ -523,11 +528,11 @@ fn misc_subtyping_problems() {
 
     assert_m!(must_subtype(
         &ty!({"type" "mu_type" :
-            "param" => ["List"],
+            "param" => [(vr "List")],
             "body" =>  (import [* [prot "param"]]
                 {"type" "type_apply": "type_rator" => (vr "List"), "arg" => [{"type" "Int" :}]})}),
         &ty!({"type" "mu_type" :
-            "param" => ["List"],
+            "param" => [(vr "List")],
             "body" =>  (import [* [prot "param"]]
                 {"type" "type_apply": "type_rator" => (vr "List"), "arg" => [{"type" "Int" :}]})}),
         ty_env.clone()),
@@ -548,15 +553,15 @@ fn misc_subtyping_problems() {
 fn subtype_different_mus() { // testing the Amber rule:
     // These types are non-contractive, but it doesn't matter for subtyping purposes.
     let jane_author = ty!({"type" "mu_type" :
-        "param" => ["CharlotteBrontë"],
+        "param" => [(vr "CharlotteBrontë")],
         "body" => (import [* [prot "param"]]
             {"type" "fn" : "param" => [{"type" "Float" :}], "ret" => (vr "CharlotteBrontë")})});
     let jane_psuedonym = ty!({"type" "mu_type" :
-        "param" => ["CurrerBell"],
+        "param" => [(vr "CurrerBell")],
         "body" => (import [* [prot "param"]]
             {"type" "fn" : "param" => [{"type" "Float" :}], "ret" => (vr "CurrerBell")})});
     let wuthering_author = ty!({"type" "mu_type" :
-        "param" => ["EmilyBrontë"],
+        "param" => [(vr "EmilyBrontë")],
         "body" => (import [* [prot "param"]]
             {"type" "fn" : "param" => [{"type" "Int" :}], "ret" => (vr "EmilyBrontë")})});
     let mu_env = assoc_n!(
@@ -582,7 +587,7 @@ fn basic_resolve() {
         ty!( { "type" "forall_type" :
             "param" => ["Datum"],
             "body" => (import [* [forall "param"]] { "type" "mu_type" :
-                "param" => ["List"],
+                "param" => [(vr "List")],
                 "body" => (import [* [prot "param"]] { "type" "enum" :
                     "name" => [@"c" "Nil", "Cons"],
                     "component" => [@"c" [],
@@ -592,14 +597,15 @@ fn basic_resolve() {
     let t_env = assoc_n!("List" => list_ty.clone());
 
 
-    let unif = HashMap::<Name, Ty>::new();
+    let unif = HashMap::<Name, Clo<Ty>>::new();
 
-    assert_eq!(resolve(ty!({"type" "Int" :}), &t_env, &unif), ty!({"type" "Int" :}));
+    assert_eq!(resolve(Clo{ it: ty!({"type" "Int" :}), env: t_env.clone()}, &unif).it,
+               ty!({"type" "Int" :}));
 
-    assert_eq!(resolve(ty!({"type" "type_apply" :
-        "type_rator" => (vr "List"), "arg" => [(,ud0.clone())] }), &t_env, &unif),
+    assert_eq!(resolve(Clo{ it: ty!({"type" "type_apply" :
+        "type_rator" => (vr "List"), "arg" => [(,ud0.clone())] }), env: t_env.clone()}, &unif).it,
         ty!({ "type" "mu_type" :
-            "param" => ["List"],
+            "param" => [(vr "List")],
             "body" => (import [* [prot "param"]] { "type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
                 "component" => [@"c" [],

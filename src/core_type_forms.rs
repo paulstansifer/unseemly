@@ -173,9 +173,16 @@ pub fn make_core_syn_env_types() -> SynEnv {
      *  to prevent the attempted generation of an infinite type.
      */
     let mu_type = type_defn_complex("mu_type",
-        form_pat!([(lit "mu_type"), (star (named "param", aat)), (lit "."),
+        form_pat!([(lit "mu_type"), (star (named "param", varref)), (lit "."),
              (named "body", (import [* [prot "param"]], (call "type")))]),
-        LiteralLike,
+
+        cust_rc_box!(move |mu_parts| { // Like LiteralLike, but doesn't expand `param`:
+            Ok(ty!( { "type" "mu_type" :
+                "body" => (import [* [prot "param"]]
+                             (, try!(mu_parts.get_res(&n("body"))).concrete())),
+                "param" => (,seq mu_parts.get_rep_term(&n("param")))
+            } ))
+        }),
         Both(
             LiteralLike,
             cust_rc_box!(move |mu_parts| {
@@ -196,12 +203,11 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 let mut amber_environment = mu_parts.env.clone();
                 for (&p_r, p_l) in r_params.iter().zip(l_params.iter()) {
                     if p_r == p_l // short-circuit if the names are the same...
-                        || mu_parts.env.find(&ast_to_name(p_r)) // ...or Amber assumed so already
-                             == Some(&Ty(VariableReference(ast_to_name(&p_l)))) { continue; }
+                        || mu_parts.env.find(&vr_to_name(p_r)) // ...or Amber assumed so already
+                             == Some(&Ty((p_l.clone()))) { continue; }
 
                     // print!("Ambering: {} = {}\n", p_r, p_l);
-                    amber_environment = amber_environment.set(
-                        ast_to_name(p_r), Ty(VariableReference(::core_forms::ast_to_name(p_l))));
+                    amber_environment = amber_environment.set(vr_to_name(p_r), Ty(p_l.clone()));
                 }
 
                 walk::<Subtype>(&mu_parts.get_term(&n("body")),
@@ -276,7 +282,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     new__tapp_parts.add_anon_repeat(args, None);
 
                     if let Node(ref f, _, ref exp) = tapp_parts.this_ast {
-                        Ok(Ty::new(Node(f.clone(), new__tapp_parts, exp.clone())))
+                        Ok(Ty::new(Node(/*forall*/ f.clone(), new__tapp_parts, exp.clone())))
                     } else {
                         panic!("ICE")
                     }

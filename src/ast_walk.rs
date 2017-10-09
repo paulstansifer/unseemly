@@ -80,6 +80,35 @@ use runtime::reify::Reifiable;
 use alpha::{freshen, freshen_with};
 
 
+/// A closed `Elt`; an `Elt` paired with an environment with which to interpret its free names.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Clo<Elt : WalkElt> {
+    pub it: Elt,
+    pub env: Assoc<Name, Elt>
+}
+
+impl<Elt: WalkElt> Clo<Elt> {
+    fn env_merge(self, other: Clo<Elt>) -> (Elt, Elt, Assoc<Name, Elt>) {
+        // To reduce name churn (and keep environments small),
+        // we cut out the bits of the environments that are the same.
+        let o_different_env = other.env.cut_common(&self.env);
+
+        let o_renaming = o_different_env.keyed_map_borrow_f(
+            &mut |name, _| VariableReference(::alpha::fresh_name(*name)));
+
+        let mut fresh_o_env = Assoc::new();
+        for (ref o_name, ref o_val) in o_different_env.iter_pairs() {
+            fresh_o_env = fresh_o_env.set(
+                ::core_forms::vr_to_name(&o_renaming.find(&o_name).unwrap()), // HACK: VR -> Name
+                Elt::from_ast(&::alpha::substitute(&Elt::to_ast(&o_val), &o_renaming)));
+        }
+
+        (self.it, Elt::from_ast(&::alpha::substitute(&Elt::to_ast(&other.it), &o_renaming)),
+         self.env.set_assoc(&fresh_o_env))
+    }
+}
+
+
 /**
  * Make a `<Mode::D as Dir>::Out` by walking `node` in the environment from `cur_node_contents`.
  * `cur_node_contents` is used as an environment,
@@ -92,15 +121,17 @@ pub fn walk<Mode: WalkMode>(a: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
     let (a, cur_node_contents) = match a {
       // HACK: We want to process EE before pre_match before everything else.
       // This probably means we should find a way to get rid of pre_match.
+      // But we can't just swap `a` and the ctxt when `a` is LiteralLike and the ctxt isn't.
+
       &ExtendEnv(_,_) => { (a.clone(), cur_node_contents.clone()) }
       _ => Mode::D::pre_walk(a.clone(), cur_node_contents.clone())
     };
 
     // print!("#####: {}\n", a);
-    // print!("#from: {:?}\n", cur_node_contents.this_ast);
+    // print!("#from: {}\n", cur_node_contents.this_ast);
     // match cur_node_contents.env.find(&negative_ret_val()) {
-    //     Some(ref ctxt) => print!("##c##: {}\n", ctxt), _ => {}}
-    // print!("       {:?}\n", cur_node_contents.env.map_borrow_f(&mut |_| "…"));
+    //     Some(ref ctxt) => print!("##c##: {:?}\n", ctxt), _ => {}}
+    // print!("in     {:?}\n", cur_node_contents.env.map_borrow_f(&mut |_| "…"));
 
     match a {
         Node(ref f, ref parts, _) => {
@@ -133,6 +164,7 @@ pub fn walk<Mode: WalkMode>(a: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
             let new_cnc = cur_node_contents.with_environment(new_env);
             let new_cnc = // If the RHS is also binding, assume it's the same
             // TODO: we should make this only happen if we're actually negative.
+            // The context element is sometimes leftover from a previous negative walk.
                 match cur_node_contents.env.find(&negative_ret_val())
                         .map(<Mode as WalkMode>::Elt::to_ast) {
                     Some(ExtendEnv(ref rhs_body, _)) => {
@@ -631,10 +663,15 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
         let node_ast = <Self::Mode as WalkMode>::Elt::from_ast(&node);
         // `pre_match` brings things together, which we want to do before attempting to co-freshen.
         match Mode::pre_match(node_ast, cnc.context_elt().clone(), &cnc.env) {
-            Some((l, r)) => {
+            Some((l_clo, r_clo)) => {
+                // Closures; we need to unify their environments:
+                let (l, r, new_env) = l_clo.env_merge(r_clo);
+
                 let (l_fresh, r_fresh) = freshen_with(&<Self::Mode as WalkMode>::Elt::to_ast(&l),
                     &<Self::Mode as WalkMode>::Elt::to_ast(&r));
-                (l_fresh, cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(&r_fresh)))
+                (l_fresh,
+                 cnc.with_environment(new_env)
+                    .with_context(<Self::Mode as WalkMode>::Elt::from_ast(&r_fresh)))
             }
             // HACK: force walking to automatically succeed, avoiding return type muckery
             None => (Atom(negative_ret_val()),
@@ -696,9 +733,10 @@ pub trait NegativeWalkMode : WalkMode {
     fn needs_pre_match() -> bool;
 
     /// Before matching, possibly adjust the two `Elt`s to match better. (`None` is auto-match.)
-    fn pre_match(expected: Self::Elt, got: Self::Elt, _env: &Assoc<Name, Self::Elt>)
-            -> Option<(Self::Elt, Self::Elt)> {
-        Some((expected, got)) // no-op by default
+    /// By default, a no-op.
+    fn pre_match(expected: Self::Elt, got: Self::Elt, env: &Assoc<Name, Self::Elt>)
+            -> Option<(Clo<Self::Elt>, Clo<Self::Elt>)> {
+        Some((Clo{it: expected, env: env.clone()}, Clo{it: got, env: env.clone()}))
     }
 
     /// Match the context element against the current node.
@@ -727,7 +765,6 @@ pub trait NegativeWalkMode : WalkMode {
         }
     }
 }
-
 
 
 /** `var_to_out`, for positive walks where `Out` == `Elt` */

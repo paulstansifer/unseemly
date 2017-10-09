@@ -15,7 +15,6 @@ use std::collections::HashMap;
 type Ren = Assoc<Name, Ast>;
 
 
-// TODO: this isn't capture-avoiding (and shouldn't be, when called by `freshen_rec`)
 fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Ren) -> Ast {
     match *node {
         Node(ref f, ref new_parts, ref export) => {
@@ -31,7 +30,7 @@ fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Ren) -> Ast
         }
         ExtendEnv(ref body, ref beta) => {
             let mut new_env = env.clone();
-            for bound_name in ::beta::keys_from_beta(beta, cur_node_contents) {
+            for bound_name in ::beta::bound_from_beta(beta, cur_node_contents) {
                 new_env = new_env.unset(&bound_name);
             }
             ExtendEnv(Box::new(substitute_rec(body, cur_node_contents, &new_env)), beta.clone())
@@ -41,6 +40,12 @@ fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Ren) -> Ast
 }
 
 /// Substitute `VariableReference`s in `node`, according to `env`.
+/// TODO: don't use this to "capture the environment"; it doesn't work in the presence of recursion
+/// Instead, we should introduce a "constant" to Beta.
+/// TODO: because of mu's use of `VariableReference`s in a place where other `Ast`s are forbidden,
+///  it seems like this has limited use.
+/// TODO: this isn't capture-avoiding (and shouldn't be, when called by `freshen_rec`)
+/// It's safe to use when the RHS of the environment is just fresh names.
 pub fn substitute(node: &Ast, env: &Ren) -> Ast {
     substitute_rec(node, &EnvMBE::new(), env)
 }
@@ -166,6 +171,15 @@ pub fn freshen_binders_inside_node_with(p_lhs: &EnvMBE<Ast>, p_rhs: &EnvMBE<Ast>
         }).lift_result().ok()
 }
 
+/// TODO: `Name` needs to support interning!
+pub fn fresh_name(old_name: Name) -> Name {
+    next_id.with(|n_i| {
+        let new_name = n(&format!("{}🍅{}", old_name, *n_i.borrow()));
+        *n_i.borrow_mut() += 1;
+        new_name
+    })
+}
+
 
 /// Returns an `Ast` like `a`, but with fresh `Atom`s
 ///  and a map to change references in the same manner
@@ -173,11 +187,8 @@ pub fn freshen_binders(a: &Ast) -> (Ast, Ren){
     match *a {
         Trivial | VariableReference(_) => (a.clone(), Assoc::new()),
         Atom(old_name) => {
-            next_id.with(|n_i| {
-                let new_name = n(&format!("{}🍅{}", old_name, *n_i.borrow()));
-                *n_i.borrow_mut() += 1;
-                (Atom(new_name), Assoc::new().set(old_name, VariableReference(new_name)))
-            })
+            let new_name = fresh_name(old_name);
+            (Atom(new_name), Assoc::new().set(old_name, VariableReference(new_name)))
         }
         Node(ref f, ref parts, ref export) => {
             if export == &::beta::ExportBeta::Nothing {
@@ -442,4 +453,15 @@ fn basic_freshening_with() {
               "body" => (import [* ["param" : "[ignored]"]]
                   {"expr" "apply" : "rator" => (vr "f"),
                                     "rand" => [(vr "a"), (vr "b"), (vr "x"), (vr "x")]})})));
+}
+
+#[test]
+fn mu_substitution() {
+    let trivial_mu = ast!( { "type" "mu_type" : "param" => [(vr "T")],
+                              "body" => (import [* [prot "param"]] (vr "T")) });
+    assert_eq!(freshen(&trivial_mu), trivial_mu);
+
+    assert_eq!(substitute(&trivial_mu, &assoc_n!("T" => ast!((vr "S")))),
+        ast!( { "type" "mu_type" : "param" => [(vr "S")],
+                                   "body" => (import [* [prot "param"]] (vr "S")) }))
 }

@@ -339,7 +339,6 @@ fn end_to_end_int_list_tools() {
 }
 
 #[test]
-
 fn end_to_end_list_tools() {
     assert_m!(
         assign_t_var("List", "forall T . mu_type List . enum { Nil () Cons (T List <[T]<) }"),
@@ -366,7 +365,7 @@ fn end_to_end_list_tools() {
         Ok(_));
 
     assert_m!(assign_variable("list_len",
-        "(fix forall S . .[again : [-> [List <[S]< -> Int]] .
+        "forall S . (fix .[again : [-> [List <[S]< -> Int]] .
             .[ lst : List <[S]< .
                 match unfold lst {
                     +[Nil]+ => zero
