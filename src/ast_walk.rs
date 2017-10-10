@@ -96,6 +96,8 @@ impl<Elt: WalkElt> Clo<Elt> {
         let o_renaming = o_different_env.keyed_map_borrow_f(
             &mut |name, _| VariableReference(::alpha::fresh_name(*name)));
 
+        // if !o_renaming.empty() { println!("MERGE: {}", o_renaming); }
+
         let mut fresh_o_env = Assoc::new();
         for (ref o_name, ref o_val) in o_different_env.iter_pairs() {
             fresh_o_env = fresh_o_env.set(
@@ -127,11 +129,11 @@ pub fn walk<Mode: WalkMode>(a: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
       _ => Mode::D::pre_walk(a.clone(), cur_node_contents.clone())
     };
 
-    // print!("#####: {}\n", a);
-    // print!("#from: {}\n", cur_node_contents.this_ast);
+    // println!("-----: {}", a);
+    // println!("-from: {}", cur_node_contents.this_ast);
     // match cur_node_contents.env.find(&negative_ret_val()) {
-    //     Some(ref ctxt) => print!("##c##: {:?}\n", ctxt), _ => {}}
-    // print!("in     {:?}\n", cur_node_contents.env.map_borrow_f(&mut |_| "…"));
+    //     Some(ref ctxt) => println!("-ctxt: {:?}", ctxt), _ => {}}
+    // println!("---in: {:?}", cur_node_contents.env.map_borrow_f(&mut |_| "…"));
 
     match a {
         Node(ref f, ref parts, _) => {

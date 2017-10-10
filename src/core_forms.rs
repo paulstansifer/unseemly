@@ -360,7 +360,11 @@ pub fn make_core_syn_env() -> SynEnv {
              (lit "in"),
              (named "body", (import [* ["type_name" = "type_def"]], (call "expr")))],
             Body(n("body")),
-            Body(n("body"))),
+            // HACK: like `Body(n("body"))`, but ignoring the binding, since it's type-level.
+            // This feels like it ought to be better-handled by `beta`, or maybe a kind system.
+            cust_rc_box!( move | let_type_parts | {
+                eval(strip_ee(&let_type_parts.get_term(&n("body"))), let_type_parts.env)
+            })),
 
         /* e.g. where List = ∀ X. μ List. enum { Nil(), Cons(X, List<[X]<) }
          * .[x : List <[X]<  . match (unfold x) ... ].
@@ -1063,7 +1067,7 @@ fn use__let_type() {
     Ok(ty!( { "type" "fn" :
         "param" => [(,trivial_mu_type.clone())], "ret" => (,trivial_mu_type.clone())})));
     }
-/*
+
     // Basic usage, evaluated:
     assert_m!(eval(&ast!( { "expr" "let_type" :
             "type_name" => [@"t" "T"],
@@ -1075,5 +1079,4 @@ fn use__let_type() {
             })
         }), Assoc::new()),
     Ok(_));
-*/
 }
