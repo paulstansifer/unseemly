@@ -1,0 +1,27 @@
+
+
+# Factorial; demonstrates using the built-in `fix` function for recursion.
+fact := (fix .[ again : [ -> [ Int -> Int ]] .  .[ n : Int . match (zero? n) { +[True]+ => one  +[False]+ => (times n ((again) (minus n one))) } ]. ].)
+# Recursive, parametric list type (type parameterization is with "fish X-ray", `<[ ]<`):
+List t= forall T . mu_type List . enum { Nil () Cons (T List <[T]<) }
+# ... the unfolded version of `List`, useful for technical reasons.
+ListUF t= forall T . enum { Nil () Cons (T List <[T]<) }
+# Constructors require explicit type annotation and a fold. So the sensible thing to do is to define `nil` and `cons` to abstract that out:
+nil := forall T . . fold +[Nil]+ : ListUF <[T]< : List <[T]<
+cons := forall T . .[hd : T  tl : List <[T]< . fold +[Cons hd tl]+ : ListUF <[T]< : List <[T]<].
+# `zero` through `ten`, `plus`, `minus`, `times`, `zero?`, and `equal?` are built-in. So are `false` and `true`.
+3_list := (cons three nil)
+23_list := (cons two 3_list)
+123_list := (cons one 23_list)
+# Matching a recursive type always requires unfolding it first.
+sum_list := (fix .[again : [-> [List <[Int]< -> Int]] . .[ lst : List <[Int]< . match unfold lst { +[Nil]+ => zero +[Cons hd tl]+ => (plus hd ((again) tl))} ]. ]. )
+list_len := forall T . (fix .[again : [-> [List <[T]< -> Int]] . .[ lst : List <[T]< . match unfold lst { +[Nil]+ => zero +[Cons hd tl]+ => (plus one ((again) tl))} ]. ].)
+# `match` requires its arms to have exactly identical types. That keeps us from being able to use `cons` and `nil` in this definition ) :
+# map := forall T S . (fix .[again : [-> [[T -> S]  List <[T]< -> List <[S]< ]] . .[f : [T -> S] lst : List <[T]< . match unfold lst { +[Nil]+ => fold +[Nil]+ : ListUF <[S]< : List <[S]< +[Cons hd tl]+ =>  fold +[Cons (f hd) ((again) f tl)]+ : ListUF <[S]< : List <[S]< } ]. ].)
+reduce := forall Elt Res . (fix .[again : [-> [List <[Elt]<  [Elt Res -> Res] Res -> Res ]] . .[ lst : List <[Elt]<   f : [Elt Res -> Res] seed : Res . match unfold lst { +[Nil]+ => seed   +[Cons hd tl]+ =>  (f hd ((again) tl f seed)) } ]. ].)
+# ...but this definition of `map` is nice:
+map := forall T S . (fix .[again : [-> [[T -> S] List <[T]< -> List <[S]<]] . .[ f : [T -> S] lst : List <[T]< . (reduce lst .[elt : T  res : List <[S]< . (cons (f elt) res)]. nil) ]. ].)
+
+
+# Example code that isn't a useful definition, and so doesn't belong in the prelude:
+#    (map .[x : Int . (times x two)]. 123_list)

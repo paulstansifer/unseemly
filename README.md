@@ -21,10 +21,19 @@ Install Rust:
 
     curl https://sh.rustup.rs -sSf | sh
 
-(Optional but recommended) Get the default prelude:
+(Recommended) Get the default prelude:
 
-    cp .unseemly_prelude ~/
+    cp src/examples/.unseemly_prelude ~/
 
 Start the REPL:
 
     cargo run
+
+
+Run an example programs:
+
+    cargo run src/examples/sum_list.un
+
+## Documentation
+
+Look at core_language_basics.txt for documentation of the language.
