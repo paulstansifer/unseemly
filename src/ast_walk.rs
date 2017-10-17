@@ -118,7 +118,6 @@ impl<Elt: WalkElt> Clo<Elt> {
  */
 pub fn walk<Mode: WalkMode>(a: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
         -> Result<<Mode::D as Dir>::Out, Mode::Err> {
-
     // TODO: can we get rid of the & in front of our arguments and save the cloning?
     let (a, cur_node_contents) = match a {
       // HACK: We want to process EE before pre_match before everything else.

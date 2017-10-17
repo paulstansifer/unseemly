@@ -40,6 +40,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
         &Node(ref form, ref body, _) if form == &undet => {
             return ::ty_compare::unification.with(|unif| {
                 let var = ::core_forms::ast_to_name(&body.get_leaf_or_panic(&n("id")));
+                //format!("<unif: {}>", var) // to prevent infinite recurrence
                 let looked_up = unif.borrow().get(&var).map(|x| x.clone());
                 match looked_up {
                     Some(ref clo) => format!("{} in {}", clo.it, clo.env),

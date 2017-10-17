@@ -193,7 +193,18 @@ thread_local! {
     pub static underdetermined_form : ::std::rc::Rc<Form> = ::std::rc::Rc::new(Form {
         name: n("<underdetermined>"),
         grammar: ::std::rc::Rc::new(form_pat!((named "id", aat))),
-        type_compare: ::form::Both(WalkRule::NotWalked,WalkRule::NotWalked),
+        type_compare: ::form::Both(
+            // pre-match handles the negative case; we need to do the positive case manually:
+            cust_rc_box!(|udet_parts| {
+                let id = ast_to_name(&udet_parts.get_term(&n("id")));
+                unification.with(|unif| {
+                    let unif = unif.borrow();
+                    // TODO: don't use the id in an error message; it's user-hostile:
+                    let clo = try!(unif.get(&id).ok_or(TyErr::UnboundName(id)));
+                    canonicalize(&clo.it, clo.env.clone())
+                })
+            }),
+            WalkRule::NotWalked),
         synth_type:   ::form::Both(WalkRule::NotWalked,WalkRule::NotWalked),
         eval:         ::form::Both(WalkRule::NotWalked,WalkRule::NotWalked),
         quasiquote:   ::form::Both(WalkRule::NotWalked,WalkRule::NotWalked)
@@ -222,10 +233,12 @@ impl WalkMode for Canonicalize {
     fn automatically_extend_env() -> bool { true }
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Canonicalize>) -> Result<Ty, TyErr> {
-        Ok(match cnc.env.find(&n) {
-            Some(t) => t.clone(),
-            None => Ty(VariableReference(n)) //TODO why can this happen?
-        })
+        match cnc.env.find(&n) {
+            // If it's protected, stop:
+            Some(t) if &Ty(VariableReference(n)) == t => Ok(t.clone()),
+            Some(t) => canonicalize(t, cnc.env.clone()),
+            None => Ok(Ty(VariableReference(n))) //TODO why can this happen?
+        }
     }
 }
 
@@ -303,9 +316,8 @@ impl ::ast_walk::NegativeWalkMode for Subtype {
     // TODO: should unbound variable references ever be walked at all? Maybe it should panic?
 }
 
-pub fn capture_environment(t: &Ty, env: Assoc<Name, Ty>) -> Ty {
-    let walk_env = &LazyWalkReses::<Canonicalize>::new_wrapper(env);
-    walk::<Canonicalize>(&t.concrete(), walk_env).expect("ICE: Ill-formed type")
+pub fn canonicalize(t: &Ty, env: Assoc<Name, Ty>) -> Result<Ty, TyErr> {
+    walk::<Canonicalize>(&t.concrete(), &LazyWalkReses::<Canonicalize>::new_wrapper(env))
 }
 
 pub fn must_subtype(sub: &Ty, sup: &Ty, env: Assoc<Name, Ty>) -> Result<Assoc<Name, Ty>, TyErr> {

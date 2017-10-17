@@ -197,6 +197,8 @@ pub fn make_core_syn_env() -> SynEnv {
             cust_rc_box!(move | part_types | {
                 use ::ast_walk::WalkMode;
                 let return_type = ::ty_compare::Subtype::underspecified(n("<return_type>"));
+
+                // The `rator` must be a function that takes the `rand`s as arguments:
                 let _ = try!(::ty_compare::must_subtype(
                     &ty!({ "type" "fn" :
                         "param" => (,seq try!(part_types.get_rep_res(&n("rand")))
@@ -207,13 +209,16 @@ pub fn make_core_syn_env() -> SynEnv {
                         .map_err(|e| ::util::err::sp(e, part_types.this_ast.clone())));
 
 
+                // TODO: test the necessity of this (it's used in the prelude)
+                // What return type made that work?
                 ::ty_compare::unification.with(|unif| {
-                    // TODO: using `.it` discards the environment!
-                    // This has got to be unsound.
-                    // But we can't extend the environment from here, so what do we do?
-                    Ok(::ty_compare::resolve(
+                    let res = ::ty_compare::resolve(
                         ::ast_walk::Clo{ it: return_type, env: part_types.env.clone()},
-                        &unif.borrow()).it)
+                        &unif.borrow());
+
+                    // Canonicalize the type in its environment:
+                    let res = ::ty_compare::canonicalize(&res.it, res.env);
+                    res.map_err(|e| ::util::err::sp(e, part_types.this_ast.clone()))
                 })
             }),
             cust_rc_box!( move | part_values | {

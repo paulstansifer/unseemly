@@ -383,7 +383,7 @@ fn end_to_end_list_tools() {
                       fold +[Cons (f hd) ((again) tl f)]+ : ListUF <[S]< : List <[S]< } ]. ].)"),
         Ok(_));
     // TODO: what should even happen if you have `forall` not on the "outside"?
-    // It should probably be an error have a value typed with an underdetermined type.
+    // It should probably be an error to have a value typed with an underdetermined type.
 
 
     // TODO: it's way too much of a pain to define each different expected result list.

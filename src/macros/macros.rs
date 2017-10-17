@@ -309,7 +309,7 @@ macro_rules! form_pat {
 /* utility, for core_forms and core_type_forms */
 // This has to be a macro for type reasons involving sizedness I don't understand.
 macro_rules! cust_rc_box {
-    ($contents:expr) => { Custom(Rc::new(Box::new($contents))) }
+    ($contents:expr) => { Custom(::std::rc::Rc::new(Box::new($contents))) }
 }
 
 

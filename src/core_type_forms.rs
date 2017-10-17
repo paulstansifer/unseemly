@@ -184,7 +184,13 @@ pub fn make_core_syn_env_types() -> SynEnv {
             } ))
         }),
         Both(
-            LiteralLike,
+            cust_rc_box!(move |mu_parts| { // Like LiteralLike, but doesn't expand `param`:
+                Ok(ty!( { "type" "mu_type" :
+                    "body" => (import [* [prot "param"]]
+                                 (, try!(mu_parts.get_res(&n("body"))).concrete())),
+                    "param" => (,seq mu_parts.get_rep_term(&n("param")))
+                } ))
+            }),
             cust_rc_box!(move |mu_parts| {
                 let rhs_mu_parts = try!(Subtype::context_match(
                     &mu_parts.this_ast,
