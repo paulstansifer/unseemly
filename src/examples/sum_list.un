@@ -1,0 +1,16 @@
+let_type List = forall T . mu_type List . enum { Nil () Cons (T List <[T]<) }
+in
+let_type ListUF = forall T . enum { Nil () Cons (T List <[T]<) }
+in
+(.[ 123_list : List <[Int]< . ((fix
+    .[again : [-> [List <[Int]< -> Int]] .
+        .[ lst : List <[Int]< .
+            match unfold lst { +[Nil]+ => zero
+                               +[Cons hd tl]+ => (plus hd ((again) tl))} ]. ]. )
+     123_list)].
+  fold +[Cons one
+      fold +[Cons two
+          fold +[Cons three fold +[Nil]+
+              : ListUF <[Int]< : List <[Int]< ]+
+          : ListUF <[Int]< : List <[Int]<]+ : ListUF <[Int]< : List <[Int]<]+
+      : ListUF <[Int]< : List <[Int]< )

@@ -1,0 +1,8 @@
+((fix .[ again : [ -> [ Int -> Int ]] .
+    .[ n : Int .
+        match (zero? n) {
+            +[True]+ => one
+            +[False]+ => (times n ((again) (minus n one)))
+        }
+    ].
+].) five)

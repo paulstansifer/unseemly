@@ -1,0 +1,78 @@
+The Unseemly tokenizer is very simple.
+Tokens are only separated by whitespace and the *inside edges* of `([{}])`.
+Furthermore, groupers are named. Thus `[]`, `.[ ].`, `hi[ ]hi` are all legal,
+ but `x[ ]` is not.
+You need to leave more spaces than you're used to in normal languages.
+Probably, there's a reason that they have tokenizers
+ that can't be described in five sentences.
+
+
+Expressions:
+ `(expr expr expr)` is function application.
+
+ `.[ x : Type  x : Type . expr ].` is lambda.
+
+ `match expr { pat => expr  pat => expr }` is a pattern match.
+
+ `+[Choice expr expr]+ : Type` constructs an enumerated value.
+   The type annotation keeps the type system simple for now.
+
+ `*[component : expr  component : expr]*` constructs a structure value.
+
+ `foall X X . expr` abstracts over a type. It is typically used around lambdas.
+
+ `unfold expr` pulls one layer of `mu` off a recursively-typed value.
+   It is almost exclusively used for the scrutinee in `match`.
+
+ `fold expr` adds one layer of `mu` to recursively-typed value.
+   It is almost exclusively used right after constructing an enum or struct.
+
+Pre-defined values:
+ `zero` through `ten` are integers.
+ `plus`, `minus`, `times`, and `equal?` are binary functions.
+ `zero?` is a unary function.
+ `true` and `false` are boolean values.
+ `fix` is a pre-defined fixpoint function. A simple way to diverge:
+   `(fix .[again : [ -> [Int -> Int]] . .[ n : Int . ((again) n)]. ].)`
+
+
+
+Patterns:
+ `+[Choice pat pat]+` deconstructs an enumerated value.
+
+ `*[ component : pat  component : pat ]*` deconstructs a structure value.
+
+
+
+Types:
+ `[Param Param -> Ret]` is the function type.
+
+ `enum { Choice (Type Type) Choice (Type Type) }` is the enumeration type.
+
+ `struct { component : Type  component : Type }` is the structure type.
+
+ `forall X X . Type` is the abstracted type.
+
+ `mu_type X X . Type` protects a recursive type from being infinitely large.
+   It is typically used inside the definition of X.
+
+ `Type <[Type Type]<` applies an abstracted type.
+   For example, `List <[Int]<` is a list of integers.
+   The technical term for this operator is "Fish X-ray".
+
+Pre-defined types:
+ `Int` is a built-in type.
+ `Bool` is defined as `enum { True () False () }`.
+
+
+
+
+
+
+Example unseemly programs: (in src/examples/)
+
+  fact.un takes 5 factorial
+    (demonstrates recursion with `fix`)
+  sum_list.un sums the list "1, 2, 3"
+    (demonstrates `let_type`, `match`, `fold`, `unfold`, and the need for a
+     macro system)
