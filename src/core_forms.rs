@@ -751,11 +751,13 @@ fn form_eval() {
 fn alg_type() {
     let mt_ty_env = Assoc::new();
     let simple_ty_env = assoc_n!(
-        "x" => ty!("Int"), "b" => ty!("Bool"), "f" => ty!("Float"));
+        "x" => ty!({"type" "Int":}), "n" => ty!({"type" "Nat":}), "f" => ty!({"type" "Float" :}));
 
     let my_enum = ty!({ "type" "enum" :
         "name" => [@"c" "Adams", "Jefferson", "Burr"],
-        "component" => [@"c" ["Int"], ["Int", "Bool"], ["Float", "Float"]]
+        "component" => [@"c" [{"type" "Int":}],
+                             [{"type" "Int":}, {"type" "Nat":}],
+                             [{"type" "Float" :}, {"type" "Float" :}]]
     });
 
     // Typecheck enum pattern
@@ -765,13 +767,13 @@ fn alg_type() {
             "component" => ["abc", "def"]
         }),
         mt_ty_env.set(negative_ret_val(), my_enum.clone())),
-        Ok(Assoc::new().set(n("abc"), ty!("Int")).set(n("def"), ty!("Bool"))));
+        Ok(Assoc::new().set(n("abc"), ty!({"type" "Int":})).set(n("def"), ty!({"type" "Nat":}))));
 
     // Typecheck enum expression
     assert_eq!(synth_type(&ast!(
         { "expr" "enum_expr" :
             "name" => "Jefferson",
-            "component" => [(vr "x"), (vr "b")],
+            "component" => [(vr "x"), (vr "n")],
             "t" => (, my_enum.concrete() )
         }),
         simple_ty_env.clone()),
@@ -780,7 +782,7 @@ fn alg_type() {
 
     let my_struct = ty!({ "type" "struct" :
         "component_name" => [@"c" "x", "y"],
-        "component" => [@"c" "Int", "Float"]
+        "component" => [@"c" {"type" "Int":}, {"type" "Float" :}]
     });
 
     // Typecheck struct pattern
@@ -790,7 +792,7 @@ fn alg_type() {
                 "component" => [@"c" "yy", "xx"]
             }),
             mt_ty_env.set(negative_ret_val(), my_struct.clone())),
-        Ok(assoc_n!("yy" => ty!("Float"), "xx" => ty!("Int"))));
+        Ok(assoc_n!("yy" => ty!({"type" "Float" :}), "xx" => ty!({"type" "Int":}))));
 
     // Typecheck struct expression
 
@@ -813,10 +815,10 @@ fn alg_type() {
                                  (import ["p" = "scrutinee"] (vr "f"))]
             }),
             simple_ty_env.clone()),
-        Ok(ty!("Float")));
+        Ok(ty!({"type" "Float" :})));
 
     assert_m!(synth_type(&ast!({ "expr" "match" :
-            "scrutinee" => (vr "b"),
+            "scrutinee" => (vr "n"),
             "p" => [@"arm" "my_new_name", "unreachable"],
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")),
                              (import ["p" = "scrutinee"] (vr "f"))]
@@ -853,7 +855,7 @@ fn alg_type() {
                                  (import ["p" = "scrutinee"] (vr "x"))]
         }),
         simple_ty_env.set(n("my_enum"), my_enum.clone())),
-        Ok(ty!("Int")));
+        Ok(ty!({"type" "Int":})));
 }
 
 #[test]
@@ -952,7 +954,7 @@ fn recursive_types() {
             "param" => [(vr "IntList")],
             "body" => (import [* [prot "param"]] { "type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
-                "component" => [@"c" [], ["Int", (vr "IntList") ]]})});
+                "component" => [@"c" [], [{"type" "Int":}, (vr "IntList") ]]})});
 
     let ty_env = assoc_n!(
         "IntList" => int_list_ty.clone(),  // this is a type definition...
@@ -974,7 +976,7 @@ fn recursive_types() {
         &ast!({"expr" "unfold" : "body" => (vr "il_direct")}), ty_env.clone()),
         Ok(ty!({ "type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
-                "component" => [@"c" [], ["Int", (, int_list_ty.concrete()) ]]})));
+                "component" => [@"c" [], [{"type" "Int":}, (, int_list_ty.concrete()) ]]})));
 
     // folding an unfolded thing should give us back the same thing
     assert_eq!(synth_type(
@@ -997,7 +999,7 @@ fn recursive_types() {
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "car"))]
         }),
         ty_env.clone()),
-        Ok(ty!("Int")));
+        Ok(ty!({"type" "Int":})));
 
     // Unfold a type and then extract the part that should have the same type as the outer type
     assert_eq!(synth_type(

@@ -343,20 +343,16 @@ fn parametric_types() {
     let ident_ty = ty!( { "type" "Ident" : });
     let nat_ty = ty!( { "type" "Nat" : });
 
-    fn tbn(nm: &'static str) -> Ty {
-        ty!( { "type" "type_by_name" : "name" => (, ::ast::Ast::Atom(n(nm))) } )
-    }
-
     let para_ty_env = assoc_n!(
         "unary" => ty!({ "type" "forall_type" :
             "param" => ["t"],
             "body" => (import [* [forall "param"]] { "type" "fn" :
                 "param" => [ (, nat_ty.concrete()) ],
-                "ret" => (, tbn("t").concrete() ) })}),
+                "ret" => (vr "t") })}),
         "binary" => ty!({ "type" "forall_type" :
             "param" => ["t", "u"],
             "body" => (import [* [forall "param"]] { "type" "fn" :
-                "param" => [ (, tbn("t").concrete() ), (, tbn("u").concrete() ) ],
+                "param" => [ (vr "t"), (vr "u") ],
                 "ret" => (, nat_ty.concrete()) })}));
     let mued_ty_env = assoc_n!("unary" => ty!((vr "unary")), "binary" => ty!((vr "binary")));
 

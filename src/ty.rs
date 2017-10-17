@@ -99,7 +99,9 @@ impl WalkMode for SynthTy {
     fn walk_var(name: Name, parts: &::ast_walk::LazyWalkReses<SynthTy>) -> Result<Ty, TypeError> {
         match parts.env.find(&name) {
             None => Err(::util::err::sp(TyErr::UnboundName(name), parts.this_ast.clone())),
-            Some(ty) => Ok(ty.clone())
+            // If name is protected, stop:
+            Some(ty) if &Ty(VariableReference(name)) == ty => Ok(ty.clone()),
+            Some(ty) => synth_type(&ty.concrete(), parts.env.clone())
         }
     }
 
@@ -255,6 +257,12 @@ fn basic_type_synth() {
                 NotWalked) ; []}),
             simple_ty_env.clone()),
         Ok(nat_ty.clone()));
+
+
+    let chained_ty_env
+        = assoc_n!("a" => ty!((vr "B")), "B" => ty!((vr "C")), "C" => ty!({"type" "Int":}));
+
+    assert_eq!(synth_type(&ast!((vr "a")), chained_ty_env), Ok(ty!({"type" "Int":})));
 }
 
 
