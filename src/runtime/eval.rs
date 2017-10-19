@@ -5,7 +5,8 @@ use util::assoc::Assoc;
 use name::*;
 use std::rc::Rc;
 use ast::Ast;
-use ast_walk::{walk, WalkMode, WalkRule, LazyWalkReses, NegativeWalkMode};
+use ast_walk::{walk, WalkRule, LazyWalkReses};
+use walk_mode::{WalkMode, NegativeWalkMode};
 use form::Form;
 use std;
 
@@ -81,7 +82,7 @@ impl std::fmt::Debug for BIF {
     }
 }
 
-impl ::ast_walk::WalkElt for Value {
+impl ::walk_mode::WalkElt for Value {
     /// We'd need to know what `nt` we're at, so the quotation form has to do this work...
     fn from_ast(_: &Ast) -> Value { panic!("ICE: tried to convert Ast to Value") }
     /// This is possible, but should be handled by the unquotation form
@@ -103,7 +104,7 @@ impl WalkMode for Eval {
     type Elt = Value;
     type Negated = Destructure;
     type Err = ();
-    type D = ::ast_walk::Positive<Eval>;
+    type D = ::walk_mode::Positive<Eval>;
 
     fn get_walk_rule(f: &Form) -> &WalkRule<Eval> { &f.eval.pos() }
     fn automatically_extend_env() -> bool { false }
@@ -120,7 +121,7 @@ impl WalkMode for Destructure {
     type Elt = Value;
     type Negated = Eval;
     type Err = ();
-    type D = ::ast_walk::Negative<Destructure>;
+    type D = ::walk_mode::Negative<Destructure>;
 
     /// The whole point of program evaluation is that the enviornment
     ///  isn't generateable from the source tree.
@@ -133,7 +134,7 @@ impl NegativeWalkMode for Destructure {
     fn needs_pre_match() -> bool { false } // Values don't have binding (in this mode!)
 }
 
-impl ::ast_walk::WalkElt for Ast {
+impl ::walk_mode::WalkElt for Ast {
     fn from_ast(a: &Ast) -> Ast { a.clone() }
     fn to_ast(&self) -> Ast { self.clone() }
 }
@@ -165,7 +166,7 @@ impl WalkMode for QQuote {
     type Elt = Ast;
     type Negated = QQuoteDestr;
     type Err = ();
-    type D = ::ast_walk::Positive<QQuote>;
+    type D = ::walk_mode::Positive<QQuote>;
 
     fn get_walk_rule(f: &Form) -> &WalkRule<QQuote> { &f.quasiquote.pos() }
     fn automatically_extend_env() -> bool { true } // This is the point of Unseemly!
@@ -175,7 +176,7 @@ impl WalkMode for QQuoteDestr {
     type Elt = Ast;
     type Negated = QQuote;
     type Err = ();
-    type D = ::ast_walk::Negative<QQuoteDestr>;
+    type D = ::walk_mode::Negative<QQuoteDestr>;
 
     fn get_walk_rule(f: &Form) -> &WalkRule<QQuoteDestr> { &f.quasiquote.neg() }
     fn automatically_extend_env() -> bool { true } // This is the point of Unseemly!

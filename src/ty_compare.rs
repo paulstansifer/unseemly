@@ -1,5 +1,6 @@
-use ast_walk::{walk, LazyWalkReses, WalkMode, WalkRule, NegativeWalkMode, Clo};
+use ast_walk::{walk, LazyWalkReses, WalkRule, Clo};
 use ast_walk::WalkRule::*;
+use walk_mode::{WalkMode, NegativeWalkMode};
 use form::Form;
 use util::assoc::Assoc;
 use ast::*;
@@ -226,7 +227,7 @@ impl WalkMode for Canonicalize {
     type Elt = Ty;
     type Negated = Subtype;
     type Err = TyErr;
-    type D = ::ast_walk::Positive<Canonicalize>;
+    type D = ::walk_mode::Positive<Canonicalize>;
 
     // Actually, always `LiteralLike`, but need to get the lifetime as long as `f`'s
     fn get_walk_rule(f: &Form) -> &WalkRule<Canonicalize> { &f.type_compare.pos() }
@@ -246,7 +247,7 @@ impl WalkMode for Subtype {
     type Elt = Ty;
     type Negated = Canonicalize;
     type Err = TyErr;
-    type D = ::ast_walk::Negative<Subtype>;
+    type D = ::walk_mode::Negative<Subtype>;
 
     fn get_walk_rule(f: &Form) -> &WalkRule<Subtype> { &f.type_compare.neg() }
     fn automatically_extend_env() -> bool { true }
@@ -278,7 +279,7 @@ impl WalkMode for Subtype {
 }
 
 
-impl ::ast_walk::NegativeWalkMode for Subtype {
+impl ::walk_mode::NegativeWalkMode for Subtype {
     fn qlit_mismatch_error(got: Ty, expd: Ty) -> Self::Err { TyErr::Mismatch(got, expd) }
 
     fn needs_pre_match() -> bool { true }
@@ -401,7 +402,7 @@ fn basic_subtyping() {
               Err(Mismatch(_,_)));
 
     fn incomplete_fn_ty() -> Ty { // A function, so we get a fresh underspecified type each time.
-        use ast_walk::WalkElt;
+        use walk_mode::WalkElt;
         ty!({ "type" "fn" :
             "param" => [ { "type" "Int" : } ],
             "ret" => (, Subtype::underspecified(n("<return_type>")).concrete() )})

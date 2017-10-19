@@ -2,7 +2,8 @@
 
 use std::fmt;
 use name::*;
-use ast_walk::{ResEnv, LazyWalkReses, LazilyWalkedTerm, WalkMode};
+use ast_walk::{ResEnv, LazyWalkReses, LazilyWalkedTerm};
+use walk_mode::WalkMode;
 use util::assoc::Assoc;
 use ast::{Ast,Atom,VariableReference};
 use util::mbe::EnvMBE;
@@ -226,7 +227,7 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
             // Since protection isn't binding, it gets variable references instead
             if let LazilyWalkedTerm {term: VariableReference(ref name), ..}
                     = **parts.parts.get_leaf_or_panic(name_source) {
-                use ast_walk::WalkElt;
+                use walk_mode::WalkElt;
 
                 // HACK: rely on the fact that `walk_var`
                 //  won't recursively substitute until it "hits bottom"

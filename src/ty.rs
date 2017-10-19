@@ -9,8 +9,9 @@ These nodes may depend on
 */
 
 use beta::*;
-use ast_walk::{walk, LazyWalkReses, WalkMode, WalkRule};
+use ast_walk::{walk, LazyWalkReses, WalkRule};
 use ast_walk::WalkRule::*;
+use walk_mode::WalkMode;
 use form::Form;
 use util::assoc::Assoc;
 use ast::*;
@@ -73,7 +74,7 @@ impl ::runtime::reify::Reifiable for Ty {
     fn reflect(v: &::runtime::eval::Value) -> Self { Ty::new(Ast::reflect(v))}
 }
 
-impl ::ast_walk::WalkElt for Ty {
+impl ::walk_mode::WalkElt for Ty {
     fn from_ast(a: &Ast) -> Ty { Ty::new(a.clone()) }
     fn to_ast(&self) -> Ast { self.concrete() }
 }
@@ -91,7 +92,7 @@ impl WalkMode for SynthTy {
     type Elt = Ty;
     type Negated = UnpackTy;
     type Err = TypeError;
-    type D = ::ast_walk::Positive<SynthTy>;
+    type D = ::walk_mode::Positive<SynthTy>;
 
     fn get_walk_rule(f: &Form) -> &WalkRule<SynthTy> { &f.synth_type.pos() }
     fn automatically_extend_env() -> bool { true }
@@ -113,13 +114,13 @@ impl WalkMode for UnpackTy {
     type Elt = Ty;
     type Negated = SynthTy;
     type Err = TypeError;
-    type D = ::ast_walk::Negative<UnpackTy>;
+    type D = ::walk_mode::Negative<UnpackTy>;
 
     fn get_walk_rule(f: &Form) -> &WalkRule<UnpackTy> { &f.synth_type.neg() }
     fn automatically_extend_env() -> bool { true }
 }
 
-impl ::ast_walk::NegativeWalkMode for UnpackTy {
+impl ::walk_mode::NegativeWalkMode for UnpackTy {
     fn needs_pre_match() -> bool { true }
 }
 
