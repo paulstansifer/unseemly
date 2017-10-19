@@ -72,7 +72,11 @@ Pre-defined types:
 Example unseemly programs: (in src/examples/)
 
   fact.un takes 5 factorial
-    (demonstrates recursion with `fix`)
+    Demonstrates recursion with `fix`
   sum_list.un sums the list "1, 2, 3"
-    (demonstrates `let_type`, `match`, `fold`, `unfold`, and the need for a
-     macro system)
+    Demonstrates `let_type`, `match`, `fold`, `unfold`, and the need for a
+    macro system.
+
+  .unseemly_prelude is intended to be copied to your home directory.
+    You can add to it with `:s` commands from the REPL.
+    It has comments, too! You have to add those manually.
