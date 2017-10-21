@@ -211,7 +211,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 for (&p_r, p_l) in r_params.iter().zip(l_params.iter()) {
                     if p_r == p_l // short-circuit if the names are the same...
                         || mu_parts.env.find(&vr_to_name(p_r)) // ...or Amber assumed so already
-                             == Some(&Ty((p_l.clone()))) { continue; }
+                             == Some(&Ty(p_l.clone())) { continue; }
 
                     // print!("Ambering: {} = {}\n", p_r, p_l);
                     amber_environment = amber_environment.set(vr_to_name(p_r), Ty(p_l.clone()));
@@ -307,8 +307,8 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     }
 
                     // This bypasses the binding in the type, which is what we want:
-                    synth_type(&::core_forms::strip_ee(
-                            &forall_type__parts.get_leaf_or_panic(&n("body"))),
+                    synth_type(::core_forms::strip_ee(
+                            forall_type__parts.get_leaf_or_panic(&n("body"))),
                         new__ty_env)
                 }
                 _ => {

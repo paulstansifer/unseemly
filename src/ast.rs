@@ -15,6 +15,7 @@ use std::rc::Rc;
 use form::Form;
 use ast;
 
+// TODO: This really ought to be an `Rc` around an `enum`
 custom_derive! {
     #[derive(Clone, PartialEq, Reifiable)]
     pub enum Ast {
@@ -57,8 +58,8 @@ impl fmt::Debug for Ast {
             },
             Node(ref form, ref body, ref export) => {
                 try!(write!(f, "{{ ({}); {:?}", form.name.sp(), body));
-                match export {
-                    &::beta::ExportBeta::Nothing => {}
+                match *export {
+                    ::beta::ExportBeta::Nothing => {}
                     _ => try!(write!(f, " ⇑{:?}", export))
                 }
                 write!(f, "}}")
@@ -95,8 +96,7 @@ impl Ast {
     // TODO: this ought to at least warn if we're losing anything other than `Shape`
     pub fn flatten(&self) -> EnvMBE<Ast> {
         match *self {
-            Trivial => EnvMBE::new(),
-            Atom(_) => EnvMBE::new(),
+            Trivial | Atom(_) => EnvMBE::new(),
             VariableReference(_) => EnvMBE::new(),
             Shape(ref v) => {
                 let mut accum = EnvMBE::new();

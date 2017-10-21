@@ -36,12 +36,12 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
 
     //HACK: handle underdetermined forms
     let undet = ::ty_compare::underdetermined_form.with(|u| u.clone());
-    match actl {
-        &Node(ref form, ref body, _) if form == &undet => {
+    match *actl {
+        Node(ref form, ref body, _) if form == &undet => {
             return ::ty_compare::unification.with(|unif| {
-                let var = ::core_forms::ast_to_name(&body.get_leaf_or_panic(&n("id")));
+                let var = ::core_forms::ast_to_name(body.get_leaf_or_panic(&n("id")));
                 //format!("<unif: {}>", var) // to prevent infinite recurrence
-                let looked_up = unif.borrow().get(&var).map(|x| x.clone());
+                let looked_up = unif.borrow().get(&var).cloned();
                 match looked_up {
                     Some(ref clo) => format!("{} in {}", clo.it, clo.env),
                     None => format!("¿{}?", var)
@@ -54,7 +54,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
     // TODO: this really ought to notice when `actl` is all-formed for `pat`.
     match (pat, actl) {
         (&Named(name, ref body), _) => {
-            unparse_mbe(&*body, &context.get_leaf(&name).unwrap_or(&Atom(n("<->"))), context, s)
+            unparse_mbe(&*body, context.get_leaf(&name).unwrap_or(&Atom(n("<->"))), context, s)
         }
             //=> unparse_mbe(&*body, context.get_leaf(&name).unwrap_or(&Atom(n("<MISSING>"))), context, s),
         (&Call(sub_form), _) => unparse_mbe(s.find_or_panic(&sub_form), actl, context, s),

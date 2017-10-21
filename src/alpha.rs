@@ -150,19 +150,19 @@ pub fn freshen_with(lhs: &Ast, rhs: &Ast) -> (Ast, Ast) {
 }
 
 
-pub fn freshen_binders_inside_node(parts: &EnvMBE<Ast>, mentioned: &Vec<Name>)
+pub fn freshen_binders_inside_node(parts: &EnvMBE<Ast>, mentioned: &[Name])
         -> EnvMBE<(Ast, Ren)> {
     parts.named_map(
         &mut |n: &Name, a: &Ast| {
             if mentioned.contains(n) { freshen_binders(a) } else { (a.clone(), Assoc::new()) }})
 }
 
-pub fn freshen_binders_inside_node_with(p_lhs: &EnvMBE<Ast>, p_rhs: &EnvMBE<Ast>, men: &Vec<Name>)
+pub fn freshen_binders_inside_node_with(p_lhs: &EnvMBE<Ast>, p_rhs: &EnvMBE<Ast>, men: &[Name])
         -> Option<EnvMBE<(Ast, Ren, Ast, Ren)>> {
     if ! p_lhs.can_map_with(p_rhs) { return None; }
     p_lhs.named_map_with(
         p_rhs,
-        &mut |n: &Name, a_lhs: &Ast, a_rhs: &Ast| {
+        &|n: &Name, a_lhs: &Ast, a_rhs: &Ast| {
             if men.contains(n) {
                 freshen_binders_with(a_lhs, a_rhs).ok_or(())
             } else {

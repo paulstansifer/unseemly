@@ -134,7 +134,7 @@ impl <T: PartialEq> PartialEq for EnvMBE<T> {
            }
 
            for (other_k, other_v_maybe) in rhs.iter_pairs() {
-               if let &Some(ref other_v) = other_v_maybe {
+               if let Some(ref other_v) = *other_v_maybe {
                    if let Some(&Some(ref v)) = rhs.find(other_k) {
                        if !(v == other_v) { return false; }
                    } else { return false; }
@@ -210,10 +210,11 @@ impl<'a, S: Clone> Iterator for DddIter<'a, S> {
         if cur_idx == self.rep_idx {
             self.repeated = self.underlying.next();
         }
+
         if cur_idx >= self.rep_idx && cur_idx < self.rep_idx + self.extra_needed {
-            return self.repeated;
+            self.repeated
         } else {
-            return self.underlying.next();
+            self.underlying.next()
         }
     }
 }
@@ -530,21 +531,18 @@ impl<T: Clone> EnvMBE<T> {
                 self.repeats.iter().zip(self.ddd_rep_idxes.iter())
                     .zip(o.repeats.iter().zip(o.ddd_rep_idxes.iter())) {
             if subs_ddd != &None && o_subs_ddd != &None { panic!("Ill-formed; can't walk two DDDs") }
-            if subs_ddd == &None && o_subs_ddd == &None {
-                if subs.len() != o_subs.len() { return false; }
+            if subs_ddd == &None && o_subs_ddd == &None && subs.len() != o_subs.len() {
+                return false;
             }
-            if subs_ddd != &None {
-                if o_subs.len() < subs.len() - 1 { return false; }
-            }
-            if o_subs_ddd != &None {
-                if subs.len() < o_subs.len() - 1 { return false; }
-            }
+            if subs_ddd != &None && o_subs.len() < subs.len() - 1 { return false; }
+            if o_subs_ddd != &None && subs.len() < o_subs.len() - 1 { return false; }
 
             for (mbe, o_mbe) in Self::resolve_ddd(subs, subs_ddd, o_subs, o_subs_ddd) {
                 if !mbe.can_map_with(o_mbe) { return false; }
             }
         }
-        return true;
+
+        true
     }
 
     pub fn map_with<NewT: Clone>(&self, o: &EnvMBE<T>, f: &Fn(&T, &T) -> NewT)

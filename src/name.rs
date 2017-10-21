@@ -38,7 +38,7 @@ impl fmt::Display for Name {
 
 impl Name {
     pub fn is(&self, s: &str) -> bool {
-        &self.sp() == s
+        self.sp() == s
     }
 
     pub fn is_name(&self, n: &Name) -> bool {

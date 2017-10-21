@@ -12,7 +12,7 @@ use runtime::eval::Value;
 
 pub type NMap<T> = Assoc<Name, T>;
 
-/// BiDirectionalWalkRule: a walk rule, abstracted over whether the walk is positive or negative
+/// "BiDirectionalWalkRule": a walk rule, abstracted over whether the walk is positive or negative
 pub type BiDiWR<Mode, NegMode> = EitherPN<WalkRule<Mode>, WalkRule<NegMode>>;
 
 custom_derive! {

@@ -99,10 +99,10 @@ impl<Elt: WalkElt> Clo<Elt> {
         // if !o_renaming.empty() { println!("MERGE: {}", o_renaming); }
 
         let mut fresh_o_env = Assoc::new();
-        for (ref o_name, ref o_val) in o_different_env.iter_pairs() {
+        for (o_name, o_val) in o_different_env.iter_pairs() {
             fresh_o_env = fresh_o_env.set(
-                ::core_forms::vr_to_name(&o_renaming.find(&o_name).unwrap()), // HACK: VR -> Name
-                Elt::from_ast(&::alpha::substitute(&Elt::to_ast(&o_val), &o_renaming)));
+                ::core_forms::vr_to_name(o_renaming.find(o_name).unwrap()), // HACK: VR -> Name
+                Elt::from_ast(&::alpha::substitute(&Elt::to_ast(o_val), &o_renaming)));
         }
 
         (self.it, Elt::from_ast(&::alpha::substitute(&Elt::to_ast(&other.it), &o_renaming)),
@@ -119,12 +119,12 @@ impl<Elt: WalkElt> Clo<Elt> {
 pub fn walk<Mode: WalkMode>(a: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
         -> Result<<Mode::D as Dir>::Out, Mode::Err> {
     // TODO: can we get rid of the & in front of our arguments and save the cloning?
-    let (a, cur_node_contents) = match a {
+    let (a, cur_node_contents) = match *a {
       // HACK: We want to process EE before pre_match before everything else.
       // This probably means we should find a way to get rid of pre_match.
       // But we can't just swap `a` and the ctxt when `a` is LiteralLike and the ctxt isn't.
 
-      &ExtendEnv(_,_) => { (a.clone(), cur_node_contents.clone()) }
+      ExtendEnv(_,_) => { (a.clone(), cur_node_contents.clone()) }
       _ => Mode::D::pre_walk(a.clone(), cur_node_contents.clone())
     };
 
@@ -179,7 +179,7 @@ pub fn walk<Mode: WalkMode>(a: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
             // I'm not sure what the pretty way to do this is.
             let literal_like = match new_cnc.this_ast {
                 Node(ref f, _, _) =>
-                    match Mode::get_walk_rule(f) { &LiteralLike => true, _ => false},
+                    match *Mode::get_walk_rule(f) { LiteralLike => true, _ => false},
                 a => panic!("ICE: `ExtendEnv` must be inside a node, got {:?}", a)
             };
 
@@ -217,7 +217,7 @@ impl<Mode: WalkMode + Copy + 'static> reify::Reifiable for WalkRule<Mode> {
     fn reify(&self) -> eval::Value {
         match *self {
             NotWalked => val!(enum "NotWalked",),
-            Body(ref n) => val!(enum "Body", (ident n.clone())),
+            Body(ref n) => val!(enum "Body", (ident *n)),
             Custom(ref lwr_to_out) => val!(enum "Custom", (,
                 reify::reify_1ary_function(lwr_to_out.clone()))),
             LiteralLike => val!(enum "LiteralLike",)

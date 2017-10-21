@@ -94,7 +94,7 @@ impl WalkMode for SynthTy {
     type Err = TypeError;
     type D = ::walk_mode::Positive<SynthTy>;
 
-    fn get_walk_rule(f: &Form) -> &WalkRule<SynthTy> { &f.synth_type.pos() }
+    fn get_walk_rule(f: &Form) -> &WalkRule<SynthTy> { f.synth_type.pos() }
     fn automatically_extend_env() -> bool { true }
 
     fn walk_var(name: Name, parts: &::ast_walk::LazyWalkReses<SynthTy>) -> Result<Ty, TypeError> {
@@ -116,7 +116,7 @@ impl WalkMode for UnpackTy {
     type Err = TypeError;
     type D = ::walk_mode::Negative<UnpackTy>;
 
-    fn get_walk_rule(f: &Form) -> &WalkRule<UnpackTy> { &f.synth_type.neg() }
+    fn get_walk_rule(f: &Form) -> &WalkRule<UnpackTy> { f.synth_type.neg() }
     fn automatically_extend_env() -> bool { true }
 }
 

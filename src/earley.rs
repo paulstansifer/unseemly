@@ -187,7 +187,7 @@ fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, tt: &TokenTree)
              wanted_by: Rc::new(RefCell::new(vec![start_but_startier.get_ref()]))};
 
     chart[0].push(start_item);
-    for ref t in &tt.t {
+    for t in &tt.t {
         walk_tt(&mut chart, t, &mut cur_tok);
     }
     examine_state_set(&mut chart, None, cur_tok); // One last time, for nullable rules at the end
@@ -198,12 +198,11 @@ fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, tt: &TokenTree)
 fn recognize(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> bool {
     let (start_but_startier, chart) = create_chart(Rc::new(rule.clone()), grammar.clone(), tt);
 
-    chart[chart.len()-1].iter().find(
+    chart[chart.len()-1].iter().any(
         |item|
-            (*item.wanted_by.borrow()).iter().find(
-                |idr| start_but_startier.is(**idr)).is_some()
+            (*item.wanted_by.borrow()).iter().any(|idr| start_but_startier.is(*idr))
             && *item.done.borrow()
-    ).is_some()
+    )
 }
 
 fn walk_tt(chart: &mut Vec<Vec<Item>>, t: &Token, cur_tok: &mut usize) {
@@ -214,7 +213,7 @@ fn walk_tt(chart: &mut Vec<Vec<Item>>, t: &Token, cur_tok: &mut usize) {
     match *t {
         Simple(_) => { }
         Group(_, _, ref tree) => {
-            for ref sub_tok in tree.t.iter() {
+            for sub_tok in &tree.t {
                 walk_tt(chart, sub_tok, cur_tok);
             }
             walk_tt(chart, &end_of_delim(), cur_tok);
@@ -245,7 +244,7 @@ fn new_items_from_state_set(chart: &mut Vec<Vec<Item>>, tok: Option<&Token>,
 }
 
 // Returns whether anything happened
-fn merge_into_state_set<'f, 'g, 'c>(item: Item, items: &'f mut Vec<Item>)
+fn merge_into_state_set(item: Item, items: &mut Vec<Item>)
         -> bool {
     for i in items.iter() {
         if i.similar(&item) {
@@ -257,7 +256,8 @@ fn merge_into_state_set<'f, 'g, 'c>(item: Item, items: &'f mut Vec<Item>)
     }
     log!("new item: {:?}\n", item);
     items.push(item);
-    return true;
+
+    true
 }
 
 impl ::std::fmt::Debug for Item {
@@ -289,10 +289,10 @@ impl Item {
         && (*other.local_parse.borrow() <= *self.local_parse.borrow() ) // no "better" parse?
         && (other.wanted_by.borrow().len() == 0 // no more wanted?
             || (other.wanted_by.borrow().iter().all(
-                   |w| self.wanted_by.borrow().iter().find(|s_w| w == *s_w).is_some())))
+                   |w| self.wanted_by.borrow().iter().any(|s_w| w == s_w))))
     }
 
-    fn merge<'f>(&'f self, other: Item) {
+    fn merge(&self, other: Item) {
         if *other.done.borrow() { *self.done.borrow_mut() = true; }
 
         use ::std::cmp::Ordering::*;
@@ -364,7 +364,7 @@ impl Item {
 
 
     /// See what new items this item justifies
-    fn examine(&self, cur: Option<&Token>, cur_idx: usize, chart: &Vec<Vec<Item>>)
+    fn examine(&self, cur: Option<&Token>, cur_idx: usize, chart: &[Vec<Item>])
             -> Vec<(Item, bool)> {
         let mut res = if *self.done.borrow() {
             let mut waiting_satisfied = vec![];
@@ -422,7 +422,7 @@ impl Item {
             vec![]
         };
 
-        if res.len() > 0 {
+        if !res.is_empty() {
             if let Some(&Simple(n)) = cur {
                 best_token.with(|bt| *bt.borrow_mut() = (cur_idx, n));
             }
@@ -518,7 +518,7 @@ impl Item {
             },
             (0, &Alt(ref subs)) => {
                 let mut res = vec![];
-                for ref sub in subs {
+                for sub in subs {
                     res.append(&mut self.start((*sub).clone(), cur_idx));
                 }
                 res
@@ -578,7 +578,7 @@ impl Item {
                 let r_res = self.c_parse(chart, done_tok);
 
 
-                panic!("Ambiguity! \n{:?}\n{:?}\n", l_res, r_res);
+                panic!("Ambiguity! \n{:?}\n{:?}\n", l_res, r_res)
             },
             _ => panic!("ICE: tried to parse unjustified item: {:?} ", self)
         };
@@ -693,12 +693,11 @@ pub fn parse(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> ParseResult {
     let (start_but_startier, chart) = create_chart(Rc::new(rule.clone()), grammar.clone(), tt);
     let final_item = chart[chart.len()-1].iter().find(
         |item|
-            (*item.wanted_by.borrow()).iter().find(
-                |idr| start_but_startier.is(**idr)).is_some()
+            (*item.wanted_by.borrow()).iter().any(|idr| start_but_startier.is(*idr))
             && *item.done.borrow());
     log!("-------\n");
     match final_item {
-        Some(ref i) => i.c_parse(&chart, chart.len()-1),
+        Some(i) => i.c_parse(&chart, chart.len()-1),
         None => {
             best_token.with(|bt| {
                 let (idx, tok) = *bt.borrow();

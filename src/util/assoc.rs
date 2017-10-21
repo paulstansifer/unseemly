@@ -14,7 +14,7 @@ use std::fmt;
 custom_derive! {
     // this is a functional data structure; dropping it on the floor is usually bad
     #[must_use]
-    #[derive(Reifiable)]
+    #[derive(Reifiable, Default)]
     pub struct Assoc<K, V> {
         pub n: Option<Rc<AssocNode<K, V>>> // This could be a newtype, except for `custom_derive`
     }

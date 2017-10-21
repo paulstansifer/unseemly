@@ -108,35 +108,35 @@ fn main() {
         let save_type = regex::Regex::new("^:s +((\\w+)\\s*t=(.*))$").unwrap();
         let comment = regex::Regex::new("^#").unwrap();
 
-        print!("\n");
-        print!("                  \x1b[1;38mUnseemly\x1b[0m\n");
-        print!("    `<expr>` to (typecheck and) evaluate `<expr>`.\n");
-        print!("    `<name> := <expr>` to bind a name for this session.\n");
-        print!("    `:t <expr>` to synthesize the type of <expr>.\n");
-        print!("    `:tt <type>` to canonicalize <type>.\n");
-        print!("    `<name> t= <type>` to bind a type for this session.\n");
-        print!("    `:s <name> := <expr>` to save a binding to the prelude for the future.\n");
-        print!("    `:s <name> t= <expr>` to save a type binding to the prelude.\n");
-        print!("    Command history is saved over sessions.\n");
-        print!("    Tab-completion works on variables, and many Bash-isms work.\n");
-        print!("\n");
+        println!("");
+        println!("                  \x1b[1;38mUnseemly\x1b[0m");
+        println!("    `<expr>` to (typecheck and) evaluate `<expr>`.");
+        println!("    `<name> := <expr>` to bind a name for this session.");
+        println!("    `:t <expr>` to synthesize the type of <expr>.");
+        println!("    `:tt <type>` to canonicalize <type>.");
+        println!("    `<name> t= <type>` to bind a type for this session.");
+        println!("    `:s <name> := <expr>` to save a binding to the prelude for the future.");
+        println!("    `:s <name> t= <expr>` to save a type binding to the prelude.");
+        println!("    Command history is saved over sessions.");
+        println!("    Tab-completion works on variables, and many Bash-isms work.");
+        println!("");
 
         if let Ok(prelude_file) = File::open(&Path::new(&prelude_filename)) {
             let prelude = std::io::BufReader::new(prelude_file);
             for line in prelude.lines() {
                 let line = line.unwrap();
-                if let Some(_) = comment.captures(&line) { /*comment*/
+                if comment.captures(&line).is_some() { /*comment*/
                 } else if let Some(caps) = assign_value.captures(&line) {
                     if let Err(e) = assign_variable(caps.at(1).unwrap(), caps.at(2).unwrap()) {
-                        print!("    Error in prelude line: {}\n    {}\n", line, e);
+                        println!("    Error in prelude line: {}\n    {}", line, e);
                     }
                 } else if let Some(caps) = assign_type.captures(&line) {
                     if let Err(e) = assign_t_var(caps.at(1).unwrap(), caps.at(2).unwrap()) {
-                        print!("    Error in prelude line: {}\n    {}\n", line, e);
+                        println!("    Error in prelude line: {}\n    {}", line, e);
                     }
                 }
             }
-            print!("    [prelude loaded from {}]\n", prelude_filename);
+            println!("    [prelude loaded from {}]", prelude_filename);
         }
 
 
@@ -181,13 +181,13 @@ fn main() {
 
 
             match result_display {
-                Ok(v) => print!("\x1b[1;32m≉\x1b[0m {}\n", v),
-                Err(s) => print!("\x1b[1;31m✘\x1b[0m {}\n", s)
+                Ok(v) => println!("\x1b[1;32m≉\x1b[0m {}", v),
+                Err(s) => println!("\x1b[1;31m✘\x1b[0m {}", s)
             }
         }
-        let _ = rl.save_history(&history_filename).unwrap();
+        rl.save_history(&history_filename).unwrap();
     } else {
-        let ref filename = arguments[1];
+        let filename = &arguments[1];
 
         let mut raw_input = String::new();
         File::open(&Path::new(filename))
@@ -197,7 +197,7 @@ fn main() {
 
         let result = eval_unseemly_program(&raw_input);
 
-        print!("{:?}\n", result);
+        println!("{:?}", result);
     }
 }
 

@@ -51,23 +51,23 @@ impl Clone for BIF {
 
 impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        match self {
-            &Int(ref bi) => { write!(f, "{}", bi) }
-            &Ident(n) => { write!(f, "{}", n) }
-            &Sequence(ref seq) => {
+        match *self {
+            Int(ref bi) => { write!(f, "{}", bi) }
+            Ident(n) => { write!(f, "{}", n) }
+            Sequence(ref seq) => {
                 for elt in seq { try!(write!(f, "{}", &*elt)); }; Ok(())
             }
-            &Function(_) => { write!(f, "[closure]") }
-            &BuiltInFunction(_) => { write!(f, "[built-in function]") }
-            &AbstractSyntax(n, ref ast) => { write!(f, "{}: {:?}", n, ast) }
-            &Struct(ref parts) => {
+            Function(_) => { write!(f, "[closure]") }
+            BuiltInFunction(_) => { write!(f, "[built-in function]") }
+            AbstractSyntax(n, ref ast) => { write!(f, "{}: {:?}", n, ast) }
+            Struct(ref parts) => {
                 try!(write!(f, "*["));
                 for (k,v) in parts.iter_pairs() {
                     try!(write!(f, "{}: {} ", k, v));
                 }
                 write!(f, "]*")
             }
-            &Enum(n, ref parts) => {
+            Enum(n, ref parts) => {
                 try!(write!(f, "+[{}", n));
                 for p in parts.iter() { try!(write!(f, " {}", p)); }
                 write!(f, "]+")
@@ -106,7 +106,7 @@ impl WalkMode for Eval {
     type Err = ();
     type D = ::walk_mode::Positive<Eval>;
 
-    fn get_walk_rule(f: &Form) -> &WalkRule<Eval> { &f.eval.pos() }
+    fn get_walk_rule(f: &Form) -> &WalkRule<Eval> { f.eval.pos() }
     fn automatically_extend_env() -> bool { false }
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Eval>) -> Result<Value, ()> {
@@ -126,7 +126,7 @@ impl WalkMode for Destructure {
     /// The whole point of program evaluation is that the enviornment
     ///  isn't generateable from the source tree.
     /// Does that make sense? I suspect it does not.
-    fn get_walk_rule(f: &Form) -> &WalkRule<Destructure> { &f.eval.neg() }
+    fn get_walk_rule(f: &Form) -> &WalkRule<Destructure> { f.eval.neg() }
     fn automatically_extend_env() -> bool { false } // TODO: think about this
 }
 
@@ -168,7 +168,7 @@ impl WalkMode for QQuote {
     type Err = ();
     type D = ::walk_mode::Positive<QQuote>;
 
-    fn get_walk_rule(f: &Form) -> &WalkRule<QQuote> { &f.quasiquote.pos() }
+    fn get_walk_rule(f: &Form) -> &WalkRule<QQuote> { f.quasiquote.pos() }
     fn automatically_extend_env() -> bool { true } // This is the point of Unseemly!
 }
 
@@ -178,7 +178,7 @@ impl WalkMode for QQuoteDestr {
     type Err = ();
     type D = ::walk_mode::Negative<QQuoteDestr>;
 
-    fn get_walk_rule(f: &Form) -> &WalkRule<QQuoteDestr> { &f.quasiquote.neg() }
+    fn get_walk_rule(f: &Form) -> &WalkRule<QQuoteDestr> { f.quasiquote.neg() }
     fn automatically_extend_env() -> bool { true } // This is the point of Unseemly!
 }
 

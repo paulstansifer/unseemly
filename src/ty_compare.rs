@@ -104,7 +104,7 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
 
     let resolved = match t {
         Ty(VariableReference(vr)) => {
-            match env.find(&vr).map(Clone::clone) {
+            match env.find(&vr).cloned() {
                 // HACK: leave mu-protected variables alone, instead of recurring forever
                 Some(Ty(VariableReference(new_vr))) if vr == new_vr => None,
                 Some(different) => Some(Clo{it: different, env: env.clone()}),
@@ -162,8 +162,8 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
 
                             Some(Clo{
                                 it: Ty(::alpha::substitute(
-                                    &::core_forms::strip_ee(
-                                        &got_forall.get_leaf_or_panic(&n("body"))),
+                                    ::core_forms::strip_ee(
+                                        got_forall.get_leaf_or_panic(&n("body"))),
                                     &actual_params)),
                                 env: env.clone()})
                         }
@@ -173,11 +173,11 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
         }
         Ty(Node(ref form, ref parts, _)) if form == &find_core_form("type", "type_by_name") =>  {
             // TODO: remove this stanza when type_by_name is gone
-            let vr = ast_to_name(&parts.get_leaf_or_panic(&n("name")));
+            let vr = ast_to_name(parts.get_leaf_or_panic(&n("name")));
             env.find(&vr).map(|t| Clo{ it: t.clone(), env: env.clone() })
         }
         Ty(Node(ref form, ref parts, _)) if form == &u_f => { // underdetermined
-            unif.get(&ast_to_name(parts.get_leaf_or_panic(&n("id")))).map(Clone::clone)
+            unif.get(&ast_to_name(parts.get_leaf_or_panic(&n("id")))).cloned()
         }
         _ => None
     };
@@ -230,7 +230,7 @@ impl WalkMode for Canonicalize {
     type D = ::walk_mode::Positive<Canonicalize>;
 
     // Actually, always `LiteralLike`, but need to get the lifetime as long as `f`'s
-    fn get_walk_rule(f: &Form) -> &WalkRule<Canonicalize> { &f.type_compare.pos() }
+    fn get_walk_rule(f: &Form) -> &WalkRule<Canonicalize> { f.type_compare.pos() }
     fn automatically_extend_env() -> bool { true }
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Canonicalize>) -> Result<Ty, TyErr> {
@@ -249,7 +249,7 @@ impl WalkMode for Subtype {
     type Err = TyErr;
     type D = ::walk_mode::Negative<Subtype>;
 
-    fn get_walk_rule(f: &Form) -> &WalkRule<Subtype> { &f.type_compare.neg() }
+    fn get_walk_rule(f: &Form) -> &WalkRule<Subtype> { f.type_compare.neg() }
     fn automatically_extend_env() -> bool { true }
 
     fn underspecified(name: Name) -> Ty {
@@ -332,8 +332,8 @@ pub fn must_subtype(sub: &Ty, sup: &Ty, env: Assoc<Name, Ty>) -> Result<Assoc<Na
 // TODO: I think we need to route some other things (especially in macros.rs) through this...
 pub fn must_equal(lhs: &Ty, rhs: &Ty, env: Assoc<Name, Ty>) -> Result<(), TyErr> {
     let lwr_env = &LazyWalkReses::new_wrapper(env);
-    if walk::<Canonicalize>(&lhs.concrete(), &lwr_env)
-       == walk::<Canonicalize>(&rhs.concrete(), &lwr_env) {
+    if walk::<Canonicalize>(&lhs.concrete(), lwr_env)
+       == walk::<Canonicalize>(&rhs.concrete(), lwr_env) {
         Ok(())
     } else {
         Err(TyErr::Mismatch(lhs.clone(), rhs.clone()))

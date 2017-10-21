@@ -190,24 +190,21 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
             //   The latter have heavyweight logic systems that really aren't worth it,
             //    because the errors in question aren't that bad to debug.)
 
-            match parts.get_term(name_source) {
-                Ast::Node(_, ref sub_parts, ref export) => {
-                    let expected_res_keys = bound_from_export_beta(export, sub_parts);
+            if let Ast::Node(_, ref sub_parts, ref export) = parts.get_term(name_source) {
+                let expected_res_keys = bound_from_export_beta(export, sub_parts);
 
-                    let mut count = 0;
-                    for (ref k, _) in res.iter_pairs() {
-                        if !expected_res_keys.contains(k) {
-                            panic!("{} was unexpectedly exported (vs. {:?} via {:?})", k, expected_res_keys, parts.get_term(res_source));
-                            // TODO: make this an `Err`. And test it with ill-formed `Form`s
-                        }
-                        count += 1;
+                let mut count = 0;
+                for (k, _) in res.iter_pairs() {
+                    if !expected_res_keys.contains(k) {
+                        panic!("{} was unexpectedly exported (vs. {:?} via {:?})", k, expected_res_keys, parts.get_term(res_source));
+                        // TODO: make this an `Err`. And test it with ill-formed `Form`s
                     }
-
-                    if count != expected_res_keys.len() { // TODO: Likewise:
-                        panic!("expected {} exports, only got {}", expected_res_keys.len(), count)
-                    }
+                    count += 1;
                 }
-                _ => {}
+
+                if count != expected_res_keys.len() { // TODO: Likewise:
+                    panic!("expected {} exports, only got {}", expected_res_keys.len(), count)
+                }
             }
 
             Ok(res)
@@ -327,9 +324,9 @@ pub fn bound_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>) -> Vec<Name> {
             res
         }
         SameAs(ref n_s, _) => { // Can be a non-atom
-            match parts.get_leaf_or_panic(n_s) {
-                &Ast::Atom(n) => vec![n],
-                &Ast::Node(_, ref sub_parts, ref export) => {
+            match *parts.get_leaf_or_panic(n_s) {
+                Ast::Atom(n) => vec![n],
+                Ast::Node(_, ref sub_parts, ref export) => {
                     bound_from_export_beta(export, sub_parts)
                 }
                 _ => panic!("ICE: beta SameAs refers to a non-node, non-atom")
@@ -360,9 +357,9 @@ pub fn bound_from_export_beta(b: &ExportBeta, parts: &EnvMBE<::ast::Ast>) -> Vec
             res
         }
         ExportBeta::Use(ref n_s) => { // Can be a non-atom
-            match parts.get_leaf_or_panic(n_s) {
-                &Ast::Atom(n) => vec![n],
-                &Ast::Node(_, ref sub_parts, ref export) => {
+            match *parts.get_leaf_or_panic(n_s) {
+                Ast::Atom(n) => vec![n],
+                Ast::Node(_, ref sub_parts, ref export) => {
                     bound_from_export_beta(export, sub_parts)
                 }
                 _ => panic!("ICE: beta SameAs refers to a non-node, non-atom")

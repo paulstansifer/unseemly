@@ -146,7 +146,7 @@ fn eval_quoted_stx(a: Ast, env: Assoc<Name, Value>) -> Ast {
 /// This is safe if directly inside a `Node` that was just freshened.
 /// (TODO: think about what "just" means here. It's super-subtle!)
 pub fn strip_ee(a: &Ast) -> &Ast {
-    match a { &ExtendEnv(ref body, _) => (&**body), _ => panic!("ICE: malformed thing") }
+    match *a { ExtendEnv(ref body, _) => (&**body), _ => panic!("ICE: malformed thing") }
 }
 
 /// This is the Unseemly language.
@@ -269,7 +269,7 @@ pub fn make_core_syn_env() -> SynEnv {
                         ty_err!(NonExhaustiveMatch(part_types.get_res(&n("scrutinee")).unwrap())
                             at Trivial /* TODO */)
                     },
-                    Some(ty_res) => return Ok(ty_res)
+                    Some(ty_res) => Ok(ty_res)
                 }
             }),
             /* Evaluation: */
@@ -391,9 +391,8 @@ pub fn make_core_syn_env() -> SynEnv {
                     mu_parts;
                     {
                         // This acts like the `mu` was never there (and hiding the binding)
-                        if let &ExtendEnv(ref body, _) = mu_parts.get_leaf_or_panic(&n("body")) {
-                            let res = synth_type(&body, unfold_parts.env.clone());
-                            res
+                        if let ExtendEnv(ref body, _) = *mu_parts.get_leaf_or_panic(&n("body")) {
+                            synth_type(body, unfold_parts.env.clone())
                         } else { panic!("ICE: no protection to remove!"); }
                     })
             }),
@@ -413,8 +412,8 @@ pub fn make_core_syn_env() -> SynEnv {
                     mu_parts;
                     {
                         // This acts like the `mu` was never there (and hiding the binding)
-                        if let &ExtendEnv(ref body, _) = mu_parts.get_leaf_or_panic(&n("body")) {
-                            try!(synth_type(&body, fold_parts.env.clone()))
+                        if let ExtendEnv(ref body, _) = *mu_parts.get_leaf_or_panic(&n("body")) {
+                            try!(synth_type(body, fold_parts.env.clone()))
                         } else { panic!("ICE: no protection to remove!"); }
                     });
 

@@ -290,8 +290,8 @@ pub trait NegativeWalkMode : WalkMode {
                 //  contained useful `diff`-like information for debugging,
                 //   when a match was expected to succeed?
                 // (I really like using pattern-matching in unit tests!)
-                Err(Self::qlit_mismatch_error(Self::Elt::from_ast(&got),
-                                              Self::Elt::from_ast(&expected)))
+                Err(Self::qlit_mismatch_error(Self::Elt::from_ast(got),
+                                              Self::Elt::from_ast(expected)))
             }
         }
     }
