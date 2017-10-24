@@ -561,7 +561,7 @@ impl Item {
         }
     }
 
-    fn find_wanted<'f, 'c>(&'f self, chart: &'c Vec<Vec<Item>>, done_tok: usize)
+    fn find_wanted<'f, 'c>(&'f self, chart: &'c [Vec<Item>], done_tok: usize)
             -> &'c Item {
         let mut first_found : Option<&Item> = None;
         let local_parse = self.local_parse.borrow().clone();
@@ -599,7 +599,7 @@ impl Item {
     }
 
     /// After the chart is built, we parse...
-    fn c_parse(&self, chart: &Vec<Vec<Item>>, done_tok: usize) -> ParseResult {
+    fn c_parse(&self, chart: &[Vec<Item>], done_tok: usize) -> ParseResult {
         log!("Tring to parse {:?}...\n", self);
         // assert!(*self.done.borrow()); // false during ambiguity reporting
         let res = match *self.rule {
