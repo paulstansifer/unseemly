@@ -28,7 +28,7 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
             res
         }
         Anyways(_) | Impossible | Literal(_) | AnyToken | AnyAtomicToken | VarRef | Call(_)
-        | SynImport(_,_) => { vec![] }
+        | SynImport(_,_,_) => { vec![] }
     }
 }
 
@@ -109,6 +109,6 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
             unparse_mbe(&*body, &*actl_body, context, s)
         }
         (&NameImport(_, _), _) => { format!("[Missing import]→{:?}←", actl) }
-        (&SynImport(_, _), _) => panic!("Geee. What do we do here?"),
+        (&SynImport(_, _, _), _) => panic!("Geee. What do we do here?"),
     }
 }

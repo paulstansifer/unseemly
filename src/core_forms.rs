@@ -46,11 +46,11 @@ pub fn vr_to_name(ast: &Ast) -> Name {
 //
 // Examples of needed annotation:
 //
-//   optimize_pat '[{Pat <[List <[Int]<]<} cons a b]'
+//   optimize_pat '[{Pat <[List <[Int]<]<} (cons a b)]'
 // In this case, we need to know the type of the syntax quote,
 //  but the pattern wants to know its type so that it can tell us its environment.
 //
-//   match stx { '[{Pat} 1 + 5 * ,[{Expr <[Nat]<} stx_num], ]' => ... }
+//   match stx { '[{Expr} 1 + 5 * ,[{Expr <[Nat]<} stx_num], ]' => ... }
 // In this case (looking at the expression interpolation),
 //  we need to know the type of the interpolated expression syntax (a pattern)
 //   in order to type-synthesize the arithmetic.
@@ -70,19 +70,32 @@ pub fn vr_to_name(ast: &Ast) -> Name {
 //
 // Note that it doesn't matter whether the boundary is a quotation or an unquotation!
 // Like I said, the phase doesn't matter much.
-//
 
-// This form isn't part of any nt! Instead, it's inserted into nts by `quote`.
+
+
+// There's a nice-seeming syntax for determining what `unquote` does when quotation is nested.
+// However, it would require some weird additional power for the parser:
+//   '[{Expr} '[{Expr} ,[{Expr}], ,,[{Expr}],,]']'
+// OTOH, if you are using `,,,,[],,,,`, something has gone terribly wrong.
+
+
+
+// Technically, we could have the parser decide whether `unquote` is allowed.
+//  (It only makes sense inside a `quote`.)
+// However, this would leave us with one `unquote` form available per level of quotation
 
 /// Generate an unquoting form.
 fn unquote<Mode: ::walk_mode::WalkMode>(nt: Name, ctf: SynEnv, pos: bool) -> Rc<Form> {
     Rc::new(Form {
         name: n("unquote"), // maybe add the `nt` to the name?
         grammar:
+
+            // We need to feed information from earlier in the form_pat into `SyntaxExtension`,
+            //  so it knows what nt to descend into.
             Rc::new(if pos {
-                form_pat!([(delim ",[", "[", /*]]*/ (named "body", (call "expr")))])
+                form_pat!([(delim ",[", "[", /*]]*/ (impossible))])
             } else {
-                form_pat!([(delim ",[", "[", /*]]*/ (named "body", (call "pat")))])
+                form_pat!([(delim ",[", "[", /*]]*/ (impossible))])
             }),
         type_compare: Positive(NotWalked), // this is not a type form
         synth_type:

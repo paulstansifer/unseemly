@@ -55,9 +55,7 @@ custom_derive! {
         Alt(Vec<Rc<FormPat>>),
         Biased(Rc<FormPat>, Rc<FormPat>),
 
-        /**
-         * Lookup a nonterminal in the current syntactic environment.
-         */
+        /// Lookup a nonterminal in the current syntactic environment.
         Call(Name),
         /**
          * This is where syntax gets reflective.
@@ -67,26 +65,26 @@ custom_derive! {
          */
         ComputeSyntax(Name, Rc<FormPat>),
 
-        /** Makes a node and limits the region where names are meaningful. `Beta` defines export.*/
+        /// Makes a node and limits the region where names are meaningful. `Beta` defines export.
         Scope(Rc<Form>, ExportBeta),
         Named(Name, Rc<FormPat>),
 
         /**
          * This is where syntax gets extensible.
-         * Parses its body in the named syntactic environment.
-         * TODO: do we need both this and `ComputeSyntax`?
+         * Parses its body in the named NT of the syntax environment computed from
+         *  the LHS and the current syntax environment.
+         * TODO: I think this obviates `ComputeSyntax`
          */
-        SynImport(Name, SyntaxExtension),
+        SynImport(Rc<FormPat>, Name, SyntaxExtension),
         /**
          * FOOTGUN:  NameImport(Named(...), ...) is almost always wrong.
          * (write Named(NameImport(..., ...)) instead)
          * TODO: make this better
          */
         NameImport(Rc<FormPat>, Beta),
-        //NameExport(Beta, Rc<FormPat>) // This might want to go on some existing pattern
     }
 }
-pub struct SyntaxExtension(pub Rc<Box<(Fn(SynEnv) -> SynEnv)>>);
+pub struct SyntaxExtension(pub Rc<Box<(Fn(SynEnv, Ast) -> SynEnv)>>);
 
 
 impl Clone for SyntaxExtension {
@@ -101,11 +99,11 @@ impl ::runtime::reify::Reifiable for SyntaxExtension {
     fn ty_name() -> Name { n("syntax_extension") }
 
     fn reify(&self) -> ::runtime::eval::Value {
-        ::runtime::reify::reify_1ary_function(self.0.clone())
+        ::runtime::reify::reify_2ary_function(self.0.clone())
     }
 
     fn reflect(v: &::runtime::eval::Value) -> Self {
-        SyntaxExtension(::runtime::reify::reflect_1ary_function(v.clone()))
+        SyntaxExtension(::runtime::reify::reflect_2ary_function(v.clone()))
     }
 }
 
@@ -231,7 +229,7 @@ fn advanced_parsing() {
 #[test]
 fn extensible_parsing() {
 
-    fn synex(s: SynEnv) -> SynEnv {
+    fn static_synex(s: SynEnv, _: Ast) -> SynEnv {
         assoc_n!(
             "a" => Rc::new(form_pat!(
                 (star (named "c", (alt (lit "AA"), [(lit "Back"), (call "o"), (lit ".")]))))),
@@ -239,14 +237,14 @@ fn extensible_parsing() {
         ).set_assoc(&s)
     }
 
-    assert_eq!(parse_top(&form_pat!((extend "b", synex)), &tokens!("BB")).unwrap(),
-               ast!("BB"));
+    assert_eq!(parse_top(&form_pat!((extend [], "b", static_synex)), &tokens!("BB")),
+               Ok(ast!("BB")));
 
 
     let orig = Rc::new(assoc_n!(
         "o" => Rc::new(form_pat!(
-            (star (named "c", (alt (lit "O"), [(lit "Extend"), (extend "a", synex), (lit ".")])))))
-    ));
+            (star (named "c",
+                (alt (lit "O"), [(lit "Extend"), (extend [], "a", static_synex), (lit ".")])))))));
 
     assert_eq!(
         parse(&form_pat!((call "o")), &orig,
@@ -262,6 +260,31 @@ fn extensible_parsing() {
         parse(&form_pat!((call "o")), &orig,
             &tokens!("O" "O" "Extend" "O" "." "O")).is_err(),
         true);
+
+    let mt_syn_env = Rc::new(Assoc::new());
+
+    fn counter_synex(_: SynEnv, a: Ast) -> SynEnv {
+        let count = match a { IncompleteNode(mbe) => mbe, _ => panic!() }
+            .get_rep_leaf_or_panic(&n("n")).len();
+
+        assoc_n!("count" => Rc::new(Literal(n(&count.to_string()))))
+    }
+
+    assert_m!(
+        parse(&form_pat!((extend (star (named "n", (lit "X"))), "count", counter_synex)),
+            &mt_syn_env, &tokens!("X" "X" "X" "4")),
+        Err(_));
+
+    assert_eq!(
+        parse(&form_pat!((extend (star (named "n", (lit "X"))), "count", counter_synex)),
+            &mt_syn_env, &tokens!("X" "X" "X" "X" "4")),
+        Ok(ast!("4")));
+
+    assert_m!(
+        parse(&form_pat!((extend (star (named "n", (lit "X"))), "count", counter_synex)),
+            &mt_syn_env, &tokens!("X" "X" "X" "X" "X" "4")),
+        Err(_));
+
 
 
 }

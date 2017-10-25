@@ -378,6 +378,9 @@ impl Item {
 
                     let me_justif = JustifiedByItem(self.id.get_ref());
 
+                    // We `finish_with` here for things that are waiting on other items,
+                    //  in `shift_or_predict` for leaves.
+                    // Except for `Seq`. TODO: why?
                     let mut more = match *waiting_item.rule {
                         Anyways(_) | Impossible | Literal(_) | AnyToken | AnyAtomicToken
                         | VarRef => {
@@ -400,8 +403,13 @@ impl Item {
                         Plus(_) | Star(_) => { // It'll also keep going, though!
                             waiting_item.finish_with(me_justif, false)
                         }
+                        SynImport(_,_,_) if waiting_item.pos == 0 => {
+                            vec![(Item { pos: 1,
+                                         local_parse: RefCell::new(me_justif),
+                                           .. waiting_item.clone() }, false)]
+                        }
                         Alt(_) | Call(_) | ComputeSyntax(_,_)
-                        | Scope(_,_) | Named(_,_) | SynImport(_,_) | NameImport(_,_) => {
+                        | Scope(_,_) | Named(_,_) | SynImport(_,_,_) | NameImport(_,_) => {
                             waiting_item.finish_with(me_justif, false)
                         }
                         Biased(ref _plan_a, ref plan_b) => {
@@ -428,12 +436,13 @@ impl Item {
             }
         }
 
-        res.append(&mut self.shift_or_predict(cur, cur_idx));
+        res.append(&mut self.shift_or_predict(cur, cur_idx, chart));
 
         res
     }
 
-    fn shift_or_predict(&self, cur: Option<&Token>, cur_idx: usize) -> Vec<(Item, bool)> {
+    fn shift_or_predict(&self, cur: Option<&Token>, cur_idx: usize, chart: &[Vec<Item>])
+            -> Vec<(Item, bool)> {
         // Try to shift (bump `pos`, or set `done`) or predict (`start` a new item)
         match (self.pos, &*(self.rule.clone())) { // TODO: is there a better way to match in `Rc`?
             (0, &Anyways(ref a)) => self.finish_with(ParsedAtom(a.clone()), false),
@@ -535,11 +544,26 @@ impl Item {
             (0, &Scope(ref f, _)) => { // form.grammar is a FormPat. Confusing!
                 self.start(f.grammar.clone(), cur_idx)
             },
-            (0, &SynImport(ref name, ref f)) => {
+            (0, &SynImport(ref lhs, _, _)) => {
+                self.start(lhs.clone(), cur_idx)
+            }
+            (1, &SynImport(_, ref name, ref f)) => {
+                // TODO: handle errors properly! Probably need to memoize, also!
+                let partial_parse = match *self.local_parse.borrow() {
+                    NothingYet | Ambiguous(_, _) => return vec![],
+                    ParsedAtom(ref a) => a.clone(),
+                    JustifiedByItem(_) | JustifiedByItemPlanB(_) => {
+                        match self.find_wanted(chart, cur_idx).c_parse(chart, cur_idx) {
+                            Ok(ast) => ast,
+                            Err(_) => { return vec![]; }
+                        }
+                    }
+                };
+
                 let new_se = all_grammars.with(|grammars| {
                     let mut mut_grammars = grammars.borrow_mut();
                     mut_grammars.entry(self.id.get_ref()) // memoize
-                        .or_insert_with(|| f.0(self.grammar.clone())).clone()
+                        .or_insert_with(|| f.0(self.grammar.clone(), partial_parse)).clone()
                 });
 
                 vec![(Item { start_idx: cur_idx, rule: new_se.find_or_panic(name).clone(), pos: 0,
@@ -549,7 +573,7 @@ impl Item {
                              wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()]))
                       },
                       false)]
-            },
+            }
             (0, &ComputeSyntax(_,_)) => { panic!("TODO") },
             (0, &Named(_, ref body)) | (0, &NameImport(ref body, _)) => {
                 self.start(body.clone(), cur_idx)
@@ -566,7 +590,7 @@ impl Item {
         let mut first_found : Option<&Item> = None;
         let local_parse = self.local_parse.borrow().clone();
         let desired_id = match local_parse {
-            JustifiedByItem(id) => id, JustifiedByItemPlanB(id) => id,
+            JustifiedByItem(id) | JustifiedByItemPlanB(id) => id,
             Ambiguous(ref l, ref r) => { // HACK: this is quite ugly!
                 let l = *l.clone();
                 let r = *r.clone();
@@ -614,7 +638,7 @@ impl Item {
                 // HACK: the wanted item is misaligned by a token because of the close delimiter
                 self.find_wanted(chart, done_tok-1).c_parse(chart, done_tok-1)
             }
-            Alt(_) | Biased(_, _) | Call(_) | SynImport(_, _) => {
+            Alt(_) | Biased(_, _) | Call(_) | SynImport(_,_, _) => {
                 self.find_wanted(chart, done_tok).c_parse(chart, done_tok)
             },
             Seq(_) | Star(_) | Plus(_) => {

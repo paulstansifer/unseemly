@@ -296,8 +296,8 @@ macro_rules! form_pat {
     ((import $beta:tt, $body:tt)) => {
         ::parse::FormPat::NameImport(::std::rc::Rc::new(form_pat!($body)), beta!($beta))
     };
-    ((extend $n:expr, $f:expr)) => {
-        ::parse::FormPat::SynImport(::name::n($n),
+    ((extend $lhs:tt, $n:expr, $f:expr)) => {
+        ::parse::FormPat::SynImport(::std::rc::Rc::new(form_pat!($lhs)), ::name::n($n),
             ::parse::SyntaxExtension(::std::rc::Rc::new(Box::new($f))))
     };
     ( [$($body:tt),*] ) => {

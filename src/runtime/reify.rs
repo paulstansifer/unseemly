@@ -155,11 +155,26 @@ pub fn reflect_1ary_function<A: Reifiable + 'static, R: Reifiable + 'static>(
 // I bet there's more of a need for reification than reflection for functions....
 pub fn reify_2ary_function<A: Reifiable + 'static, B: Reifiable + 'static,
                            R: Reifiable + 'static>(
-        f: Rc<(Fn(A, B) -> R)>) -> Value {
+        f: Rc<Box<(Fn(A, B) -> R)>>) -> Value {
     let f_c = f.clone();
     Value::BuiltInFunction(::runtime::eval::BIF(Rc::new(
-        move |args: Vec<Value>| (f_c(A::reflect(&args[0]), B::reflect(&args[1]))).reify())))
+        move |args: Vec<Value>| ((*f_c)(A::reflect(&args[0]), B::reflect(&args[1]))).reify())))
 }
+
+pub fn reflect_2ary_function<A: Reifiable + 'static, B: Reifiable + 'static,
+                             R: Reifiable + 'static>(
+        f_v: Value) -> Rc<Box<(Fn(A, B) -> R)>> {
+    Rc::new(Box::new(move |a: A, b: B|
+        extract!((&f_v)
+            Value::BuiltInFunction = (ref bif) =>
+                R::reflect(&(*bif.0)(vec![a.reify(), b.reify()]));
+            Value::Function = (ref closure) => {
+                R::reflect(&::runtime::eval::eval(&closure.body,
+                    closure.env.clone().set(closure.params[0], a.reify())
+                                       .set(closure.params[1], b.reify())).unwrap())
+            })))
+}
+
 
 pub fn ty_of_1ary_function<A: Reifiable + 'static, R: Reifiable + 'static>()
          -> Ast {
