@@ -1,5 +1,4 @@
 use std::fmt::{Display, Debug, Result, Formatter};
-use std::convert::From;
 
 custom_derive! {
     #[derive(Reifiable, Clone, PartialEq)]
@@ -22,7 +21,7 @@ impl<T: Display> Display for Spanned<T> {
 impl<T: Debug> Debug for Spanned<T> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         write!(f, "{:?} at {:?}", self.body, self.loc)
-    }     
+    }
 }
 
 /*

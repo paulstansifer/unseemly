@@ -22,7 +22,7 @@ use read::{Token, TokenTree};
 use read::Token::*;
 use ast::Ast;
 use std::rc::Rc;
-use std::cell::{Ref,RefCell};
+use std::cell::RefCell;
 use name::*;
 
 pub fn end_of_delim() -> Token {
@@ -995,8 +995,6 @@ fn earley_env_recognition() {
 
 #[test]
 fn basic_parsing_e() {
-    use ::ast::Ast::*;
-
     assert_eq!(parse_top(&AnyToken, &tokens!("asdf")), Ok(ast!("asdf")));
 
     assert_eq!(parse_top(&Anyways(ast!("asdf")), &tokens!()), Ok(ast!("asdf")));

@@ -2,8 +2,7 @@
 
 use std::fmt;
 use name::*;
-use ast_walk::{ResEnv, LazyWalkReses, LazilyWalkedTerm};
-use walk_mode::WalkMode;
+use ast_walk::{LazyWalkReses, LazilyWalkedTerm};
 use util::assoc::Assoc;
 use ast::{Ast,Atom,VariableReference};
 use util::mbe::EnvMBE;
@@ -144,7 +143,7 @@ impl Beta {
 /// Find the environment represented by `b`.
 /// `SameAs` and `Basic` nodes will cause walking in `Mode`, which should be positive.
 /// TODO: Unfortunately, this means that they don't work well in the subtyping walk, for instance.
-pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
+pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
          -> Result<Assoc<Name, Mode::Elt>, Mode::Err> {
     match *b {
         Nothing => { Ok(Assoc::new()) }
@@ -176,6 +175,8 @@ pub fn env_from_beta<Mode: WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
         // TODO: I need more help understanding this
         // treats the node `name_source` mentions as a negative node, and gets names from it
         SameAs(ref name_source, ref res_source) => {
+            use walk_mode::WalkMode;
+
             let ty = try!(parts.get_res(res_source));
 
             let res = Mode::Negated::out_as_env(

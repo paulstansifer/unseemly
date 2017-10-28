@@ -11,9 +11,6 @@ use name::*;
 use beta::{Beta, ExportBeta};
 use std::iter;
 use std::fmt;
-use std::rc::Rc;
-use form::Form;
-use ast;
 
 // TODO: This really ought to be an `Rc` around an `enum`
 custom_derive! {
@@ -26,7 +23,7 @@ custom_derive! {
 
         /// A meaningful chunk of syntax, governed by a form, containing an environment,
         ///  potentially exporting some names.
-        Node(Rc<Form>, EnvMBE<Ast>, ExportBeta),
+        Node(::std::rc::Rc<::form::Form>, EnvMBE<Ast>, ExportBeta),
 
         /// For parsing purposes.
         IncompleteNode(EnvMBE<Ast>),
@@ -126,10 +123,6 @@ impl iter::FromIterator<Ast> for Ast {
 }
 
 
-use std::iter::FromIterator;
-
-
-
 /*
  * This is also sort of a test of MBE, since we need `Ast`s to make them with the macros
  *
@@ -141,6 +134,8 @@ use std::iter::FromIterator;
  */
 #[test]
 fn combine_from_kleene_star() {
+    use std::iter::FromIterator;
+
     let parse_parts = vec![ast!({ - "b" => "8.0"}),
                            ast!({ - "a" => ["1", "2"], "b" => "8.1"}),
                            ast!({ - "a" => ["1", "2", "3"], "b" => "8.2"})];

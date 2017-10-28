@@ -9,7 +9,6 @@ use util::mbe::EnvMBE;
 use ast::Ast;
 use ast::Ast::*;
 use util::assoc::Assoc;
-use std::collections::HashMap;
 
 // Renaming:
 type Ren = Assoc<Name, Ast>;

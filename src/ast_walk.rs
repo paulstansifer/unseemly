@@ -65,7 +65,6 @@ Everything should be ambidextrous under quasiquotation,
  because all syntax should be constructable and matchable.
 
 */
-use form::{Form, BiDiWR};
 use std::rc::Rc;
 use std::cell::RefCell;
 use name::*;
@@ -74,10 +73,7 @@ use util::mbe::EnvMBE;
 use ast::Ast;
 use ast::Ast::*;
 use beta::*;
-use std::fmt::{Debug, Display};
 use runtime::{reify, eval};
-use runtime::reify::Reifiable;
-use alpha::{freshen, freshen_with};
 use walk_mode::{WalkMode, WalkElt, Dir};
 
 /// A closed `Elt`; an `Elt` paired with an environment with which to interpret its free names.
@@ -366,7 +362,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         }
     }
 
-    pub fn this_form(&self) -> Rc<Form> {
+    pub fn this_form(&self) -> Rc<::form::Form> {
         match self.this_ast {
             Node(ref f, _, _) => f.clone(),  _ => panic!("ICE")
         }

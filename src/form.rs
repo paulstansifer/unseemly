@@ -6,9 +6,6 @@ use std::fmt::{Debug,Formatter,Error};
 use util::assoc::Assoc;
 use std::rc::Rc;
 use ast_walk::WalkRule;
-use ty::Ty;
-use ast::Ast;
-use runtime::eval::Value;
 
 pub type NMap<T> = Assoc<Name, T>;
 

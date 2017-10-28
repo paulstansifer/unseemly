@@ -1,15 +1,13 @@
 use ast_walk::{walk, LazyWalkReses, WalkRule, Clo};
 use ast_walk::WalkRule::*;
-use walk_mode::{WalkMode, NegativeWalkMode};
+use walk_mode::WalkMode;
 use form::Form;
 use util::assoc::Assoc;
 use ast::*;
-use util::mbe::EnvMBE;
-use ty::{Ty, TyErr, TypeError};
+use ty::{Ty, TyErr};
 use name::*;
-use std::cell::{Ref,RefCell};
+use std::cell::RefCell;
 use std::collections::HashMap;
-use std::collections::hash_map::Entry;
 use core_forms::{find_core_form, ast_to_name};
 
 /* Let me write down an example subtyping hierarchy, to stop myself from getting confused.
@@ -402,7 +400,6 @@ fn basic_subtyping() {
               Err(Mismatch(_,_)));
 
     fn incomplete_fn_ty() -> Ty { // A function, so we get a fresh underspecified type each time.
-        use walk_mode::WalkElt;
         ty!({ "type" "fn" :
             "param" => [ { "type" "Int" : } ],
             "ret" => (, Subtype::underspecified(n("<return_type>")).concrete() )})

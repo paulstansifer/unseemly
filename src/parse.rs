@@ -4,17 +4,14 @@
 
 use read::{Token, TokenTree, DelimChar, Group, Simple};
 use name::*;
-use form::{Form, simple_form};
+use form::{Form,simple_form};
 use std::boxed::Box;
 use std::clone::Clone;
 use ast::Ast;
 use ast::Ast::*;
 use util::assoc::Assoc;
-use util::mbe::EnvMBE;
 use std::rc::Rc;
-use std::marker::PhantomData;
 use beta::{Beta, ExportBeta};
-use std;
 
 impl Token {
     fn to_ast(&self) -> Ast {
@@ -107,8 +104,8 @@ impl ::runtime::reify::Reifiable for SyntaxExtension {
     }
 }
 
-impl std::fmt::Debug for SyntaxExtension {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+impl ::std::fmt::Debug for SyntaxExtension {
+    fn fmt(&self, formatter: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
         formatter.write_str("[syntax extension]")
     }
 }

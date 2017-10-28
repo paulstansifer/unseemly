@@ -47,14 +47,14 @@ It is at this point that I am reminded of a passage from GEB:
 
 use std::rc::Rc;
 use parse::{SynEnv, FormPat};
-use form::{Form, simple_form, BiDiWR, Positive, Negative, Both};
+use form::{Form, simple_form, BiDiWR, Positive, Both};
 use parse::FormPat::*;
 use ast_walk::{WalkRule, walk};
 use ast_walk::WalkRule::*;
-use walk_mode::{WalkMode, WalkElt, NegativeWalkMode};
+use walk_mode::{WalkMode, NegativeWalkMode};
 use name::*;
 use core_forms::{ast_to_name, vr_to_name};
-use ty::{Ty, synth_type, UnpackTy, TyErr, SynthTy};
+use ty::{Ty, synth_type, TyErr, SynthTy};
 use ty_compare::{Canonicalize, Subtype};
 use ast::*;
 use ::util::assoc::Assoc;

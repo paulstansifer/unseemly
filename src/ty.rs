@@ -8,16 +8,12 @@ These nodes may depend on
   (i.e., type annotations).
 */
 
-use beta::*;
 use ast_walk::{walk, LazyWalkReses, WalkRule};
 use ast_walk::WalkRule::*;
 use walk_mode::WalkMode;
 use form::Form;
 use util::assoc::Assoc;
 use ast::*;
-use util::mbe::EnvMBE;
-
-// for macros
 use name::*;
 use std::rc::Rc;
 
@@ -40,7 +36,8 @@ impl Ty {
     }
 
     // TODO: use this more
-    pub fn destructure(&self, expd_form: Rc<Form>, loc: &Ast) -> Result<EnvMBE<Ast>, TypeError> {
+    pub fn destructure(&self, expd_form: Rc<Form>, loc: &Ast)
+            -> Result<::util::mbe::EnvMBE<Ast>, TypeError> {
         match self.0 {
             Node(ref f, ref env, _) => {
                 if f == &expd_form {

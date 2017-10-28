@@ -4,13 +4,12 @@
 use name::*;
 use parse::{SynEnv, FormPat};
 use parse::FormPat::*;
-use form::{Form, simple_form, Positive, Negative};
+use form::Form;
 use util::assoc::Assoc;
 use ast::*;
 use std::rc::Rc;
 use ty::*;
 use runtime::eval::*;
-use beta::*;
 use ast_walk::WalkRule::*;
 use num::bigint::ToBigInt;
 use core_type_forms::*; // type forms are kinda bulky

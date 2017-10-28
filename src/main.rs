@@ -2,9 +2,9 @@
 // You shouldn't write code in Unseemly.
 // Instead, you should implement your programming language as Unseemly macros.
 
-#![allow(dead_code,non_snake_case,unused_imports,non_upper_case_globals, unused_macros)]
+#![allow(dead_code,non_snake_case,unused_imports,non_upper_case_globals,unused_macros)]
 // dead_code and unused_macros are hopefully temporary allowances
-// non_snake_case is stylistic, unused_imports is inaccurate because of macros
+// non_snake_case is stylistic, unused_imports is inaccurate for `cargo check`
 // non_upper_case_globals is stylistic; I like my thread_local!s lowercase.
 
 // unstable; only for testing
@@ -16,7 +16,6 @@
 #[macro_use] extern crate lazy_static;
 extern crate num;
 #[macro_use] extern crate custom_derive;
-#[macro_use] extern crate mac;
 #[macro_use] extern crate quote;
 extern crate rustyline;
 extern crate regex;
@@ -54,14 +53,11 @@ mod core_forms;
 mod core_type_forms;
 mod core_syntax_forms;
 
-use runtime::reify::Reifiable;
-
 use runtime::core_values;
 use std::cell::RefCell;
 use util::assoc::Assoc;
 use name::{Name, n};
 use ty::Ty;
-use ast::Ast;
 use runtime::eval::{eval, Value};
 use std::io::BufRead;
 
