@@ -324,6 +324,13 @@ pub fn make_core_syn_env_types() -> SynEnv {
         type_defn("Int", form_pat!((lit "Int"))),
         type_defn("Nat", form_pat!((lit "Nat"))),
         type_defn("Float", form_pat!((lit "Float"))),
+
+        // We want the names of NTs to be bound in the environment;
+        //  these opaque types are what they're bound to:
+        type_defn("Pat", form_pat!((lit "Pat"))),
+        type_defn("Ty", form_pat!((lit "Ty"))),
+        type_defn("Expr", form_pat!((lit "Expr"))),
+
         enum_type.clone(),
         struct_type.clone(),
         forall_type.clone(),

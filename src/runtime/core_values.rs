@@ -81,9 +81,16 @@ pub fn core_values() -> Assoc<Name, Value> {
 }
 
 pub fn core_types() -> Assoc<Name, Ty> {
-    core_typed_values().map(&erase_value).set(
-        n("Bool"), ty!(
+    core_typed_values().map(&erase_value)
+        .set(n("Bool"), ty!(
             {"type" "enum" : "name" => [@"c" "True", "False"], "component" => [@"c" [], []]}))
+        // These need to be in the environment, not just atomic types
+        //  because we sometimes look them up internally in the compiler
+        //   in the environment,
+        //  not just as programmers, looking them up by syntax, where this whole thing is a wash.
+        .set(n("Pat"), ty!({"type" "Pat" : }))
+        .set(n("Ty"), ty!({"type" "Ty" : }))
+        .set(n("Expr"), ty!({"type" "Expr" : }))
 }
 
 
