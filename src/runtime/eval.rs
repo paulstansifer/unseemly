@@ -185,3 +185,12 @@ impl WalkMode for QQuoteDestr {
 impl NegativeWalkMode for QQuoteDestr {
     fn needs_pre_match() -> bool { true } // Quoted syntax does have binding!
 }
+
+pub fn qquote(expr: &Ast, env: Assoc<Name, Ast>) -> Result<Ast, ()> {
+    walk::<QQuote>(expr, &LazyWalkReses::new_wrapper(env))
+}
+
+pub fn qquote_destr(pat: &Ast, env: Assoc<Name, Ast>)
+        -> Result<Assoc<Name, Ast>,()> {
+    walk::<QQuoteDestr>(pat, &LazyWalkReses::new_wrapper(env))
+}

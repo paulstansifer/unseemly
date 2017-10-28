@@ -50,9 +50,9 @@ mod ty_compare;
 
 mod runtime;
 
-mod core_type_forms;
 mod core_forms;
-
+mod core_type_forms;
+mod core_syntax_forms;
 
 use runtime::reify::Reifiable;
 

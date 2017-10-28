@@ -271,6 +271,7 @@ macro_rules! mbe {
 
 macro_rules! form_pat {
     ((lit $e:expr)) => { ::parse::FormPat::Literal(::name::n($e)) };
+    ((lit_by_name $e:expr)) => { ::parse::FormPat::Literal($e) };
     ((anyways $a:tt)) => { ::parse::FormPat::Anyways(ast!($a)) };
     ((impossible)) => { ::parse::FormPat::Impossible };
     (at) => { ::parse::FormPat::AnyToken };
@@ -288,6 +289,7 @@ macro_rules! form_pat {
         ::parse::FormPat::Biased(::std::rc::Rc::new(form_pat!($lhs)),
                                  ::std::rc::Rc::new(form_pat!($rhs))) };
     ((call $n:expr)) => { ::parse::FormPat::Call(::name::n($n)) };
+    ((call_by_name $n:expr)) => { ::parse::FormPat::Call($n) };
     ((scope $f:expr)) => { ::parse::FormPat::Scope($f, ::beta::ExportBeta::Nothing) };
     ((scope $f:expr, $ebeta:tt)) => { ::parse::FormPat::Scope($f, ebeta!($ebeta)) };
     ((named $n:expr, $body:tt)) => {

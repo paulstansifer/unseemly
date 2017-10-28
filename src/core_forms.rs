@@ -1,14 +1,6 @@
 // This virtual machine kills cyber-fascists.
 
 
-
-// Core forms!
-//
-// This is the definition of Unseemly, the bizarre boiled-down programming language.
-//
-// Unseemly programs have expressions and types (and probably kinds, too).
-//
-
 use name::*;
 use parse::{SynEnv, FormPat};
 use parse::FormPat::*;
@@ -23,127 +15,18 @@ use ast_walk::WalkRule::*;
 use num::bigint::ToBigInt;
 use core_type_forms::*; // type forms are kinda bulky
 
+// Core forms!
+//
+// This is the definition of Unseemly, the bizarre boiled-down programming language.
+//
+// Unseemly programs have expressions and types (and probably kinds, too).
+
+
 pub fn ast_to_name(ast: &Ast) -> Name {
     match *ast { Atom(n) => n, _ => { panic!("ICE: {:?} is not an atom", ast) } }
 }
 pub fn vr_to_name(ast: &Ast) -> Name {
     match *ast { VariableReference(n) => n, _ => { panic!("ICE: {:?} is not an atom", ast) } }
-}
-
-// A brief digression about types and syntax quotation...
-// Expressions are "positive", and are traversed leaf-to-root in an environment, producing a type.
-// Patterns are "negative", and are traversed root-to-leave from a type, producing an environment.
-// (`match` and `lambda` are examples of interactions between expressions and patterns.)
-// Syntax quotation and unquotation embeds expressions/patterns
-//  (at a different phase, which matters suprisingly little)
-//  inside expressions/patterns.
-//
-// This looks like:
-//                     pattern outside | expression outside      <-- (provides context)
-//                   --------------------------------------
-// pattern inside    | ok              | needs annotation
-// expression inside | bonus check     | ok
-//
-// Examples of needed annotation:
-//
-//   optimize_pat '[{Pat <[List <[Int]<]<} (cons a b)]'
-// In this case, we need to know the type of the syntax quote,
-//  but the pattern wants to know its type so that it can tell us its environment.
-//
-//   match stx { '[{Expr} 1 + 5 * ,[{Expr <[Nat]<} stx_num], ]' => ... }
-// In this case (looking at the expression interpolation),
-//  we need to know the type of the interpolated expression syntax (a pattern)
-//   in order to type-synthesize the arithmetic.
-//
-//
-// Examples of when we get to do a bonus typecheck:
-//
-//   match stx { '[{Expr} f x]' => ... }
-// In this case, we can check that the type of the scrutinee
-//  (which is the type of the syntax quotation pattern)
-//   equals Expr<[ (whatever `f` returns) ]<.
-//
-//   optimize_expr '[{Expr} match stx { ,[{Pat} my_pat], => ... } ]'
-// In this case (looking at the Pat interpolation),
-//  we can check that the type of the quoted scrutinee is the same as
-//   the type of `my_pat` (after peeling off its `Pat <[]<`).
-//
-// Note that it doesn't matter whether the boundary is a quotation or an unquotation!
-// Like I said, the phase doesn't matter much.
-
-
-
-// There's a nice-seeming syntax for determining what `unquote` does when quotation is nested.
-// However, it would require some weird additional power for the parser:
-//   '[{Expr} '[{Expr} ,[{Expr}], ,,[{Expr}],,]']'
-// OTOH, if you are using `,,,,[],,,,`, something has gone terribly wrong.
-
-
-
-// Technically, we could have the parser decide whether `unquote` is allowed.
-//  (It only makes sense inside a `quote`.)
-// However, this would leave us with one `unquote` form available per level of quotation
-
-/// Generate an unquoting form.
-fn unquote<Mode: ::walk_mode::WalkMode>(nt: Name, ctf: SynEnv, pos: bool) -> Rc<Form> {
-    Rc::new(Form {
-        name: n("unquote"), // maybe add the `nt` to the name?
-        grammar:
-
-            // We need to feed information from earlier in the form_pat into `SyntaxExtension`,
-            //  so it knows what nt to descend into.
-            Rc::new(if pos {
-                form_pat!([(delim ",[", "[", /*]]*/ (impossible))])
-            } else {
-                form_pat!([(delim ",[", "[", /*]]*/ (impossible))])
-            }),
-        type_compare: Positive(NotWalked), // this is not a type form
-        synth_type:
-            // imagine: ` '[{expr} .[a : int . ,[body], ]. ]' `
-            if pos {
-                Positive(
-                    // suppose that this is an expr, and `body` has the type `expr <[string]<`:
-                    cust_rc_box!( move | unquote_parts | {
-                        let interpolate_type = try!(unquote_parts.get_res(&n("body")));
-                        expect_ty_node!( (interpolate_type ; find_type(&ctf, "type_apply") ;
-                                             &unquote_parts.this_ast)
-                            apply_parts;
-                            {
-                                let got_nt = ast_to_name(
-                                    apply_parts.get_leaf_or_panic(&n("type_name")));
-                                if  got_nt != nt {
-                                    ty_err!(NtInterpMismatch(got_nt, nt) at
-                                        unquote_parts.get_term(&n("body")));
-                                }
-                                let args = apply_parts.get_rep_leaf_or_panic(&n("arg"));
-                                if args.len() != 1 {
-                                    panic!("Kind error: expected one argument, got {:?}", args)
-                                }
-                                Ok(Ty::new(args[0].clone()))
-                })}))
-            } else {
-                Negative(
-                    // suppose that this is a pat,
-                    // and the whole thing has type `expr <[ [int -> string] ]<`
-                    cust_rc_box!( move | _unquote_parts | {
-                        panic!("")
-                    })
-                )
-            },
-
-            // Also, let's suppose that we have something like:
-            //   let some_pattern : pat <[int]< = ...
-            //   let s = '[{pat} struct { a: ,[ some_pattern ],  b: b_var} ]'
-            // ...what then?
-        eval: // should be both
-            Positive(cust_rc_box!( move | _unquote_parts | {
-                panic!("");
-            })),
-        quasiquote: //should be both
-            Positive(cust_rc_box!( move | _unquote_parts | {
-                panic!("");
-            }))
-    })
 }
 
 
@@ -175,7 +58,6 @@ pub fn make_core_syn_env() -> SynEnv {
     let ctf_5 = ctf.clone();
     let ctf_6 = ctf.clone();
     let ctf_7 = ctf.clone();
-    let ctf_8 = ctf.clone();
 
     // Unseemly expressions
     let main_expr_forms = forms_to_form_pat![
@@ -446,26 +328,7 @@ pub fn make_core_syn_env() -> SynEnv {
                         (, try!(forall_parts.get_res(&n("body"))).concrete()))
                 }))
             }),
-            Body(n("body"))),
-
-
-        typed_form!("quote",
-            [(delim "`[", "[", /*]]*/ [/* TODO, maybe after the parser is improved */])],
-            cust_rc_box!( move | quote_parts | {
-                //TODO put variables in phases!!! !!!!! !!!!!!!!!!!!
-                Ok(ty!({ find_type(&ctf_8, "type_apply") ;
-                    "type_name" => (, quote_parts.get_term(&n("nt")) ),
-                    "arg" => [ (, try!(quote_parts.get_res(&n("body"))).concrete() )]
-                }))
-            }),
-            cust_rc_box!( move | _quote_values | {
-                panic!("TODO")
-                // Traverse the body, form
-            })
-        )
-
-        // The first use for syntax quotes will be in macro definitions.
-        // But we will someday need them as expressions.
+            Body(n("body")))
     ];
 
 
@@ -585,8 +448,7 @@ pub fn make_core_syn_env() -> SynEnv {
     assoc_n!(
         "pat" => Rc::new(Biased(Rc::new(main_pat_forms), Rc::new(AnyAtomicToken))),
         "expr" => Rc::new(Biased(Rc::new(main_expr_forms), Rc::new(VarRef)))
-    )
-        .set_assoc(&ctf) /* throw in the types! */
+    ).set_assoc(&ctf) /* throw in the types! */
 }
 
 /**
@@ -636,9 +498,12 @@ pub fn outermost_form() -> FormPat {
     Call(n("expr")) // `n` isn't static
 }
 
-pub fn find_core_form(nt: &str, name: &str) -> Rc<Form> {
+pub fn find(nt: &str, name: &str) -> Rc<Form> {
     core_forms.with(|cf| find_form(cf, nt, name))
 }
+
+// Deprecated; use `::core_forms::find` instead (keep it qualified!)
+pub fn find_core_form(nt: &str, name: &str) -> Rc<Form> { find(nt, name) }
 
 pub fn get_core_forms() -> SynEnv {
     core_forms.with(|cf| cf.clone())
