@@ -163,7 +163,7 @@ custom_derive!{
 }
 
 impl WalkMode for QQuote {
-    type Elt = Ast;
+    type Elt = Value;
     type Negated = QQuoteDestr;
     type Err = ();
     type D = ::walk_mode::Positive<QQuote>;
@@ -173,7 +173,7 @@ impl WalkMode for QQuote {
 }
 
 impl WalkMode for QQuoteDestr {
-    type Elt = Ast;
+    type Elt = Value;
     type Negated = QQuote;
     type Err = ();
     type D = ::walk_mode::Negative<QQuoteDestr>;
@@ -186,11 +186,11 @@ impl NegativeWalkMode for QQuoteDestr {
     fn needs_pre_match() -> bool { true } // Quoted syntax does have binding!
 }
 
-pub fn qquote(expr: &Ast, env: Assoc<Name, Ast>) -> Result<Ast, ()> {
+pub fn qquote(expr: &Ast, env: Assoc<Name, Value>) -> Result<Value, ()> {
     walk::<QQuote>(expr, &LazyWalkReses::new_wrapper(env))
 }
 
-pub fn qquote_destr(pat: &Ast, env: Assoc<Name, Ast>)
-        -> Result<Assoc<Name, Ast>,()> {
+pub fn qquote_destr(pat: &Ast, env: Assoc<Name, Value>)
+        -> Result<Assoc<Name, Value>,()> {
     walk::<QQuoteDestr>(pat, &LazyWalkReses::new_wrapper(env))
 }

@@ -306,6 +306,12 @@ pub struct LazyWalkReses<Mode: WalkMode> {
     pub parts: EnvMBE<Rc<LazilyWalkedTerm<Mode>>>,
     /// The environment of the overall walk.
     pub env: ResEnv<Mode::Elt>,
+
+    /// The environment for syntax quotation (deeper on the front, shallower on the back)
+    pub more_quoted_env: Vec<ResEnv<Mode::Elt>>,
+    /// The environment for interpolation (further out on the front, nearer on the back)
+    pub less_quoted_env: Vec<ResEnv<Mode::Elt>>,
+
     pub this_ast: Ast,
 }
 
@@ -316,6 +322,8 @@ impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
 
     fn reify(&self) -> eval::Value {
         val!(struct "parts" => (, self.parts.reify()), "env" => (, self.env.reify()),
+                    "more_quoted_env" => (,self.more_quoted_env.reify()),
+                    "less_quoted_env" => (,self.less_quoted_env.reify()),
                     "this_ast" => (, self.this_ast.reify()))
     }
     fn reflect(v: &eval::Value) -> Self {
@@ -324,6 +332,10 @@ impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
                                 contents.find_or_panic(&n("parts"))),
                             env: ResEnv::<Mode::Elt>::reflect(
                                 contents.find_or_panic(&n("env"))),
+                            more_quoted_env: Vec::<ResEnv<Mode::Elt>>::reflect(
+                                contents.find_or_panic(&n("more_quoted_env"))),
+                            less_quoted_env: Vec::<ResEnv<Mode::Elt>>::reflect(
+                                contents.find_or_panic(&n("less_quoted_env"))),
                             this_ast: Ast::reflect(
                                 contents.find_or_panic(&n("this_ast")))})
     }
@@ -338,6 +350,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             -> LazyWalkReses<Mode> {
         LazyWalkReses {
             env: env,
+            more_quoted_env: vec![], less_quoted_env: vec![],
             parts: parts_unwalked.map(&mut LazilyWalkedTerm::new),
             this_ast: this_ast
         }
@@ -347,6 +360,8 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     pub fn new_wrapper(env: ResEnv<Mode::Elt>) -> LazyWalkReses<Mode> {
         LazyWalkReses {
             env: env,
+            more_quoted_env: vec![],
+            less_quoted_env: vec![],
             parts: EnvMBE::new(), this_ast: ast!("wrapper")
         }
     }
@@ -413,11 +428,29 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
                 &mut |part: &Rc<LazilyWalkedTerm<Mode>>|
                     LazilyWalkedTerm::<NewMode>::new(&part.term));
         LazyWalkReses::<NewMode> {
-            env: self.env.clone(),
             parts: new_parts,
-            this_ast:  self.this_ast.clone()
-        }
+            env: self.env.clone(), more_quoted_env: self.more_quoted_env.clone(),
+            less_quoted_env: self.less_quoted_env.clone(), this_ast: self.this_ast.clone() }
     }
+
+    pub fn quote_more(mut self) -> LazyWalkReses<Mode> {
+        let env = self.more_quoted_env.pop().unwrap_or(Assoc::new());
+        let more_quoted_env = self.more_quoted_env;
+        self.less_quoted_env.push(self.env);
+        let less_quoted_env = self.less_quoted_env;
+
+        LazyWalkReses { env, more_quoted_env, less_quoted_env, .. self }
+    }
+
+    pub fn quote_less(mut self) -> LazyWalkReses<Mode> {
+        let env = self.less_quoted_env.pop().unwrap_or(Assoc::new());
+        let less_quoted_env = self.less_quoted_env;
+        self.more_quoted_env.push(self.env);
+        let more_quoted_env = self.more_quoted_env;
+
+        LazyWalkReses { env, less_quoted_env, more_quoted_env, .. self }
+    }
+
 
     /** March by example, turning a repeated set of part names into one LWR per repetition.
      * Keeps the same environment.
@@ -426,9 +459,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         let marched  = self.parts.march_all(driving_names);
         let mut res = vec![];
         for marched_parts in marched {
-            res.push(LazyWalkReses{
-                env: self.env.clone(), parts: marched_parts, this_ast: self.this_ast.clone()
-            });
+            res.push(LazyWalkReses{ parts: marched_parts, .. self.clone() });
         }
         res
     }
@@ -452,8 +483,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         let mut res = vec![];
         for (marched_parts, ctx) in marched.into_iter().zip(new_contexts.into_iter()) {
             res.push(LazyWalkReses{env: self.env.set(negative_ret_val(), ctx),
-                                   parts: marched_parts,
-                                   this_ast: self.this_ast.clone()});
+                                   parts: marched_parts, .. self.clone()});
         }
         Some(res)
     }
