@@ -47,11 +47,7 @@ pub trait Reifiable {
     /// e.g. `Annotated_with_int<[nat]<`
     /// (Types using this type will use this, rather than `ty`)
     /// This must be customized if `ty` is, I think...
-    fn ty_invocation() -> Ast {
-        ast!({ "type" "type_by_name" :
-            "name" => (, Ast::Atom(Self::ty_name()))
-        })
-    }
+    fn ty_invocation() -> Ast { Ast::VariableReference(Self::ty_name()) }
 
     /// The Unseemly value that corresponds to a value.
     fn reify(&self) -> Value;
@@ -256,7 +252,7 @@ impl<T: Reifiable> Reifiable for Vec<T> {
 
     fn ty_invocation() -> Ast {
         ast!({ "type" "type_apply" :
-            "type_name" => "Sequence",
+            "type_rator" => (vr "Sequence"),
             "arg" => [(, T::ty_invocation() )]
         })
     }
@@ -456,13 +452,13 @@ fn reified_types() {
     assert_eq!(
         ParameterizedLifetimeStruct::<'static, Option<usize>, BigInt>::ty_invocation(),
         ast!({"type" "type_apply" :
-            "type_name" => "ParameterizedLifetimeStruct",
+            "type_rator" => (vr "ParameterizedLifetimeStruct"),
             "arg" => [
                 {"type" "type_apply" :
-                    "type_name" => "Option",
-                    "arg" => [ (, tbn("rust_usize")) ]
+                    "type_rator" => (vr "Option"),
+                    "arg" => [ (vr "rust_usize") ]
                 },
-                (, tbn("Int"))]
+                (vr "Int")]
         }));
 
 
@@ -470,14 +466,14 @@ fn reified_types() {
         ParameterizedLifetimeStruct::<'static, T, S>::ty(),
         ast!({"type" "forall_type" :
             "param" => ["T", "S"],
-            "body" => {"type" "mu_type" :
-                "param" => "ParameterizedLifetimeStruct",
-                "body" => {"type" "struct" :
+            "body" => (import [* [forall "param"]] {"type" "mu_type" :
+                "param" => [(vr "ParameterizedLifetimeStruct")],
+                "body" => (import [* [prot "param"]] {"type" "struct" :
                     // TODO: why did the order of fields get reversed?
                     "component_name" => [@"c" "c", "b", "a"],
-                    "component" => [@"c" (, tbn("OldName")), (, tbn("S")), (, tbn("T"))]
+                    "component" => [@"c" (vr "OldName"), (vr "S"), (vr "T")]
 
-            }
-        }
+            })
+        })
     }))
 }

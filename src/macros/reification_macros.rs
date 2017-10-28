@@ -3,19 +3,19 @@
 /*
  This isn't as bad as it looks.
  I mean, it's pretty bad, don't get me wrong...
- 
+
  The purpose is to generate `Reifiable` `impl`s
   for any `enum` or `struct`.
- 
+
  Basically, `reify` pattern-matches to destructure the actual Rust value,
   and then constructs a `Value` of the corresponding shape.
-  
+
  And `reflect` does the opposite.
- 
+
  But, in the process, I have to work around
   what feels like every single limitation of `macro_rules!` in Rust,
    as if I were aiming for them.
- 
+
  Who wrote that piece of junk, anyway?
  */
 
@@ -24,7 +24,7 @@ macro_rules! Reifiable {
 
 
     /* struct */
-    
+
     ((lifetime) $(#[$($whatever:tt)*])* $(pub)* struct $name:ident<$lifetime:tt> { $($contents:tt)* }) => {
         Reifiable!((remove_p_and_a) struct $name<$lifetime> @ { $($contents)*, } );
         // HACK: we add commas to the end of the contents, becuase it's easier to parse
@@ -32,20 +32,20 @@ macro_rules! Reifiable {
     };
 
     ((lifetime) $(#[$($whatever:tt)*])* $(pub)* struct $name:ident<$lifetime:tt $(, $ty_param_ty:ident)*> { $($contents:tt)* }) => {
-        Reifiable!((remove_p_and_a) struct 
-            $name<$lifetime $(, $ty_param_ty)*> @ <$($ty_param_ty),*> 
-            { $($contents)*, } ); 
+        Reifiable!((remove_p_and_a) struct
+            $name<$lifetime $(, $ty_param_ty)*> @ <$($ty_param_ty),*>
+            { $($contents)*, } );
     };
 
     // no lifetime parameter
     (() $(#[$($whatever:tt)*])* $(pub)* struct $name:ident$(<$($ty_param_ty:ident),*>)* { $($contents:tt)* }) => {
-        Reifiable!((remove_p_and_a) struct 
-            $name$(<$($ty_param_ty),*>)* @ $(<$($ty_param_ty),*>)* 
+        Reifiable!((remove_p_and_a) struct
+            $name$(<$($ty_param_ty),*>)* @ $(<$($ty_param_ty),*>)*
             { $($contents)*, } );
     };
 
-    
-    // TODO: This lacks support for type-parameterized `struct`s ... 
+
+    // TODO: This lacks support for type-parameterized `struct`s ...
 
     // done! Go to `make_impl`!
     ((remove_p_and_a) $(pub)* struct $name:ident
@@ -54,34 +54,34 @@ macro_rules! Reifiable {
         Reifiable!((make_impl) struct $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)*
             { $($($accum)*)* } );
     };
-    
+
     // remove `pub`
     ((remove_p_and_a) $(pub)* struct $name:ident
-        $(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* { 
+        $(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* {
         pub $($contents:tt)*
     } $( [ $( $accum:tt )* ] )* ) => {
-        Reifiable!((remove_p_and_a) struct $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)* { 
+        Reifiable!((remove_p_and_a) struct $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)* {
             $( $contents )*
         } $( [ $($accum)* ] )* );
     };
 
-    // remove attributes (such as `///`!)    
+    // remove attributes (such as `///`!)
     ((remove_p_and_a) $(pub)* struct $name:ident
-        $(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* { 
-        #[$($whatever:tt)*] $($contents:tt)* 
+        $(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* {
+        #[$($whatever:tt)*] $($contents:tt)*
     } $( [ $( $accum:tt )* ] )* ) => {
-        Reifiable!((remove_p_and_a) struct $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)* { 
+        Reifiable!((remove_p_and_a) struct $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)* {
             $( $contents )*
         } $( [ $($accum)* ] )*);
     };
 
-    
+
     // no `pub` or attr this time
     ((remove_p_and_a) $(pub)* struct $name:ident
-        $(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* { 
+        $(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* {
         $field_car:ident : $t_car:ty, $($cdr:tt)*
     } $( [ $( $accum:tt )* ] )* ) => {
-        Reifiable!((remove_p_and_a) struct $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)* { 
+        Reifiable!((remove_p_and_a) struct $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)* {
             $( $cdr )*
         } [ $field_car : $t_car $(, $($accum)* )* ]);
     };
@@ -90,43 +90,49 @@ macro_rules! Reifiable {
     ((make_impl) struct $name:ident
          $(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)*
          { $( $field:ident : $t:ty),* }) => {
-        impl<'t $($(, $ty_param_ty : ::runtime::reify::Reifiable)*)*> 
+        impl<'t $($(, $ty_param_ty : ::runtime::reify::Reifiable)*)*>
                 ::runtime::reify::Reifiable
                 for $name<$($($ty_param),*)*> {
             fn ty() -> ::ast::Ast {
                 type_defn_wrapper!($(<$($ty_param_ty),*>)* => { "type" "struct" :
-                   "component_name" => [@"c" $( 
+                   "component_name" => [@"c" $(
                        (, ::ast::Ast::Atom(::name::n(stringify!($field)))) ),* ],
                    "component" =>
                    // TODO: unless we specify arguments with the same name as parameters,
                    //  we get bogus results
-                   // (we get 
+                   // (we get
                    //   ∀ K V. μ Assoc. struct{ n: Option<[AssocNode<[ident rust_usize]<]< }
                    //  rather than
                    //   ∀ K V. μ Assoc. struct{ n: Option<[AssocNode<[K V]<]< }
                    [@"c" $( (, <$t as ::runtime::reify::Reifiable>::ty_invocation() ) ),*]
                 })
             }
-            
+
             fn ty_name() -> ::name::Name { ::name::n(stringify!($name)) }
-            
+
             fn ty_invocation() -> ::ast::Ast {
-                ast!({ "type" "type_apply" :
-                    "type_name" => (, ::ast::Ast::Atom( Self::ty_name() ) ),
-                    "arg" => [ $( $( (, $ty_param_ty ::ty_invocation() ) ),* )* ]
-                })
+                // HACK: at runtime, check to see if we need type parameters by making a vector
+                let argument_list : Vec<&str> = vec![$( $( stringify!($ty_param_ty) ),* )*];
+                if argument_list.len() > 0 {
+                    ast!({ "type" "type_apply" :
+                        "type_rator" => (, ::ast::Ast::VariableReference( Self::ty_name() ) ),
+                        "arg" => [ $( $( (, $ty_param_ty ::ty_invocation() ) ),* )* ]
+                    })
+                } else {
+                    ::ast::Ast::VariableReference( Self::ty_name() )
+                }
             }
-            
+
             fn reify(&self) -> ::runtime::eval::Value {
-                ::runtime::eval::Struct(assoc_n!( 
+                ::runtime::eval::Struct(assoc_n!(
                     $( (stringify!($field)) => self.$field.reify()),* ))
             }
-            
+
             #[allow(unused_variables)]
             fn reflect(v: &::runtime::eval::Value) -> Self {
-                extract!((v) ::runtime::eval::Struct = (ref env) => 
+                extract!((v) ::runtime::eval::Struct = (ref env) =>
                     $name {
-                        $( $field : 
+                        $( $field :
                             <$t as ::runtime::reify::Reifiable>::reflect(
                                 env.find(&::name::n(stringify!($field))).unwrap())),*
                     })
@@ -134,22 +140,22 @@ macro_rules! Reifiable {
         }
     };
     /* enum */
-    
+
     // `lifetime` means that we need to pull off a lifetime argument.
-    // The whole set of type parameters comes after `name`; 
+    // The whole set of type parameters comes after `name`;
     //  we make a just-the-types type parameters after the @.
     ((lifetime) $(#[$($whatever:tt)*])* $(pub)* enum $name:ident<$lifetime:tt> { $( $contents:tt )* }) => {
         Reifiable!((remove_attr) enum $name<$lifetime> @ { $( $contents )* , });
     };
 
-    ((lifetime) $(#[$($whatever:tt)*])* $(pub)* enum $name:ident<$lifetime:tt $(, $ty_param_ty:ident)*> { 
-        $( $contents:tt )* 
+    ((lifetime) $(#[$($whatever:tt)*])* $(pub)* enum $name:ident<$lifetime:tt $(, $ty_param_ty:ident)*> {
+        $( $contents:tt )*
     }) => {
-        Reifiable!((remove_attr) enum $name<$lifetime $(, $ty_param_ty)*> @ <$($ty_param_ty),*> { 
+        Reifiable!((remove_attr) enum $name<$lifetime $(, $ty_param_ty)*> @ <$($ty_param_ty),*> {
             $( $contents )* ,
         });
     };
-    
+
     (() $(#[$($whatever:tt)*])* $(pub)* enum $name:ident$(<$($ty_param_ty:ident),*>)* { $( $contents:tt )* }) => {
         Reifiable!((remove_attr) enum $name$(<$($ty_param_ty),*>)* @ $(<$($ty_param_ty),*>),* {
             $( $contents )* ,
@@ -159,14 +165,14 @@ macro_rules! Reifiable {
     // done! (has to go first)
     ((remove_attr) enum $name:ident$(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* { $(,)* }
     $([ $($accum:tt)* ])*) => {
-        Reifiable!((make_impl) enum $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)* 
+        Reifiable!((make_impl) enum $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)*
             { $($( $accum )*)* } );
-    };    
+    };
     // drop the attribute
-    ((remove_attr) enum $name:ident$(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* { 
+    ((remove_attr) enum $name:ident$(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* {
         #[ $($whatever:tt)* ] $( $contents:tt )*
     } $([ $($accum:tt)* ])* ) => {
-        Reifiable!((remove_attr) enum $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)* { 
+        Reifiable!((remove_attr) enum $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)* {
             $( $contents )*
         } $([ $($accum)* ])* );
     };
@@ -174,59 +180,65 @@ macro_rules! Reifiable {
     ((remove_attr) enum $name:ident$(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* {
          $choice:ident$(( $($part:ty),* ))*, $( $contents:tt )*
     } $([ $($accum:tt)* ])*) => {
-        Reifiable!((remove_attr) enum $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)* { 
+        Reifiable!((remove_attr) enum $name$(<$($ty_param),*>)* @ $(<$($ty_param_ty),*>)* {
             $( $contents )*
         } [ $choice $(( $($part),* ))* , $($($accum)*)* ]);
     };
 
-     
-    // The `$((...))*` and `$(<...>)*` patterns deal with the fact that the `()` and `<>` 
+
+    // The `$((...))*` and `$(<...>)*` patterns deal with the fact that the `()` and `<>`
     //  might be completely absent (the `*` matches 0 or 1 times)
     // The second set of type parameters are those that are not lifetime params...
-    ((make_impl) enum $name:ident$(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* { 
-        $($choice:ident$(( $($part:ty),* ))* ,)* 
+    ((make_impl) enum $name:ident$(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* {
+        $($choice:ident$(( $($part:ty),* ))* ,)*
     }) => {
         impl<'t $($(, $ty_param_ty : ::runtime::reify::Reifiable)*)*>
-                ::runtime::reify::Reifiable 
+                ::runtime::reify::Reifiable
                 for $name<$($($ty_param),*)*> {
-                    
+
             fn ty() -> ::ast::Ast {
                 type_defn_wrapper!($(<$($ty_param_ty),*>)* => { "type" "enum" :
                     "name" => [@"c" $(
                         (, ::ast::Ast::Atom(::name::n(stringify!($choice)))) ),* ],
-                    "component" => [@"c" $( [ $($( 
+                    "component" => [@"c" $( [ $($(
                         (, <$part as ::runtime::reify::Reifiable>::ty_invocation() )
                     ),*)*]),*]
                 })
             }
-            
+
             fn ty_name() -> ::name::Name { ::name::n(stringify!($name)) }
-            
+
             fn ty_invocation() -> ::ast::Ast {
-                ast!({ "type" "type_apply" :
-                    "type_name" => (, ::ast::Ast::Atom( Self::ty_name() ) ),
-                    "arg" => [ $( $( (, $ty_param_ty ::ty_invocation() ) ),* )* ]
-                })
+                // HACK: at runtime, check to see if we need type parameters by making a vector
+                let argument_list : Vec<&str> = vec![$( $( stringify!($ty_param_ty) ),* )*];
+                if argument_list.len() > 0 {
+                    ast!({ "type" "type_apply" :
+                        "type_rator" => (, ::ast::Ast::VariableReference( Self::ty_name() ) ),
+                        "arg" => [ $( $( (, $ty_param_ty ::ty_invocation() ) ),* )* ]
+                    })
+                } else {
+                    ::ast::Ast::VariableReference( Self::ty_name() )
+                }
             }
-            
+
             #[allow(unused_mut)] // rustc bug! `v` has to be mutable, but it complains
             fn reify(&self) -> ::runtime::eval::Value {
                 match *self { $(
-                    choice_pat!( ( $($($part),*)* ) (a b c d e f g h i j k l m n o p q r s t) 
+                    choice_pat!( ( $($($part),*)* ) (a b c d e f g h i j k l m n o p q r s t)
                                  $name::$choice ; ())
                     => {
                         let mut v = vec![];
-                        choice_vec!( ( $($($part),*)* ) (a b c d e f g h i j k l m n o p q r s t) 
+                        choice_vec!( ( $($($part),*)* ) (a b c d e f g h i j k l m n o p q r s t)
                                      v);
                         ::runtime::eval::Value::Enum(::name::n(stringify!($choice)), v)
                     }
                 ),* }
             }
-            
+
             #[allow(unused_variables)]
             fn reflect(v: &::runtime::eval::Value) -> Self {
                 extract!((v) ::runtime::eval::Enum = (ref choice, ref parts) => {
-                    make_enum_reflect!(choice; parts; $name$(<$($ty_param),*>)*/**/ 
+                    make_enum_reflect!(choice; parts; $name$(<$($ty_param),*>)*/**/
                         { $($choice $(( $($part),* ))*),* } )
                 })
             }
@@ -238,8 +250,8 @@ macro_rules! Reifiable {
 /* makes a pattern matching an enum with _n_ components, using the first _n_
    of the input names (be sure to supply enough names!) */
 macro_rules! choice_pat {
-    ( ($t_car:ty $(, $t_cdr:ty)* ) ($i_car:ident $($i_cdr:ident)*) 
-      $choice:path; ($($accum:ident),*)) => { 
+    ( ($t_car:ty $(, $t_cdr:ty)* ) ($i_car:ident $($i_cdr:ident)*)
+      $choice:path; ($($accum:ident),*)) => {
           choice_pat!( ($($t_cdr),* ) ($($i_cdr)*) $choice; ($i_car $(, $accum)*))
     };
 
@@ -261,15 +273,15 @@ macro_rules! choice_vec {
     ( ( ) ($($i_cdr:ident)*) $v:expr) => { {} }
 }
 
-// workaround for MBE limitation; need to walk choices, but *not* ty_param, 
+// workaround for MBE limitation; need to walk choices, but *not* ty_param,
 //  so we use this to manually walk over the choices
 macro_rules! make_enum_reflect {
-    ($choice_name:ident; $parts_name:ident; $name:ident$(<$($ty_param:tt),*>)*/**/ { 
-        $choice_car:ident $(( $($part_cars:ty),* ))* 
-        $(, $choice_cdr:ident$(( $($part_cdr:ty),* ))*)* 
-    }) => {    
+    ($choice_name:ident; $parts_name:ident; $name:ident$(<$($ty_param:tt),*>)*/**/ {
+        $choice_car:ident $(( $($part_cars:ty),* ))*
+        $(, $choice_cdr:ident$(( $($part_cdr:ty),* ))*)*
+    }) => {
         if $choice_name.is(stringify!($choice_car)) {
-            unpack_parts!( $(( $($part_cars),* ))* $parts_name; 0; 
+            unpack_parts!( $(( $($part_cars),* ))* $parts_name; 0;
                            $name::$choice_car$(::< $($ty_param),* >)*; ())
         } else {
             make_enum_reflect!($choice_name; $parts_name; $name$(<$($ty_param),*>)*/**/ {
@@ -278,13 +290,13 @@ macro_rules! make_enum_reflect {
     };
     ($choice_name:ident; $parts_name:ident; $name:ident$(<$($ty_param:tt),*>)*/**/ { } ) => {
         panic!("ICE: invalid enum choice: {:?}", $choice_name)
-    }    
+    }
 }
 
 macro_rules! unpack_parts {
     ( ($t_car:ty $(, $t_cdr:ty)*) $v:expr; $idx:expr; $ctor:expr; ($($accum:expr),*)) => {
-        unpack_parts!( ( $($t_cdr),* ) $v; ($idx + 1); $ctor; 
-            ($($accum, )* 
+        unpack_parts!( ( $($t_cdr),* ) $v; ($idx + 1); $ctor;
+            ($($accum, )*
              <$t_car as ::runtime::reify::Reifiable>::reflect(& $v[$idx])))
     };
     ( () $v:expr; $idx:expr; $ctor:expr; ($($accum:expr),*)) => {
@@ -305,10 +317,10 @@ macro_rules! type_defn_wrapper {
             "param" => [ $($(
                 (, ::ast::Ast::Atom(::name::n(stringify!($ty_param_ty))))
             ),*)*],
-            "body" => {"type" "mu_type" :
-                 "param" => (, ::ast::Ast::Atom(Self::ty_name())),
-                 "body" => $body
-             }
+            "body" => (import [* [forall "param"]] {"type" "mu_type" :
+                 "param" => [(, ::ast::Ast::VariableReference(Self::ty_name()))],
+                 "body" => (import [* [prot "param"]] $body)
+             })
         })
     }
 }
@@ -316,22 +328,12 @@ macro_rules! type_defn_wrapper {
 
 macro_rules! refer_to_type {
     ($name:tt < $( $arg:ty ),* >) => {
-        ast!({ "type" "type_apply" : 
-            "type_name" => (, ::ast::Ast::Atom(::name::n(stringify!($name))) ),
+        ast!({ "type" "type_apply" :
+            "type_rator" => (, ::ast::Ast::VariableReference(::name::n(stringify!($name))) ),
             "arg" => [ (, $( refer_to_type!($arg)),* )]
         })
     };
     ($name:tt) => {
-        ast!({ "type" "type_apply" :
-            "type_name" => (, ::ast::Ast::Atom(::name::n(stringify!($name))) ),
-            "arg" => []
-        })
+        ::ast::Ast::VariableReference(::name::n(stringify!($name)))
     }
-}
-
-/// Refer to the reification of T by name
-pub fn tbn< T: ::runtime::reify::Reifiable>() -> ::ast::Ast {
-    ast!({ "type" "type_by_name" :
-        "name" => (, ::ast::Ast::Atom(<T as ::runtime::reify::Reifiable>::ty_name()))
-    })
 }
