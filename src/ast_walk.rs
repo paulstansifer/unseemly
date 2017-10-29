@@ -85,7 +85,7 @@ pub struct Clo<Elt : WalkElt> {
 
 impl<Elt: WalkElt> Clo<Elt> {
     pub fn env_merge(self, other: Clo<Elt>) -> (Elt, Elt, Assoc<Name, Elt>) {
-        // To reduce name churn (and keep environments small),
+        // To reduce name churn (and keep environments from exploding in size),
         // we cut out the bits of the environments that are the same.
         let o_different_env = other.env.cut_common(&self.env);
 
