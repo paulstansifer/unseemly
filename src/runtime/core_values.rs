@@ -81,6 +81,7 @@ pub fn core_values() -> Assoc<Name, Value> {
 }
 
 pub fn core_types() -> Assoc<Name, Ty> {
+    use ::core_type_forms::get__abstract_parametric_type;
     core_typed_values().map(&erase_value)
         .set(n("Bool"), ty!(
             {"type" "enum" : "name" => [@"c" "True", "False"], "component" => [@"c" [], []]}))
@@ -88,9 +89,9 @@ pub fn core_types() -> Assoc<Name, Ty> {
         //  because we sometimes look them up internally in the compiler
         //   in the environment,
         //  not just as programmers, looking them up by syntax, where this whole thing is a wash.
-        .set(n("Pat"), ty!({"type" "Pat" : }))
-        .set(n("Ty"), ty!({"type" "Ty" : }))
-        .set(n("Expr"), ty!({"type" "Expr" : }))
+        .set(n("Pat"), ty!({get__abstract_parametric_type() ; "name" => "Pat" }))
+        .set(n("Ty"), ty!({get__abstract_parametric_type() ; "name" => "Ty" }))
+        .set(n("Expr"), ty!({get__abstract_parametric_type() ; "name" => "Expr" }))
 }
 
 

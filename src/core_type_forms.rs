@@ -83,6 +83,24 @@ fn type_defn_complex(form_name: &str, p: FormPat, sy: WalkRule<SynthTy>,
     })
 }
 
+thread_local! {
+    // Not needed by the user.
+    // An internal type to keep the compiler from trying to dig into the `Expr` in `Expr <[X]<`.
+    pub static abstract_parametric_type : Rc<Form> = Rc::new(Form {
+        name: n("abstract_parametric_type"),
+        grammar: Rc::new(form_pat!((delim "abstract[", "[", /*]]*/ (named "name", aat)))),
+        type_compare: Both(LiteralLike, LiteralLike),
+        synth_type: Positive(LiteralLike),
+        quasiquote: Both(LiteralLike, LiteralLike),
+        eval: Positive(NotWalked)
+    })
+}
+
+pub fn get__abstract_parametric_type() -> Rc<Form> {
+    abstract_parametric_type.with(|a_p_t| a_p_t.clone())
+}
+
+
 pub fn make_core_syn_env_types() -> SynEnv {
     /* Regarding the value/type/kind hierarchy, Benjamin Pierce generously assures us that
         "For programming languages ... three levels have proved sufficient." */
@@ -267,6 +285,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         // The technical term for `<[...]<` is "fish X-ray"
         form_pat!([(named "type_rator", (call "type")),
          (delim "<[", "[", /*]]*/ (star [(named "arg", (call "type"))]))]),
+         // TODO: shouldn't it be "args"?
         cust_rc_box!(move |tapp_parts| {
             let arg_res = try!(tapp_parts.get_rep_res(&n("arg")));
             let rator_res = try!(tapp_parts.get_res(&n("type_rator")));
@@ -274,7 +293,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 VariableReference(rator_vr) => {
                     // e.g. `X<[int, Y]<` underneath `mu X. ...`
 
-                    // Rebuild a type_by_name, but evaulate its arguments
+                    // Rebuild a type_apply, but evaulate its arguments
                     // This kind of thing is necessary because
                     //  we wish to avoid aliasing problems at the type level.
                     // In System F, this is avoided by performing capture-avoiding substitution.
@@ -294,6 +313,26 @@ pub fn make_core_syn_env_types() -> SynEnv {
                         panic!("ICE")
                     }
                 }
+                Node(ref got_f, ref lhs_parts, ref exports)
+                        if got_f == &get__abstract_parametric_type() => {
+                    // Like the above; don't descend into `Expr`
+                    let mut new__tapp_parts = ::util::mbe::EnvMBE::new_from_leaves(
+                        assoc_n!("type_rator" =>
+                            Node(got_f.clone(), lhs_parts.clone(), exports.clone())));
+                    let mut args = vec![];
+                    for individual__arg_res in arg_res {
+                        args.push(::util::mbe::EnvMBE::new_from_leaves(
+                            assoc_n!("arg" => individual__arg_res.concrete())));
+                    }
+                    new__tapp_parts.add_anon_repeat(args, None);
+
+                    if let Node(ref f, _, ref exp) = tapp_parts.this_ast {
+                        Ok(Ty::new(Node(/*forall*/ f.clone(), new__tapp_parts, exp.clone())))
+                    } else {
+                        panic!("ICE")
+                    }
+
+                }
                 Node(ref got_f, ref forall_type__parts, _)
                         if got_f == &forall_type_0 => {
                     // This might ought to be done by a specialized `beta`...
@@ -311,6 +350,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                             forall_type__parts.get_leaf_or_panic(&n("body"))),
                         new__ty_env)
                 }
+
                 _ => {
                     panic!("Kind error: {} is not a forall.", rator_res);
                 }
@@ -324,13 +364,13 @@ pub fn make_core_syn_env_types() -> SynEnv {
         type_defn("Int", form_pat!((lit "Int"))),
         type_defn("Nat", form_pat!((lit "Nat"))),
         type_defn("Float", form_pat!((lit "Float"))),
-
+/* // Moved to core_values
         // We want the names of NTs to be bound in the environment;
         //  these opaque types are what they're bound to:
         type_defn("Pat", form_pat!((lit "Pat"))),
-        type_defn("Ty", form_pat!((lit "Ty"))),
+        type_defn("Ty", form_pat!((lit "Ty"))), // TODO: change to "Type"
         type_defn("Expr", form_pat!((lit "Expr"))),
-
+*/
         enum_type.clone(),
         struct_type.clone(),
         forall_type.clone(),
@@ -339,6 +379,59 @@ pub fn make_core_syn_env_types() -> SynEnv {
         type_apply.clone(),
         type_by_name.clone()
         ]), Rc::new(VarRef))))
+}
+
+
+// TODO: this should be extensible for when the syntax environment is extended...
+//  or just automatically have one type per NT. Probably the latter.
+pub fn nt_to_type(nt: Name) -> Ty {
+    if nt == n("Type") || nt == n("Pat") || nt == n("Expr") {
+        let nt_sp = &nt.sp();
+        ty!({get__abstract_parametric_type(); "name" => nt_sp})
+    } else {
+        panic!("ICE: unknown NT {}", nt)
+    }
+}
+
+// TODO: make this extensible, too! When the user creates a new NT,
+//  do they need to specify the direction?
+pub fn nt_is_positive(nt: Name) -> bool {
+    if nt == n("Type") || nt == n("Expr") {
+        true
+    } else if nt == n("Pat") {
+        false
+    } else {
+        panic!("ICE: unknown NT {}", nt)
+    }
+}
+
+pub fn less_quoted_ty(t: Ty, nt: Name, loc: &Ast) -> Result<Ty, ::ty::TypeError> {
+    // suppose that this is an expr, and `body` has the type `Expr <[String]<`:
+    expect_ty_node!( (t ; ::core_forms::find_core_form("type", "type_apply") ; loc)
+        tapp_parts;
+        {
+            let nt_sp = &nt.sp();
+            ty_exp!(
+                &Ty::new(tapp_parts.get_leaf_or_panic(&n("type_rator")).clone()),
+                &ty!({get__abstract_parametric_type() ; "name" => nt_sp}),
+                loc
+            );
+
+            let args = tapp_parts.get_rep_leaf_or_panic(&n("arg"));
+            if args.len() != 1 {
+                ty_err!(LengthMismatch(args.iter().map(|t| Ty::new((*t).clone())).collect(), 1) at loc);
+            }
+
+            // ...returns `String` in that case
+            Ok(Ty(args[0].clone()))
+        }
+    )
+}
+
+pub fn more_quoted_ty(t: Ty, nt: &str) -> Ty {
+    ty!({"type" "type_apply" :
+        "type_rator" => {get__abstract_parametric_type() ; "name" => nt},
+        "arg" => [(,t.concrete())]})
 }
 
 #[test]

@@ -63,8 +63,8 @@ At runtime, something similar happens with values and value environments.
 Some forms are "ambidextrous".
 Everything should be ambidextrous under quasiquotation,
  because all syntax should be constructable and matchable.
-
 */
+
 use std::rc::Rc;
 use std::cell::RefCell;
 use name::*;
@@ -132,8 +132,7 @@ pub fn walk<Mode: WalkMode>(a: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
 
     match a {
         Node(ref f, ref parts, _) => {
-            let new_cnc = LazyWalkReses::new(
-                cur_node_contents.env.clone(), parts.clone(), a.clone());
+            let new_cnc = cur_node_contents.switch_ast(parts.clone(), a.clone());
             // certain walks only work on certain kinds of AST nodes
             match *Mode::get_walk_rule(f) {
                 Custom(ref ts_fn) =>  ts_fn(new_cnc),
@@ -189,19 +188,19 @@ pub fn walk<Mode: WalkMode>(a: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
 }
 
 
-
-
+/// How do we walk a particular node? This is a super-abstract question, hence all the `<>`s.
 pub enum WalkRule<Mode: WalkMode> {
-    /**
-     * A function from the types/values of the *parts* of this form
-     *  to the type/value of this form.
-     * Note that the environment is not directly accessible! */
+    /// A function from the types/values of the *parts* of this form
+    ///  to the type/value of this form.
+    /// The environment is accessible via the `LazyWalkReses`.
+    /// Any of the other `WalkRule`s can be implemented as a simple `Custom`.
     Custom(Rc<Box<(Fn(LazyWalkReses<Mode>) -> Result<<Mode::D as Dir>::Out, Mode::Err>)>>),
-    /** "this form has the same type/value as one of its subforms" */
+    /// "this form has the same type/value as one of its subforms".
     Body(Name),
-    /** "traverse the subterms, and rebuild this syntax around them" */
+    /// "traverse the subterms, and rebuild this syntax around them".
+    /// Only valid in modes where `Ast`s can be converted to `::Out`s.
     LiteralLike,
-    /** this form should not ever be typed/evaluated */
+    /// "this form should not ever be walked".
     NotWalked
 }
 
@@ -242,6 +241,7 @@ pub use self::WalkRule::*;
 /** An environment of walked things. */
 pub type ResEnv<Elt> = Assoc<Name, Elt>;
 
+/// A term where the results of walking subterms is memoized.
 #[derive(Debug)]
 pub struct LazilyWalkedTerm<Mode: WalkMode> {
     pub term: Ast,
@@ -265,9 +265,6 @@ impl<Mode: WalkMode> reify::Reifiable for LazilyWalkedTerm<Mode> {
     }
 }
 
-
-
-
 // We only implement this because lazy-rust is unstable
 impl<Mode: WalkMode> LazilyWalkedTerm<Mode> {
     pub fn new(t: &Ast) -> Rc<LazilyWalkedTerm<Mode>> {
@@ -288,6 +285,15 @@ impl<Mode: WalkMode> LazilyWalkedTerm<Mode> {
     }
 }
 
+pub type OutEnvHandle<Mode: WalkMode> = Rc<RefCell<Assoc<Name,Mode::Elt>>>;
+
+/// Only makes sense if `Mode` is negative.
+pub fn squirrel_away<Mode: WalkMode>(opt_oeh: Option<OutEnvHandle<Mode>>, more_env: <Mode::D as Dir>::Out) {
+    print!("SQUIR: {:?}\n", more_env);
+    let oeh = opt_oeh.unwrap();
+    let new_env = oeh.borrow().set_assoc(&Mode::out_as_env(more_env));
+    *oeh.borrow_mut() = new_env;
+}
 
 /**
  * Package containing enough information to walk the subforms of some form on-demand.
@@ -307,6 +313,11 @@ pub struct LazyWalkReses<Mode: WalkMode> {
     pub more_quoted_env: Vec<ResEnv<Mode::Elt>>,
     /// The environment for interpolation (further out on the front, nearer on the back)
     pub less_quoted_env: Vec<ResEnv<Mode::Elt>>,
+    /// For all the less-quoted walks ongoing whose direction is negative,
+    ///  we need to smuggle out results.
+    /// This is a stack of (optional, because not all walks are negative) mutable handles
+    ///  to the environments being accumulated.
+    pub less_quoted_out_env: Vec<Option<OutEnvHandle<Mode>>>,
 
     pub this_ast: Ast,
 }
@@ -320,6 +331,7 @@ impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
         val!(struct "parts" => (, self.parts.reify()), "env" => (, self.env.reify()),
                     "more_quoted_env" => (,self.more_quoted_env.reify()),
                     "less_quoted_env" => (,self.less_quoted_env.reify()),
+                    "less_quoted_out_env" => (,self.less_quoted_out_env.reify()),
                     "this_ast" => (, self.this_ast.reify()))
     }
     fn reflect(v: &eval::Value) -> Self {
@@ -332,6 +344,9 @@ impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
                                 contents.find_or_panic(&n("more_quoted_env"))),
                             less_quoted_env: Vec::<ResEnv<Mode::Elt>>::reflect(
                                 contents.find_or_panic(&n("less_quoted_env"))),
+                            less_quoted_out_env:
+                                Vec::<Option<Rc<RefCell<Assoc<Name,Mode::Elt>>>>>::reflect(
+                                    contents.find_or_panic(&n("less_quoted_out_env"))),
                             this_ast: Ast::reflect(
                                 contents.find_or_panic(&n("this_ast")))})
     }
@@ -347,6 +362,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         LazyWalkReses {
             env: env,
             more_quoted_env: vec![], less_quoted_env: vec![],
+            less_quoted_out_env: vec![],
             parts: parts_unwalked.map(&mut LazilyWalkedTerm::new),
             this_ast: this_ast
         }
@@ -358,7 +374,25 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             env: env,
             more_quoted_env: vec![],
             less_quoted_env: vec![],
+            less_quoted_out_env: vec![],
             parts: EnvMBE::new(), this_ast: ast!("wrapper")
+        }
+    }
+
+    pub fn new_mq_wrapper(env: ResEnv<Mode::Elt>,
+            mqe: Vec<ResEnv<Mode::Elt>>) -> LazyWalkReses<Mode> {
+        LazyWalkReses {
+            env: env,
+            more_quoted_env: mqe,
+            less_quoted_env: vec![],
+            less_quoted_out_env: vec![], // If we want a `lqe`, we need to fill this in, too!
+            parts: EnvMBE::new(), this_ast: ast!("wrapper")
+        }
+    }
+
+    pub fn switch_ast(self, parts: EnvMBE<Ast>, this_ast: Ast) -> LazyWalkReses<Mode> {
+        LazyWalkReses {
+            parts: parts.map(&mut LazilyWalkedTerm::new), this_ast: this_ast, .. self
         }
     }
 
@@ -416,7 +450,6 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         LazyWalkReses { env: env, .. (*self).clone() }
     }
 
-
     /** Switch to a different mode with the same `Elt` type. */
     pub fn switch_mode<NewMode: WalkMode<Elt=Mode::Elt>>(&self) -> LazyWalkReses<NewMode> {
         let new_parts: EnvMBE<Rc<LazilyWalkedTerm<NewMode>>> =
@@ -425,28 +458,42 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
                     LazilyWalkedTerm::<NewMode>::new(&part.term));
         LazyWalkReses::<NewMode> {
             parts: new_parts,
-            env: self.env.clone(), more_quoted_env: self.more_quoted_env.clone(),
-            less_quoted_env: self.less_quoted_env.clone(), this_ast: self.this_ast.clone() }
+            env: self.env.clone(),
+            more_quoted_env: self.more_quoted_env.clone(),
+            less_quoted_env: self.less_quoted_env.clone(),
+            less_quoted_out_env: self.less_quoted_out_env.clone(),
+            this_ast: self.this_ast.clone() }
     }
 
-    pub fn quote_more(mut self) -> LazyWalkReses<Mode> {
+    pub fn quote_more(mut self, oeh: Option<OutEnvHandle<Mode>>) -> LazyWalkReses<Mode> {
         let env = self.more_quoted_env.pop().unwrap_or(Assoc::new());
         let more_quoted_env = self.more_quoted_env;
         self.less_quoted_env.push(self.env);
         let less_quoted_env = self.less_quoted_env;
 
-        LazyWalkReses { env, more_quoted_env, less_quoted_env, .. self }
+        self.less_quoted_out_env.push(oeh);
+        let less_quoted_out_env = self.less_quoted_out_env;
+
+        LazyWalkReses { env, more_quoted_env, less_quoted_env, less_quoted_out_env, .. self }
     }
 
-    pub fn quote_less(mut self) -> LazyWalkReses<Mode> {
+    /// Shift to a less-quoted level. If the OEH is non-`None`, you need to call `squirrel_away`.
+    pub fn quote_less(mut self) -> (Option<OutEnvHandle<Mode>>, LazyWalkReses<Mode>){
         let env = self.less_quoted_env.pop().unwrap_or(Assoc::new());
         let less_quoted_env = self.less_quoted_env;
+
+        let out_env : Option<OutEnvHandle<Mode>> = self.less_quoted_out_env.pop().unwrap();
+        let less_quoted_out_env = self.less_quoted_out_env;
+
         self.more_quoted_env.push(self.env);
         let more_quoted_env = self.more_quoted_env;
 
-        LazyWalkReses { env, less_quoted_env, more_quoted_env, .. self }
-    }
+        let res = LazyWalkReses {
+            env, less_quoted_env, more_quoted_env, less_quoted_out_env, .. self
+        };
 
+        (out_env, res)
+    }
 
     /** March by example, turning a repeated set of part names into one LWR per repetition.
      * Keeps the same environment.
@@ -499,4 +546,37 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             //Err(()) // TODO: When we actually start using results, emit something specific.
         }
     }
+}
+
+#[test]
+fn quote_more_and_less() {
+    let parts = LazyWalkReses::<::ty::UnpackTy>::new(
+        assoc_n!("a" => ty!({"type" "Nat" :})),
+        // we'll pretend this is under an unquote or something:
+        mbe!("body" => "bind_me"),
+        ast!("[ignored]"));
+
+    let parts = parts.with_context(ty!({"type" "Int" :}));
+
+    let interpolation_accumulator = Rc::new(::std::cell::RefCell::new(
+        Assoc::<Name, ::ty::Ty>::new()));
+
+    assert_eq!(parts.env.find(&n("a")), Some(&ty!({"type" "Nat" :})));
+
+    let q_parts = parts.quote_more(Some(interpolation_accumulator.clone()));
+
+    assert_eq!(q_parts.env.find(&n("a")), None);
+
+    // process the binding for "bind_me" as if it were in an unquote
+    let (squirreler, interpolation) = q_parts.quote_less();
+    let res = interpolation.get_res(&n("body")).unwrap();
+    assert_eq!(res, assoc_n!("bind_me" => ty!({"type" "Int" :})));
+
+    // the other thing `unquote` needs to do; save the result for out-of-band retrieval
+    squirrel_away::<::ty::UnpackTy>(squirreler, res);
+
+
+
+    // check that we successfully squirreled it away:
+    assert_eq!(*interpolation_accumulator.borrow(), assoc_n!("bind_me" => ty!({"type" "Int" :})));
 }

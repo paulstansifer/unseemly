@@ -182,7 +182,7 @@ impl ::std::fmt::Display for TyErr {
                 write!(f, "[UnableToDestructure] expected a `{}` type, got `{}`", expected_name, ty)
             }
             UnboundName(name) => {
-                write!(f, "[UnboundName] `{}` does not refer to a type", name)
+                write!(f, "[UnboundName] `{}` is not defined", name)
             }
         }
     }
@@ -206,7 +206,7 @@ impl From<()> for TyErr {
 
 pub type TypeError = ::util::err::Spanned<TyErr>;
 
-type TypeResult = Result<Ty, TypeError>;
+pub type TypeResult = Result<Ty, TypeError>;
 
 
 pub fn expect_type(expected: &Ty, got: &Ty, loc: &Ast) -> TypeResult {
