@@ -146,6 +146,7 @@ impl<Mode: WalkMode<D=Self>> Dir for Positive<Mode> {
 
     fn walk_quasi_literally(a: Ast, cnc: &LazyWalkReses<Self::Mode>)
             -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
+        print!("POS WQL\n");
         match a {
             Node(f, parts, exports) => {
                 let walked : Result<EnvMBE<Ast>, <Self::Mode as WalkMode>::Err> = parts.map(

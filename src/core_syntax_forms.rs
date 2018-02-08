@@ -1,8 +1,9 @@
 use std::rc::Rc;
 use ty::Ty;
 use name::*;
+use runtime::eval::{Eval, Destructure, QQuote, QQuoteDestr};
 use parse::{SynEnv, FormPat};
-use form::{Form, Positive, Negative};
+use form::{Form, Positive, Negative, Both};
 use core_forms::ast_to_name;
 use core_type_forms::{nt_to_type, nt_is_positive, less_quoted_ty, more_quoted_ty};
 use ast_walk::WalkRule::*;
@@ -159,14 +160,21 @@ pub fn unquote_form(nt: Name, pos_quot: bool) -> Rc<Form> {
             //   let some_pattern : pat <[int]< = ...
             //   let s = '[{pat} struct { a: ,[ some_pattern ],  b: b_var} ]'
             // ...what then?
-        eval: // should be both
-            Positive(cust_rc_box!( move | _unquote_parts | {
-                unimplemented!("");
-            })),
-        quasiquote: //should be both
-            Positive(cust_rc_box!( move | _unquote_parts | {
-                unimplemented!("");
-            }))
+        eval:
+            Both(NotWalked, NotWalked), // Outside a quotation? Makes no sense!
+        quasiquote: // the only kind of form for which this *isn't* `LiteralLike`:
+            Both( // TODO: double-check that `pos` and `neg` don't matter here
+                cust_rc_box!( move | unquote_parts | {
+                    let (_oeh, lq_parts) = unquote_parts.switch_mode::<Eval>().quote_less();
+                    ::ast_walk::walk::<Eval>(lq_parts.get_term_ref(&n("body")), &lq_parts)
+                }),
+                cust_rc_box!( move | unquote_parts | {
+                    let context = unquote_parts.context_elt().clone();
+
+                    let (_oeh, lq_parts) = unquote_parts.switch_mode::<Destructure>().quote_less();
+                    ::ast_walk::walk::<Destructure>(lq_parts.get_term_ref(&n("body")),
+                        &lq_parts.with_context(context))
+                }))
     })
 }
 
@@ -305,16 +313,67 @@ pub fn quote(pos: bool) -> Rc<Form> {
             },
         eval:
             if pos {
-                ::form::Positive(cust_rc_box!(|_quote_parts| {
-                    unimplemented!()
+                Positive(cust_rc_box!(|quote_parts| {
+                    let mq_parts = quote_parts.switch_mode::<QQuote>().quote_more(None);
+                    ::ast_walk::walk::<QQuote>(mq_parts.get_term_ref(&n("body")), &mq_parts)
                 }))
             } else {
-                ::form::Negative(cust_rc_box!(|_quote_parts| {
-                    unimplemented!()
+                Negative(cust_rc_box!(|quote_parts| {
+                    let context = quote_parts.context_elt().clone();
+
+                    let mq_parts = quote_parts.switch_mode::<QQuoteDestr>().quote_more(None)
+                        .with_context(context);
+                    ::ast_walk::walk::<QQuoteDestr>(mq_parts.get_term_ref(&n("body")), &mq_parts)
                 }))
             },
-        quasiquote: ::form::Both(LiteralLike, LiteralLike)
+        quasiquote: Both(LiteralLike, LiteralLike)
     })
+}
+
+#[test]
+fn quote_unquote_eval_basic() {
+    use ::runtime::eval::Value;
+
+    let pos = true;
+    let neg = false;
+
+    let env = assoc_n!(
+        "n" => val!(i 5),
+        "en" => val!(ast (vr "qn"))
+    );
+
+    let qenv = assoc_n!(
+        "qn" => val!(i 6)
+    );
+
+    fn eval_two_phased(expr: &Ast, env: Assoc<Name, Value>, qenv: Assoc<Name, Value>)
+            -> Result<Value, ()> {
+        ::ast_walk::walk::<Eval>(expr, &::ast_walk::LazyWalkReses::new_mq_wrapper(
+            env, vec![qenv]))
+    }
+
+    fn destr_two_phased(pat: &Ast, env: Assoc<Name, Value>, qenv: Assoc<Name, Value>, ctxt: Value)
+            -> Result<Assoc<Name, Value>, ()> {
+        ::ast_walk::walk::<Destructure>(pat, &::ast_walk::LazyWalkReses::new_mq_wrapper(
+            env, vec![qenv]).with_context(ctxt))
+    }
+
+    assert_eq!(eval_two_phased(&ast!({quote(pos) ; "nt" => "Expr", "body" => (vr "qn")}),
+            env.clone(), qenv.clone()),
+        Ok(val!(ast (vr "qn"))));
+
+
+    assert_eq!(eval_two_phased(&ast!({quote(pos) ; "nt" => "Expr",
+        "body" => {unquote_form(n("Expr"), true) ; "nt" => "Expr",
+            "body" => (vr "en")}}),
+            env.clone(), qenv.clone()),
+        Ok(val!(ast (vr "qn"))));
+
+    assert_eq!(
+        destr_two_phased(&ast!({quote(neg) ; "nt" => "Expr", "body" => (vr "qn")}), env, qenv,
+                         val!(ast (vr "qn"))),
+        Ok(Assoc::<Name, Value>::new()));
+
 }
 
 #[test]
@@ -425,8 +484,10 @@ fn quote_type_basic() {
 
 }
 
+
+
 #[test]
-fn quote_unquote_basic() {
+fn quote_unquote_type_basic() {
     let pos = true;
     let neg = false;
 
@@ -508,10 +569,10 @@ fn quote_unquote_basic() {
 fn unquote_type_basic() {
     use ::ast_walk::{walk, LazyWalkReses, OutEnvHandle};
     let pos = true;
-    let neg = false;
+    let _neg = false;
 
     let expr_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Expr" });
-    let pat_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Pat" });
+    let _pat_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Pat" });
 
 
     let env = assoc_n!(

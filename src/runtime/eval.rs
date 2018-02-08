@@ -21,7 +21,7 @@ pub enum Value {
     Sequence(Vec<Rc<Value>>), // TODO: switch to a different core sequence type
     Function(Rc<Closure>), // TODO: unsure if this Rc is needed
     BuiltInFunction(BIF),
-    AbstractSyntax(Name, Rc<Ast>), // likewise. Also, I'm not sure `Name` is right...
+    AbstractSyntax(Ast), // Unsure if this needs an Rc.
     Struct(Assoc<Name, Value>),
     Enum(Name, Vec<Value>) // A real compiler would probably tag with numbers...
 }
@@ -59,7 +59,7 @@ impl std::fmt::Display for Value {
             }
             Function(_) => { write!(f, "[closure]") }
             BuiltInFunction(_) => { write!(f, "[built-in function]") }
-            AbstractSyntax(n, ref ast) => { write!(f, "{}: {:?}", n, ast) }
+            AbstractSyntax(ref ast) => { write!(f, "'[{}]'", ast) }
             Struct(ref parts) => {
                 try!(write!(f, "*["));
                 for (k,v) in parts.iter_pairs() {
@@ -83,10 +83,13 @@ impl std::fmt::Debug for BIF {
 }
 
 impl ::walk_mode::WalkElt for Value {
-    /// We'd need to know what `nt` we're at, so the quotation form has to do this work...
-    fn from_ast(_: &Ast) -> Value { panic!("ICE: tried to convert Ast to Value") }
-    /// This is possible, but should be handled by the unquotation form
-    fn to_ast(&self) -> Ast { panic!("ICE: shoudn't happen...")}
+    fn from_ast(a: &Ast) -> Value {  AbstractSyntax(a.clone()) }
+    fn to_ast(&self) -> Ast {
+        match *self {
+            AbstractSyntax(ref a) => a.clone(),
+            _ => panic!("Type error: {} is not syntax", self)
+        }
+    }
 }
 
 
@@ -168,6 +171,14 @@ impl WalkMode for QQuote {
     type Err = ();
     type D = ::walk_mode::Positive<QQuote>;
 
+    fn walk_var(n: Name, _: &LazyWalkReses<Self>) -> Result<Value, ()> {
+        let n_sp = &n.sp();
+        Ok(val!(ast (vr n_sp)))
+    }
+    fn walk_atom(n: Name, _: &LazyWalkReses<Self>) -> Result<Value, ()> {
+        let n_sp = &n.sp();
+        Ok(val!(ast n_sp))
+    }
     fn get_walk_rule(f: &Form) -> &WalkRule<QQuote> { f.quasiquote.pos() }
     fn automatically_extend_env() -> bool { true } // This is the point of Unseemly!
 }
@@ -178,6 +189,22 @@ impl WalkMode for QQuoteDestr {
     type Err = ();
     type D = ::walk_mode::Negative<QQuoteDestr>;
 
+    fn walk_var(n: Name, cnc: &LazyWalkReses<Self>) -> Result<Assoc<Name, Value>, ()> {
+        let n_sp = &n.sp();
+        if cnc.context_elt() == &val!(ast (vr n_sp)) {
+            Ok(Assoc::<Name, Value>::new())
+        } else {
+            Err(Self::qlit_mismatch_error(val!(ast (vr n_sp)), cnc.context_elt().clone()))
+        }
+    }
+    fn walk_atom(n: Name, cnc: &LazyWalkReses<Self>) -> Result<Assoc<Name, Value>, ()> {
+        let n_sp = &n.sp();
+        if cnc.context_elt() == &val!(ast n_sp) {
+            Ok(Assoc::<Name, Value>::new())
+        } else {
+            Err(Self::qlit_mismatch_error(val!(ast (vr n_sp)), cnc.context_elt().clone()))
+        }
+    }
     fn get_walk_rule(f: &Form) -> &WalkRule<QQuoteDestr> { f.quasiquote.neg() }
     fn automatically_extend_env() -> bool { true } // This is the point of Unseemly!
 }
@@ -186,6 +213,9 @@ impl NegativeWalkMode for QQuoteDestr {
     fn needs_pre_match() -> bool { true } // Quoted syntax does have binding!
 }
 
+
+// `env` is a trap! We want a shifted `LazyWalkReses`!
+/*
 pub fn qquote(expr: &Ast, env: Assoc<Name, Value>) -> Result<Value, ()> {
     walk::<QQuote>(expr, &LazyWalkReses::new_wrapper(env))
 }
@@ -194,3 +224,4 @@ pub fn qquote_destr(pat: &Ast, env: Assoc<Name, Value>)
         -> Result<Assoc<Name, Value>,()> {
     walk::<QQuoteDestr>(pat, &LazyWalkReses::new_wrapper(env))
 }
+*/

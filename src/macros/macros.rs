@@ -378,8 +378,8 @@ macro_rules! val {
     (bif $f:expr) => {
         ::runtime::eval::Value::BuiltInFunction(::runtime::eval::BIF(Rc::new($f)))
     };
-    (ast $nm:expr, $body:tt) => {
-        ::runtime::eval::Value::AbstractSyntax(::name::n($nm), ast! $body)
+    (ast $body:tt) => {
+        ::runtime::eval::Value::AbstractSyntax(ast!($body))
     };
     (struct $( $k:tt => $v:tt ),* ) => {
         ::runtime::eval::Value::Struct(assoc_n!( $( $k => val! $v),* ))

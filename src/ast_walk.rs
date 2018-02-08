@@ -289,7 +289,6 @@ pub type OutEnvHandle<Mode: WalkMode> = Rc<RefCell<Assoc<Name,Mode::Elt>>>;
 
 /// Only makes sense if `Mode` is negative.
 pub fn squirrel_away<Mode: WalkMode>(opt_oeh: Option<OutEnvHandle<Mode>>, more_env: <Mode::D as Dir>::Out) {
-    print!("SQUIR: {:?}\n", more_env);
     let oeh = opt_oeh.unwrap();
     let new_env = oeh.borrow().set_assoc(&Mode::out_as_env(more_env));
     *oeh.borrow_mut() = new_env;
