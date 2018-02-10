@@ -79,16 +79,16 @@ pub fn unquote_form(nt: Name, pos_quot: bool) -> Rc<Form> {
             //  so it's optional
             Rc::new(if pos_quot {
                 form_pat!((delim ",[", "[", /*]]*/
-                    [(named "nt", (lit_by_name nt)), // TODO: need to muck with case
-                     (alt [], (delim "<[", "[", /*]]*/ (named "ty_annot", (call "ty")))),
+                    [(named "nt", (lit_by_name nt)),
+                     (alt [], (delim "<[", "[", /*]]*/ (named "ty_annot", (call "Type")))),
                      (lit "|"),
-                     (named "body", (call "expr"))]))
+                     (named "body", (call "Expr"))]))
             } else {
                 form_pat!((delim ",[", "[", /*]]*/
                     [(named "nt", (lit_by_name nt)),
-                     (alt [], (delim "<[", "[", /*]]*/ (named "ty_annot", (call "ty")))),
+                     (alt [], (delim "<[", "[", /*]]*/ (named "ty_annot", (call "Type")))),
                      (lit "|"),
-                     (named "body", (call "pat"))]))
+                     (named "body", (call "Pat"))]))
             }),
         type_compare: Positive(NotWalked), // this is not a type form
         synth_type:
@@ -209,7 +209,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
             }})
             .set(n("starter_nt"),
                 Rc::new(form_pat!(
-                    [(alt [], (delim "<[", "[", /*]]*/ (named "ty_annot", (call "ty")))),
+                    [(alt [], (delim "<[", "[", /*]]*/ (named "ty_annot", (call "Type")))),
                      (lit "|"),
                      (named "body", (call_by_name ::core_forms::ast_to_name(&starter_nt)))])))
     };
@@ -227,7 +227,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
                     if nt_is_positive(
                             ::core_forms::ast_to_name(&quote_parts.get_term(&n("nt")))) {
                         // TODO: if the user provides an annotation, check it!
-                        Ok(ty!({"type" "type_apply" :
+                        Ok(ty!({"Type" "type_apply" :
                             "type_rator" =>
                                 (, nt_to_type(ast_to_name(
                                     &quote_parts.get_term(&n("nt")))).concrete() ),
@@ -251,7 +251,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
                             .with_context(expected_type.clone())
                             .get_res(&n("body"));
 
-                        Ok(ty!({"type" "type_apply" :
+                        Ok(ty!({"Type" "type_apply" :
                             "type_rator" =>
                                 (, nt_to_type(ast_to_name(
                                     &quote_parts.get_term(&n("nt")))).concrete() ),
@@ -382,11 +382,11 @@ fn quote_type_basic() {
     let neg = false;
 
     let env = assoc_n!(
-        "n" => ty!({"type" "Nat" :})
+        "n" => ty!({"Type" "Nat" :})
     );
 
     let qenv = assoc_n!(
-        "qn" => ty!({"type" "Nat" :})
+        "qn" => ty!({"Type" "Nat" :})
     );
 
     let expr_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Expr" });
@@ -401,16 +401,16 @@ fn quote_type_basic() {
     // '[Expr | qn]'
     assert_eq!(synth_type_two_phased(&ast!({quote(pos) ; "nt" => "Expr", "body" => (vr "qn")}),
                                      env.clone(), qenv.clone()),
-        Ok(ty!({"type" "type_apply" :
-            "type_rator" => (,expr_type.clone()), "arg" => [{"type" "Nat" :}]})));
+        Ok(ty!({"Type" "type_apply" :
+            "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]})));
     // '[Expr <[Nat]< | qn]'
     // With type annotation, same result:
     assert_eq!(synth_type_two_phased(
             &ast!({quote(pos) ; "nt" => "Expr", "body" => (vr "qn"),
-                "ty_annot" => {"type" "Nat" :}}),
+                "ty_annot" => {"Type" "Nat" :}}),
             env.clone(), qenv.clone()),
-        Ok(ty!({"type" "type_apply" :
-            "type_rator" => (,expr_type.clone()), "arg" => [{"type" "Nat" :}]})));
+        Ok(ty!({"Type" "type_apply" :
+            "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]})));
 
     // '[Expr | n]'
     assert_m!(synth_type_two_phased(&ast!({quote(pos) ; "nt" => "Expr", "body" => (vr "n")}),
@@ -420,15 +420,15 @@ fn quote_type_basic() {
     // '[Expr | { x: qn  y: qn }]'
     assert_eq!(synth_type_two_phased(
             &ast!({quote(pos) ; "nt" => "Expr",
-            "body" => {"expr" "struct_expr" :
+            "body" => {"Expr" "struct_expr" :
                 "component_name" => [@"c" "x", "y"],
                 "component" => [@"c" (vr "qn"), (vr "qn")]
         }}),
         env.clone(), qenv.clone()),
-        Ok(ty!({"type" "type_apply" :
-            "type_rator" => (,expr_type.clone()), "arg" => [{ "type" "struct" :
+        Ok(ty!({"Type" "type_apply" :
+            "type_rator" => (,expr_type.clone()), "arg" => [{ "Type" "struct" :
                 "component_name" => [@"c" "x", "y"],
-                "component" => [@"c" {"type" "Nat":}, {"type" "Nat" :}]
+                "component" => [@"c" {"Type" "Nat":}, {"Type" "Nat" :}]
             }]})));
 
     fn unpack_type_two_phased(pat: &Ast, env: Assoc<Name, Ty>, qenv: Assoc<Name, Ty>, ctxt: Ty)
@@ -441,13 +441,13 @@ fn quote_type_basic() {
     // '[Expr <[ struct {} ]< | *[]* ]'
     assert_eq!(unpack_type_two_phased(&ast!({quote(neg) ;
                 "nt" => "Expr",
-                "ty_annot" => {"type" "struct":
+                "ty_annot" => {"Type" "struct":
                     "component_name" => [@"c"], "component" => [@"c"]},
-                "body" => {"expr" "struct_expr":
+                "body" => {"Expr" "struct_expr":
                     "component_name" => [@"c"], "component" => [@"c"]}}),
             env.clone(), qenv.clone(),
-            ty!({"type" "type_apply" :
-                "type_rator" => (,expr_type.clone()), "arg" => [{ "type" "struct" :
+            ty!({"Type" "type_apply" :
+                "type_rator" => (,expr_type.clone()), "arg" => [{ "Type" "struct" :
                     "component_name" => [@"c"], "component" => [@"c"]
                 }]})),
         Ok(assoc_n!()));
@@ -456,13 +456,13 @@ fn quote_type_basic() {
     // '[Pat <[ struct {} ]< | *[]* ]'
     assert_eq!(unpack_type_two_phased(&ast!({quote(neg) ;
                 "nt" => "Pat",
-                "ty_annot" => {"type" "struct":
+                "ty_annot" => {"Type" "struct":
                     "component_name" => [@"c"], "component" => [@"c"]},
-                "body" => {"pat" "struct_pat":
+                "body" => {"Pat" "struct_pat":
                     "component_name" => [@"c"], "component" => [@"c"]}}),
             env.clone(), qenv.clone(),
-            ty!({"type" "type_apply" :
-                "type_rator" => (,pat_type.clone()), "arg" => [{ "type" "struct" :
+            ty!({"Type" "type_apply" :
+                "type_rator" => (,pat_type.clone()), "arg" => [{ "Type" "struct" :
                     "component_name" => [@"c"], "component" => [@"c"]
                 }]})),
         Ok(assoc_n!()));
@@ -471,14 +471,14 @@ fn quote_type_basic() {
     // '[Pat <[ struct {x: Nat} ]< | *[x: qfoo]* ]'
     assert_eq!(unpack_type_two_phased(&ast!({quote(neg) ;
                 "nt" => "Pat",
-                "ty_annot" => {"type" "struct":
-                    "component_name" => [@"c" "x"], "component" => [@"c" {"type" "Nat" :}]},
-                "body" => {"pat" "struct_pat":
+                "ty_annot" => {"Type" "struct":
+                    "component_name" => [@"c" "x"], "component" => [@"c" {"Type" "Nat" :}]},
+                "body" => {"Pat" "struct_pat":
                     "component_name" => [@"c" "x"], "component" => [@"c" "qfoo"]}}),
             env.clone(), qenv.clone(),
-            ty!({"type" "type_apply" :
-                "type_rator" => (,pat_type.clone()), "arg" => [{ "type" "struct" :
-                    "component_name" => [@"c" "x"], "component" => [@"c" {"type" "Nat" :}]
+            ty!({"Type" "type_apply" :
+                "type_rator" => (,pat_type.clone()), "arg" => [{ "Type" "struct" :
+                    "component_name" => [@"c" "x"], "component" => [@"c" {"Type" "Nat" :}]
                 }]})),
         Ok(assoc_n!()));
 
@@ -495,15 +495,15 @@ fn quote_unquote_type_basic() {
     let pat_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Pat" });
 
     let env = assoc_n!(
-        "n" => ty!({"type" "Nat" :}),
-        "en" => ty!({"type" "type_apply" :
-            "type_rator" => (,expr_type.clone()), "arg" => [{"type" "Nat" :}]}),
-        "ef" => ty!({"type" "type_apply" :
-            "type_rator" => (,expr_type.clone()), "arg" => [{"type" "Float" :}]})
+        "n" => ty!({"Type" "Nat" :}),
+        "en" => ty!({"Type" "type_apply" :
+            "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]}),
+        "ef" => ty!({"Type" "type_apply" :
+            "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Float" :}]})
     );
 
     let qenv = assoc_n!(
-        "qn" => ty!({"type" "Nat" :})
+        "qn" => ty!({"Type" "Nat" :})
     );
 
     fn synth_type_two_phased(expr: &Ast, env: Assoc<Name, Ty>, qenv: Assoc<Name, Ty>)
@@ -516,7 +516,7 @@ fn quote_unquote_type_basic() {
     //     *[x: ,[Expr | en], y: ,[Expr | ef], z: baz]* ]'
     assert_eq!(synth_type_two_phased(&ast!({quote(pos) ;
                 "nt" => "Expr",
-                "body" => {"expr" "struct_expr":
+                "body" => {"Expr" "struct_expr":
                     "component_name" => [@"c" "x", "y", "z"],
                     "component" => [@"c"
                         {unquote_form(n("Expr"), pos) ; "nt" => "Expr", "body" => (vr "en")},
@@ -524,10 +524,10 @@ fn quote_unquote_type_basic() {
                         (vr "qn")
                     ]}}),
             env.clone(), qenv.clone()),
-        Ok(ty!({"type" "type_apply" : "type_rator" => (,expr_type.clone()),
-            "arg" => [{"type" "struct":
+        Ok(ty!({"Type" "type_apply" : "type_rator" => (,expr_type.clone()),
+            "arg" => [{"Type" "struct":
                 "component_name" => [@"c" "x", "y", "z"],
-                "component" => [@"c" {"type" "Nat" :}, {"type" "Float" :}, {"type" "Nat" :}]}]})));
+                "component" => [@"c" {"Type" "Nat" :}, {"Type" "Float" :}, {"Type" "Nat" :}]}]})));
 
     fn unpack_type_two_phased(pat: &Ast, env: Assoc<Name, Ty>, qenv: Assoc<Name, Ty>, ctxt: Ty)
             -> Result<Assoc<Name, Ty>, ::ty::TypeError> {
@@ -540,10 +540,10 @@ fn quote_unquote_type_basic() {
     //     *[x: ,[Pat | foo], y: ,[Pat | bar], z: baz]* ]'
     assert_eq!(unpack_type_two_phased(&ast!({quote(neg) ;
                 "nt" => "Pat",
-                "ty_annot" => {"type" "struct":
+                "ty_annot" => {"Type" "struct":
                     "component_name" => [@"c" "x", "y", "z"],
-                    "component" => [@"c" {"type" "Nat" :}, {"type" "Float" :}, {"type" "Nat" :}]},
-                "body" => {"pat" "struct_pat":
+                    "component" => [@"c" {"Type" "Nat" :}, {"Type" "Float" :}, {"Type" "Nat" :}]},
+                "body" => {"Pat" "struct_pat":
                     "component_name" => [@"c" "x", "y", "z"],
                     "component" => [@"c"
                         {unquote_form(n("Pat"), neg) ; "nt" => "Pat", "body" => "foo"},
@@ -551,17 +551,17 @@ fn quote_unquote_type_basic() {
                         "baz"
                     ]}}),
             env.clone(), qenv.clone(),
-            ty!({"type" "type_apply" :
-                "type_rator" => (,pat_type.clone()), "arg" => [{ "type" "struct" :
+            ty!({"Type" "type_apply" :
+                "type_rator" => (,pat_type.clone()), "arg" => [{ "Type" "struct" :
                     "component_name" => [@"c" "x", "y", "z"],
-                    "component" => [@"c" {"type" "Nat" :}, {"type" "Float" :}, {"type" "Nat" :}]
+                    "component" => [@"c" {"Type" "Nat" :}, {"Type" "Float" :}, {"Type" "Nat" :}]
                 }]})),
         Ok(assoc_n!(
-            "foo" => ty!({"type" "type_apply" :
-                "arg" => [{"type" "Nat" :}],
+            "foo" => ty!({"Type" "type_apply" :
+                "arg" => [{"Type" "Nat" :}],
                 "type_rator" => (,pat_type.clone())}),
-            "bar" => ty!({"type" "type_apply" :
-                "arg" => [{"type" "Float" :}],
+            "bar" => ty!({"Type" "type_apply" :
+                "arg" => [{"Type" "Float" :}],
                 "type_rator" => (,pat_type.clone())}))));
 }
 
@@ -576,13 +576,13 @@ fn unquote_type_basic() {
 
 
     let env = assoc_n!(
-        "n" => ty!({"type" "Nat" :}),
-        "en" => ty!({"type" "type_apply" :
-            "type_rator" => (,expr_type.clone()), "arg" => [{"type" "Nat" :}]})
+        "n" => ty!({"Type" "Nat" :}),
+        "en" => ty!({"Type" "type_apply" :
+            "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]})
     );
 
     let qenv = assoc_n!(
-        "qn" => ty!({"type" "Nat" :})
+        "qn" => ty!({"Type" "Nat" :})
     );
 
     fn synth_type_two_phased_lq(expr: &Ast, env: Assoc<Name, Ty>, qenv: Assoc<Name, Ty>)
@@ -597,6 +597,6 @@ fn unquote_type_basic() {
     // ,[Expr | en ],
     let (res, _) = synth_type_two_phased_lq(
         &ast!({unquote_form(n("Expr"), pos) ; "nt" => "Expr", "body" => (vr "en")}), env, qenv);
-    assert_eq!(res, Ok(ty!({"type" "Nat" :})));
+    assert_eq!(res, Ok(ty!({"Type" "Nat" :})));
 
 }

@@ -222,8 +222,8 @@ pub fn expect_type(expected: &Ty, got: &Ty, loc: &Ast) -> TypeResult {
 #[test]
 fn basic_type_synth() {
     let mt_ty_env = Assoc::new();
-    let int_ty = ty!({ ::core_forms::find_core_form("type", "Int") ; });
-    let nat_ty = ty!({ ::core_forms::find_core_form("type", "Nat") ; });
+    let int_ty = ty!({ ::core_forms::find_core_form("Type", "Int") ; });
+    let nat_ty = ty!({ ::core_forms::find_core_form("Type", "Nat") ; });
 
     let simple_ty_env = mt_ty_env.set(n("x"), int_ty.clone());
 
@@ -251,51 +251,51 @@ fn basic_type_synth() {
             {basic_typed_form!(
                 aat,
                 Custom(Rc::new(Box::new(
-                    |_| Ok(ty!({ ::core_forms::find_core_form("type", "Nat") ; }))))),
+                    |_| Ok(ty!({ ::core_forms::find_core_form("Type", "Nat") ; }))))),
                 NotWalked) ; []}),
             simple_ty_env.clone()),
         Ok(nat_ty.clone()));
 
 
     let chained_ty_env
-        = assoc_n!("a" => ty!((vr "B")), "B" => ty!((vr "C")), "C" => ty!({"type" "Int":}));
+        = assoc_n!("a" => ty!((vr "B")), "B" => ty!((vr "C")), "C" => ty!({"Type" "Int":}));
 
-    assert_eq!(synth_type(&ast!((vr "a")), chained_ty_env), Ok(ty!({"type" "Int":})));
+    assert_eq!(synth_type(&ast!((vr "a")), chained_ty_env), Ok(ty!({"Type" "Int":})));
 }
 
 
 #[test]
 fn type_specialization() {
-    let nat_ty = ty!( { "type" "Nat" : });
+    let nat_ty = ty!( { "Type" "Nat" : });
 
     fn tbn(nm: &'static str) -> Ty {
-        ty!( { "type" "type_by_name" : "name" => (, ::ast::Ast::Atom(n(nm))) } )
+        ty!( { "Type" "type_by_name" : "name" => (, ::ast::Ast::Atom(n(nm))) } )
     }
 
     let _para_ty_env = assoc_n!(
-        "some_int" => ty!( { "type" "Int" : }),
-        "convert_to_nat" => ty!({ "type" "forall_type" :
+        "some_int" => ty!( { "Type" "Int" : }),
+        "convert_to_nat" => ty!({ "Type" "forall_type" :
             "param" => ["t"],
-            "body" => { "type" "fn" :
+            "body" => { "Type" "fn" :
                 "param" => [ (, tbn("t").concrete() ) ],
                 "ret" => (, nat_ty.concrete() ) }}),
-        "identity" => ty!({ "type" "forall_type" :
+        "identity" => ty!({ "Type" "forall_type" :
             "param" => ["t"],
-            "body" => { "type" "fn" :
+            "body" => { "Type" "fn" :
                 "param" => [ (, tbn("t").concrete() ) ],
                 "ret" => (, tbn("t").concrete() ) }}));
     /*
-    assert_eq!(synth_type(&ast!({ "expr" "apply" :
+    assert_eq!(synth_type(&ast!({ "Expr" "apply" :
                 "rator" => (vr "convert_to_nat"),
                 "rand" => [ (vr "some_int") ]
             }), para_ty_env.clone()),
-        Ok(ty!( { "type" "Nat" : })));
+        Ok(ty!( { "Type" "Nat" : })));
 
-    assert_eq!(synth_type(&ast!({ "expr" "apply" :
+    assert_eq!(synth_type(&ast!({ "Expr" "apply" :
                 "rator" => (vr "identity"),
                 "rand" => [ (vr "some_int") ]
             }), para_ty_env.clone()),
-        Ok(ty!( { "type" "Int" : })));
+        Ok(ty!( { "Type" "Int" : })));
     */
     // TODO: test that ∀ X. ∀ Y. [ X → Y ] is a (sortof) sensible type (for transmogrify)
     //        and that ∀ X. [ X → ∀ Y . Y ] is ridiculously permissive

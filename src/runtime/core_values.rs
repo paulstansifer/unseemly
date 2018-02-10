@@ -22,11 +22,11 @@ pub fn erase_value(tv: &TypedValue) -> Ty { Ty::new(tv.ty.clone()) }
 pub fn core_typed_values() -> Assoc<Name, TypedValue> {
     assoc_n!(
         "fix" =>
-        tyf!( { "type" "forall_type" :
+        tyf!( { "Type" "forall_type" :
             "param" => ["f"], // has to be a function, but we don't know its arity
-            "body" => (import [* [forall "param"]] { "type" "fn" :
-                "param" => [ { "type" "fn" :
-                    "param" => [{"type" "fn" : "param" => [], "ret" => (vr "f") }],
+            "body" => (import [* [forall "param"]] { "Type" "fn" :
+                "param" => [ { "Type" "fn" :
+                    "param" => [{"Type" "fn" : "param" => [], "ret" => (vr "f") }],
                     "ret" => (vr "f")} ],
                 "ret" => (vr "f") })},
             // TODO: built-in functions, even though none of them work, shouldn't crash
@@ -34,7 +34,7 @@ pub fn core_typed_values() -> Assoc<Name, TypedValue> {
                 let new_env = cl.env.set(cl.params[0],
                     // reconstruct the invocation that caused this:
                     Function(Rc::new(::runtime::eval::Closure {
-                        body: ast!({"expr" "apply" :
+                        body: ast!({"Expr" "apply" :
                             "rator" => (vr "fix"),
                             "rand" => [(vr "orig_arg")]}),
                         params: vec![],
@@ -54,10 +54,10 @@ pub fn core_typed_values() -> Assoc<Name, TypedValue> {
         tf!([( "Int", "Int" ) -> "Int"],
              ( Int(a), Int(b) ) => { Int( a.clone() * b ) }),
         "zero?" =>
-        tyf!( {"type" "fn" : "param" => [ {"type" "Int" :}], "ret" => (vr "Bool") },
+        tyf!( {"Type" "fn" : "param" => [ {"Type" "Int" :}], "ret" => (vr "Bool") },
               ( Int(a) ) => { val!(b   a == BigInt::from(0))}),
         "equal?" =>
-        tyf!( {"type" "fn" : "param" => [ {"type" "Int" :}, {"type" "Int" :} ],
+        tyf!( {"Type" "fn" : "param" => [ {"Type" "Int" :}, {"Type" "Int" :} ],
                              "ret" => (vr "Bool")},
               ( Int(a), Int(b) ) => { val!(b a == b)} ),
         "zero" => tf!( "Int", val!(i 0) ),
@@ -84,7 +84,7 @@ pub fn core_types() -> Assoc<Name, Ty> {
     use ::core_type_forms::get__abstract_parametric_type;
     core_typed_values().map(&erase_value)
         .set(n("Bool"), ty!(
-            {"type" "enum" : "name" => [@"c" "True", "False"], "component" => [@"c" [], []]}))
+            {"Type" "enum" : "name" => [@"c" "True", "False"], "component" => [@"c" [], []]}))
         // These need to be in the environment, not just atomic types
         //  because we sometimes look them up internally in the compiler
         //   in the environment,
@@ -103,7 +103,7 @@ fn basic_core_value_evaluation() {
     let ce = cte.map(&erase_type);
 
     assert_eq!(eval(
-        &ast!({ find_core_form( "expr", "apply") ;
+        &ast!({ find_core_form( "Expr", "apply") ;
             "rator" => (vr "plus"),
             "rand" => [ (vr "one"), (vr "one") ]
         }),
@@ -114,33 +114,33 @@ fn basic_core_value_evaluation() {
 #[test]
 fn fixpoint_evaluation() {
     assert_eq!(eval(
-        &ast!( {"expr" "apply" : "rator" =>
-        { "expr" "apply" :
+        &ast!( {"Expr" "apply" : "rator" =>
+        { "Expr" "apply" :
             "rator" => (vr "fix"),
-            "rand" => [{ "expr" "lambda" :
+            "rand" => [{ "Expr" "lambda" :
                  "param" => [@"p" "again" ],
                  "p_t" => [@"p" /* TODO */ (vr "TODO")  ],
                  "body" => (import [* ["param" : "p_t"]]
-                 { "expr" "lambda" :
+                 { "Expr" "lambda" :
                      "param" => [@"p" "n" ],
-                     "p_t" => [@"p" { "type" "Int" : } ],
+                     "p_t" => [@"p" { "Type" "Int" : } ],
                      "body" => (import [* ["param" : "p_t"]]
-                     { "expr" "match" :
-                         "scrutinee" => { "expr" "apply" : "rator" => (vr "zero?"),
+                     { "Expr" "match" :
+                         "scrutinee" => { "Expr" "apply" : "rator" => (vr "zero?"),
                                                            "rand" => [(vr "n")] },
-                         "p" => [@"c" {"pat" "enum_pat" : "component" => [], "name" => "True"  },
-                                      {"pat" "enum_pat" : "component" => [], "name" => "False" }],
+                         "p" => [@"c" {"Pat" "enum_pat" : "component" => [], "name" => "True"  },
+                                      {"Pat" "enum_pat" : "component" => [], "name" => "False" }],
                          "arm" =>
                              [@"c"
                               (import ["p" = "scrutinee"] (vr "one")),
-                              (import ["p" = "scrutinee"] { "expr" "apply" :
+                              (import ["p" = "scrutinee"] { "Expr" "apply" :
                                    "rator" => (vr "times"),
                                    "rand" =>
                                        [(vr "n"),
-                                        { "expr" "apply" :
-                                            "rator" => { "expr" "apply" :
+                                        { "Expr" "apply" :
+                                            "rator" => { "Expr" "apply" :
                                                 "rator" => (vr "again"), "rand" => []},
-                                            "rand" => [{ "expr" "apply" :
+                                            "rand" => [{ "Expr" "apply" :
                                                  "rator" => (vr "minus"),
                                                  "rand" => [(vr "n"), (vr "one")]}]}]})]})})}]},
         "rand" => [(vr "five")]}),

@@ -94,7 +94,7 @@ macro_rules! Reifiable {
                 ::runtime::reify::Reifiable
                 for $name<$($($ty_param),*)*> {
             fn ty() -> ::ast::Ast {
-                type_defn_wrapper!($(<$($ty_param_ty),*>)* => { "type" "struct" :
+                type_defn_wrapper!($(<$($ty_param_ty),*>)* => { "Type" "struct" :
                    "component_name" => [@"c" $(
                        (, ::ast::Ast::Atom(::name::n(stringify!($field)))) ),* ],
                    "component" =>
@@ -114,7 +114,7 @@ macro_rules! Reifiable {
                 // HACK: at runtime, check to see if we need type parameters by making a vector
                 let argument_list : Vec<&str> = vec![$( $( stringify!($ty_param_ty) ),* )*];
                 if argument_list.len() > 0 {
-                    ast!({ "type" "type_apply" :
+                    ast!({ "Type" "type_apply" :
                         "type_rator" => (, ::ast::Ast::VariableReference( Self::ty_name() ) ),
                         "arg" => [ $( $( (, $ty_param_ty ::ty_invocation() ) ),* )* ]
                     })
@@ -197,7 +197,7 @@ macro_rules! Reifiable {
                 for $name<$($($ty_param),*)*> {
 
             fn ty() -> ::ast::Ast {
-                type_defn_wrapper!($(<$($ty_param_ty),*>)* => { "type" "enum" :
+                type_defn_wrapper!($(<$($ty_param_ty),*>)* => { "Type" "enum" :
                     "name" => [@"c" $(
                         (, ::ast::Ast::Atom(::name::n(stringify!($choice)))) ),* ],
                     "component" => [@"c" $( [ $($(
@@ -212,7 +212,7 @@ macro_rules! Reifiable {
                 // HACK: at runtime, check to see if we need type parameters by making a vector
                 let argument_list : Vec<&str> = vec![$( $( stringify!($ty_param_ty) ),* )*];
                 if argument_list.len() > 0 {
-                    ast!({ "type" "type_apply" :
+                    ast!({ "Type" "type_apply" :
                         "type_rator" => (, ::ast::Ast::VariableReference( Self::ty_name() ) ),
                         "arg" => [ $( $( (, $ty_param_ty ::ty_invocation() ) ),* )* ]
                     })
@@ -313,11 +313,11 @@ macro_rules! type_defn_wrapper {
         // All types will be ∀, even if in Rust they have no parameters;
         //  this is safe, but a nuisance.
         // All types will be μ. I think this is the way things work in most languages.
-        ast!({"type" "forall_type" :
+        ast!({"Type" "forall_type" :
             "param" => [ $($(
                 (, ::ast::Ast::Atom(::name::n(stringify!($ty_param_ty))))
             ),*)*],
-            "body" => (import [* [forall "param"]] {"type" "mu_type" :
+            "body" => (import [* [forall "param"]] {"Type" "mu_type" :
                  "param" => [(, ::ast::Ast::VariableReference(Self::ty_name()))],
                  "body" => (import [* [prot "param"]] $body)
              })
@@ -328,7 +328,7 @@ macro_rules! type_defn_wrapper {
 
 macro_rules! refer_to_type {
     ($name:tt < $( $arg:ty ),* >) => {
-        ast!({ "type" "type_apply" :
+        ast!({ "Type" "type_apply" :
             "type_rator" => (, ::ast::Ast::VariableReference(::name::n(stringify!($name))) ),
             "arg" => [ (, $( refer_to_type!($arg)),* )]
         })

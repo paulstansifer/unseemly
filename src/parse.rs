@@ -204,11 +204,11 @@ fn advanced_parsing() {
     let pair_form = simple_form("pair", form_pat!([(named "lhs", (lit "a")),
                                                    (named "rhs", (lit "b"))]));
     let toks_a_b = tokens!("a" "b");
-    assert_eq!(parse(&form_pat!((call "expr")),
+    assert_eq!(parse(&form_pat!((call "Expr")),
                      &assoc_n!(
                          "other_1" => Rc::new(Scope(simple_form("o", form_pat!((lit "other"))),
                                                     ::beta::ExportBeta::Nothing)),
-                         "expr" => Rc::new(Scope(pair_form.clone(), ::beta::ExportBeta::Nothing)),
+                         "Expr" => Rc::new(Scope(pair_form.clone(), ::beta::ExportBeta::Nothing)),
                          "other_2" =>
                              Rc::new(Scope(simple_form("o", form_pat!((lit "otherother"))),
                                            ::beta::ExportBeta::Nothing))),

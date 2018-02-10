@@ -251,7 +251,7 @@ impl<T: Reifiable> Reifiable for Vec<T> {
     fn ty_name() -> Name { n("Sequence") }
 
     fn ty_invocation() -> Ast {
-        ast!({ "type" "type_apply" :
+        ast!({ "Type" "type_apply" :
             "type_rator" => (vr "Sequence"),
             "arg" => [(, T::ty_invocation() )]
         })
@@ -445,16 +445,16 @@ fake_reifiability!(S);
 #[test]
 fn reified_types() {
     fn tbn(nm: &'static str) -> ::ast::Ast {
-        ast!( { "type" "type_by_name" : "name" => (, ::ast::Ast::Atom(n(nm))) } )
+        ast!( { "Type" "type_by_name" : "name" => (, ::ast::Ast::Atom(n(nm))) } )
     }
 
     //"ParameterizedLifetimeStruct<[Option<[rust_usize]< integer]<"
     assert_eq!(
         ParameterizedLifetimeStruct::<'static, Option<usize>, BigInt>::ty_invocation(),
-        ast!({"type" "type_apply" :
+        ast!({"Type" "type_apply" :
             "type_rator" => (vr "ParameterizedLifetimeStruct"),
             "arg" => [
-                {"type" "type_apply" :
+                {"Type" "type_apply" :
                     "type_rator" => (vr "Option"),
                     "arg" => [ (vr "rust_usize") ]
                 },
@@ -464,11 +464,11 @@ fn reified_types() {
 
     assert_eq!(
         ParameterizedLifetimeStruct::<'static, T, S>::ty(),
-        ast!({"type" "forall_type" :
+        ast!({"Type" "forall_type" :
             "param" => ["T", "S"],
-            "body" => (import [* [forall "param"]] {"type" "mu_type" :
+            "body" => (import [* [forall "param"]] {"Type" "mu_type" :
                 "param" => [(vr "ParameterizedLifetimeStruct")],
-                "body" => (import [* [prot "param"]] {"type" "struct" :
+                "body" => (import [* [prot "param"]] {"Type" "struct" :
                     // TODO: why did the order of fields get reversed?
                     "component_name" => [@"c" "c", "b", "a"],
                     "component" => [@"c" (vr "OldName"), (vr "S"), (vr "T")]

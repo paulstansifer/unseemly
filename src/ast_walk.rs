@@ -550,17 +550,17 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
 #[test]
 fn quote_more_and_less() {
     let parts = LazyWalkReses::<::ty::UnpackTy>::new(
-        assoc_n!("a" => ty!({"type" "Nat" :})),
+        assoc_n!("a" => ty!({"Type" "Nat" :})),
         // we'll pretend this is under an unquote or something:
         mbe!("body" => "bind_me"),
         ast!("[ignored]"));
 
-    let parts = parts.with_context(ty!({"type" "Int" :}));
+    let parts = parts.with_context(ty!({"Type" "Int" :}));
 
     let interpolation_accumulator = Rc::new(::std::cell::RefCell::new(
         Assoc::<Name, ::ty::Ty>::new()));
 
-    assert_eq!(parts.env.find(&n("a")), Some(&ty!({"type" "Nat" :})));
+    assert_eq!(parts.env.find(&n("a")), Some(&ty!({"Type" "Nat" :})));
 
     let q_parts = parts.quote_more(Some(interpolation_accumulator.clone()));
 
@@ -569,7 +569,7 @@ fn quote_more_and_less() {
     // process the binding for "bind_me" as if it were in an unquote
     let (squirreler, interpolation) = q_parts.quote_less();
     let res = interpolation.get_res(&n("body")).unwrap();
-    assert_eq!(res, assoc_n!("bind_me" => ty!({"type" "Int" :})));
+    assert_eq!(res, assoc_n!("bind_me" => ty!({"Type" "Int" :})));
 
     // the other thing `unquote` needs to do; save the result for out-of-band retrieval
     squirrel_away::<::ty::UnpackTy>(squirreler, res);
@@ -577,5 +577,5 @@ fn quote_more_and_less() {
 
 
     // check that we successfully squirreled it away:
-    assert_eq!(*interpolation_accumulator.borrow(), assoc_n!("bind_me" => ty!({"type" "Int" :})));
+    assert_eq!(*interpolation_accumulator.borrow(), assoc_n!("bind_me" => ty!({"Type" "Int" :})));
 }

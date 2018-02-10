@@ -106,7 +106,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         "For programming languages ... three levels have proved sufficient." */
 
     /* kinds */
-    let _type_kind = simple_form("type", form_pat!((lit "*")));
+    let _type_kind = simple_form("Type", form_pat!((lit "*")));
     let _higher_kind = simple_form("higher", form_pat!(
         (delim "k[", "[", /*]]*/
             [ (star (named "param", (call "kind"))), (lit "->"), (named "res", (call "kind"))])));
@@ -117,8 +117,8 @@ pub fn make_core_syn_env_types() -> SynEnv {
         type_defn_complex("fn",
             /* Friggin' Atom bracket matching doesn't ignore strings or comments. */
             form_pat!((delim "[", "[", /*]]*/
-                [ (star (named "param", (call "type"))), (lit "->"),
-                  (named "ret", (call "type") ) ])),
+                [ (star (named "param", (call "Type"))), (lit "->"),
+                  (named "ret", (call "Type") ) ])),
             LiteralLike, // synth is normal
             Both(LiteralLike,
                 cust_rc_box!(move |fn_parts| {
@@ -148,18 +148,18 @@ pub fn make_core_syn_env_types() -> SynEnv {
     let enum_type =
         type_defn("enum", form_pat!([(lit "enum"),
             (delim "{", "{", /*}}*/ (star [(named "name", aat),
-                (delim "(", "(", /*))*/ (star (named "component", (call "type"))))]))]));
+                (delim "(", "(", /*))*/ (star (named "component", (call "Type"))))]))]));
 
     let struct_type =
         type_defn("struct", form_pat!(
             [(lit "struct"),
              (delim "{", "{", /*}}*/ (star [(named "component_name", aat), (lit ":"),
-                                            (named "component", (call "type"))]))]));
+                                            (named "component", (call "Type"))]))]));
 
     let forall_type =
         type_defn_complex("forall_type",
             form_pat!([(lit "forall"), (star (named "param", aat)), (lit "."),
-                       (named "body", (import [* [forall "param"]], (call "type")))]),
+                       (named "body", (import [* [forall "param"]], (call "Type")))]),
             LiteralLike, // synth is normal
             Both(
                 LiteralLike,
@@ -193,10 +193,10 @@ pub fn make_core_syn_env_types() -> SynEnv {
      */
     let mu_type = type_defn_complex("mu_type",
         form_pat!([(lit "mu_type"), (star (named "param", varref)), (lit "."),
-             (named "body", (import [* [prot "param"]], (call "type")))]),
+             (named "body", (import [* [prot "param"]], (call "Type")))]),
 
         cust_rc_box!(move |mu_parts| { // Like LiteralLike, but doesn't expand `param`:
-            Ok(ty!( { "type" "mu_type" :
+            Ok(ty!( { "Type" "mu_type" :
                 "body" => (import [* [prot "param"]]
                              (, try!(mu_parts.get_res(&n("body"))).concrete())),
                 "param" => (,seq mu_parts.get_rep_term(&n("param")))
@@ -204,7 +204,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         }),
         Both(
             cust_rc_box!(move |mu_parts| { // Like LiteralLike, but doesn't expand `param`:
-                Ok(ty!( { "type" "mu_type" :
+                Ok(ty!( { "Type" "mu_type" :
                     "body" => (import [* [prot "param"]]
                                  (, try!(mu_parts.get_res(&n("body"))).concrete())),
                     "param" => (,seq mu_parts.get_rep_term(&n("param")))
@@ -249,7 +249,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
     //        -> expr<[S]<
     // TODO: add named repeats. Add type-level numbers!
     let dotdotdot_type = type_defn("dotdotdot",
-        form_pat!((delim "...[", "[", /*]]*/ (named "body", (call "type")))));
+        form_pat!((delim "...[", "[", /*]]*/ (named "body", (call "Type")))));
 
     // Like a variable reference (but `LiteralLike` typing prevents us from doing that)
     // TODO: I think this can be removed, and replaced with `VariableReference` now
@@ -283,8 +283,8 @@ pub fn make_core_syn_env_types() -> SynEnv {
     */
     let type_apply = type_defn_complex("type_apply",
         // The technical term for `<[...]<` is "fish X-ray"
-        form_pat!([(named "type_rator", (call "type")),
-         (delim "<[", "[", /*]]*/ (star [(named "arg", (call "type"))]))]),
+        form_pat!([(named "type_rator", (call "Type")),
+         (delim "<[", "[", /*]]*/ (star [(named "arg", (call "Type"))]))]),
          // TODO: shouldn't it be "args"?
         cust_rc_box!(move |tapp_parts| {
             let arg_res = try!(tapp_parts.get_rep_res(&n("arg")));
@@ -358,7 +358,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         }),
         Both(LiteralLike, LiteralLike));
 
-    assoc_n!("type" => Rc::new(Biased(Rc::new(forms_to_form_pat![
+    assoc_n!("Type" => Rc::new(Biased(Rc::new(forms_to_form_pat![
         fn_type.clone(),
         type_defn("Ident", form_pat!((lit "Ident"))),
         type_defn("Int", form_pat!((lit "Int"))),
@@ -407,7 +407,7 @@ pub fn nt_is_positive(nt: Name) -> bool {
 
 pub fn less_quoted_ty(t: Ty, nt: Name, loc: &Ast) -> Result<Ty, ::ty::TypeError> {
     // suppose that this is an expr, and `body` has the type `Expr <[String]<`:
-    expect_ty_node!( (t ; ::core_forms::find_core_form("type", "type_apply") ; loc)
+    expect_ty_node!( (t ; ::core_forms::find_core_form("Type", "type_apply") ; loc)
         tapp_parts;
         {
             let nt_sp = &nt.sp();
@@ -429,7 +429,7 @@ pub fn less_quoted_ty(t: Ty, nt: Name, loc: &Ast) -> Result<Ty, ::ty::TypeError>
 }
 
 pub fn more_quoted_ty(t: Ty, nt: &str) -> Ty {
-    ty!({"type" "type_apply" :
+    ty!({"Type" "type_apply" :
         "type_rator" => {get__abstract_parametric_type() ; "name" => nt},
         "arg" => [(,t.concrete())]})
 }
@@ -440,58 +440,58 @@ fn parametric_types() {
     // Are plain parametric types valid?
     without_freshening! { // (so we don't have to compute alpha-equivalence)
     assert_eq!(
-        synth_type(&ast!({"type" "forall_type" : "param" => ["t"],
+        synth_type(&ast!({"Type" "forall_type" : "param" => ["t"],
                           "body" => (import [* [forall "param"]] (vr "t"))}),
                    Assoc::new()),
-       Ok(ty!({"type" "forall_type" : "param" => ["t"],
+       Ok(ty!({"Type" "forall_type" : "param" => ["t"],
                "body" => (import [* [forall "param"]] (vr "t"))})));
    }
 
-    let ident_ty = ty!( { "type" "Ident" : });
-    let nat_ty = ty!( { "type" "Nat" : });
+    let ident_ty = ty!( { "Type" "Ident" : });
+    let nat_ty = ty!( { "Type" "Nat" : });
 
     let para_ty_env = assoc_n!(
-        "unary" => ty!({ "type" "forall_type" :
+        "unary" => ty!({ "Type" "forall_type" :
             "param" => ["t"],
-            "body" => (import [* [forall "param"]] { "type" "fn" :
+            "body" => (import [* [forall "param"]] { "Type" "fn" :
                 "param" => [ (, nat_ty.concrete()) ],
                 "ret" => (vr "t") })}),
-        "binary" => ty!({ "type" "forall_type" :
+        "binary" => ty!({ "Type" "forall_type" :
             "param" => ["t", "u"],
-            "body" => (import [* [forall "param"]] { "type" "fn" :
+            "body" => (import [* [forall "param"]] { "Type" "fn" :
                 "param" => [ (vr "t"), (vr "u") ],
                 "ret" => (, nat_ty.concrete()) })}));
     let mued_ty_env = assoc_n!("unary" => ty!((vr "unary")), "binary" => ty!((vr "binary")));
 
     // If `unary` is `mu`ed, `unary <[ ident ]<` can't be simplified.
     assert_eq!(synth_type(
-        &ast!( { "type" "type_apply" :
+        &ast!( { "Type" "type_apply" :
             "type_rator" => (vr "unary"),
             "arg" => [ (, ident_ty.concrete()) ]}),
         mued_ty_env.clone()),
-        Ok(ty!({ "type" "type_apply" :
+        Ok(ty!({ "Type" "type_apply" :
             "type_rator" => (vr "unary"),
             "arg" => [ (, ident_ty.concrete()) ]})));
 
     // If `unary` is `mu`ed, `unary <[ [nat -> nat] ]<` can't be simplified.
     assert_eq!(synth_type(
-        &ast!( { "type" "type_apply" :
+        &ast!( { "Type" "type_apply" :
             "type_rator" => (vr "unary"),
-            "arg" => [ { "type" "fn" :
+            "arg" => [ { "Type" "fn" :
                 "param" => [(, nat_ty.concrete())], "ret" => (, nat_ty.concrete())} ]}),
         mued_ty_env.clone()),
-        Ok(ty!({ "type" "type_apply" :
+        Ok(ty!({ "Type" "type_apply" :
             "type_rator" => (vr "unary"),
-            "arg" => [ { "type" "fn" :
+            "arg" => [ { "Type" "fn" :
                 "param" => [(, nat_ty.concrete())], "ret" => (, nat_ty.concrete())} ]})));
 
     // Expand the definition of `unary`.
     assert_eq!(synth_type(
-        &ast!( { "type" "type_apply" :
+        &ast!( { "Type" "type_apply" :
             "type_rator" => (vr "unary"),
             "arg" => [ (, ident_ty.concrete()) ]}),
         para_ty_env),
-        Ok(ty!({ "type" "fn" :
+        Ok(ty!({ "Type" "fn" :
             "param" => [(, nat_ty.concrete() )],
             "ret" => (, ident_ty.concrete())})));
 }

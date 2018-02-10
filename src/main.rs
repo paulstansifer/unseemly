@@ -217,7 +217,7 @@ fn assign_variable(name: &str, expr: &str) -> Result<Value, String> {
 fn assign_t_var(name: &str, t: &str) -> Result<ty::Ty, String> {
     let tokens = try!(read::read_tokens(t));
 
-    let ast = try!(parse::parse(&parse::FormPat::Call(n("type")),
+    let ast = try!(parse::parse(&parse::FormPat::Call(n("Type")),
                                 &core_forms::get_core_forms(), &tokens).map_err(|e| e.msg));
 
     let res = ty_env.with(|tys| {
@@ -237,7 +237,7 @@ fn assign_t_var(name: &str, t: &str) -> Result<ty::Ty, String> {
 fn canonicalize_type(t: &str) -> Result<ty::Ty, String> {
     let tokens = try!(read::read_tokens(t));
 
-    let ast = try!(parse::parse(&parse::FormPat::Call(n("type")),
+    let ast = try!(parse::parse(&parse::FormPat::Call(n("Type")),
                                 &core_forms::get_core_forms(), &tokens).map_err(|e| e.msg));
 
     ty_env.with(|tys| {
@@ -387,6 +387,4 @@ fn end_to_end_list_tools() {
     assert_m!(eval_unseemly_program("(map 123_list .[x : Int . (plus x one)]. )"), Ok(_));
 
     assert_m!(eval_unseemly_program("(map 123_list .[x : Int . (equal? x two)]. )"), Ok(_));
-
-
 }

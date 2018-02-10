@@ -396,12 +396,12 @@ macro_rules! val {
 
 macro_rules! mk_type { // TODO: maybe now use find_core_form and un-thread $se?
     ( [ ( $( $param:tt ),* )  -> $ret_t:tt ] ) => {
-        ast!( { ::core_forms::find_core_form("type", "fn") ;
+        ast!( { ::core_forms::find_core_form("Type", "fn") ;
                   "param" => [ $((, mk_type!($param) )),*],
                   "ret" => (, mk_type!($ret_t))
         })
     };
-    ( $n:tt ) => { ast!({ "type" $n : }) }; // atomic type
+    ( $n:tt ) => { ast!({ "Type" $n : }) }; // atomic type
 }
 
 /* Define a typed function */
