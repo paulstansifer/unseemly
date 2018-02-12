@@ -189,7 +189,12 @@ pub fn unquote_form(nt: Name, pos_quot: bool) -> Rc<Form> {
 pub fn quote(pos: bool) -> Rc<Form> {
     use ::parse::FormPat;
     use ::parse::FormPat::*;
-    let perform_quotation = move |se: SynEnv, starter_nt: Ast| -> SynEnv {
+    let perform_quotation = move |se: SynEnv, starter_info: Ast| -> SynEnv {
+        let starter_nt = match starter_info {
+            ::ast::IncompleteNode(ref parts) => ::core_forms::ast_to_name(
+                &parts.get_leaf_or_panic(&n("nt"))),
+            _ => panic!("ICE: malformed quotation")
+        };
         fn already_has_unquote(fp: &FormPat) -> bool {
             match *fp {
                 Alt(ref parts) => { parts.iter().any(|sub_fp| already_has_unquote(&*sub_fp)) },
@@ -202,16 +207,20 @@ pub fn quote(pos: bool) -> Rc<Form> {
         }
 
         se.keyed_map_borrow_f(&mut |nt: &Name, nt_def: &Rc<FormPat>| {
-            if already_has_unquote(nt_def) {
+            if already_has_unquote(nt_def)
+               // HACK: this is to avoice hitting "starterer". TODO: find a better way
+               || (nt != &n("Expr") && nt != &n("Pat") && nt != &n("Type")) {
                 nt_def.clone()
             } else {
                 Rc::new(Biased(unquote(*nt, pos), nt_def.clone()))
             }})
-            .set(n("starter_nt"),
+            .set(n("starterer_nt"),
                 Rc::new(form_pat!(
-                    [(alt [], (delim "<[", "[", /*]]*/ (named "ty_annot", (call "Type")))),
+                    // HACK: I guess the `nt` from outside isn't in the same Scope:
+                    [(named "nt", (anyways (, ::ast::Atom(starter_nt)))),
+                     (alt [], (delim "<[", "[", /*]]*/ (named "ty_annot", (call "Type")))),
                      (lit "|"),
-                     (named "body", (call_by_name ::core_forms::ast_to_name(&starter_nt)))])))
+                     (named "body", (call_by_name starter_nt))])))
     };
 
     // TODO: the following hardcodes positive walks as `Expr` and negative walks as `Pat`.
@@ -219,7 +228,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
     Rc::new(Form {
         name: if pos { n("quote_expr") } else { n("quote_pat") },
         grammar: Rc::new(form_pat!((delim "'[", "[", /*]]*/
-            [(extend (named "nt", aat), "starter_nt", perform_quotation)]))),
+            [(extend (named "nt", aat), "starterer_nt", perform_quotation)]))),
         type_compare: ::form::Both(NotWalked, NotWalked), // Not a type
         synth_type:
             if pos {
@@ -403,6 +412,19 @@ fn quote_type_basic() {
                                      env.clone(), qenv.clone()),
         Ok(ty!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]})));
+
+    // previously unaccessed environments default to the core values/types
+    // '[Expr | '[Expr | five]']'
+    assert_eq!(synth_type_two_phased(
+        &ast!(
+            {quote(pos) ; "nt" => "Expr", "body" =>
+                {quote(pos) ; "nt" => "Expr", "body" => (vr "five")}}),
+        env.clone(), qenv.clone()),
+        Ok(ty!({"Type" "type_apply" :
+            "type_rator" => (,expr_type.clone()), "arg" =>
+                [{"Type" "type_apply" :
+                    "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Int" :}]}]})));
+
     // '[Expr <[Nat]< | qn]'
     // With type annotation, same result:
     assert_eq!(synth_type_two_phased(

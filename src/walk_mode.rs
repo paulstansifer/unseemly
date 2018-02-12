@@ -12,11 +12,12 @@ use alpha::{freshen, freshen_with};
 /**
  * This trait makes a type producable by positive and negative walks.
  */
-
- // The fact that we need this type parameter makes me unhappy. Is there any way around it?
 pub trait WalkElt: Clone + Debug + Display + Reifiable {
     fn from_ast(a: &Ast) -> Self;
     fn to_ast(&self) -> Ast;
+
+    // Is this a hack?
+    fn core_env() -> Assoc<Name, Self> { Assoc::<Name, Self>::new() }
 }
 
 /**
@@ -146,7 +147,6 @@ impl<Mode: WalkMode<D=Self>> Dir for Positive<Mode> {
 
     fn walk_quasi_literally(a: Ast, cnc: &LazyWalkReses<Self::Mode>)
             -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
-        print!("POS WQL\n");
         match a {
             Node(f, parts, exports) => {
                 let walked : Result<EnvMBE<Ast>, <Self::Mode as WalkMode>::Err> = parts.map(

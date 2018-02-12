@@ -1,5 +1,5 @@
-* segmented unit tests: for when your unit tests want to depend on other code 
-  you've written to avoid writing grotty constructors and constructor-like 
+* segmented unit tests: for when your unit tests want to depend on other code
+  you've written to avoid writing grotty constructors and constructor-like
   code. You insert boundaries, and the unit test system tells you which side
   changed (thus, who to blame). Try a few variations on this.
 * hey, if we're letting our tooling look into the version history,
@@ -11,3 +11,7 @@
   for avoiding small-scale repetition.
 * a tool to automatically turn on logging and `diff` log messages from the
   failing tests in current version of the repo against the last good run.
+
+
+
+- example systems I've heard good things about: ggplot, R

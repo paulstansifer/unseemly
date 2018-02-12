@@ -90,7 +90,7 @@ pub fn core_types() -> Assoc<Name, Ty> {
         //   in the environment,
         //  not just as programmers, looking them up by syntax, where this whole thing is a wash.
         .set(n("Pat"), ty!({get__abstract_parametric_type() ; "name" => "Pat" }))
-        .set(n("Ty"), ty!({get__abstract_parametric_type() ; "name" => "Ty" }))
+        .set(n("Type"), ty!({get__abstract_parametric_type() ; "name" => "Type" }))
         .set(n("Expr"), ty!({get__abstract_parametric_type() ; "name" => "Expr" }))
 }
 

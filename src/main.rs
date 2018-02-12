@@ -97,6 +97,7 @@ fn main() {
         rl.set_completer(Some(ValueCompleter{}));
 
         let just_type = regex::Regex::new("^:t (.*)$").unwrap();
+        let just_eval = regex::Regex::new("^:e (.*)$").unwrap();
         let canon_type = regex::Regex::new("^:tt (.*)$").unwrap();
         let assign_value = regex::Regex::new("^(\\w+)\\s*:=(.*)$").unwrap();
         let save_value = regex::Regex::new("^:s +((\\w+)\\s*:=(.*))$").unwrap();
@@ -107,6 +108,7 @@ fn main() {
         println!("");
         println!("                  \x1b[1;38mUnseemly\x1b[0m");
         println!("    `<expr>` to (typecheck and) evaluate `<expr>`.");
+        println!("    `:e <expr>` to evaluate `<expr>` without typechecking.");
         println!("    `<name> := <expr>` to bind a name for this session.");
         println!("    `:t <expr>` to synthesize the type of <expr>.");
         println!("    `:tt <type>` to canonicalize <type>.");
@@ -143,6 +145,9 @@ fn main() {
 
             let result_display = if let Some(caps) = just_type.captures(&line) {
                 type_unseemly_program(caps.at(1).unwrap()).map(|x| format!("{}", x))
+            } else if let Some(caps) = just_eval.captures(&line) {
+                eval_unseemly_program_without_typechecking(caps.at(1).unwrap())
+                    .map(|x| format!("{}", x))
             } else if let Some(caps) = canon_type.captures(&line) {
                 canonicalize_type(caps.at(1).unwrap()).map(|x| format!("{}", x))
             } else if let Some(caps) = assign_value.captures(&line) {
@@ -193,7 +198,10 @@ fn main() {
 
         let result = eval_unseemly_program(&raw_input);
 
-        println!("{:?}", result);
+        match result {
+            Ok(v) => println!("{}", v),
+            Err(e) => println!("\x1b[1;31m✘\x1b[0m {:?}", e)
+        }
     }
 }
 
@@ -258,6 +266,19 @@ fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
     })
 }
 
+fn eval_unseemly_program_without_typechecking(program: &str) -> Result<Value, String> {
+    let tokens = try!(read::read_tokens(program));
+
+    let ast : ::ast::Ast = try!(
+        parse::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
+            .map_err(|e| e.msg));
+
+    val_env.with(|vals| {
+        eval(&ast, vals.borrow().clone()).map_err(|_| "???".to_string())
+    })
+}
+
+
 fn eval_unseemly_program(program: &str) -> Result<Value, String> {
     let tokens = try!(read::read_tokens(program));
 
@@ -268,6 +289,7 @@ fn eval_unseemly_program(program: &str) -> Result<Value, String> {
     let _type = try!(ty_env.with(|tys| {
         ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:?}", e))
     }));
+
 
     val_env.with(|vals| {
         eval(&ast, vals.borrow().clone()).map_err(|_| "???".to_string())
@@ -387,4 +409,25 @@ fn end_to_end_list_tools() {
     assert_m!(eval_unseemly_program("(map 123_list .[x : Int . (plus x one)]. )"), Ok(_));
 
     assert_m!(eval_unseemly_program("(map 123_list .[x : Int . (equal? x two)]. )"), Ok(_));
+}
+
+#[test]
+fn end_to_end_quotation() {
+    assert_m!(
+        eval_unseemly_program("'[Expr | .[ x : Int . x ]. ]'"),
+        Ok(_)
+    );
+
+    assert_m!(
+        eval_unseemly_program("'[Expr | (plus five five) ]'"),
+        Ok(_)
+    );
+
+
+    assert_m!(
+        eval_unseemly_program("'[Expr | '[Expr | (plus five five) ]' ]'"),
+        Ok(_)
+    );
+//≫ .[s : Expr <[Int]< . '[Expr | ( ,[Expr | s], '[Expr | ,[Expr | s], ]')]' ].
+
 }

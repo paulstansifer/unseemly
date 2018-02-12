@@ -90,6 +90,8 @@ impl ::walk_mode::WalkElt for Value {
             _ => panic!("Type error: {} is not syntax", self)
         }
     }
+
+    fn core_env() -> Assoc<Name, Self> { ::runtime::core_values::core_values() }
 }
 
 

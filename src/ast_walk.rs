@@ -465,7 +465,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
 
     pub fn quote_more(mut self, oeh: Option<OutEnvHandle<Mode>>) -> LazyWalkReses<Mode> {
-        let env = self.more_quoted_env.pop().unwrap_or(Assoc::new());
+        let env = self.more_quoted_env.pop().unwrap_or(Mode::Elt::core_env());
         let more_quoted_env = self.more_quoted_env;
         self.less_quoted_env.push(self.env);
         let less_quoted_env = self.less_quoted_env;
@@ -478,7 +478,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
 
     /// Shift to a less-quoted level. If the OEH is non-`None`, you need to call `squirrel_away`.
     pub fn quote_less(mut self) -> (Option<OutEnvHandle<Mode>>, LazyWalkReses<Mode>){
-        let env = self.less_quoted_env.pop().unwrap_or(Assoc::new());
+        let env = self.less_quoted_env.pop().unwrap_or(Mode::Elt::core_env());
         let less_quoted_env = self.less_quoted_env;
 
         let out_env : Option<OutEnvHandle<Mode>> = self.less_quoted_out_env.pop().unwrap();

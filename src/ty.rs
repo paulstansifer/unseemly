@@ -74,6 +74,8 @@ impl ::runtime::reify::Reifiable for Ty {
 impl ::walk_mode::WalkElt for Ty {
     fn from_ast(a: &Ast) -> Ty { Ty::new(a.clone()) }
     fn to_ast(&self) -> Ast { self.concrete() }
+
+    fn core_env() -> Assoc<Name, Ty> { ::runtime::core_values::core_types() }
 }
 
 custom_derive!{

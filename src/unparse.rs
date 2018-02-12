@@ -96,7 +96,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
             }
             res
         }
-        (&ComputeSyntax(_, _), _) => panic!("Geee. What do we do here?"),
+        (&ComputeSyntax(_, _), _) => format!("?CS? {:?} ?CS?", actl),
         (&Scope(ref form, _), &Node(ref form_actual, ref body, _)) => {
             if form == form_actual {
                 unparse_mbe(&*form.grammar, actl, body, s)
@@ -109,6 +109,16 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
             unparse_mbe(&*body, &*actl_body, context, s)
         }
         (&NameImport(_, _), _) => { format!("[Missing import]→{:?}←", actl) }
-        (&SynImport(_, _, _), _) => panic!("Geee. What do we do here?"),
+        (&SynImport(ref _fp, ref _n, ref _se), &Node(_, ref _body, _)) => {
+            // TODO: I think we need to store the LHS in the AST somehow for this to work.
+/*            (*se.0)(se, )
+            format!("{} {}",
+                unparse_mbe(fp, ????, context, s))
+                unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)*/
+                format!("?SI? {:?} ?SI?", actl)
+        }
+        (&SynImport(_,_,_), _) => { "".to_string() }
     }
 }
+
+//pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv) -> String {

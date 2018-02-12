@@ -327,7 +327,9 @@ pub fn make_core_syn_env() -> SynEnv {
                         (, try!(forall_parts.get_res(&n("body"))).concrete()))
                 }))
             }),
-            Body(n("body")))
+            Body(n("body"))),
+
+        ::core_syntax_forms::quote(/*positive=*/true)
     ];
 
 
