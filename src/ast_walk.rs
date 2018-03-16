@@ -108,43 +108,79 @@ impl<Elt: WalkElt> Clo<Elt> {
 
 
 /**
- * Make a `<Mode::D as Dir>::Out` by walking `node` in the environment from `cur_node_contents`.
- * `cur_node_contents` is used as an environment,
+ * Make a `<Mode::D as Dir>::Out` by walking `node` in the environment from `walk_ctxt`.
+ * `walk_ctxt` is used as an environment,
  *  and by betas to access other parts of the current node.
  */
-pub fn walk<Mode: WalkMode>(a: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
+pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
         -> Result<<Mode::D as Dir>::Out, Mode::Err> {
     // TODO: can we get rid of the & in front of our arguments and save the cloning?
-    let (a, cur_node_contents) = match *a {
+    // TODO: this has a lot of direction-specific runtime hackery.
+    //  Maybe we want separate positive and negative versions?
+    let (a, walk_ctxt) = match *a {
       // HACK: We want to process EE before pre_match before everything else.
       // This probably means we should find a way to get rid of pre_match.
       // But we can't just swap `a` and the ctxt when `a` is LiteralLike and the ctxt isn't.
 
-      ExtendEnv(_,_) => { (a.clone(), cur_node_contents.clone()) }
-      _ => Mode::D::pre_walk(a.clone(), cur_node_contents.clone())
+      ExtendEnv(_,_) => { (a.clone(), walk_ctxt.clone()) }
+      _ => Mode::D::pre_walk(a.clone(), walk_ctxt.clone())
     };
 
-    // println!("-----: {}", a);
-    // println!("-from: {}", cur_node_contents.this_ast);
-    // match cur_node_contents.env.find(&negative_ret_val()) {
+    println!("-----: {:?}", a);
+    // println!("-from: {}", walk_ctxt.this_ast);
+    // match walk_ctxt.env.find(&negative_ret_val()) {
     //     Some(ref ctxt) => println!("-ctxt: {:?}", ctxt), _ => {}}
-    // println!("---in: {:?}", cur_node_contents.env.map_borrow_f(&mut |_| "…"));
+    // println!("---in: {:?}", walk_ctxt.env.map_borrow_f(&mut |_| "…"));
 
     match a {
         Node(ref f, ref parts, _) => {
-            let new_cnc = cur_node_contents.switch_ast(parts.clone(), a.clone());
+            let new_walk_ctxt = walk_ctxt.switch_ast(parts.clone(), a.clone());
             // certain walks only work on certain kinds of AST nodes
             match *Mode::get_walk_rule(f) {
-                Custom(ref ts_fn) =>  ts_fn(new_cnc),
-                Body(n) =>            walk(parts.get_leaf(&n).unwrap(), &new_cnc),
-                LiteralLike =>        Mode::walk_quasi_literally(a.clone(), &new_cnc),
+                Custom(ref ts_fn) =>  ts_fn(new_walk_ctxt),
+                Body(n) =>            walk(parts.get_leaf(&n).unwrap(), &new_walk_ctxt),
+                LiteralLike =>        Mode::walk_quasi_literally(a.clone(), &new_walk_ctxt),
                 NotWalked =>          panic!( "ICE: {:?} should not be walked at all!", a )
             }
         }
         IncompleteNode(ref parts) => { panic!("ICE: {:?} isn't a complete node", parts)}
 
-        VariableReference(n) => { Mode::walk_var(n, &cur_node_contents) }
-        Atom(n) => { Mode::walk_atom(n, &cur_node_contents) }
+        VariableReference(n) => { Mode::walk_var(n, &walk_ctxt) }
+        Atom(n) => { Mode::walk_atom(n, &walk_ctxt) }
+
+        // TODO: we need to preserve these in LiteralLike contexts!!
+
+        // So do we just set the context element at the wrong level and then grab it for the shift?
+        // ????????????????? I guess so.
+        QuoteMore(ref body) => {
+            let oeh_m = Mode::D::oeh_if_negative();
+            let old_ctxt = walk_ctxt.maybe__context_elt();
+            let walk_ctxt = walk_ctxt.clone().quote_more(oeh_m.clone());
+
+            let res = try!(maybe_literally__walk(&a, body, walk_ctxt, old_ctxt));
+
+            match oeh_m {
+                None => Ok(res), // positive walk, no tomfoolery. Otherwise, unsquirrel:
+                Some(oeh) => { Ok( Mode::env_as_out((*oeh.borrow()).clone()) ) }
+            }
+        }
+        QuoteLess(ref body, depth) => {
+            let old_ctxt = walk_ctxt.maybe__context_elt();
+
+            let mut oeh = None;
+            let mut walk_ctxt = walk_ctxt.clone();
+            for _ in 0..depth {
+                let (oeh_new, walk_ctxt_new) = walk_ctxt.quote_less();
+                oeh = oeh_new;
+                walk_ctxt = walk_ctxt_new;
+            }
+
+            let res = try!(maybe_literally__walk(&a, body, walk_ctxt, old_ctxt));
+
+            squirrel_away::<Mode>(oeh, res.clone());
+
+            Ok(res)
+        }
 
         Trivial | Shape(_) => {
             panic!("ICE: {:?} is not a walkable AST", a);
@@ -152,41 +188,58 @@ pub fn walk<Mode: WalkMode>(a: &Ast, cur_node_contents: &LazyWalkReses<Mode>)
 
         // TODO: `env_from_beta` only works in positive modes... what should we do otherwise?
         ExtendEnv(ref body, ref beta) => {
-            let new_env = cur_node_contents.env.set_assoc(
-                &try!(env_from_beta(beta, &cur_node_contents)));
+            let new_env = walk_ctxt.env.set_assoc(
+                &try!(env_from_beta(beta, &walk_ctxt)));
 
             // print!("↓↓↓↓: {:?}\n    : {:?}\n", beta, new_env.map(|_| "…"));
 
-            let new_cnc = cur_node_contents.with_environment(new_env);
-            let new_cnc = // If the RHS is also binding, assume it's the same
+            let new__walk_ctxt = walk_ctxt.with_environment(new_env);
+            let new__walk_ctxt = // If the RHS is also binding, assume it's the same
             // TODO: we should make this only happen if we're actually negative.
             // The context element is sometimes leftover from a previous negative walk.
-                match cur_node_contents.env.find(&negative_ret_val())
+                match walk_ctxt.env.find(&negative_ret_val())
                         .map(<Mode as WalkMode>::Elt::to_ast) {
                     Some(ExtendEnv(ref rhs_body, _)) => {
-                        new_cnc.with_context(
+                        new__walk_ctxt.with_context(
                             <Mode as WalkMode>::Elt::from_ast(&*rhs_body))
                     }
-                    _ => new_cnc
+                    _ => new__walk_ctxt
             };
 
-            // HACK: if a `Node` is `LiteralLike`, its imports should be, too!
-            // I'm not sure what the pretty way to do this is.
-            let literal_like = match new_cnc.this_ast {
-                Node(ref f, _, _) =>
-                    match *Mode::get_walk_rule(f) { LiteralLike => true, _ => false},
-                a => panic!("ICE: `ExtendEnv` must be inside a node, got {:?}", a)
-            };
-
-            if literal_like {
-                Mode::walk_quasi_literally(a.clone(), &new_cnc)
-            } else {
-                walk(&**body, &new_cnc)
+            fn extract__ee_body<Mode: WalkMode>(e: <Mode as WalkMode>::Elt)
+                    -> <Mode as WalkMode>::Elt {
+                match e.to_ast() {
+                    ExtendEnv(ref body, _) => { <Mode as WalkMode>::Elt::from_ast(&*body) }
+                    _ => { e } // Match will fail
+                }
             }
+
+            maybe_literally__walk(&a, body, new__walk_ctxt,
+                walk_ctxt.maybe__context_elt().map(extract__ee_body::<Mode>))
         }
     }
 }
 
+/// If a `Node` is `LiteralLike`, its imports and [un]quotes should be, too!
+/// Maybe it'd be better just to stick a bool in `LazyWalkReses`?
+fn maybe_literally__walk<Mode: WalkMode>(a: &Ast, body: &Box<Ast>, walk_ctxt: LazyWalkReses<Mode>,
+            ctxt_elt: Option<Mode::Elt>)
+        -> Result<<Mode::D as Dir>::Out, Mode::Err> {
+    let literal_like = match &walk_ctxt.this_ast {
+        &Node(ref f, _, _) =>
+            Some(match *Mode::get_walk_rule(f) { LiteralLike => true, _ => false}),
+        _ => panic!("ICE: {} must be inside a `Node`", a)
+    };
+    let walk_ctxt = match ctxt_elt {
+        Some(e) => walk_ctxt.with_context(e),
+        None => walk_ctxt
+    };
+    if literal_like.expect("ICE: `ExtendEnv` must be inside a node") {
+        Mode::walk_quasi_literally(a.clone(), &walk_ctxt)
+    } else {
+        walk(&**body, &walk_ctxt)
+    }
+}
 
 /// How do we walk a particular node? This is a super-abstract question, hence all the `<>`s.
 pub enum WalkRule<Mode: WalkMode> {
@@ -287,11 +340,15 @@ impl<Mode: WalkMode> LazilyWalkedTerm<Mode> {
 
 pub type OutEnvHandle<Mode: WalkMode> = Rc<RefCell<Assoc<Name,Mode::Elt>>>;
 
-/// Only makes sense if `Mode` is negative.
+/// Only does anything if `Mode` is negative.
 pub fn squirrel_away<Mode: WalkMode>(opt_oeh: Option<OutEnvHandle<Mode>>, more_env: <Mode::D as Dir>::Out) {
-    let oeh = opt_oeh.unwrap();
-    let new_env = oeh.borrow().set_assoc(&Mode::out_as_env(more_env));
-    *oeh.borrow_mut() = new_env;
+    match opt_oeh {
+        Some(oeh) => {
+            let new_env = oeh.borrow().set_assoc(&Mode::out_as_env(more_env));
+            *oeh.borrow_mut() = new_env;
+        }
+        None => {}
+    }
 }
 
 /**
@@ -436,6 +493,14 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     /** Only sensible for negative walks */
     pub fn context_elt(&self) -> &Mode::Elt {
         self.env.find(&negative_ret_val()).unwrap()
+    }
+
+    pub fn maybe__context_elt(&self) -> Option<Mode::Elt> {
+        if <Mode::D as Dir>::is_positive() {
+            None
+        } else { // Force a panic if a negative walk lacks a context elt:
+            Some(self.env.find(&negative_ret_val()).unwrap().clone())
+        }
     }
 
     /// Change the context (by editing the environment). Only sensible for negative walks.

@@ -6,7 +6,7 @@ use ast_walk::{LazyWalkReses, LazilyWalkedTerm};
 use util::assoc::Assoc;
 use ast::{Ast,Atom,VariableReference};
 use util::mbe::EnvMBE;
-
+use alpha::Ren;
 
 /**
  `Beta`s are always tied to a particular `Form`,
@@ -118,14 +118,14 @@ impl Beta {
 
     // alpha::freshen_binders wants this to extract from complex payloads, hence `f`
     pub fn extract_from_mbe<T: Clone + ::std::fmt::Debug>(
-                &self, parts: &EnvMBE<T>, f: &Fn(&T) -> &Assoc<Name, Ast>) -> Assoc<Name,Ast> {
+                &self, parts: &EnvMBE<T>, f: &Fn(&T) -> &Ren) -> Ren {
         match *self {
-            Nothing => { Assoc::new() }
+            Nothing => { Ren::new() }
             Shadow(ref lhs, ref rhs) => {
                 lhs.extract_from_mbe(parts, f).set_assoc(&rhs.extract_from_mbe(parts, f))
             }
             ShadowAll(ref sub_beta, ref drivers) => {
-                let mut res = Assoc::new();
+                let mut res = Ren::new();
                 for parts in parts.march_all(drivers) { // Maybe `march_all` should memoize?
                     res = res.set_assoc(&sub_beta.extract_from_mbe(&parts, f));
                 }
@@ -286,14 +286,14 @@ impl ExportBeta {
     // This has an overly-specific type to match implementation details of alpha::freshen_binders.
     // Not sure if we need a generalization, though.
     pub fn extract_from_mbe<T: Clone + ::std::fmt::Debug>(
-            &self, parts: &EnvMBE<T>, f: &Fn(&T) -> &Assoc<Name, Ast>) -> Assoc<Name,Ast> {
+            &self, parts: &EnvMBE<T>, f: &Fn(&T) -> &Ren) -> Ren {
         match *self {
-            ExportBeta::Nothing => { Assoc::new() }
+            ExportBeta::Nothing => { Ren::new() }
             ExportBeta::Shadow(ref lhs, ref rhs) => {
                 lhs.extract_from_mbe(parts, f).set_assoc(&rhs.extract_from_mbe(parts, f))
             }
             ExportBeta::ShadowAll(ref sub_beta, ref drivers) => {
-                let mut res = Assoc::new();
+                let mut res = Ren::new();
                 for parts in parts.march_all(drivers) { // Maybe `march_all` should memoize?
                     res = res.set_assoc(&sub_beta.extract_from_mbe(&parts, f));
                 }
@@ -409,3 +409,13 @@ pub fn freshening_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>,
 
 //fn fold_beta<T>(b: Beta, over: Assoc<Name, T>,
 //                    leaf: Fn(&Ast ) -> S
+
+// TODO: I know we don't handle negative quasiquotation correctly:
+//   '[Expr | (plus one (plus one (plus ,[Expr | lhs], ,[Expr | rhs], )))]'
+// should export `lhs` and `rhs`. But how?
+/*
+#[test]
+fn beta_with_negative_quasiquote() {
+
+}
+*/

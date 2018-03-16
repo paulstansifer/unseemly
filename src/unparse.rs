@@ -14,7 +14,7 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
         }
         Scope(_,_) => { vec![] }
         Delimited(_,_, ref body) | Star(ref body) | Plus(ref body) | ComputeSyntax(_, ref body)
-        | NameImport(ref body, _) => {
+        | NameImport(ref body, _) | QuoteDeepen(ref body) | QuoteEscape(ref body, _)=> {
             node_names_mentioned(&*body)
         }
         Seq(ref sub_pats) | Alt(ref sub_pats) => {
@@ -109,6 +109,14 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
             unparse_mbe(&*body, &*actl_body, context, s)
         }
         (&NameImport(_, _), _) => { format!("[Missing import]→{:?}←", actl) }
+        (&QuoteDeepen(ref body), &QuoteMore(ref actl_body)) => {
+            unparse_mbe(&*body, &*actl_body, context, s)
+        }
+        (&QuoteDeepen(_), _) => { format!("[Missing qm]{:?}", actl)}
+        (&QuoteEscape(ref body, _), &QuoteLess(ref actl_body, _)) => {
+            unparse_mbe(&*body, &*actl_body, context, s)
+        }
+        (&QuoteEscape(_, _), _) => { format!("[Missing ql]{:?}", actl)}
         (&SynImport(ref _fp, ref _n, ref _se), &Node(_, ref _body, _)) => {
             // TODO: I think we need to store the LHS in the AST somehow for this to work.
 /*            (*se.0)(se, )

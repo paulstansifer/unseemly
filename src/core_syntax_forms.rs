@@ -65,30 +65,32 @@ use util::assoc::Assoc;
 //  (It only makes sense inside a `quote`.)
 // However, this would leave us with one `unquote` form available per level of quotation
 
-/// Generate an unquoting form.
+/// Generate a (depth-1) n unquoting form.
 /// `pos_quot` is true iff the quotation itself (and thus the interpolation) is positive.
 pub fn unquote(nt: Name, pos_quot: bool) -> Rc<FormPat> {
-    Rc::new(FormPat::Scope(unquote_form(nt, pos_quot), ::beta::ExportBeta::Nothing))
+    Rc::new(FormPat::Scope(unquote_form(nt, pos_quot, 1), ::beta::ExportBeta::Nothing))
 }
 
-pub fn unquote_form(nt: Name, pos_quot: bool) -> Rc<Form> {
+pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
+    let form_delim_start = &format!("{}[",/*]*/ ",".repeat(depth as usize));
+
     Rc::new(Form {
         name: n("unquote"),
         grammar:
             // It's a pain to determine whether type annotation is needed at syntax time,
             //  so it's optional
             Rc::new(if pos_quot {
-                form_pat!((delim ",[", "[", /*]]*/
+                form_pat!((delim form_delim_start, "[", /*]*/
                     [(named "nt", (lit_by_name nt)),
                      (alt [], (delim "<[", "[", /*]]*/ (named "ty_annot", (call "Type")))),
                      (lit "|"),
-                     (named "body", (call "Expr"))]))
+                     (named "body", (-- depth (call "Expr")))]))
             } else {
-                form_pat!((delim ",[", "[", /*]]*/
+                form_pat!((delim form_delim_start, "[", /*]*/
                     [(named "nt", (lit_by_name nt)),
                      (alt [], (delim "<[", "[", /*]]*/ (named "ty_annot", (call "Type")))),
                      (lit "|"),
-                     (named "body", (call "Pat"))]))
+                     (named "body", (-- depth (call "Pat")))]))
             }),
         type_compare: Positive(NotWalked), // this is not a type form
         synth_type:
@@ -106,23 +108,22 @@ pub fn unquote_form(nt: Name, pos_quot: bool) -> Rc<Form> {
                         let ast_for_errors = unquote_parts.get_term(&n("body"));
                         // TODO: check annotation if present
 
-                        if pos_quot {
-                            // `String`
-                            // `.1` is to drop the `None` on the floor
-                            less_quoted_ty(try!(unquote_parts.quote_less().1.get_res(&n("body"))),
-                                nt, &ast_for_errors)
+                        let mut res = if pos_quot {
+                            try!(unquote_parts.get_res(&n("body"))) // `String`
                         } else {
                             // need a type annotation
                             let expected_type = try!(unquote_parts.get_res(&n("ty_annot")));
 
-                            let (oeh, lq_parts) =
-                                unquote_parts.switch_mode::<::ty::UnpackTy>().quote_less();
-                            let res = try!(lq_parts.get_res(&n("body")));
+                            let negative_parts = unquote_parts.switch_mode::<::ty::UnpackTy>();
+                            let _res = try!(negative_parts.get_res(&n("body")));
 
-                            squirrel_away::<::ty::UnpackTy>(oeh, res);
+                            expected_type//, nt, &ast_for_errors)
+                        };
 
-                            less_quoted_ty(expected_type, nt, &ast_for_errors)
-                        }
+                        for _ in 0..(depth-1) {
+                            res = try!(less_quoted_ty(res, None, &ast_for_errors))
+                        } // HACK: the way this is structured, we only know the last `nt` to expect
+                        less_quoted_ty(res, Some(nt), &ast_for_errors)
                     }))
             } else {
                 // For example: ` '[Pat | (x, ,[Pat <[String]< | body], ) ]' `
@@ -133,8 +134,7 @@ pub fn unquote_form(nt: Name, pos_quot: bool) -> Rc<Form> {
 
                         if pos_quot {
                             // `String`
-                            let (_oeh, lq_parts) = unquote_parts.switch_mode::<::ty::SynthTy>()
-                                .quote_less();
+                            let lq_parts = unquote_parts.switch_mode::<::ty::SynthTy>();
                             let res = try!(lq_parts.get_res(&n("body")));
 
                             // Bonus typecheck
@@ -145,10 +145,7 @@ pub fn unquote_form(nt: Name, pos_quot: bool) -> Rc<Form> {
                             // phase-shift the context_elt:
                             let ctxt = more_quoted_ty(
                                 unquote_parts.context_elt().clone(), &nt.sp());
-                            let (oeh, lq_parts) = unquote_parts.quote_less();
-                            let res = try!(lq_parts.with_context(ctxt).get_res(&n("body")));
-
-                            squirrel_away::<::ty::UnpackTy>(oeh, res);
+                            let _res = try!(unquote_parts.with_context(ctxt).get_res(&n("body")));
 
                             Ok(Assoc::new()) // TODO: does this make sense?
                         }
@@ -165,13 +162,13 @@ pub fn unquote_form(nt: Name, pos_quot: bool) -> Rc<Form> {
         quasiquote: // the only kind of form for which this *isn't* `LiteralLike`:
             Both( // TODO: double-check that `pos` and `neg` don't matter here
                 cust_rc_box!( move | unquote_parts | {
-                    let (_oeh, lq_parts) = unquote_parts.switch_mode::<Eval>().quote_less();
+                    let lq_parts = unquote_parts.switch_mode::<Eval>();
                     ::ast_walk::walk::<Eval>(lq_parts.get_term_ref(&n("body")), &lq_parts)
                 }),
                 cust_rc_box!( move | unquote_parts | {
                     let context = unquote_parts.context_elt().clone();
 
-                    let (_oeh, lq_parts) = unquote_parts.switch_mode::<Destructure>().quote_less();
+                    let lq_parts = unquote_parts.switch_mode::<Destructure>();
                     ::ast_walk::walk::<Destructure>(lq_parts.get_term_ref(&n("body")),
                         &lq_parts.with_context(context))
                 }))
@@ -220,7 +217,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
                     [(named "nt", (anyways (, ::ast::Atom(starter_nt)))),
                      (alt [], (delim "<[", "[", /*]]*/ (named "ty_annot", (call "Type")))),
                      (lit "|"),
-                     (named "body", (call_by_name starter_nt))])))
+                     /*(++*/ (named "body", (call_by_name starter_nt))/*)*/])))
     };
 
     // TODO: the following hardcodes positive walks as `Expr` and negative walks as `Pat`.
@@ -256,7 +253,8 @@ pub fn quote(pos: bool) -> Rc<Form> {
                         // I wrote down an argument in the form of code to this effect elsewhere,
                         //  but it boils down to this: environments can always be managed directly,
                         //   by introducing and referencing bindings.
-                        let _ = quote_parts.switch_mode::<::ty::UnpackTy>().quote_more(None)
+                        let _ = quote_parts.switch_mode::<::ty::UnpackTy>()
+                            .quote_more(None)
                             .with_context(expected_type.clone())
                             .get_res(&n("body"));
 
@@ -296,23 +294,23 @@ pub fn quote(pos: bool) -> Rc<Form> {
                     // There's no need for a type annotation
 
                     let nt = ast_to_name(&quote_parts.get_term(&n("nt")));
-
                     if nt_is_positive(nt) {
                         // TODO: check that this matches the type annotation, if provided!
                         let _underlying_type =
                             try!(quote_parts.switch_mode::<::ty::SynthTy>()
-                                .quote_more(Some(interpolation_accumulator.clone()))
-                                .get_res(&n("body")));
+                                    .quote_more(Some(interpolation_accumulator.clone()))
+                                    .get_res(&n("body")));
                     } else {
                         let new_context =
                             try!(less_quoted_ty(
-                                quote_parts.context_elt().clone(), nt, &quote_parts.this_ast));
+                                quote_parts.context_elt().clone(), Some(nt),
+                                &quote_parts.this_ast));
                         // TODO: check that this matches the type annotation, if provided!
                         let _underlying_type =
                             try!(quote_parts
-                                .quote_more(Some(interpolation_accumulator.clone()))
-                                .with_context(new_context)
-                                .get_res(&n("body")));
+                                    .quote_more(Some(interpolation_accumulator.clone()))
+                                    .with_context(new_context)
+                                    .get_res(&n("body")));
                     }
 
                     // pull out the squirreled-away environment from unquotes
@@ -373,8 +371,8 @@ fn quote_unquote_eval_basic() {
 
 
     assert_eq!(eval_two_phased(&ast!({quote(pos) ; "nt" => "Expr",
-        "body" => {unquote_form(n("Expr"), true) ; "nt" => "Expr",
-            "body" => (vr "en")}}),
+        "body" => {unquote_form(n("Expr"), true, 1) ; "nt" => "Expr",
+            "body" => (-- 1 (vr "en"))}}),
             env.clone(), qenv.clone()),
         Ok(val!(ast (vr "qn"))));
 
@@ -541,8 +539,10 @@ fn quote_unquote_type_basic() {
                 "body" => {"Expr" "struct_expr":
                     "component_name" => [@"c" "x", "y", "z"],
                     "component" => [@"c"
-                        {unquote_form(n("Expr"), pos) ; "nt" => "Expr", "body" => (vr "en")},
-                        {unquote_form(n("Expr"), pos) ; "nt" => "Expr", "body" => (vr "ef")},
+                        {unquote_form(n("Expr"), pos, 1) ;
+                            "nt" => "Expr", "body" => (-- 1 (vr "en"))},
+                        {unquote_form(n("Expr"), pos, 1) ;
+                            "nt" => "Expr", "body" => (-- 1 (vr "ef"))},
                         (vr "qn")
                     ]}}),
             env.clone(), qenv.clone()),
@@ -568,8 +568,8 @@ fn quote_unquote_type_basic() {
                 "body" => {"Pat" "struct_pat":
                     "component_name" => [@"c" "x", "y", "z"],
                     "component" => [@"c"
-                        {unquote_form(n("Pat"), neg) ; "nt" => "Pat", "body" => "foo"},
-                        {unquote_form(n("Pat"), neg) ; "nt" => "Pat", "body" => "bar"},
+                        {unquote_form(n("Pat"), neg, 1) ; "nt" => "Pat", "body" => (-- 1 "foo")},
+                        {unquote_form(n("Pat"), neg, 1) ; "nt" => "Pat", "body" => (-- 1 "bar")},
                         "baz"
                     ]}}),
             env.clone(), qenv.clone(),
@@ -608,17 +608,23 @@ fn unquote_type_basic() {
     );
 
     fn synth_type_two_phased_lq(expr: &Ast, env: Assoc<Name, Ty>, qenv: Assoc<Name, Ty>)
-            -> (::ty::TypeResult, OutEnvHandle<::ty::SynthTy>) {
-        let oeh = Rc::new(::std::cell::RefCell::new(Assoc::<Name, Ty>::new()));
+            -> ::ty::TypeResult {
         let parts = LazyWalkReses::new_wrapper(env);
-        let qparts = parts.quote_more(Some(oeh.clone())).with_environment(qenv);
+        let qparts = parts.quote_more(None).with_environment(qenv);
 
-        (::ast_walk::walk::<::ty::SynthTy>(expr, &qparts), oeh)
+        ::ast_walk::walk::<::ty::SynthTy>(expr, &qparts)
     }
 
     // ,[Expr | en ],
-    let (res, _) = synth_type_two_phased_lq(
-        &ast!({unquote_form(n("Expr"), pos) ; "nt" => "Expr", "body" => (vr "en")}), env, qenv);
+    let res = synth_type_two_phased_lq(
+        &ast!({unquote_form(n("Expr"), pos, 1) ;
+            "nt" => "Expr", "body" => (-- 1 (vr "en"))}), env, qenv);
     assert_eq!(res, Ok(ty!({"Type" "Nat" :})));
+}
+
+// TODO:
+// '[Expr | ( ,[Expr | could_be_anything ] five)]'
+#[test]
+fn subtyping_under_negative_quote() {
 
 }

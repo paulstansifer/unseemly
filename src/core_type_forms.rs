@@ -405,17 +405,22 @@ pub fn nt_is_positive(nt: Name) -> bool {
     }
 }
 
-pub fn less_quoted_ty(t: Ty, nt: Name, loc: &Ast) -> Result<Ty, ::ty::TypeError> {
+pub fn less_quoted_ty(t: Ty, nt: Option<Name>, loc: &Ast) -> Result<Ty, ::ty::TypeError> {
     // suppose that this is an expr, and `body` has the type `Expr <[String]<`:
     expect_ty_node!( (t ; ::core_forms::find_core_form("Type", "type_apply") ; loc)
         tapp_parts;
         {
-            let nt_sp = &nt.sp();
-            ty_exp!(
-                &Ty::new(tapp_parts.get_leaf_or_panic(&n("type_rator")).clone()),
-                &ty!({get__abstract_parametric_type() ; "name" => nt_sp}),
-                loc
-            );
+            match nt {
+                Some(nt) => {
+                    let nt_sp = &nt.sp();
+                    ty_exp!(
+                        &Ty::new(tapp_parts.get_leaf_or_panic(&n("type_rator")).clone()),
+                        &ty!({get__abstract_parametric_type() ; "name" => nt_sp}),
+                        loc
+                    );
+                }
+                None => {}
+            }
 
             let args = tapp_parts.get_rep_leaf_or_panic(&n("arg"));
             if args.len() != 1 {

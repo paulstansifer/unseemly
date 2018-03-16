@@ -21,6 +21,11 @@ custom_derive! {
         Atom(Name),
         VariableReference(Name),
 
+        /// Shift environment to quote more
+        QuoteMore(Box<Ast>),
+        /// Shift environment (by some amount) to quote less
+        QuoteLess(Box<Ast>, u8),
+
         /// A meaningful chunk of syntax, governed by a form, containing an environment,
         ///  potentially exporting some names.
         Node(::std::rc::Rc<::form::Form>, EnvMBE<Ast>, ExportBeta),
@@ -60,6 +65,12 @@ impl fmt::Debug for Ast {
                     _ => try!(write!(f, " ⇑{:?}", export))
                 }
                 write!(f, "}}")
+            }
+            QuoteMore(ref body) => {
+                write!(f, "``{:?}``", body)
+            }
+            QuoteLess(ref body, depth) => {
+                write!(f, "..({}){:?}..", depth, body)
             }
             IncompleteNode(ref body) => {
                 write!(f, "{{ INCOMPLETE; {:?} }}", body)
@@ -108,6 +119,8 @@ impl Ast {
                 //  `Scope` contains a `Scope` without an intervening `Named`
                 panic!("I don't know what to do here!")
             },
+            QuoteMore(ref body) => body.flatten(),
+            QuoteLess(ref body, _) => body.flatten(),
             ExtendEnv(ref body, _) => body.flatten()
         }
     }

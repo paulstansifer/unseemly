@@ -103,6 +103,12 @@ macro_rules! ast_shape {
 }
 
 macro_rules! ast {
+    ( (++ $sub:tt) ) => {
+        ::ast::QuoteMore(Box::new(ast!($sub)))
+    };
+    ( (-- $depth:tt $sub:tt ) ) => {
+        ::ast::QuoteLess(Box::new(ast!($sub)), $depth)
+    };
     ( (import $beta:tt $sub:tt) ) => {
         ::ast::ExtendEnv(Box::new(ast!($sub)), beta!($beta))
     };
@@ -139,7 +145,6 @@ macro_rules! ast {
         ::ast::Node(::core_forms::find_core_form($nt, $form), mbe!( $($mbe_arg)* ),
                     ::beta::ExportBeta::Nothing)
     };
-
     ($e:expr) => { ::ast::Atom(::name::n($e))}
 }
 
@@ -297,6 +302,12 @@ macro_rules! form_pat {
     };
     ((import $beta:tt, $body:tt)) => {
         ::parse::FormPat::NameImport(::std::rc::Rc::new(form_pat!($body)), beta!($beta))
+    };
+    ((++ $body:tt)) => {
+        ::parse::FormPat::QuoteDeepen(::std::rc::Rc::new(form_pat!($body)))
+    };
+    ((-- $depth:tt $body:tt)) => {
+        ::parse::FormPat::QuoteEscape(::std::rc::Rc::new(form_pat!($body)), $depth)
     };
     ((extend $lhs:tt, $n:expr, $f:expr)) => {
         ::parse::FormPat::SynImport(::std::rc::Rc::new(form_pat!($lhs)), ::name::n($n),

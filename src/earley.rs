@@ -409,7 +409,8 @@ impl Item {
                                            .. waiting_item.clone() }, false)]
                         }
                         Alt(_) | Call(_) | ComputeSyntax(_,_)
-                        | Scope(_,_) | Named(_,_) | SynImport(_,_,_) | NameImport(_,_) => {
+                        | Scope(_,_) | Named(_,_) | SynImport(_,_,_) | NameImport(_,_)
+                        | QuoteDeepen(_) | QuoteEscape(_,_) => {
                             waiting_item.finish_with(me_justif, false)
                         }
                         Biased(ref _plan_a, ref plan_b) => {
@@ -575,7 +576,8 @@ impl Item {
                       false)]
             }
             (0, &ComputeSyntax(_,_)) => { panic!("TODO") },
-            (0, &Named(_, ref body)) | (0, &NameImport(ref body, _)) => {
+            (0, &Named(_, ref body)) | (0, &NameImport(ref body, _))
+            | (0, &QuoteDeepen(ref body)) | (0, &QuoteEscape(ref body, _)) => {
                 self.start(body.clone(), cur_idx)
             },
             // Rust rightly complains that this is unreachable; yay!
@@ -698,6 +700,14 @@ impl Item {
             NameImport(_, ref beta) => {
                 let sub_parsed = try!(self.find_wanted(chart, done_tok).c_parse(chart, done_tok));
                 Ok(Ast::ExtendEnv(Box::new(sub_parsed), beta.clone()))
+            }
+            QuoteDeepen(_) => {
+                let sub_parsed = try!(self.find_wanted(chart, done_tok).c_parse(chart, done_tok));
+                Ok(Ast::QuoteMore(Box::new(sub_parsed)))
+            }
+            QuoteEscape(_, depth) => {
+                let sub_parsed = try!(self.find_wanted(chart, done_tok).c_parse(chart, done_tok));
+                Ok(Ast::QuoteLess(Box::new(sub_parsed), depth))
             }
         };
         log!(">>>{:?}<<<\n", res);

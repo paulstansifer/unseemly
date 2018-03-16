@@ -92,7 +92,7 @@ impl Reifiable for bool {
 
 // note: operations for these shouldn't have BigInt semantics!
 impl Reifiable for usize {
-    fn ty_name() -> Name { n("rust_usize") }
+    fn ty_name() -> Name { n("Rust_usize") }
 
     fn reify(&self) -> Value { Value::Int(BigInt::from(*self)) }
 
@@ -102,13 +102,23 @@ impl Reifiable for usize {
     }
 }
 impl Reifiable for i32 {
-    fn ty_name() -> Name { n("rust_i32") }
+    fn ty_name() -> Name { n("Rust_i32") }
 
     fn reify(&self) -> Value { Value::Int(BigInt::from(*self)) }
 
     fn reflect(v: &Value) -> Self {
         use num::ToPrimitive;
         extract!((v) Value::Int = (ref i) => i.to_i32().unwrap())
+    }
+}
+impl Reifiable for u8 {
+    fn ty_name() -> Name { n("Rust_u8") }
+
+    fn reify(&self) -> Value { Value::Int(BigInt::from(*self)) }
+
+    fn reflect(v: &Value) -> Self {
+        use num::ToPrimitive;
+        extract!((v) Value::Int = (ref i) => i.to_u8().unwrap())
     }
 }
 impl Reifiable for () {
@@ -282,7 +292,7 @@ impl<T: Reifiable> Reifiable for ::std::boxed::Box<T> {
 
 // The roundtrip will de-alias the cell, sadly.
 impl<T: Reifiable> Reifiable for ::std::cell::RefCell<T> {
-    fn ty_name() -> Name { n("rust_RefCell") }
+    fn ty_name() -> Name { n("Rust_RefCell") }
 
     fn reify(&self) -> Value { self.borrow().reify() }
 
@@ -448,7 +458,7 @@ fn reified_types() {
         ast!( { "Type" "type_by_name" : "name" => (, ::ast::Ast::Atom(n(nm))) } )
     }
 
-    //"ParameterizedLifetimeStruct<[Option<[rust_usize]< integer]<"
+    //"ParameterizedLifetimeStruct<[Option<[Rust_usize]< integer]<"
     assert_eq!(
         ParameterizedLifetimeStruct::<'static, Option<usize>, BigInt>::ty_invocation(),
         ast!({"Type" "type_apply" :
@@ -456,7 +466,7 @@ fn reified_types() {
             "arg" => [
                 {"Type" "type_apply" :
                     "type_rator" => (vr "Option"),
-                    "arg" => [ (vr "rust_usize") ]
+                    "arg" => [ (vr "Rust_usize") ]
                 },
                 (vr "Int")]
         }));

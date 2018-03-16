@@ -79,6 +79,8 @@ custom_derive! {
          * TODO: make this better
          */
         NameImport(Rc<FormPat>, Beta),
+        QuoteDeepen(Rc<FormPat>),
+        QuoteEscape(Rc<FormPat>, u8)
     }
 }
 pub struct SyntaxExtension(pub Rc<Box<(Fn(SynEnv, Ast) -> SynEnv)>>);

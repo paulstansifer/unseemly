@@ -5,7 +5,7 @@ use ast::Ast;
 use ast::Ast::*;
 use util::mbe::EnvMBE;
 use std::fmt::{Debug, Display};
-use ast_walk::{Clo, WalkRule, LazyWalkReses, walk};
+use ast_walk::{Clo, WalkRule, LazyWalkReses, OutEnvHandle, walk};
 use runtime::reify::Reifiable;
 use alpha::{freshen, freshen_with};
 
@@ -81,6 +81,7 @@ pub trait WalkMode : Debug + Copy + Reifiable {
     // We need to dynamically do these if it's possible, for `env_from_beta`
     fn out_as_elt(o: <Self::D as Dir>::Out) -> Self::Elt { Self::D::out_as_elt(o) }
     fn out_as_env(o: <Self::D as Dir>::Out) -> Assoc<Name, Self::Elt> { Self::D::out_as_env(o) }
+    fn env_as_out(e: Assoc<Name, Self::Elt>) -> <Self::D as Dir>::Out { Self::D::env_as_out(e) }
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Self>) -> Result<<Self::D as Dir>::Out, Self::Err> {
         Self::D::walk_var(n, cnc)
@@ -127,6 +128,13 @@ pub trait Dir : Debug + Copy + Clone
 
     fn out_as_elt(Self::Out) -> <Self::Mode as WalkMode>::Elt;
     fn out_as_env(Self::Out) -> Assoc<Name, <Self::Mode as WalkMode>::Elt>;
+    fn env_as_out(Assoc<Name, <Self::Mode as WalkMode>::Elt>) -> Self::Out;
+
+    /// For when we hackishly need to execute some code depending on the direction
+    fn is_positive() -> bool;
+
+    /// If necessary, prepare to smuggle results across more-quoted AST
+    fn oeh_if_negative() -> Option<OutEnvHandle<Self::Mode>>;
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -182,6 +190,12 @@ impl<Mode: WalkMode<D=Self>> Dir for Positive<Mode> {
     fn out_as_env(_: Self::Out) -> Assoc<Name, <Self::Mode as WalkMode>::Elt> {
         panic!("ICE: out_as_env")
     }
+    fn env_as_out(_: Assoc<Name, <Self::Mode as WalkMode>::Elt>) -> Self::Out {
+        panic!("ICE: env_as_out")
+    }
+
+    fn oeh_if_negative() -> Option<OutEnvHandle<Mode>> { None }
+    fn is_positive() -> bool { true }
 }
 
 impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
@@ -249,6 +263,13 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
 
     fn out_as_elt(_: Self::Out) -> <Self::Mode as WalkMode>::Elt { panic!("ICE: out_as_elt") }
     fn out_as_env(o: Self::Out) -> Assoc<Name, <Self::Mode as WalkMode>::Elt> { o }
+    fn env_as_out(e: Assoc<Name, <Self::Mode as WalkMode>::Elt>) -> Self::Out { e }
+
+    fn oeh_if_negative() -> Option<OutEnvHandle<Self::Mode>> {
+        Some(::std::rc::Rc::new(::std::cell::RefCell::new(
+            Assoc::<Name, <Self::Mode as WalkMode>::Elt>::new())))
+    }
+    fn is_positive() -> bool { false }
 }
 
 pub trait NegativeWalkMode : WalkMode {
