@@ -378,7 +378,7 @@ impl<Mode: WalkMode> LazilyWalkedTerm<Mode> {
     }
 }
 
-pub type OutEnvHandle<Mode: WalkMode> = Rc<RefCell<Assoc<Name,Mode::Elt>>>;
+pub type OutEnvHandle<Mode> = Rc<RefCell<Assoc<Name,<Mode as WalkMode>::Elt>>>;
 
 /// Only does anything if `Mode` is negative.
 pub fn squirrel_away<Mode: WalkMode>(opt_oeh: Option<OutEnvHandle<Mode>>,

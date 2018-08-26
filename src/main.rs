@@ -19,6 +19,7 @@ extern crate num;
 #[macro_use] extern crate quote;
 extern crate rustyline;
 extern crate regex;
+extern crate dirs;
 
 
 use std::path::Path;
@@ -88,9 +89,9 @@ impl rustyline::completion::Completer for ValueCompleter {
 fn main() {
     let arguments : Vec<String> = std::env::args().collect();
     let prelude_filename = format!("{}/.unseemly_prelude",
-                                   std::env::home_dir().unwrap().display());
+                                   dirs::home_dir().unwrap().display());
     let history_filename = format!("{}/.unseemly_history",
-                                   std::env::home_dir().unwrap().display());
+                                   dirs::home_dir().unwrap().display());
 
     if arguments.len() == 1 {
         let mut rl = rustyline::Editor::<ValueCompleter>::new();
