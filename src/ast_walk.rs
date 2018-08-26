@@ -20,7 +20,7 @@ I may have committed some light type sorcery to make this happen.
 /*
 There are different kinds of walks. Here are the ones Unseemly needs so far:
 
-Evaluation prodcues a `Value` or an error.
+Evaluation produces a `Value` or an error.
 During evaluation, each `lambda` form may be processed many times,
  with different values for its parameters.
 
@@ -126,11 +126,22 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
       _ => Mode::D::pre_walk(a.clone(), walk_ctxt.clone())
     };
 
-    println!("-----: {:?}", a);
+    // println!("-----: {} {}", Mode::name(), a);
     // println!("-from: {}", walk_ctxt.this_ast);
     // match walk_ctxt.env.find(&negative_ret_val()) {
     //     Some(ref ctxt) => println!("-ctxt: {:?}", ctxt), _ => {}}
     // println!("---in: {:?}", walk_ctxt.env.map_borrow_f(&mut |_| "…"));
+
+    let literally : Option<bool> = // If it's not needed, `get_walk_rule` might panic
+        match a {
+            QuoteMore(_,_) | QuoteLess(_,_) | ExtendEnv(_,_) => {
+                match walk_ctxt.this_ast {
+                    Node(ref f, _, _) => Some(Mode::get_walk_rule(f).is_literally()),
+                    _ => None
+                }
+            }
+            _ => None
+        };
 
     match a {
         Node(ref f, ref parts, _) => {
@@ -140,7 +151,7 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
                 Custom(ref ts_fn) =>  ts_fn(new_walk_ctxt),
                 Body(n) =>            walk(parts.get_leaf(&n).unwrap(), &new_walk_ctxt),
                 LiteralLike =>        Mode::walk_quasi_literally(a.clone(), &new_walk_ctxt),
-                NotWalked =>          panic!( "ICE: {:?} should not be walked at all!", a )
+                NotWalked =>          panic!("ICE: {:?} should not be walked at all!", a)
             }
         }
         IncompleteNode(ref parts) => { panic!("ICE: {:?} isn't a complete node", parts)}
@@ -151,21 +162,52 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
         // TODO: we need to preserve these in LiteralLike contexts!!
 
         // So do we just set the context element at the wrong level and then grab it for the shift?
-        // ????????????????? I guess so.
-        QuoteMore(ref body) => {
+        // I guess so.
+        QuoteMore(ref body, pos_inside) => {
             let oeh_m = Mode::D::oeh_if_negative();
-            let old_ctxt = walk_ctxt.maybe__context_elt();
-            let walk_ctxt = walk_ctxt.clone().quote_more(oeh_m.clone());
+            let old_ctxt_elt = walk_ctxt.maybe__context_elt();
 
-            let res = try!(maybe_literally__walk(&a, body, walk_ctxt, old_ctxt));
+            let currently_positive = !oeh_m.is_some(); // kinda a hack for "Is `Mode` positive?"
 
-            match oeh_m {
-                None => Ok(res), // positive walk, no tomfoolery. Otherwise, unsquirrel:
-                Some(oeh) => { Ok( Mode::env_as_out((*oeh.borrow()).clone()) ) }
+            // Changing between modes at quotation does some weird stuff:
+            // `match e { `[Expr | (add 5 ,[Expr <[Nat]< | a],)]` => ⋯}`
+            //            ^--- `quote_more` here (`get_res` produces `Expr <[Nat]<`),
+            //                 which we already knew.
+            //                            ^--- `quote_less`, and we get {a => Expr <[Nat]<}
+            // We need to smuggle out what we know at the `quote_less`,
+            //  so that `a` winds up bound to `Expr <[Nat]<` on the RHS.
+
+
+            // If the quotation (outside) is negative, we need to unsquirrel no matter the inside.
+            // If both are positive, return the result (so the form can do `Nat` → `Expr <[Nat]<`).
+            // Otherwise, the context (expected type) is the result.
+
+            if pos_inside == currently_positive { // stay in the same mode?
+                let inner_walk_ctxt = walk_ctxt.clone()
+                    .quote_more(oeh_m.clone());
+                let res = try!(maybe_literally__walk(&a, body, inner_walk_ctxt, old_ctxt_elt,
+                                                     literally));
+
+                match oeh_m {
+                    None => Ok(res), // positive walk, result is useful. Otherwise, unsquirrel:
+                    Some(oeh) => { Ok( Mode::env_as_out((*oeh.borrow()).clone()) ) }
+                }
+            } else {
+                let inner_walk_ctxt = walk_ctxt.clone()
+                    .switch_mode::<Mode::Negated>().quote_more(oeh_m.clone());
+                let _ = try!(maybe_literally__walk(&a, body, inner_walk_ctxt, old_ctxt_elt,
+                                                   literally));
+
+                match oeh_m {
+                    // HACK: just return the context element (and massage the type)
+                    None => Mode::walk_var(negative_ret_val(), &walk_ctxt),
+                    Some(oeh) => { Ok( Mode::env_as_out((*oeh.borrow()).clone()) ) }
+                }
+
             }
         }
         QuoteLess(ref body, depth) => {
-            let old_ctxt = walk_ctxt.maybe__context_elt();
+            let old_ctxt_elt = walk_ctxt.maybe__context_elt();
 
             let mut oeh = None;
             let mut walk_ctxt = walk_ctxt.clone();
@@ -175,7 +217,7 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
                 walk_ctxt = walk_ctxt_new;
             }
 
-            let res = try!(maybe_literally__walk(&a, body, walk_ctxt, old_ctxt));
+            let res = try!(maybe_literally__walk(&a, body, walk_ctxt, old_ctxt_elt, literally));
 
             squirrel_away::<Mode>(oeh, res.clone());
 
@@ -215,26 +257,21 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
             }
 
             maybe_literally__walk(&a, body, new__walk_ctxt,
-                walk_ctxt.maybe__context_elt().map(extract__ee_body::<Mode>))
+                walk_ctxt.maybe__context_elt().map(extract__ee_body::<Mode>), literally)
         }
     }
 }
 
 /// If a `Node` is `LiteralLike`, its imports and [un]quotes should be, too!
-/// Maybe it'd be better just to stick a bool in `LazyWalkReses`?
 fn maybe_literally__walk<Mode: WalkMode>(a: &Ast, body: &Box<Ast>, walk_ctxt: LazyWalkReses<Mode>,
-            ctxt_elt: Option<Mode::Elt>)
+                                         ctxt_elt: Option<Mode::Elt>, literally: Option<bool>)
         -> Result<<Mode::D as Dir>::Out, Mode::Err> {
-    let literal_like = match &walk_ctxt.this_ast {
-        &Node(ref f, _, _) =>
-            Some(match *Mode::get_walk_rule(f) { LiteralLike => true, _ => false}),
-        _ => panic!("ICE: {} must be inside a `Node`", a)
-    };
     let walk_ctxt = match ctxt_elt {
         Some(e) => walk_ctxt.with_context(e),
         None => walk_ctxt
     };
-    if literal_like.expect("ICE: `ExtendEnv` must be inside a node") {
+    // It might be right to assume that it's true if the mode is quasiquotation
+    if literally.expect("ICE: unable to determine literalness") {
         Mode::walk_quasi_literally(a.clone(), &walk_ctxt)
     } else {
         walk(&**body, &walk_ctxt)
@@ -255,6 +292,10 @@ pub enum WalkRule<Mode: WalkMode> {
     LiteralLike,
     /// "this form should not ever be walked".
     NotWalked
+}
+
+impl<Mode: WalkMode> WalkRule<Mode> {
+    fn is_literally(&self) -> bool { match self { LiteralLike => true, _ => false } }
 }
 
 // trait bounds on parameters and functions are not yet supported by `Reifiable!`
@@ -341,7 +382,8 @@ impl<Mode: WalkMode> LazilyWalkedTerm<Mode> {
 pub type OutEnvHandle<Mode: WalkMode> = Rc<RefCell<Assoc<Name,Mode::Elt>>>;
 
 /// Only does anything if `Mode` is negative.
-pub fn squirrel_away<Mode: WalkMode>(opt_oeh: Option<OutEnvHandle<Mode>>, more_env: <Mode::D as Dir>::Out) {
+pub fn squirrel_away<Mode: WalkMode>(opt_oeh: Option<OutEnvHandle<Mode>>,
+                                     more_env: <Mode::D as Dir>::Out) {
     match opt_oeh {
         Some(oeh) => {
             let new_env = oeh.borrow().set_assoc(&Mode::out_as_env(more_env));

@@ -799,7 +799,6 @@ fn alg_eval() {
 
     // Evaluate match
 
-
     assert_eq!(eval(&ast!({ "Expr" "match" :
                 "scrutinee" => (vr "x"),
                 "p" => [@"arm" "my_new_name", "unreachable"],

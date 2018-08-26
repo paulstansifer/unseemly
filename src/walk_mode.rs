@@ -99,6 +99,8 @@ pub trait WalkMode : Debug + Copy + Reifiable {
      Side-effects under the covers make this work.
      */
     fn underspecified(Name) -> Self::Elt { panic!("ICE: no underspecified_elt") }
+
+    fn name() -> &'static str;
 }
 
 pub trait Dir : Debug + Copy + Clone
@@ -171,6 +173,18 @@ impl<Mode: WalkMode<D=Self>> Dir for Positive<Mode> {
                     &ExtendEnv(Box::new(
                         <Self::Mode as WalkMode>::Elt::to_ast(&try!(walk(&*body, cnc)))),
                                beta)))
+            }
+            QuoteMore(body, pos) => {
+                Ok(<Self::Mode as WalkMode>::Elt::from_ast(
+                    &QuoteMore(Box::new(
+                        <Self::Mode as WalkMode>::Elt::to_ast(&try!(walk(&*body, cnc)))),
+                               pos)))
+            }
+            QuoteLess(body, depth) => {
+                Ok(<Self::Mode as WalkMode>::Elt::from_ast(
+                    &QuoteLess(Box::new(
+                        <Self::Mode as WalkMode>::Elt::to_ast(&try!(walk(&*body, cnc)))),
+                               depth)))
             }
             _ => panic!("ICE")
         }
@@ -274,8 +288,8 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
 
 pub trait NegativeWalkMode : WalkMode {
     /// What happens if destructuring fails?
-    fn qlit_mismatch_error(_: Self::Elt, _: Self::Elt) -> Self::Err {
-        panic!("ICE: unimplemented")
+    fn qlit_mismatch_error(l: Self::Elt, r: Self::Elt) -> Self::Err {
+        panic!("match failure unimplemented: {} vs. {}", l, r)
     }
 
     // HACK: `Value`s can't survive the round-trip to `Ast`, so `pre_match`, as implemented,

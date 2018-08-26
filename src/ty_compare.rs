@@ -222,6 +222,8 @@ custom_derive!{
 }
 
 impl WalkMode for Canonicalize {
+    fn name() -> &'static str { "Canon" }
+
     type Elt = Ty;
     type Negated = Subtype;
     type Err = TyErr;
@@ -242,6 +244,8 @@ impl WalkMode for Canonicalize {
 }
 
 impl WalkMode for Subtype {
+    fn name() -> &'static str { "SubTy" }
+
     type Elt = Ty;
     type Negated = Canonicalize;
     type Err = TyErr;

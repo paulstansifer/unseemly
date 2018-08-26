@@ -106,6 +106,8 @@ custom_derive!{
 }
 
 impl WalkMode for Eval {
+    fn name() -> &'static str { "Evalu" }
+
     type Elt = Value;
     type Negated = Destructure;
     type Err = ();
@@ -123,6 +125,8 @@ impl WalkMode for Eval {
 }
 
 impl WalkMode for Destructure {
+    fn name() -> &'static str { "Destr" }
+
     type Elt = Value;
     type Negated = Eval;
     type Err = ();
@@ -168,6 +172,8 @@ custom_derive!{
 }
 
 impl WalkMode for QQuote {
+    fn name() -> &'static str { "QQuote" }
+
     type Elt = Value;
     type Negated = QQuoteDestr;
     type Err = ();
@@ -186,6 +192,8 @@ impl WalkMode for QQuote {
 }
 
 impl WalkMode for QQuoteDestr {
+    fn name() -> &'static str { "QQDes" }
+
     type Elt = Value;
     type Negated = QQuote;
     type Err = ();

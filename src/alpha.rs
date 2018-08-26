@@ -70,8 +70,8 @@ fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: Ren) -> Ast 
 
             ExtendEnv(Box::new(substitute_rec(body, cur_node_contents, new_env)), beta.clone())
         }
-        QuoteMore(ref body) => {
-            QuoteMore(Box::new(substitute_rec(body, cur_node_contents, env.q_more(1))))
+        QuoteMore(ref body, pos) => {
+            QuoteMore(Box::new(substitute_rec(body, cur_node_contents, env.q_more(1))), pos)
         },
         QuoteLess(ref body, depth) => {
             QuoteLess(Box::new(substitute_rec(body, cur_node_contents, env.q_less(depth))), depth)
@@ -102,7 +102,7 @@ fn mentioned_in_import(parts: &EnvMBE<Ast>) -> Vec<Name> {
                 process_ast(&*body, v);
             }
             // TODO: does it make sense to mention a name underneath a quotation?
-            QuoteMore(ref body) | QuoteLess(ref body,_) => { process_ast(body, v) }
+            QuoteMore(ref body, _) | QuoteLess(ref body, _) => { process_ast(body, v) }
             Trivial | Atom(_) | VariableReference(_) => {} // no beta
             Shape(_) | IncompleteNode(_) => { panic!("ICE: shouldn't be needed") }
         }
@@ -126,7 +126,9 @@ fn freshen_rec(node: &Ast, renamings: &EnvMBE<(Ast, Ren)>, env: Ren) -> Ast {
             ExtendEnv(Box::new(
                 freshen_rec(body, renamings, new_env)), beta.clone())
         }
-        QuoteMore(ref body) => { QuoteMore(Box::new(freshen_rec(body, renamings, env.q_more(1)))) }
+        QuoteMore(ref body, pos) => {
+            QuoteMore(Box::new(freshen_rec(body, renamings, env.q_more(1))), pos)
+        }
         QuoteLess(ref body, depth) => {
             QuoteLess(Box::new(freshen_rec(body, renamings, env.q_less(depth))), depth)
         }
@@ -250,8 +252,8 @@ pub fn freshen_binders(a: &Ast) -> (Ast, Ren) {
             (Node(f.clone(), fresh_ast, export.clone()), renaming)
         }
         IncompleteNode(_) | Shape(_) => { panic!("ICE: didn't think this was needed") }
-        QuoteMore(ref body) => {
-            let (a,r) = freshen_binders(body); (QuoteMore(Box::new(a)), r.q_less(1))
+        QuoteMore(ref body, pos) => {
+            let (a,r) = freshen_binders(body); (QuoteMore(Box::new(a), pos), r.q_less(1))
         }
         QuoteLess(ref body, depth) => {
             let (a,r) = freshen_binders(body); (QuoteLess(Box::new(a), depth), r.q_more(depth))
@@ -299,11 +301,12 @@ pub fn freshen_binders_with(lhs: &Ast, rhs: &Ast) -> Option<(Ast, Ren, Ast, Ren)
                 None => { None }
             }
         }
-        (&QuoteMore(ref body_lhs), &QuoteMore(ref body_rhs)) => {
+        (&QuoteMore(ref body_lhs, pos), &QuoteMore(ref body_rhs, pos_rhs))
+                if pos == pos_rhs => {
             match freshen_binders_with(&*body_lhs, &*body_rhs) {
                 Some((n_lhs, ren_lhs, n_rhs, ren_rhs)) => {
-                    Some((QuoteMore(Box::new(n_lhs)), ren_lhs.q_less(1),
-                          QuoteMore(Box::new(n_rhs)), ren_rhs.q_less(1)))
+                    Some((QuoteMore(Box::new(n_lhs), pos), ren_lhs.q_less(1),
+                          QuoteMore(Box::new(n_rhs), pos), ren_rhs.q_less(1)))
                 }
                 None => None
             }
@@ -548,13 +551,13 @@ fn alpha_quote_more_or_less() {
             &ast!({"Expr" "lambda" :
                 "param" => ["a", "b"],
                 "body" => (import [* ["param" : "[ignored]"]]
-                    (++ {"Expr" "apply" : "rator" => (vr "f"),
-                                          "rand" => [(vr "a"), (vr "b")]}))})),
+                    (++ true {"Expr" "apply" : "rator" => (vr "f"),
+                                               "rand" => [(vr "a"), (vr "b")]}))})),
         ast!({"Expr" "lambda" :
             "param" => ["a🍅0", "b🍅1"],
             "body" => (import [* ["param" : "[ignored]"]]
-                (++ {"Expr" "apply" : "rator" => (vr "f"),
-                                      "rand" => [(vr "a"), (vr "b")]}))}));
+                (++ true {"Expr" "apply" : "rator" => (vr "f"),
+                                           "rand" => [(vr "a"), (vr "b")]}))}));
     1;
 
     next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
@@ -564,13 +567,13 @@ fn alpha_quote_more_or_less() {
             &ast!({"Expr" "lambda" :
                 "param" => ["a", "b"],
                 "body" => (import [* ["param" : "[ignored]"]]
-                    (++ (-- 1 {"Expr" "apply" : "rator" => (vr "f"),
-                                                "rand" => [(vr "a"), (vr "b")]})))})),
+                    (++ true (-- 1 {"Expr" "apply" : "rator" => (vr "f"),
+                                                     "rand" => [(vr "a"), (vr "b")]})))})),
         ast!({"Expr" "lambda" :
             "param" => ["a🍅0", "b🍅1"],
             "body" => (import [* ["param" : "[ignored]"]]
-                (++ (-- 1 {"Expr" "apply" : "rator" => (vr "f"),
-                                            "rand" => [(vr "a🍅0"), (vr "b🍅1")]})))}));
+                (++ true (-- 1 {"Expr" "apply" : "rator" => (vr "f"),
+                                                 "rand" => [(vr "a🍅0"), (vr "b🍅1")]})))}));
 
 
 

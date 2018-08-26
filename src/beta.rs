@@ -6,6 +6,7 @@ use ast_walk::{LazyWalkReses, LazilyWalkedTerm};
 use util::assoc::Assoc;
 use ast::{Ast,Atom,VariableReference};
 use util::mbe::EnvMBE;
+use walk_mode::Dir;
 use alpha::Ren;
 
 /**
@@ -145,6 +146,8 @@ impl Beta {
 /// TODO: Unfortunately, this means that they don't work well in the subtyping walk, for instance.
 pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
          -> Result<Assoc<Name, Mode::Elt>, Mode::Err> {
+    // TODO: figure out why we *do* get called (during subtyping, apparently)
+    //if !Mode::D::is_positive() { panic!("ICE: e_f_b on {:?} in {} (negative)", b, Mode::name())}
     match *b {
         Nothing => { Ok(Assoc::new()) }
         Shadow(ref lhs, ref rhs) => {

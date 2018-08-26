@@ -203,6 +203,8 @@ pub fn quote(pos: bool) -> Rc<Form> {
             }
         }
 
+        let pos_inside = nt_is_positive(starter_nt);
+
         se.keyed_map_borrow_f(&mut |nt: &Name, nt_def: &Rc<FormPat>| {
             if already_has_unquote(nt_def)
                // HACK: this is to avoice hitting "starterer". TODO: find a better way
@@ -217,7 +219,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
                     [(named "nt", (anyways (, ::ast::Atom(starter_nt)))),
                      (alt [], (delim "<[", "[", /*]]*/ (named "ty_annot", (call "Type")))),
                      (lit "|"),
-                     /*(++*/ (named "body", (call_by_name starter_nt))/*)*/])))
+                     (named "body", (++ pos_inside (call_by_name starter_nt)))])))
     };
 
     // TODO: the following hardcodes positive walks as `Expr` and negative walks as `Pat`.
@@ -238,7 +240,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
                                 (, nt_to_type(ast_to_name(
                                     &quote_parts.get_term(&n("nt")))).concrete() ),
                             "arg" => [(,
-                                try!(quote_parts.quote_more(None).get_res(&n("body"))).concrete())]
+                                try!(quote_parts.get_res(&n("body"))).concrete())]
                         }))
 
                     } else {
@@ -253,10 +255,8 @@ pub fn quote(pos: bool) -> Rc<Form> {
                         // I wrote down an argument in the form of code to this effect elsewhere,
                         //  but it boils down to this: environments can always be managed directly,
                         //   by introducing and referencing bindings.
-                        let _ = quote_parts.switch_mode::<::ty::UnpackTy>()
-                            .quote_more(None)
-                            .with_context(expected_type.clone())
-                            .get_res(&n("body"));
+                        let _ = quote_parts.with_context(expected_type.clone())
+                                           .get_res(&n("body"));
 
                         Ok(ty!({"Type" "type_apply" :
                             "type_rator" =>
@@ -288,41 +288,32 @@ pub fn quote(pos: bool) -> Rc<Form> {
                     // We need to smuggle out what we know at the `quote_less`,
                     //  so that `a` winds up bound to `Expr <[Nat]<` on the RHS.
 
-                    let interpolation_accumulator = Rc::new(::std::cell::RefCell::new(
-                        Assoc::<Name, Ty>::new()));
+
 
                     // There's no need for a type annotation
 
                     let nt = ast_to_name(&quote_parts.get_term(&n("nt")));
                     if nt_is_positive(nt) {
                         // TODO: check that this matches the type annotation, if provided!
-                        let _underlying_type =
-                            try!(quote_parts.switch_mode::<::ty::SynthTy>()
-                                    .quote_more(Some(interpolation_accumulator.clone()))
-                                    .get_res(&n("body")));
+                        quote_parts.get_res(&n("body"))
                     } else {
                         let new_context =
                             try!(less_quoted_ty(
                                 quote_parts.context_elt().clone(), Some(nt),
                                 &quote_parts.this_ast));
                         // TODO: check that this matches the type annotation, if provided!
-                        let _underlying_type =
-                            try!(quote_parts
-                                    .quote_more(Some(interpolation_accumulator.clone()))
-                                    .with_context(new_context)
-                                    .get_res(&n("body")));
+                        quote_parts.with_context(new_context).get_res(&n("body"))
                     }
-
-                    // pull out the squirreled-away environment from unquotes
-                    let res : Assoc<Name, Ty> = (*interpolation_accumulator.borrow()).clone();
-                    Ok(res)
                 }))
             },
         eval:
             if pos {
                 Positive(cust_rc_box!(|quote_parts| {
                     let mq_parts = quote_parts.switch_mode::<QQuote>().quote_more(None);
-                    ::ast_walk::walk::<QQuote>(mq_parts.get_term_ref(&n("body")), &mq_parts)
+                    match mq_parts.get_term_ref(&n("body")) { // Strip the `QuoteMore`:
+                        &::ast::QuoteMore(ref a, _) => ::ast_walk::walk::<QQuote>(&*a, &mq_parts),
+                        _ => panic!("ICE")
+                    }
                 }))
             } else {
                 Negative(cust_rc_box!(|quote_parts| {
@@ -330,7 +321,11 @@ pub fn quote(pos: bool) -> Rc<Form> {
 
                     let mq_parts = quote_parts.switch_mode::<QQuoteDestr>().quote_more(None)
                         .with_context(context);
-                    ::ast_walk::walk::<QQuoteDestr>(mq_parts.get_term_ref(&n("body")), &mq_parts)
+                    match mq_parts.get_term_ref(&n("body")) { // Strip the `QuoteMore`:
+                        &::ast::QuoteMore(ref body, _)
+                            => ::ast_walk::walk::<QQuoteDestr>(&*body, &mq_parts),
+                        _ => panic!("ICE")
+                    }
                 }))
             },
         quasiquote: Both(LiteralLike, LiteralLike)
@@ -365,19 +360,20 @@ fn quote_unquote_eval_basic() {
             env, vec![qenv]).with_context(ctxt))
     }
 
-    assert_eq!(eval_two_phased(&ast!({quote(pos) ; "nt" => "Expr", "body" => (vr "qn")}),
+    assert_eq!(eval_two_phased(&ast!({quote(pos) ; "nt" => "Expr", "body" => (++ true (vr "qn"))}),
             env.clone(), qenv.clone()),
         Ok(val!(ast (vr "qn"))));
 
 
     assert_eq!(eval_two_phased(&ast!({quote(pos) ; "nt" => "Expr",
-        "body" => {unquote_form(n("Expr"), true, 1) ; "nt" => "Expr",
-            "body" => (-- 1 (vr "en"))}}),
+        "body" => (++ true {unquote_form(n("Expr"), true, 1) ; "nt" => "Expr",
+            "body" => (-- 1 (vr "en"))})}),
             env.clone(), qenv.clone()),
         Ok(val!(ast (vr "qn"))));
 
     assert_eq!(
-        destr_two_phased(&ast!({quote(neg) ; "nt" => "Expr", "body" => (vr "qn")}), env, qenv,
+        destr_two_phased(&ast!({quote(neg) ; "nt" => "Expr", "body" => (++ false (vr "qn"))}),
+                         env, qenv,
                          val!(ast (vr "qn"))),
         Ok(Assoc::<Name, Value>::new()));
 
@@ -406,8 +402,9 @@ fn quote_type_basic() {
     }
 
     // '[Expr | qn]'
-    assert_eq!(synth_type_two_phased(&ast!({quote(pos) ; "nt" => "Expr", "body" => (vr "qn")}),
-                                     env.clone(), qenv.clone()),
+    assert_eq!(synth_type_two_phased(
+            &ast!({quote(pos) ; "nt" => "Expr", "body" => (++ true (vr "qn"))}),
+            env.clone(), qenv.clone()),
         Ok(ty!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]})));
 
@@ -416,7 +413,7 @@ fn quote_type_basic() {
     assert_eq!(synth_type_two_phased(
         &ast!(
             {quote(pos) ; "nt" => "Expr", "body" =>
-                {quote(pos) ; "nt" => "Expr", "body" => (vr "five")}}),
+                (++ true {quote(pos) ; "nt" => "Expr", "body" => (++ true (vr "five"))})}),
         env.clone(), qenv.clone()),
         Ok(ty!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" =>
@@ -426,24 +423,25 @@ fn quote_type_basic() {
     // '[Expr <[Nat]< | qn]'
     // With type annotation, same result:
     assert_eq!(synth_type_two_phased(
-            &ast!({quote(pos) ; "nt" => "Expr", "body" => (vr "qn"),
+            &ast!({quote(pos) ; "nt" => "Expr", "body" => (++ true (vr "qn")),
                 "ty_annot" => {"Type" "Nat" :}}),
             env.clone(), qenv.clone()),
         Ok(ty!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]})));
 
     // '[Expr | n]'
-    assert_m!(synth_type_two_phased(&ast!({quote(pos) ; "nt" => "Expr", "body" => (vr "n")}),
-                                     env.clone(), qenv.clone()),
+    assert_m!(synth_type_two_phased(
+            &ast!({quote(pos) ; "nt" => "Expr", "body" => (++ true (vr "n"))}),
+            env.clone(), qenv.clone()),
         ty_err_p!(UnboundName(_)));
 
     // '[Expr | { x: qn  y: qn }]'
     assert_eq!(synth_type_two_phased(
             &ast!({quote(pos) ; "nt" => "Expr",
-            "body" => {"Expr" "struct_expr" :
+            "body" => (++ true {"Expr" "struct_expr" :
                 "component_name" => [@"c" "x", "y"],
                 "component" => [@"c" (vr "qn"), (vr "qn")]
-        }}),
+        })}),
         env.clone(), qenv.clone()),
         Ok(ty!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" => [{ "Type" "struct" :
@@ -463,8 +461,8 @@ fn quote_type_basic() {
                 "nt" => "Expr",
                 "ty_annot" => {"Type" "struct":
                     "component_name" => [@"c"], "component" => [@"c"]},
-                "body" => {"Expr" "struct_expr":
-                    "component_name" => [@"c"], "component" => [@"c"]}}),
+                "body" => (++ true {"Expr" "struct_expr":
+                    "component_name" => [@"c"], "component" => [@"c"]})}),
             env.clone(), qenv.clone(),
             ty!({"Type" "type_apply" :
                 "type_rator" => (,expr_type.clone()), "arg" => [{ "Type" "struct" :
@@ -478,8 +476,8 @@ fn quote_type_basic() {
                 "nt" => "Pat",
                 "ty_annot" => {"Type" "struct":
                     "component_name" => [@"c"], "component" => [@"c"]},
-                "body" => {"Pat" "struct_pat":
-                    "component_name" => [@"c"], "component" => [@"c"]}}),
+                "body" => (++ false {"Pat" "struct_pat":
+                    "component_name" => [@"c"], "component" => [@"c"]})}),
             env.clone(), qenv.clone(),
             ty!({"Type" "type_apply" :
                 "type_rator" => (,pat_type.clone()), "arg" => [{ "Type" "struct" :
@@ -493,8 +491,8 @@ fn quote_type_basic() {
                 "nt" => "Pat",
                 "ty_annot" => {"Type" "struct":
                     "component_name" => [@"c" "x"], "component" => [@"c" {"Type" "Nat" :}]},
-                "body" => {"Pat" "struct_pat":
-                    "component_name" => [@"c" "x"], "component" => [@"c" "qfoo"]}}),
+                "body" => (++ false {"Pat" "struct_pat":
+                    "component_name" => [@"c" "x"], "component" => [@"c" "qfoo"]})}),
             env.clone(), qenv.clone(),
             ty!({"Type" "type_apply" :
                 "type_rator" => (,pat_type.clone()), "arg" => [{ "Type" "struct" :
@@ -536,7 +534,7 @@ fn quote_unquote_type_basic() {
     //     *[x: ,[Expr | en], y: ,[Expr | ef], z: baz]* ]'
     assert_eq!(synth_type_two_phased(&ast!({quote(pos) ;
                 "nt" => "Expr",
-                "body" => {"Expr" "struct_expr":
+                "body" => (++ true {"Expr" "struct_expr":
                     "component_name" => [@"c" "x", "y", "z"],
                     "component" => [@"c"
                         {unquote_form(n("Expr"), pos, 1) ;
@@ -544,7 +542,7 @@ fn quote_unquote_type_basic() {
                         {unquote_form(n("Expr"), pos, 1) ;
                             "nt" => "Expr", "body" => (-- 1 (vr "ef"))},
                         (vr "qn")
-                    ]}}),
+                    ]})}),
             env.clone(), qenv.clone()),
         Ok(ty!({"Type" "type_apply" : "type_rator" => (,expr_type.clone()),
             "arg" => [{"Type" "struct":
@@ -565,13 +563,13 @@ fn quote_unquote_type_basic() {
                 "ty_annot" => {"Type" "struct":
                     "component_name" => [@"c" "x", "y", "z"],
                     "component" => [@"c" {"Type" "Nat" :}, {"Type" "Float" :}, {"Type" "Nat" :}]},
-                "body" => {"Pat" "struct_pat":
+                "body" => (++ false {"Pat" "struct_pat":
                     "component_name" => [@"c" "x", "y", "z"],
                     "component" => [@"c"
                         {unquote_form(n("Pat"), neg, 1) ; "nt" => "Pat", "body" => (-- 1 "foo")},
                         {unquote_form(n("Pat"), neg, 1) ; "nt" => "Pat", "body" => (-- 1 "bar")},
                         "baz"
-                    ]}}),
+                    ]})}),
             env.clone(), qenv.clone(),
             ty!({"Type" "type_apply" :
                 "type_rator" => (,pat_type.clone()), "arg" => [{ "Type" "struct" :

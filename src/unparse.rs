@@ -14,7 +14,7 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
         }
         Scope(_,_) => { vec![] }
         Delimited(_,_, ref body) | Star(ref body) | Plus(ref body) | ComputeSyntax(_, ref body)
-        | NameImport(ref body, _) | QuoteDeepen(ref body) | QuoteEscape(ref body, _)=> {
+        | NameImport(ref body, _) | QuoteDeepen(ref body, _) | QuoteEscape(ref body, _)=> {
             node_names_mentioned(&*body)
         }
         Seq(ref sub_pats) | Alt(ref sub_pats) => {
@@ -40,10 +40,10 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
         Node(ref form, ref body, _) if form == &undet => {
             return ::ty_compare::unification.with(|unif| {
                 let var = ::core_forms::ast_to_name(body.get_leaf_or_panic(&n("id")));
-                //format!("<unif: {}>", var) // to prevent infinite recurrence
                 let looked_up = unif.borrow().get(&var).cloned();
                 match looked_up {
-                    Some(ref clo) => format!("{} in {}", clo.it, clo.env),
+                    // Apparently the environment is recursive; `{}`ing it stack-overflows
+                    Some(ref clo) => format!("{} in {:?}", clo.it, clo.env),
                     None => format!("¿{}?", var)
                 }
             });
@@ -96,7 +96,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
             }
             res
         }
-        (&ComputeSyntax(_, _), _) => format!("?CS? {:?} ?CS?", actl),
+        (&ComputeSyntax(_, _), _) => format!("?compute syntax? {:?} ?cs?", actl),
         (&Scope(ref form, _), &Node(ref form_actual, ref body, _)) => {
             if form == form_actual {
                 unparse_mbe(&*form.grammar, actl, body, s)
@@ -109,10 +109,10 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
             unparse_mbe(&*body, &*actl_body, context, s)
         }
         (&NameImport(_, _), _) => { format!("[Missing import]→{:?}←", actl) }
-        (&QuoteDeepen(ref body), &QuoteMore(ref actl_body)) => {
+        (&QuoteDeepen(ref body, _), &QuoteMore(ref actl_body, _)) => {
             unparse_mbe(&*body, &*actl_body, context, s)
         }
-        (&QuoteDeepen(_), _) => { format!("[Missing qm]{:?}", actl)}
+        (&QuoteDeepen(_, _), _) => { format!("[Missing qm]{:?}", actl)}
         (&QuoteEscape(ref body, _), &QuoteLess(ref actl_body, _)) => {
             unparse_mbe(&*body, &*actl_body, context, s)
         }
@@ -123,7 +123,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
             format!("{} {}",
                 unparse_mbe(fp, ????, context, s))
                 unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)*/
-                format!("?SI? {:?} ?SI?", actl)
+                format!("?synax import? {:?} ?si?", actl)
         }
         (&SynImport(_,_,_), _) => { "".to_string() }
     }

@@ -79,7 +79,7 @@ custom_derive! {
          * TODO: make this better
          */
         NameImport(Rc<FormPat>, Beta),
-        QuoteDeepen(Rc<FormPat>),
+        QuoteDeepen(Rc<FormPat>, bool),
         QuoteEscape(Rc<FormPat>, u8)
     }
 }

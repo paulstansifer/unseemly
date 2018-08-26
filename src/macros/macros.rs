@@ -103,8 +103,8 @@ macro_rules! ast_shape {
 }
 
 macro_rules! ast {
-    ( (++ $sub:tt) ) => {
-        ::ast::QuoteMore(Box::new(ast!($sub)))
+    ( (++ $pos:tt $sub:tt) ) => {
+        ::ast::QuoteMore(Box::new(ast!($sub)), $pos)
     };
     ( (-- $depth:tt $sub:tt ) ) => {
         ::ast::QuoteLess(Box::new(ast!($sub)), $depth)
@@ -303,8 +303,8 @@ macro_rules! form_pat {
     ((import $beta:tt, $body:tt)) => {
         ::parse::FormPat::NameImport(::std::rc::Rc::new(form_pat!($body)), beta!($beta))
     };
-    ((++ $body:tt)) => {
-        ::parse::FormPat::QuoteDeepen(::std::rc::Rc::new(form_pat!($body)))
+    ((++ $pos:tt $body:tt)) => { // `pos` should be an expr, but I didn't want a comma. Name it.
+        ::parse::FormPat::QuoteDeepen(::std::rc::Rc::new(form_pat!($body)), $pos)
     };
     ((-- $depth:tt $body:tt)) => {
         ::parse::FormPat::QuoteEscape(::std::rc::Rc::new(form_pat!($body)), $depth)

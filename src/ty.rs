@@ -88,6 +88,7 @@ custom_derive!{
 }
 
 impl WalkMode for SynthTy {
+    fn name() -> &'static str { "SynTy" }
     type Elt = Ty;
     type Negated = UnpackTy;
     type Err = TypeError;
@@ -110,6 +111,7 @@ impl WalkMode for SynthTy {
 }
 
 impl WalkMode for UnpackTy {
+    fn name() -> &'static str { "UnpTy" }
     type Elt = Ty;
     type Negated = SynthTy;
     type Err = TypeError;
