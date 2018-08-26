@@ -267,31 +267,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
                 }))
             } else {
                 ::form::Negative(cust_rc_box!(|quote_parts| {
-                    // There's a weird thing going on here!
-                    // We want to type-synthesize the quoted syntax, like normal
-                    //  (though I suppose a pattern containing ill-typed syntax could just
-                    //    fail to match anything!).
-                    // But we're a *pattern* quotation!
-                    // Like a normal pattern, we know the overall type already,
-                    //  and want to generate a type *environment* from the binders (in `unquote`s).
-                    // More importantly, the result of walking the contents are either
-                    //  doesn't have any bearing on the "hole"s in this quotation
-                    //   (it might not even be an environment, if we're matching `expr` syntax).
-                    // So we need to sneak a mutable environment into the `LazyWalkReses`
-                    //  that `unquote` can update when we get back to the current quotation level.
-
-                    // Maybe this needs a diagram?
-                    // `match e { `[Expr | (add 5 ,[Expr <[Nat]< | a],)]` => ⋯}`
-                    //            ^--- `quote_more` here (`get_res` produces `Expr <[Nat]<`),
-                    //                 which we already knew.
-                    //                            ^--- `quote_less`, and we get {a => Expr <[Nat]<}
-                    // We need to smuggle out what we know at the `quote_less`,
-                    //  so that `a` winds up bound to `Expr <[Nat]<` on the RHS.
-
-
-
-                    // There's no need for a type annotation
-
+                    // There's no need for a type annotation s
                     let nt = ast_to_name(&quote_parts.get_term(&n("nt")));
                     if nt_is_positive(nt) {
                         // TODO: check that this matches the type annotation, if provided!
