@@ -1,4 +1,4 @@
-// TODO: there's no reason for this and `earley.rs` to be different files.
+// TODO: rename this file to "grammar.rs"
 
 #![macro_use]
 

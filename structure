@@ -1,7 +1,5 @@
 TODO:
-  [ ] Syntax types, with repetition typing
-  [ ] Syntax pattern-matching
-  [ ] Syntax quote
+  [ ] Repetition typing for syntax types
   [ ] Macros (procedural!)
   [ ] Traits
   [ ] Fancy bindings
@@ -32,15 +30,39 @@ Well, the parser and tokenizer are weird, but in a sort of optional way.
 
 
 
+Language definition:
+
+[Ast] ast.rs and ast_walk.rs
+
+The core language is small, but the AST definition is much smaller.
+It contains only:
+ * variable introductions and references,
+ * binding information,
+ * (temporary parsing information),
+ * quotation level indicators, and
+ * `Node`, which represents complex AST nodes.
+
+ `walk` traverses these nodes and keeps the environment
+  (actually a stack of environments, for nested quotation)
+  set up appropriately.
+
+[Core] core_forms.rs, core_type_forms.rs, core_syntax_forms.rs
+
+The Turing-complete "core" language is Unseemly's user interface.
+
+There are separate files
+ for defining the types themselves ("core_type_forms.rs")
+ and for defining syntax (un)quotation ("core_syntax_forms.rs").
 
 
- Pipeline:
+Pipeline:
                              ⋮              ⋮           ⋮
                       →  [TypeSynth]  →  [Expand] →  [Evaluate] ↩ (phase 2)
                       →  [TypeSynth]  →  [Expand] →  [Evaluate] ↩ (phase 1)
   [Read]  →  [Parse]  →  [TypeSynth]  →  [Expand] →  [Evaluate] (runtime)
           ↑           ↑               ↑           ↑
       TokenTree      Ast           Ast:Ty      Ast:Ty (core)
+
 
 [Read] read.rs
   The reader is very simple.
@@ -49,7 +71,7 @@ Well, the parser and tokenizer are weird, but in a sort of optional way.
    it should match a token that is identical
     except for starting with )]} instead.
 
-[Parse] parse.rs
+[Parse] parse.rs and earley.rs
   The parser has to parse arbitrary grammars (`FormPat`s).
   Furthermore, it must be able to
    extend the grammar it is currently parsing
@@ -60,14 +82,12 @@ Well, the parser and tokenizer are weird, but in a sort of optional way.
    the timing of which should be controlled by phasing.
 
 [TypeSynth] ty.rs
-  Type synthesis for core forms.
+  Type synthesis.
 
   It should be possible to derive type synthesis for macros!
   Synthesize a type for the macro body, and it'll tell you what you get.
   I think.
   If not, there's not much point to making this language.
-
-  Type synthesis and evaluation are both driven by ast_walk.rs.
 
 [Evaluate] eval.rs
   Evaluation is a tree traversal, surprisingly similar to type synthesis.
@@ -91,7 +111,7 @@ Well, the parser and tokenizer are weird, but in a sort of optional way.
 
 
 
-Crucial data structures:
+Important data structures:
 
   `Name` name.rs
     Will contain hygiene metadata, eventually
@@ -108,10 +128,10 @@ Crucial data structures:
        Also contains:
        * how things should bind
        * grammar "binding" information (syntax extension)
-       * TODO: phase information
      * `synth_type : WalkRule` [TypeSynth] -- typechecking rule
      * `eval : WalkRule` [Evaluate] -- evaluation rule
-     * TODO [misc] -- pretty-printing information
+     * `quasiquote : WalkRule` [Evaluate] -- trivial, except for unquotation
+     * TODO [misc] -- pretty-printing guidance
 
   `Ast` ast.rs
     Syntax, in its logical structure.
@@ -126,6 +146,10 @@ Crucial data structures:
   `EnvMBE` util/mbe.rs
     Ergonomic (...in a sense) representation for the contents of `Ast` nodes
      which have parts that can repeat `n` times.
+
+  Other imporant things:
+
+  alpha.rs has α-equivalence utilities, used by `ast_walk.rs`
 
 
 

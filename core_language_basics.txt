@@ -28,7 +28,7 @@ Expressions:
    It is almost exclusively used right after constructing an enum or struct.
 
 Pre-defined values:
- `zero` through `ten` are integers.
+ `zero` through `ten` are integers. (What are these "literals" you speak of?)
  `plus`, `minus`, `times`, and `equal?` are binary functions.
  `zero?` is a unary function.
  `true` and `false` are boolean values.
@@ -74,8 +74,8 @@ Example unseemly programs: (in src/examples/)
   fact.un takes 5 factorial
     Demonstrates recursion with `fix`
   sum_list.un sums the list "1, 2, 3"
-    Demonstrates `let_type`, `match`, `fold`, `unfold`, and the need for a
-    macro system.
+    Demonstrates `let_type`, `match`, `fold`, `unfold`,
+     and the need for a macro system.
 
   .unseemly_prelude is intended to be copied to your home directory.
     You can add to it with `:s` commands from the REPL.

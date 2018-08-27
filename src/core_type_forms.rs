@@ -5,8 +5,9 @@
  *  whenever I think that the ergonomic way of doing things is just syntax sugar over it.
  * After all, syntax sugar is the point of Unseemly!
  *
- * I didn't think that I could survive making a system out of + and × types, though,
- *  so there are n-ary `struct`s and `enum`s.
+ * However, I expect that the core types of a typed macro language will are
+ *  part of the user interface (for example, they'd appear in generated module documentation).
+ * Therefore, I used `enum` and `struct` instead of × and +.
  */
 
  /*

@@ -826,6 +826,11 @@ fn ddd_iter() {
 
     assert_eq!(DddIter::new([0,1,2].iter(), 1, 1).collect::<Vec<_>>(), [&0,&1,&2]);
     assert_eq!(DddIter::new([0,1,2].iter(), 1, 3).collect::<Vec<_>>(), [&0,&1,&1,&1,&2]);
+
+
+    let deeper = mbe!("a" => [["A"] ...(["P0", "P1" ...("P5")..., "P9"])..., ["Z0", "Z1", "Z2"]]);
+
+
 }
 
 #[test]
