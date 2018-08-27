@@ -104,38 +104,38 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
                     // `body` has the type `Expr <[String]<` (annotation is superfluous):
                     cust_rc_box!( move | unquote_parts | {
                         // TODO: What the heck is the difference between this and the `nt` that it shadows!!!?!?!?!?!?
-                        let nt = ast_to_name(&unquote_parts.get_term(&n("nt")));
-                        let ast_for_errors = unquote_parts.get_term(&n("body"));
+                        let nt = ast_to_name(&unquote_parts.get_term(n("nt")));
+                        let ast_for_errors = unquote_parts.get_term(n("body"));
                         // TODO: check annotation if present
 
                         let mut res = if pos_quot {
-                            try!(unquote_parts.get_res(&n("body"))) // `String`
+                            try!(unquote_parts.get_res(n("body"))) // `String`
                         } else {
                             // need a type annotation
-                            let expected_type = try!(unquote_parts.get_res(&n("ty_annot")));
+                            let expected_type = try!(unquote_parts.get_res(n("ty_annot")));
 
                             let negative_parts = unquote_parts.switch_mode::<::ty::UnpackTy>();
-                            let _res = try!(negative_parts.get_res(&n("body")));
+                            let _res = try!(negative_parts.get_res(n("body")));
 
                             expected_type//, nt, &ast_for_errors)
                         };
 
                         for _ in 0..(depth-1) {
-                            res = try!(less_quoted_ty(res, None, &ast_for_errors))
+                            res = try!(less_quoted_ty(&res, None, &ast_for_errors))
                         } // HACK: the way this is structured, we only know the last `nt` to expect
-                        less_quoted_ty(res, Some(nt), &ast_for_errors)
+                        less_quoted_ty(&res, Some(nt), &ast_for_errors)
                     }))
             } else {
                 // For example: ` '[Pat | (x, ,[Pat <[String]< | body], ) ]' `
                 //                            ^^^^^^^^^^^^^^^^^^^^^^^^^
                 Negative(
                     cust_rc_box!( move | unquote_parts | {
-                        let nt = ast_to_name(&unquote_parts.get_term(&n("nt")));
+                        let nt = ast_to_name(&unquote_parts.get_term(n("nt")));
 
                         if pos_quot {
                             // `String`
                             let lq_parts = unquote_parts.switch_mode::<::ty::SynthTy>();
-                            let res = try!(lq_parts.get_res(&n("body")));
+                            let res = try!(lq_parts.get_res(n("body")));
 
                             // Bonus typecheck
                             ty_exp!(unquote_parts.context_elt(), &res, lq_parts.this_ast);
@@ -144,8 +144,8 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
                         } else {
                             // phase-shift the context_elt:
                             let ctxt = more_quoted_ty(
-                                unquote_parts.context_elt().clone(), &nt.sp());
-                            let _res = try!(unquote_parts.with_context(ctxt).get_res(&n("body")));
+                                unquote_parts.context_elt(), &nt.sp());
+                            let _res = try!(unquote_parts.with_context(ctxt).get_res(n("body")));
 
                             Ok(Assoc::new()) // TODO: does this make sense?
                         }
@@ -163,13 +163,13 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
             Both( // TODO: double-check that `pos` and `neg` don't matter here
                 cust_rc_box!( move | unquote_parts | {
                     let lq_parts = unquote_parts.switch_mode::<Eval>();
-                    ::ast_walk::walk::<Eval>(lq_parts.get_term_ref(&n("body")), &lq_parts)
+                    ::ast_walk::walk::<Eval>(lq_parts.get_term_ref(n("body")), &lq_parts)
                 }),
                 cust_rc_box!( move | unquote_parts | {
                     let context = unquote_parts.context_elt().clone();
 
                     let lq_parts = unquote_parts.switch_mode::<Destructure>();
-                    ::ast_walk::walk::<Destructure>(lq_parts.get_term_ref(&n("body")),
+                    ::ast_walk::walk::<Destructure>(lq_parts.get_term_ref(n("body")),
                         &lq_parts.with_context(context))
                 }))
     })
@@ -233,20 +233,20 @@ pub fn quote(pos: bool) -> Rc<Form> {
             if pos {
                 ::form::Positive(cust_rc_box!(|quote_parts| {
                     if nt_is_positive(
-                            ::core_forms::ast_to_name(&quote_parts.get_term(&n("nt")))) {
+                            ::core_forms::ast_to_name(&quote_parts.get_term(n("nt")))) {
                         // TODO: if the user provides an annotation, check it!
                         Ok(ty!({"Type" "type_apply" :
                             "type_rator" =>
                                 (, nt_to_type(ast_to_name(
-                                    &quote_parts.get_term(&n("nt")))).concrete() ),
+                                    &quote_parts.get_term(n("nt")))).concrete() ),
                             "arg" => [(,
-                                try!(quote_parts.get_res(&n("body"))).concrete())]
+                                try!(quote_parts.get_res(n("body"))).concrete())]
                         }))
 
                     } else {
                         // TODO: if the user accidentally omits the annotation,
                         //  provide a good error message.
-                        let expected_type = try!(quote_parts.get_res(&n("ty_annot")));
+                        let expected_type = try!(quote_parts.get_res(n("ty_annot")));
 
                         // TODO: do we need this result somewhere?
                         // Note that `Pat <[Point]<` (as opposed to `Pat <:[x: Real, y: Real]<:`)
@@ -256,29 +256,29 @@ pub fn quote(pos: bool) -> Rc<Form> {
                         //  but it boils down to this: environments can always be managed directly,
                         //   by introducing and referencing bindings.
                         let _ = quote_parts.with_context(expected_type.clone())
-                                           .get_res(&n("body"));
+                                           .get_res(n("body"));
 
                         Ok(ty!({"Type" "type_apply" :
                             "type_rator" =>
                                 (, nt_to_type(ast_to_name(
-                                    &quote_parts.get_term(&n("nt")))).concrete() ),
+                                    &quote_parts.get_term(n("nt")))).concrete() ),
                             "arg" => [ (,expected_type.concrete()) ]}))
                     }
                 }))
             } else {
                 ::form::Negative(cust_rc_box!(|quote_parts| {
                     // There's no need for a type annotation s
-                    let nt = ast_to_name(&quote_parts.get_term(&n("nt")));
+                    let nt = ast_to_name(&quote_parts.get_term(n("nt")));
                     if nt_is_positive(nt) {
                         // TODO: check that this matches the type annotation, if provided!
-                        quote_parts.get_res(&n("body"))
+                        quote_parts.get_res(n("body"))
                     } else {
                         let new_context =
                             try!(less_quoted_ty(
-                                quote_parts.context_elt().clone(), Some(nt),
+                                quote_parts.context_elt(), Some(nt),
                                 &quote_parts.this_ast));
                         // TODO: check that this matches the type annotation, if provided!
-                        quote_parts.with_context(new_context).get_res(&n("body"))
+                        quote_parts.with_context(new_context).get_res(n("body"))
                     }
                 }))
             },
@@ -286,8 +286,8 @@ pub fn quote(pos: bool) -> Rc<Form> {
             if pos {
                 Positive(cust_rc_box!(|quote_parts| {
                     let mq_parts = quote_parts.switch_mode::<QQuote>().quote_more(None);
-                    match mq_parts.get_term_ref(&n("body")) { // Strip the `QuoteMore`:
-                        &::ast::QuoteMore(ref a, _) => ::ast_walk::walk::<QQuote>(&*a, &mq_parts),
+                    match mq_parts.get_term_ref(n("body")) { // Strip the `QuoteMore`:
+                        ::ast::QuoteMore(ref a, _) => ::ast_walk::walk::<QQuote>(&*a, &mq_parts),
                         _ => panic!("ICE")
                     }
                 }))
@@ -297,8 +297,8 @@ pub fn quote(pos: bool) -> Rc<Form> {
 
                     let mq_parts = quote_parts.switch_mode::<QQuoteDestr>().quote_more(None)
                         .with_context(context);
-                    match mq_parts.get_term_ref(&n("body")) { // Strip the `QuoteMore`:
-                        &::ast::QuoteMore(ref body, _)
+                    match mq_parts.get_term_ref(n("body")) { // Strip the `QuoteMore`:
+                        ::ast::QuoteMore(ref body, _)
                             => ::ast_walk::walk::<QQuoteDestr>(&*body, &mq_parts),
                         _ => panic!("ICE")
                     }

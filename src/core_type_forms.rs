@@ -126,7 +126,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     let actual_parts = try!(Subtype::context_match(
                         &fn_parts.this_ast, &actual, fn_parts.env.clone()));
 
-                    let expd_params = fn_parts.get_rep_term(&n("param"));
+                    let expd_params = fn_parts.get_rep_term(n("param"));
                     let actl_params = actual_parts.get_rep_leaf_or_panic(&n("param"));
                     if expd_params.len() != actl_params.len() {
                         return Err(TyErr::LengthMismatch(
@@ -139,7 +139,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                             *p_got, &fn_parts.with_context(Ty::new(p_expected.clone()))));
                     }
 
-                    walk::<Subtype>(&fn_parts.get_term(&n("ret")),
+                    walk::<Subtype>(&fn_parts.get_term(n("ret")),
                         &fn_parts.with_context(
                             Ty::new(actual_parts.get_leaf_or_panic(&n("ret")).clone())))
                  }))
@@ -173,14 +173,14 @@ pub fn make_core_syn_env_types() -> SynEnv {
                             let actl_inner_body =
                                 actual_forall_parts.get_leaf_or_panic(&n("body"));
 
-                            walk::<Subtype>(&forall_parts.get_term(&n("body")),
+                            walk::<Subtype>(&forall_parts.get_term(n("body")),
                                 &forall_parts.with_context(Ty::new(actl_inner_body.clone())))
                         }
                         // ∀ X. ⋯ <: ⋯ ?  (so try to specialize X)
                         Err(_) => {
                             // `import [forall "param"]` handles the specialization,
                             //  and we leave the context element alone
-                            walk::<Subtype>(&forall_parts.get_term(&n("body")), &forall_parts)
+                            walk::<Subtype>(&forall_parts.get_term(n("body")), &forall_parts)
                         }
                     }
                 })));
@@ -198,16 +198,16 @@ pub fn make_core_syn_env_types() -> SynEnv {
         cust_rc_box!(move |mu_parts| { // Like LiteralLike, but doesn't expand `param`:
             Ok(ty!( { "Type" "mu_type" :
                 "body" => (import [* [prot "param"]]
-                             (, try!(mu_parts.get_res(&n("body"))).concrete())),
-                "param" => (,seq mu_parts.get_rep_term(&n("param")))
+                             (, try!(mu_parts.get_res(n("body"))).concrete())),
+                "param" => (,seq mu_parts.get_rep_term(n("param")))
             } ))
         }),
         Both(
             cust_rc_box!(move |mu_parts| { // Like LiteralLike, but doesn't expand `param`:
                 Ok(ty!( { "Type" "mu_type" :
                     "body" => (import [* [prot "param"]]
-                                 (, try!(mu_parts.get_res(&n("body"))).concrete())),
-                    "param" => (,seq mu_parts.get_rep_term(&n("param")))
+                                 (, try!(mu_parts.get_res(n("body"))).concrete())),
+                    "param" => (,seq mu_parts.get_rep_term(n("param")))
                 } ))
             }),
             cust_rc_box!(move |mu_parts| {
@@ -219,7 +219,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 let rhs_body = rhs_mu_parts.get_leaf_or_panic(&n("body"));
 
                 let r_params = rhs_mu_parts.get_rep_leaf_or_panic(&n("param"));
-                let l_params = mu_parts.get_rep_term(&n("param"));
+                let l_params = mu_parts.get_rep_term(n("param"));
                 if r_params.len() != l_params.len() {
                     return Err(TyErr::LengthMismatch(
                         r_params.iter().map(|a| Ty((*a).clone())).collect(), l_params.len()));
@@ -235,7 +235,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     amber_environment = amber_environment.set(vr_to_name(p_r), Ty(p_l.clone()));
                 }
 
-                walk::<Subtype>(&mu_parts.get_term(&n("body")),
+                walk::<Subtype>(&mu_parts.get_term(n("body")),
                     &mu_parts.with_environment(amber_environment)
                         .with_context(Ty::new(rhs_body.clone())))
             })));
@@ -256,17 +256,17 @@ pub fn make_core_syn_env_types() -> SynEnv {
     let type_by_name = type_defn_complex("type_by_name",
         form_pat!([(lit "DEPRECATED"), (named "name", aat)]),
         cust_rc_box!(move |tbn_part| {
-            let name = ast_to_name(&tbn_part.get_term(&n("name")));
+            let name = ast_to_name(&tbn_part.get_term(n("name")));
             ::ty::SynthTy::walk_var(name, &tbn_part)
         }),
         Both(
             cust_rc_box!(move |tbn_part| {
                 ::ty_compare::Canonicalize::walk_var(
-                    ast_to_name(&tbn_part.get_term(&n("name"))), &tbn_part)
+                    ast_to_name(&tbn_part.get_term(n("name"))), &tbn_part)
             }),
             cust_rc_box!(move |tbn_part| {
                 ::ty_compare::Subtype::walk_var(
-                    ast_to_name(&tbn_part.get_term(&n("name"))), &tbn_part)
+                    ast_to_name(&tbn_part.get_term(n("name"))), &tbn_part)
 
             })));
 
@@ -287,8 +287,8 @@ pub fn make_core_syn_env_types() -> SynEnv {
          (delim "<[", "[", /*]]*/ (star [(named "arg", (call "Type"))]))]),
          // TODO: shouldn't it be "args"?
         cust_rc_box!(move |tapp_parts| {
-            let arg_res = try!(tapp_parts.get_rep_res(&n("arg")));
-            let rator_res = try!(tapp_parts.get_res(&n("type_rator")));
+            let arg_res = try!(tapp_parts.get_rep_res(n("arg")));
+            let rator_res = try!(tapp_parts.get_res(n("type_rator")));
             match rator_res.0 {
                 VariableReference(rator_vr) => {
                     // e.g. `X<[int, Y]<` underneath `mu X. ...`
@@ -405,21 +405,18 @@ pub fn nt_is_positive(nt: Name) -> bool {
     }
 }
 
-pub fn less_quoted_ty(t: Ty, nt: Option<Name>, loc: &Ast) -> Result<Ty, ::ty::TypeError> {
+pub fn less_quoted_ty(t: &Ty, nt: Option<Name>, loc: &Ast) -> Result<Ty, ::ty::TypeError> {
     // suppose that this is an expr, and `body` has the type `Expr <[String]<`:
     expect_ty_node!( (t ; ::core_forms::find_core_form("Type", "type_apply") ; loc)
         tapp_parts;
         {
-            match nt {
-                Some(nt) => {
-                    let nt_sp = &nt.sp();
-                    ty_exp!(
-                        &Ty::new(tapp_parts.get_leaf_or_panic(&n("type_rator")).clone()),
-                        &ty!({get__abstract_parametric_type() ; "name" => nt_sp}),
-                        loc
-                    );
-                }
-                None => {}
+            if let Some(nt) = nt { // Check it if you got it
+                let nt_sp = &nt.sp();
+                ty_exp!(
+                    &Ty::new(tapp_parts.get_leaf_or_panic(&n("type_rator")).clone()),
+                    &ty!({get__abstract_parametric_type() ; "name" => nt_sp}),
+                    loc
+                );
             }
 
             let args = tapp_parts.get_rep_leaf_or_panic(&n("arg"));
@@ -433,7 +430,7 @@ pub fn less_quoted_ty(t: Ty, nt: Option<Name>, loc: &Ast) -> Result<Ty, ::ty::Ty
     )
 }
 
-pub fn more_quoted_ty(t: Ty, nt: &str) -> Ty {
+pub fn more_quoted_ty(t: &Ty, nt: &str) -> Ty {
     ty!({"Type" "type_apply" :
         "type_rator" => {get__abstract_parametric_type() ; "name" => nt},
         "arg" => [(,t.concrete())]})

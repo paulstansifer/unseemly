@@ -195,7 +195,7 @@ thread_local! {
         type_compare: ::form::Both(
             // pre-match handles the negative case; we need to do the positive case manually:
             cust_rc_box!(|udet_parts| {
-                let id = ast_to_name(&udet_parts.get_term(&n("id")));
+                let id = ast_to_name(&udet_parts.get_term(n("id")));
                 unification.with(|unif| {
                     let unif = unif.borrow();
                     // TODO: don't use the id in an error message; it's user-hostile:

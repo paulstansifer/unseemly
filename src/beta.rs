@@ -161,9 +161,9 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(b: &Beta, parts: &LazyWalkRese
             }
             Ok(res)
         }
-        Basic(ref name_source, ref ty_source) => {
+        Basic(name_source, ty_source) => {
             if let LazilyWalkedTerm {term: Atom(ref name), ..}
-                    = **parts.parts.get_leaf_or_panic(name_source) {
+                    = **parts.parts.get_leaf_or_panic(&name_source) {
                 //let LazilyWalkedTerm {term: ref ty_stx, ..}
                 //    = **parts.parts.get_leaf_or_panic(ty_source);
                 let ty = try!(parts.get_res(ty_source));
@@ -171,13 +171,13 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(b: &Beta, parts: &LazyWalkRese
                 Ok(Assoc::new().set(*name, Mode::out_as_elt(ty.clone())))
             } else {
                 panic!("User error: {:?} is supposed to supply names, but is not an Atom.",
-                    parts.parts.get_leaf_or_panic(name_source).term)
+                    parts.parts.get_leaf_or_panic(&name_source).term)
             }
         }
 
         // TODO: I need more help understanding this
         // treats the node `name_source` mentions as a negative node, and gets names from it
-        SameAs(ref name_source, ref res_source) => {
+        SameAs(name_source, res_source) => {
             use walk_mode::WalkMode;
 
             let ty = try!(parts.get_res(res_source));
@@ -233,7 +233,7 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(b: &Beta, parts: &LazyWalkRese
                 // HACK: rely on the fact that `walk_var`
                 //  won't recursively substitute until it "hits bottom"
                 // Drop the variable reference right into the environment.
-                Ok(Assoc::new().set(*name, Mode::Elt::from_ast(&parts.get_term(name_source))))
+                Ok(Assoc::new().set(*name, Mode::Elt::from_ast(&parts.get_term(*name_source))))
             } else {
                 panic!("{:?} is supposed to supply names, but is not an Atom.",
                     parts.parts.get_leaf_or_panic(name_source).term)

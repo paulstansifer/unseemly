@@ -142,9 +142,8 @@ impl Reifiable for Value {
 // TOUNDERSTAND: 'x also allows things to be owned instead?!?
 pub fn reify_1ary_function<A: Reifiable + 'static, R: Reifiable + 'static>(
         f: Rc<Box<(Fn(A) -> R)>>) -> Value {
-    let f_c = f.clone();
     Value::BuiltInFunction(::runtime::eval::BIF(Rc::new(
-        move |args: Vec<Value>| ((*f_c)(A::reflect(&args[0]))).reify())))
+        move |args: Vec<Value>| ((*f)(A::reflect(&args[0]))).reify())))
 }
 
 pub fn reflect_1ary_function<A: Reifiable + 'static, R: Reifiable + 'static>(
@@ -162,9 +161,8 @@ pub fn reflect_1ary_function<A: Reifiable + 'static, R: Reifiable + 'static>(
 pub fn reify_2ary_function<A: Reifiable + 'static, B: Reifiable + 'static,
                            R: Reifiable + 'static>(
         f: Rc<Box<(Fn(A, B) -> R)>>) -> Value {
-    let f_c = f.clone();
     Value::BuiltInFunction(::runtime::eval::BIF(Rc::new(
-        move |args: Vec<Value>| ((*f_c)(A::reflect(&args[0]), B::reflect(&args[1]))).reify())))
+        move |args: Vec<Value>| ((*f)(A::reflect(&args[0]), B::reflect(&args[1]))).reify())))
 }
 
 pub fn reflect_2ary_function<A: Reifiable + 'static, B: Reifiable + 'static,

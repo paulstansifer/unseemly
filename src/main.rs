@@ -106,7 +106,7 @@ fn main() {
         let save_type = regex::Regex::new("^:s +((\\w+)\\s*t=(.*))$").unwrap();
         let comment = regex::Regex::new("^#").unwrap();
 
-        println!("");
+        println!();
         println!("                  \x1b[1;38mUnseemly\x1b[0m");
         println!("    `<expr>` to (typecheck and) evaluate `<expr>`.");
         println!("    `:e <expr>` to evaluate `<expr>` without typechecking.");
@@ -118,7 +118,7 @@ fn main() {
         println!("    `:s <name> t= <expr>` to save a type binding to the prelude.");
         println!("    Command history is saved over sessions.");
         println!("    Tab-completion works on variables, and many Bash-isms work.");
-        println!("");
+        println!();
 
         if let Ok(prelude_file) = File::open(&Path::new(&prelude_filename)) {
             let prelude = std::io::BufReader::new(prelude_file);

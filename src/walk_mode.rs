@@ -225,7 +225,7 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
         match Mode::pre_match(node_ast, cnc.context_elt().clone(), &cnc.env) {
             Some((l_clo, r_clo)) => {
                 // Closures; we need to unify their environments:
-                let (l, r, new_env) = l_clo.env_merge(r_clo);
+                let (l, r, new_env) = l_clo.env_merge(&r_clo);
 
                 let (l_fresh, r_fresh) = freshen_with(&<Self::Mode as WalkMode>::Elt::to_ast(&l),
                     &<Self::Mode as WalkMode>::Elt::to_ast(&r));
@@ -335,13 +335,13 @@ pub trait NegativeWalkMode : WalkMode {
 
 
 /** `var_to_out`, for positive walks where `Out` == `Elt` */
-pub fn var_lookup<Elt: Debug + Clone>(n: &Name, env: &Assoc<Name, Elt>)
+pub fn var_lookup<Elt: Debug + Clone>(n: Name, env: &Assoc<Name, Elt>)
         -> Result<Elt, ()> {
-    Ok((*env.find(n).expect(format!("Name {:?} unbound in {:?}", n, env).as_str())).clone())
+    Ok((*env.find(&n).expect(format!("Name {:?} unbound in {:?}", n, env).as_str())).clone())
 }
 
 /** `var_to_out`, for negative walks where `Out` == `Assoc<Name, Elt>`` */
-pub fn var_bind<Elt: Debug + Clone>(n: &Name, env: &Assoc<Name, Elt>)
+pub fn var_bind<Elt: Debug + Clone>(n: Name, env: &Assoc<Name, Elt>)
         -> Result<Assoc<Name, Elt>, ()> {
-    Ok(Assoc::new().set(*n, env.find(&negative_ret_val()).unwrap().clone()))
+    Ok(Assoc::new().set(n, env.find(&negative_ret_val()).unwrap().clone()))
 }

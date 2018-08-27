@@ -72,15 +72,15 @@ pub fn make_core_syn_env() -> SynEnv {
                 let lambda_type : Ty =
                     ty!({ find_type(&ctf_0, "fn") ;
                          "param" => [* part_types =>("param") part_types :
-                                       (, try!(part_types.get_res(&n("p_t"))).concrete() )],
-                         "ret" => (, try!(part_types.get_res(&n("body"))).concrete() )});
+                                       (, try!(part_types.get_res(n("p_t"))).concrete() )],
+                         "ret" => (, try!(part_types.get_res(n("body"))).concrete() )});
                 Ok(lambda_type)}),
             /* evaluation */
             cust_rc_box!( move | part_values | {
                 Ok(Function(Rc::new(Closure {
-                    body: strip_ee(part_values.get_term_ref(&n("body"))).clone(),
+                    body: strip_ee(part_values.get_term_ref(n("body"))).clone(),
                     params:
-                        part_values.get_rep_term(&n("param")).iter().map(ast_to_name).collect(),
+                        part_values.get_rep_term(n("param")).iter().map(ast_to_name).collect(),
                     env: part_values.env
                 })))
             })),
@@ -95,10 +95,10 @@ pub fn make_core_syn_env() -> SynEnv {
                 // The `rator` must be a function that takes the `rand`s as arguments:
                 let _ = try!(::ty_compare::must_subtype(
                     &ty!({ "Type" "fn" :
-                        "param" => (,seq try!(part_types.get_rep_res(&n("rand")))
+                        "param" => (,seq try!(part_types.get_rep_res(n("rand")))
                              .iter().map(|t| t.concrete()).collect::<Vec<_>>() ),
                         "ret" => (, return_type.concrete() )}),
-                    &try!(part_types.get_res(&n("rator"))),
+                    &try!(part_types.get_res(n("rator"))),
                     part_types.env.clone())
                         .map_err(|e| ::util::err::sp(e, part_types.this_ast.clone())));
 
@@ -116,18 +116,18 @@ pub fn make_core_syn_env() -> SynEnv {
                 })
             }),
             cust_rc_box!( move | part_values | {
-                match try!(part_values.get_res(&n("rator"))) {
+                match try!(part_values.get_res(n("rator"))) {
                     Function(clos) => {
                         let mut new_env = clos.env.clone();
                         for (p, v) in clos.params.iter().zip(
-                                try!(part_values.get_rep_res(&n("rand")))) {
+                                try!(part_values.get_rep_res(n("rand")))) {
                             new_env = new_env.set(*p, v);
                         }
 
                         ::runtime::eval::eval(&clos.body, new_env)
                     },
                     BuiltInFunction(::runtime::eval::BIF(f)) => {
-                        Ok(f(try!(part_values.get_rep_res(&n("rand")))))
+                        Ok(f(try!(part_values.get_rep_res(n("rand")))))
                     }
                     other => {
                         panic!("Type soundness bug: attempted to invoke {:?}
@@ -149,18 +149,18 @@ pub fn make_core_syn_env() -> SynEnv {
                     //  that the arm patterns match the scrutinee;
                     //  the import handles that for us.
 
-                    let arm_res = try!(arm_part_types.get_res(&n("arm")));
+                    let arm_res = try!(arm_part_types.get_res(n("arm")));
 
                     match res {
                         None => { res = Some(arm_res) }
                         Some(ref old_res) => {
-                            ty_exp!(old_res, &arm_res, arm_part_types.get_term(&n("arm")));
+                            ty_exp!(old_res, &arm_res, arm_part_types.get_term(n("arm")));
                         }
                     }
                 }
                 match res {
                     None => { // TODO: this isn't anywhere near exhaustive
-                        ty_err!(NonExhaustiveMatch(part_types.get_res(&n("scrutinee")).unwrap())
+                        ty_err!(NonExhaustiveMatch(part_types.get_res(n("scrutinee")).unwrap())
                             at Trivial /* TODO */)
                     },
                     Some(ty_res) => Ok(ty_res)
@@ -170,7 +170,7 @@ pub fn make_core_syn_env() -> SynEnv {
             cust_rc_box!( move | part_values | {
                 for arm_values in part_values.march_all(&[n("arm")]) {
                     // TODO: don't we need to set a context?
-                    match arm_values.get_res(&n("arm")) {
+                    match arm_values.get_res(n("arm")) {
                         Ok(res) => { return Ok(res); }
                         Err(()) => { /* try the next one */ }
                     }
@@ -187,12 +187,12 @@ pub fn make_core_syn_env() -> SynEnv {
               (lit ":"), (named "t", (call "Type"))],
             /* Typesynth: */
             cust_rc_box!( move | part_types | {
-                let res : Ty = try!(part_types.get_res(&n("t")));
+                let res : Ty = try!(part_types.get_res(n("t")));
                 expect_ty_node!( (res ; find_type(&ctf_2, "enum") ; &part_types.this_ast)
                     enum_type_parts;
                     {
                         for enum_type_part in enum_type_parts.march_all(&[n("name")]) {
-                            if &part_types.get_term(&n("name"))
+                            if &part_types.get_term(n("name"))
                                     != enum_type_part.get_leaf_or_panic(&n("name")) {
                                 continue; // not the right arm
                             }
@@ -203,7 +203,7 @@ pub fn make_core_syn_env() -> SynEnv {
 
                             // TODO: check that they're the same length!
 
-                            for (t, expected_t) in try!(part_types.get_rep_res(&n("component")))
+                            for (t, expected_t) in try!(part_types.get_rep_res(n("component")))
                                     .iter().zip(component_types) {
                                 ty_exp!(t, &expected_t, part_types.this_ast);
                             }
@@ -212,15 +212,15 @@ pub fn make_core_syn_env() -> SynEnv {
                         }
 
                         ty_err!(NonexistentEnumArm
-                                    (ast_to_name(&part_types.get_term(&n("name"))), res)
+                                    (ast_to_name(&part_types.get_term(n("name"))), res)
                                 at part_types.this_ast);
                     }
                 )
             }),
             /* Evaluate: */
             cust_rc_box!( move | part_values | {
-                Ok(Enum(ast_to_name(&part_values.get_term(&n("name"))),
-                    try!(part_values.get_rep_res(&n("component")))))
+                Ok(Enum(ast_to_name(&part_values.get_term(n("name"))),
+                    try!(part_values.get_rep_res(n("component")))))
             })),
         typed_form!("struct_expr",
             (delim "*[", "[", /*]]*/
@@ -228,8 +228,8 @@ pub fn make_core_syn_env() -> SynEnv {
                        (named "component", (call "Expr"))])),
             cust_rc_box!( move | part_types | {
                 Ok(ty!({ find_type(&ctf_3, "struct") ;
-                    "component_name" => (@"c" ,seq part_types.get_rep_term(&n("component_name"))),
-                    "component" => (@"c" ,seq try!(part_types.get_rep_res(&n("component")))
+                    "component_name" => (@"c" ,seq part_types.get_rep_term(n("component_name"))),
+                    "component" => (@"c" ,seq try!(part_types.get_rep_res(n("component")))
                         .into_iter().map(|c : Ty| c.concrete()))
                 }))
             }),
@@ -237,8 +237,8 @@ pub fn make_core_syn_env() -> SynEnv {
                 let mut res = Assoc::new();
 
                 for component_parts in part_values.march_parts(&[n("component")]) {
-                    res = res.set(ast_to_name(&component_parts.get_term(&n("component_name"))),
-                                  try!(component_parts.get_res(&n("component"))));
+                    res = res.set(ast_to_name(&component_parts.get_term(n("component_name"))),
+                                  try!(component_parts.get_res(n("component"))));
                 }
 
                 Ok(Struct(res))
@@ -262,7 +262,7 @@ pub fn make_core_syn_env() -> SynEnv {
             // HACK: like `Body(n("body"))`, but ignoring the binding, since it's type-level.
             // This feels like it ought to be better-handled by `beta`, or maybe a kind system.
             cust_rc_box!( move | let_type_parts | {
-                eval(strip_ee(&let_type_parts.get_term(&n("body"))), let_type_parts.env)
+                eval(strip_ee(&let_type_parts.get_term(n("body"))), let_type_parts.env)
             })),
 
         /* e.g. where List = ∀ X. μ List. enum { Nil(), Cons(X, List<[X]<) }
@@ -276,7 +276,7 @@ pub fn make_core_syn_env() -> SynEnv {
                 // TODO: this "evaluates" types twice; once in `get_res` and once in `synth_type`
                 // It shouldn't be necessary, and it's probably quadratic.
                 // Maybe this points to a weakness in the LiteralLike approach to traversing types?
-                let mu_typed = try!(unfold_parts.get_res(&n("body")));
+                let mu_typed = try!(unfold_parts.get_res(n("body")));
 
                 // Pull off the `mu` (and the `ExtendEnv` that it carries):
                 // (This is sound because `mu`'s param must already be in the environment.)
@@ -298,7 +298,7 @@ pub fn make_core_syn_env() -> SynEnv {
         typed_form!("fold",
             [(lit "fold"), (named "body", (call "Expr")), (lit ":"), (named "t", (call "Type"))],
             cust_rc_box!( move |fold_parts| {
-                let goal_type = try!(fold_parts.get_res(&n("t")));
+                let goal_type = try!(fold_parts.get_res(n("t")));
                 // TODO: I can't figure out how to pull this out into a function
                 //  to invoke both here and above, since `mu_type_0` needs cloning...
                 let folded_goal = expect_ty_node!(
@@ -311,7 +311,7 @@ pub fn make_core_syn_env() -> SynEnv {
                         } else { panic!("ICE: no protection to remove!"); }
                     });
 
-                ty_exp!(&try!(fold_parts.get_res(&n("body"))), &folded_goal,
+                ty_exp!(&try!(fold_parts.get_res(n("body"))), &folded_goal,
                         fold_parts.this_ast);
                 Ok(goal_type)
             }),
@@ -322,9 +322,9 @@ pub fn make_core_syn_env() -> SynEnv {
              (named "body", (import [* [forall "param"]], (call "Expr")))],
             cust_rc_box!( move |forall_parts| {
                 Ok(ty!({"Type" "forall_type" :
-                    "param" => (,seq forall_parts.get_rep_term(&n("param"))),
+                    "param" => (,seq forall_parts.get_rep_term(n("param"))),
                     "body" => (import [* [forall "param"]]
-                        (, try!(forall_parts.get_res(&n("body"))).concrete()))
+                        (, try!(forall_parts.get_res(n("body"))).concrete()))
                 }))
             }),
             Body(n("body"))),
@@ -343,7 +343,7 @@ pub fn make_core_syn_env() -> SynEnv {
                                       &part_types.this_ast)
                     enum_type_parts;
                     {
-                        let arm_name = &part_types.get_term(&n("name"));
+                        let arm_name = &part_types.get_term(n("name"));
 
                         for enum_type_part in enum_type_parts.march_all(&[n("name")]) {
 
@@ -357,7 +357,7 @@ pub fn make_core_syn_env() -> SynEnv {
 
                             let mut res = Assoc::new();
                             for sub_res in &try!(part_types
-                                    .get_rep_res_with(&n("component"), component_types)) {
+                                    .get_rep_res_with(n("component"), component_types)) {
                                 res = res.set_assoc(sub_res);
                             }
 
@@ -373,12 +373,12 @@ pub fn make_core_syn_env() -> SynEnv {
                 match *part_values.context_elt() /* : Value */ {
                     Enum(ref name, ref elts) => {
                         // "Try another branch"
-                        if name != &ast_to_name(&part_values.get_term(&n("name"))) {
+                        if name != &ast_to_name(&part_values.get_term(n("name"))) {
                             return Err(());
                         }
 
                         let mut res = Assoc::new();
-                        for sub_res in &try!(part_values.get_rep_res_with(&n("component"),
+                        for sub_res in &try!(part_values.get_rep_res_with(n("component"),
                                                                           elts.clone())) {
                             res = res.set_assoc(sub_res);
                         }
@@ -403,7 +403,7 @@ pub fn make_core_syn_env() -> SynEnv {
                             let mut component_found = false;
                             for struct_type_part
                                     in struct_type_parts.march_all(&[n("component")]) {
-                                if &component_ctx.get_term(&n("component_name"))
+                                if &component_ctx.get_term(n("component_name"))
                                     != struct_type_part.get_leaf_or_panic(&n("component_name")) {
                                     continue;
                                 }
@@ -413,14 +413,14 @@ pub fn make_core_syn_env() -> SynEnv {
                                     struct_type_part.get_leaf_or_panic(&n("component")).clone());
                                 res = res.set_assoc(
                                     &try!(component_ctx.with_context(component_type)
-                                        .get_res(&n("component"))));
+                                        .get_res(n("component"))));
                                 break;
                             }
                             if !component_found {
                                 ty_err!(NonexistentStructField(
-                                        ast_to_name(&component_ctx.get_term(&n("component_name"))),
+                                        ast_to_name(&component_ctx.get_term(n("component_name"))),
                                         part_types.context_elt().clone())
-                                    at part_types.get_rep_term(&n("component"))[0].clone());
+                                    at part_types.get_rep_term(n("component"))[0].clone());
                             }
                         }
                         Ok(res)
@@ -435,9 +435,9 @@ pub fn make_core_syn_env() -> SynEnv {
                                 &try!(component_ctx
                                     .with_context(contents.find_or_panic(
                                         &ast_to_name(
-                                            &component_ctx.get_term(&n("component_name"))))
+                                            &component_ctx.get_term(n("component_name"))))
                                             .clone())
-                                    .get_res(&n("component"))));
+                                    .get_res(n("component"))));
                         }
 
                         Ok(res)

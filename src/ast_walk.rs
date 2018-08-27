@@ -84,7 +84,7 @@ pub struct Clo<Elt : WalkElt> {
 }
 
 impl<Elt: WalkElt> Clo<Elt> {
-    pub fn env_merge(self, other: Clo<Elt>) -> (Elt, Elt, Assoc<Name, Elt>) {
+    pub fn env_merge(self, other: &Clo<Elt>) -> (Elt, Elt, Assoc<Name, Elt>) {
         // To reduce name churn (and keep environments from exploding in size),
         // we cut out the bits of the environments that are the same.
         let o_different_env = other.env.cut_common(&self.env);
@@ -167,7 +167,7 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
             let oeh_m = Mode::D::oeh_if_negative();
             let old_ctxt_elt = walk_ctxt.maybe__context_elt();
 
-            let currently_positive = !oeh_m.is_some(); // kinda a hack for "Is `Mode` positive?"
+            let currently_positive = oeh_m.is_none(); // kinda a hack for "Is `Mode` positive?"
 
             // Negative modes at quotation does some weird stuff. For example:
             // `match e { `[Expr | (add 5 ,[Expr <[Nat]< | a],)]` => ⋯}`
@@ -262,7 +262,7 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
 }
 
 /// If a `Node` is `LiteralLike`, its imports and [un]quotes should be, too!
-fn maybe_literally__walk<Mode: WalkMode>(a: &Ast, body: &Box<Ast>, walk_ctxt: LazyWalkReses<Mode>,
+fn maybe_literally__walk<Mode: WalkMode>(a: &Ast, body: &Ast, walk_ctxt: LazyWalkReses<Mode>,
                                          ctxt_elt: Option<Mode::Elt>, literally: Option<bool>)
         -> Result<<Mode::D as Dir>::Out, Mode::Err> {
     let walk_ctxt = match ctxt_elt {
@@ -273,7 +273,7 @@ fn maybe_literally__walk<Mode: WalkMode>(a: &Ast, body: &Box<Ast>, walk_ctxt: La
     if literally.expect("ICE: unable to determine literalness") {
         Mode::walk_quasi_literally(a.clone(), &walk_ctxt)
     } else {
-        walk(&**body, &walk_ctxt)
+        walk(&*body, &walk_ctxt)
     }
 }
 
@@ -383,12 +383,9 @@ pub type OutEnvHandle<Mode> = Rc<RefCell<Assoc<Name,<Mode as WalkMode>::Elt>>>;
 /// Only does anything if `Mode` is negative.
 pub fn squirrel_away<Mode: WalkMode>(opt_oeh: Option<OutEnvHandle<Mode>>,
                                      more_env: <Mode::D as Dir>::Out) {
-    match opt_oeh {
-        Some(oeh) => {
-            let new_env = oeh.borrow().set_assoc(&Mode::out_as_env(more_env));
-            *oeh.borrow_mut() = new_env;
-        }
-        None => {}
+    if let Some(oeh) = opt_oeh {
+        let new_env = oeh.borrow().set_assoc(&Mode::out_as_env(more_env));
+        *oeh.borrow_mut() = new_env;
     }
 }
 
@@ -500,13 +497,13 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
 
     /** The result of walking the subform named `part_name`. This is memoized. */
-    pub fn get_res(&self, part_name: &Name) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
-        self.parts.get_leaf_or_panic(part_name).get_res(self)
+    pub fn get_res(&self, part_name: Name) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
+        self.parts.get_leaf_or_panic(&part_name).get_res(self)
     }
 
     /** Like `get_res`, but for subforms that are repeated at depth 1. Sort of a hack. */
-    pub fn get_rep_res(&self, part_name: &Name) -> Result<Vec<<Mode::D as Dir>::Out>, Mode::Err> {
-        self.parts.get_rep_leaf_or_panic(part_name)
+    pub fn get_rep_res(&self, part_name: Name) -> Result<Vec<<Mode::D as Dir>::Out>, Mode::Err> {
+        self.parts.get_rep_leaf_or_panic(&part_name)
             .iter().map( |&lwt| lwt.get_res(self)).collect()
     }
 
@@ -517,17 +514,17 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }*/
 
     /** The subform named `part_name`, without any processing. */
-    pub fn get_term(&self, part_name: &Name) -> Ast {
-        self.parts.get_leaf_or_panic(part_name).term.clone()
+    pub fn get_term(&self, part_name: Name) -> Ast {
+        self.parts.get_leaf_or_panic(&part_name).term.clone()
     }
 
     // TODO: replace `get_term` with this
-    pub fn get_term_ref(&self, part_name: &Name) -> &Ast {
-        &self.parts.get_leaf_or_panic(part_name).term
+    pub fn get_term_ref(&self, part_name: Name) -> &Ast {
+        &self.parts.get_leaf_or_panic(&part_name).term
     }
 
-    pub fn get_rep_term(&self, part_name: &Name) -> Vec<Ast> {
-        self.parts.get_rep_leaf_or_panic(part_name)
+    pub fn get_rep_term(&self, part_name: Name) -> Vec<Ast> {
+        self.parts.get_rep_leaf_or_panic(&part_name)
             .iter().map( |&lwt| lwt.term.clone()).collect()
     }
 
@@ -637,9 +634,9 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
 
     /** Like `get_rep_res`, but with a different context for each repetition */
-    pub fn get_rep_res_with(&self, n: &Name, new_contexts: Vec<Mode::Elt>)
+    pub fn get_rep_res_with(&self, n: Name, new_contexts: Vec<Mode::Elt>)
             -> Result<Vec<<Mode::D as Dir>::Out>, Mode::Err> {
-        if let Some(sub_parts) = self.march_parts_with(&[*n], new_contexts) {
+        if let Some(sub_parts) = self.march_parts_with(&[n], new_contexts) {
             //Some(sub_parts.iter().map(|sp| sp.get_res(n)).collect())
             let mut res = vec![];
             for sub_part in sub_parts {
@@ -674,7 +671,7 @@ fn quote_more_and_less() {
 
     // process the binding for "bind_me" as if it were in an unquote
     let (squirreler, interpolation) = q_parts.quote_less();
-    let res = interpolation.get_res(&n("body")).unwrap();
+    let res = interpolation.get_res(n("body")).unwrap();
     assert_eq!(res, assoc_n!("bind_me" => ty!({"Type" "Int" :})));
 
     // the other thing `unquote` needs to do; save the result for out-of-band retrieval

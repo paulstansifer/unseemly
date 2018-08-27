@@ -250,7 +250,7 @@ fn merge_into_state_set(item: Item, items: &mut Vec<Item>)
         if i.similar(&item) {
             if i.as_good_as(&item) { return false; /* no new information */ }
             log!("improved item: {:?} vs. {:?}\n", item, i);
-            i.merge(item);
+            i.merge(&item);
             return true;
         }
     }
@@ -292,7 +292,7 @@ impl Item {
                    |w| self.wanted_by.borrow().iter().any(|s_w| w == s_w))))
     }
 
-    fn merge(&self, other: Item) {
+    fn merge(&self, other: &Item) {
         if *other.done.borrow() { *self.done.borrow_mut() = true; }
 
         use ::std::cmp::Ordering::*;
