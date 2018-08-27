@@ -264,7 +264,7 @@ fn extensible_parsing() {
 
     fn counter_synex(_: SynEnv, a: Ast) -> SynEnv {
         let count = match a { IncompleteNode(mbe) => mbe, _ => panic!() }
-            .get_rep_leaf_or_panic(&n("n")).len();
+            .get_rep_leaf_or_panic(n("n")).len();
 
         assoc_n!("count" => Rc::new(Literal(n(&count.to_string()))))
     }

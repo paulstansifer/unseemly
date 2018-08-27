@@ -56,9 +56,9 @@ pub use self::Token::*;
 // A token may start with an open delimiter, or end with a close delmiter,
 // but otherwise may not contain delimiters
 
-const nondelim : &'static str = r"[^\[\]\(\)\{\}\s]";
-const open : &'static str = r"[\[\(\{]";
-const close : &'static str = r"[\]\)\}]";
+const nondelim : &str = r"[^\[\]\(\)\{\}\s]";
+const open : &str = r"[\[\(\{]";
+const close : &str = r"[\]\)\}]";
 
 pub fn delim(s: &str) -> DelimChar {
     match s {

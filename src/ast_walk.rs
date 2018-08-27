@@ -145,11 +145,11 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
 
     match a {
         Node(ref f, ref parts, _) => {
-            let new_walk_ctxt = walk_ctxt.switch_ast(parts.clone(), a.clone());
+            let new_walk_ctxt = walk_ctxt.switch_ast(parts, a.clone());
             // certain walks only work on certain kinds of AST nodes
             match *Mode::get_walk_rule(f) {
                 Custom(ref ts_fn) =>  ts_fn(new_walk_ctxt),
-                Body(n) =>            walk(parts.get_leaf(&n).unwrap(), &new_walk_ctxt),
+                Body(n) =>            walk(parts.get_leaf(n).unwrap(), &new_walk_ctxt),
                 LiteralLike =>        Mode::walk_quasi_literally(a.clone(), &new_walk_ctxt),
                 NotWalked =>          panic!("ICE: {:?} should not be walked at all!", a)
             }
@@ -450,7 +450,7 @@ impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
 
 impl<Mode: WalkMode> LazyWalkReses<Mode> {
     pub fn new(env: ResEnv<Mode::Elt>, // TODO: we could get rid of the middle element
-               parts_unwalked: EnvMBE<Ast>,
+               parts_unwalked: &EnvMBE<Ast>,
                this_ast: Ast)
             -> LazyWalkReses<Mode> {
         LazyWalkReses {
@@ -484,7 +484,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         }
     }
 
-    pub fn switch_ast(self, parts: EnvMBE<Ast>, this_ast: Ast) -> LazyWalkReses<Mode> {
+    pub fn switch_ast(self, parts: &EnvMBE<Ast>, this_ast: Ast) -> LazyWalkReses<Mode> {
         LazyWalkReses {
             parts: parts.map(&mut LazilyWalkedTerm::new), this_ast: this_ast, .. self
         }
@@ -503,7 +503,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
 
     /** Like `get_res`, but for subforms that are repeated at depth 1. Sort of a hack. */
     pub fn get_rep_res(&self, part_name: Name) -> Result<Vec<<Mode::D as Dir>::Out>, Mode::Err> {
-        self.parts.get_rep_leaf_or_panic(&part_name)
+        self.parts.get_rep_leaf_or_panic(part_name)
             .iter().map( |&lwt| lwt.get_res(self)).collect()
     }
 
@@ -524,7 +524,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
 
     pub fn get_rep_term(&self, part_name: Name) -> Vec<Ast> {
-        self.parts.get_rep_leaf_or_panic(&part_name)
+        self.parts.get_rep_leaf_or_panic(part_name)
             .iter().map( |&lwt| lwt.term.clone()).collect()
     }
 
@@ -581,7 +581,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
 
     /// Shift to a less-quoted level. If the OEH is non-`None`, you need to call `squirrel_away`.
     pub fn quote_less(mut self) -> (Option<OutEnvHandle<Mode>>, LazyWalkReses<Mode>){
-        let env = self.less_quoted_env.pop().unwrap_or(Mode::Elt::core_env());
+        let env = self.less_quoted_env.pop().unwrap_or_else(Mode::Elt::core_env);
         let less_quoted_env = self.less_quoted_env;
 
         let out_env : Option<OutEnvHandle<Mode>> = self.less_quoted_out_env.pop().unwrap();
@@ -655,7 +655,7 @@ fn quote_more_and_less() {
     let parts = LazyWalkReses::<::ty::UnpackTy>::new(
         assoc_n!("a" => ty!({"Type" "Nat" :})),
         // we'll pretend this is under an unquote or something:
-        mbe!("body" => "bind_me"),
+        &mbe!("body" => "bind_me"),
         ast!("[ignored]"));
 
     let parts = parts.with_context(ty!({"Type" "Int" :}));

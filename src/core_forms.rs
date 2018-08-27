@@ -198,7 +198,7 @@ pub fn make_core_syn_env() -> SynEnv {
                             }
 
                             let component_types : Vec<Ty> =
-                                enum_type_part.get_rep_leaf_or_panic(&n("component"))
+                                enum_type_part.get_rep_leaf_or_panic(n("component"))
                                     .iter().map(|a| Ty::new((*a).clone())).collect();
 
                             // TODO: check that they're the same length!
@@ -352,7 +352,7 @@ pub fn make_core_syn_env() -> SynEnv {
                             }
 
                             let component_types : Vec<Ty> =
-                                enum_type_part.get_rep_leaf_or_panic(&n("component"))
+                                enum_type_part.get_rep_leaf_or_panic(n("component"))
                                     .iter().map(|a| Ty::new((*a).clone())).collect();
 
                             let mut res = Assoc::new();
@@ -534,7 +534,7 @@ fn form_expect_node() {
     let _: Result<(), ()> = expect_node!(
         ( ast ; find_core_form("Expr", "apply")) env; //expect_f = "rand", expect_x = "rator";
         {
-            assert_eq!(env.get_rep_leaf_or_panic(&n("rand")), vec![&ast!((vr "f"))]);
+            assert_eq!(env.get_rep_leaf_or_panic(n("rand")), vec![&ast!((vr "f"))]);
             assert_eq!(env.get_leaf_or_panic(&n("rator")), &ast!((vr "x")));
             Ok(())
         });

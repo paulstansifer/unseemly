@@ -127,7 +127,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                         &fn_parts.this_ast, &actual, fn_parts.env.clone()));
 
                     let expd_params = fn_parts.get_rep_term(n("param"));
-                    let actl_params = actual_parts.get_rep_leaf_or_panic(&n("param"));
+                    let actl_params = actual_parts.get_rep_leaf_or_panic(n("param"));
                     if expd_params.len() != actl_params.len() {
                         return Err(TyErr::LengthMismatch(
                             actl_params.iter().map(|&a| Ty(a.clone())).collect(),
@@ -218,7 +218,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
 
                 let rhs_body = rhs_mu_parts.get_leaf_or_panic(&n("body"));
 
-                let r_params = rhs_mu_parts.get_rep_leaf_or_panic(&n("param"));
+                let r_params = rhs_mu_parts.get_rep_leaf_or_panic(n("param"));
                 let l_params = mu_parts.get_rep_term(n("param"));
                 if r_params.len() != l_params.len() {
                     return Err(TyErr::LengthMismatch(
@@ -336,7 +336,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 Node(ref got_f, ref forall_type__parts, _)
                         if got_f == &forall_type_0 => {
                     // This might ought to be done by a specialized `beta`...
-                    let params = forall_type__parts.get_rep_leaf_or_panic(&n("param"));
+                    let params = forall_type__parts.get_rep_leaf_or_panic(n("param"));
                     if params.len() != arg_res.len() {
                         panic!("Kind error: wrong number of arguments");
                     }
@@ -419,7 +419,7 @@ pub fn less_quoted_ty(t: &Ty, nt: Option<Name>, loc: &Ast) -> Result<Ty, ::ty::T
                 );
             }
 
-            let args = tapp_parts.get_rep_leaf_or_panic(&n("arg"));
+            let args = tapp_parts.get_rep_leaf_or_panic(n("arg"));
             if args.len() != 1 {
                 ty_err!(LengthMismatch(args.iter().map(|t| Ty::new((*t).clone())).collect(), 1) at loc);
             }

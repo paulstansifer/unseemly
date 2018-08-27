@@ -113,7 +113,7 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
             // Expand defined type applications.
             // This is sorta similar to the type synthesis for "type_apply",
             //  but it does not recursively process the arguments (which may be underdetermined!).
-            let arg_terms = parts.get_rep_leaf_or_panic(&n("arg"));
+            let arg_terms = parts.get_rep_leaf_or_panic(n("arg"));
 
             let resolved = resolve(
                 Clo{it: Ty(parts.get_leaf_or_panic(&n("type_rator")).clone()), env: env.clone()},
@@ -147,7 +147,7 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
                             find_core_form("Type", "forall_type"), &t.0) {
                         Err(_) => None, // Broken "type_apply", but let it fail elsewhere
                         Ok(ref got_forall) => {
-                            let params = got_forall.get_rep_leaf_or_panic(&n("param"));
+                            let params = got_forall.get_rep_leaf_or_panic(n("param"));
                             if params.len() != arg_terms.len() {
                                 panic!("Kind error: wrong number of arguments: {} vs {}",
                                     params.len(), arg_terms.len());

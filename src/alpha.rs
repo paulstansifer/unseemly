@@ -34,10 +34,10 @@ impl Ren {
         }
     }
     pub fn q_more(&self, by: u8) -> Ren {
-        Ren { env: self.env.clone(), q_lev: self.q_lev + by as i16 }
+        Ren { env: self.env.clone(), q_lev: self.q_lev + i16::from(by) }
     }
     pub fn q_less(&self, by: u8) -> Ren {
-        Ren { env: self.env.clone(), q_lev: self.q_lev - by as i16 }
+        Ren { env: self.env.clone(), q_lev: self.q_lev - i16::from(by) }
     }
     pub fn new() -> Ren { Ren { env: Assoc::new(), q_lev: 0 } }
     pub fn single(n: Name, a: Ast) -> Ren { Ren { env: Assoc::new().set(n, a), q_lev: 0} }
@@ -49,14 +49,14 @@ impl From<Assoc<Name, Ast>> for Ren {
     }
 }
 
-fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: Ren) -> Ast {
+fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Ren) -> Ast {
     match *node {
         Node(ref f, ref new_parts, ref export) => {
             //let new_cnc = parts.clone();
             Node(f.clone(),
                  new_parts.marched_map(
                      &mut |_, marched_parts: &EnvMBE<Ast>, part: &Ast|
-                         substitute_rec(part, marched_parts, env.clone())),
+                         substitute_rec(part, marched_parts, env)),
                  export.clone())
         }
         VariableReference(n) => {
@@ -68,13 +68,13 @@ fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: Ren) -> Ast 
                 new_env = new_env.unset(bound_name);
             }
 
-            ExtendEnv(Box::new(substitute_rec(body, cur_node_contents, new_env)), beta.clone())
+            ExtendEnv(Box::new(substitute_rec(body, cur_node_contents, &new_env)), beta.clone())
         }
         QuoteMore(ref body, pos) => {
-            QuoteMore(Box::new(substitute_rec(body, cur_node_contents, env.q_more(1))), pos)
+            QuoteMore(Box::new(substitute_rec(body, cur_node_contents, &env.q_more(1))), pos)
         },
         QuoteLess(ref body, depth) => {
-            QuoteLess(Box::new(substitute_rec(body, cur_node_contents, env.q_less(depth))), depth)
+            QuoteLess(Box::new(substitute_rec(body, cur_node_contents, &env.q_less(depth))), depth)
         },
         _ => node.clone()
     }
@@ -88,7 +88,7 @@ fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: Ren) -> Ast 
 /// TODO: this isn't capture-avoiding (and shouldn't be, when called by `freshen_rec`)
 /// It's safe to use when the RHS of the environment is just fresh names.
 pub fn substitute(node: &Ast, env: &Assoc<Name, Ast>) -> Ast {
-    substitute_rec(node, &EnvMBE::new(), Ren::from(env.clone()))
+    substitute_rec(node, &EnvMBE::new(), &Ren::from(env.clone()))
 }
 
 /// Like `beta::names_mentioned`, but for all the imports in `parts`
@@ -116,7 +116,7 @@ fn mentioned_in_import(parts: &EnvMBE<Ast>) -> Vec<Name> {
 fn freshen_rec(node: &Ast, renamings: &EnvMBE<(Ast, Ren)>, env: Ren) -> Ast {
     //  `env` is used to update the references to those atoms to match
     match *node {
-        Node(_, _, _) => { substitute_rec(node, &EnvMBE::new(), env.clone()) }
+        Node(_, _, _) => { substitute_rec(node, &EnvMBE::new(), &env) }
         VariableReference(n) => {
             env.find(n).unwrap_or(&node.clone()).clone()
         }

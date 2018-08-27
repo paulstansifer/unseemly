@@ -358,16 +358,16 @@ impl<T: Clone> EnvMBE<T> {
     }
 
     /// Get a non-repeated thing in the enviornment
-    pub fn get_leaf(&self, n: &Name) -> Option<&T> {
-        self.leaves.find(n)
+    pub fn get_leaf(&self, n: Name) -> Option<&T> {
+        self.leaves.find(&n)
     }
 
-    pub fn get_rep_leaf(&self, n: &Name) -> Option<Vec<&T>> where T: ::std::fmt::Debug{
+    pub fn get_rep_leaf(&self, n: Name) -> Option<Vec<&T>> where T: ::std::fmt::Debug{
         // FOOTGUN: can't distinguish wrong leaf names from 0-repeated leaves
         // TODO: remove get_rep_leaf_or_panic, as this never returns `None`
 
         let mut res = vec![];
-        let leaf_loc = match self.leaf_locations.find(n) {
+        let leaf_loc = match self.leaf_locations.find(&n) {
             Some(&Some(ll)) => ll,
             _ => { return Some(vec![]); }
         };
@@ -683,7 +683,7 @@ impl<T: Clone + fmt::Debug> EnvMBE<T> {
         }
     }
 
-    pub fn get_rep_leaf_or_panic(&self, n: &Name) -> Vec<&T> {
+    pub fn get_rep_leaf_or_panic(&self, n: Name) -> Vec<&T> {
         self.get_rep_leaf(n).unwrap()
     }
 }
@@ -714,16 +714,16 @@ fn basic_mbe() {
 
 
     for (sub_mbe, teen) in mbe.march_all(&vec![n("t"), n("eight")]).iter().zip(vec![11,12,13]) {
-        assert_eq!(sub_mbe.get_leaf(&n("eight")), Some(&8));
-        assert_eq!(sub_mbe.get_leaf(&n("nine")), Some(&9));
-        assert_eq!(sub_mbe.get_leaf(&n("t")), Some(&teen));
-        assert_eq!(sub_mbe.get_leaf(&n("y")), None);
+        assert_eq!(sub_mbe.get_leaf(n("eight")), Some(&8));
+        assert_eq!(sub_mbe.get_leaf(n("nine")), Some(&9));
+        assert_eq!(sub_mbe.get_leaf(n("t")), Some(&teen));
+        assert_eq!(sub_mbe.get_leaf(n("y")), None);
 
         for (sub_sub_mbe, big) in sub_mbe.march_all(&vec![n("y"), n("eight")]).iter().zip(vec![9001, 9002]) {
-            assert_eq!(sub_sub_mbe.get_leaf(&n("eight")), Some(&8));
-            assert_eq!(sub_sub_mbe.get_leaf(&n("nine")), Some(&9));
-            assert_eq!(sub_sub_mbe.get_leaf(&n("t")), Some(&teen));
-            assert_eq!(sub_sub_mbe.get_leaf(&n("y")), Some(&big));
+            assert_eq!(sub_sub_mbe.get_leaf(n("eight")), Some(&8));
+            assert_eq!(sub_sub_mbe.get_leaf(n("nine")), Some(&9));
+            assert_eq!(sub_sub_mbe.get_leaf(n("t")), Some(&teen));
+            assert_eq!(sub_sub_mbe.get_leaf(n("y")), Some(&big));
         }
     }
 
@@ -736,34 +736,34 @@ fn basic_mbe() {
     mbe.add_named_repeat(n("low_two_digits"), neg_teens_mbe, None);
 
     for (sub_mbe, teen) in mbe.march_all(&vec![n("t"), n("nt"), n("eight")]).iter().zip(vec![11,12,13]) {
-        assert_eq!(sub_mbe.get_leaf(&n("eight")), Some(&8));
-        assert_eq!(sub_mbe.get_leaf(&n("nine")), Some(&9));
-        assert_eq!(sub_mbe.get_leaf(&n("t")), Some(&teen));
-        assert_eq!(sub_mbe.get_leaf(&n("nt")), Some(&-teen));
+        assert_eq!(sub_mbe.get_leaf(n("eight")), Some(&8));
+        assert_eq!(sub_mbe.get_leaf(n("nine")), Some(&9));
+        assert_eq!(sub_mbe.get_leaf(n("t")), Some(&teen));
+        assert_eq!(sub_mbe.get_leaf(n("nt")), Some(&-teen));
 
         for (sub_sub_mbe, big) in sub_mbe.march_all(&vec![n("y"), n("eight")]).iter().zip(vec![9001, 9002]) {
-            assert_eq!(sub_sub_mbe.get_leaf(&n("eight")), Some(&8));
-            assert_eq!(sub_sub_mbe.get_leaf(&n("nine")), Some(&9));
-            assert_eq!(sub_sub_mbe.get_leaf(&n("t")), Some(&teen));
-            assert_eq!(sub_sub_mbe.get_leaf(&n("nt")), Some(&-teen));
-            assert_eq!(sub_sub_mbe.get_leaf(&n("y")), Some(&big));
+            assert_eq!(sub_sub_mbe.get_leaf(n("eight")), Some(&8));
+            assert_eq!(sub_sub_mbe.get_leaf(n("nine")), Some(&9));
+            assert_eq!(sub_sub_mbe.get_leaf(n("t")), Some(&teen));
+            assert_eq!(sub_sub_mbe.get_leaf(n("nt")), Some(&-teen));
+            assert_eq!(sub_sub_mbe.get_leaf(n("y")), Some(&big));
         }
     }
 
     let all_zeroes = mbe.map_with(&mbe, &|a, b| a - b);
     for sub_mbe in all_zeroes.march_all(&vec![n("t"), n("nt"), n("eight")]) {
-        assert_eq!(sub_mbe.get_leaf(&n("eight")), Some(&0));
-        assert_eq!(sub_mbe.get_leaf(&n("nine")), Some(&0));
-        assert_eq!(sub_mbe.get_leaf(&n("t")), Some(&0));
-        assert_eq!(sub_mbe.get_leaf(&n("nt")), Some(&0));
+        assert_eq!(sub_mbe.get_leaf(n("eight")), Some(&0));
+        assert_eq!(sub_mbe.get_leaf(n("nine")), Some(&0));
+        assert_eq!(sub_mbe.get_leaf(n("t")), Some(&0));
+        assert_eq!(sub_mbe.get_leaf(n("nt")), Some(&0));
 
         for (sub_sub_mbe, _) in sub_mbe.march_all(&vec![n("y"), n("eight")]).iter()
                 .zip(vec![9001, 9002]) {
-            assert_eq!(sub_sub_mbe.get_leaf(&n("eight")), Some(&0));
-            assert_eq!(sub_sub_mbe.get_leaf(&n("nine")), Some(&0));
-            assert_eq!(sub_sub_mbe.get_leaf(&n("t")), Some(&0));
-            assert_eq!(sub_sub_mbe.get_leaf(&n("nt")), Some(&0));
-            assert_eq!(sub_sub_mbe.get_leaf(&n("y")), Some(&0));
+            assert_eq!(sub_sub_mbe.get_leaf(n("eight")), Some(&0));
+            assert_eq!(sub_sub_mbe.get_leaf(n("nine")), Some(&0));
+            assert_eq!(sub_sub_mbe.get_leaf(n("t")), Some(&0));
+            assert_eq!(sub_sub_mbe.get_leaf(n("nt")), Some(&0));
+            assert_eq!(sub_sub_mbe.get_leaf(n("y")), Some(&0));
         }
     }
 
@@ -792,9 +792,9 @@ fn basic_mbe() {
 
     let first_sub_mbe = &mapped_mbe.march_all(&vec![n("y")])[0];
 
-    assert_eq!(first_sub_mbe.get_leaf(&n("y")), Some(&(9001, 1)));
-    assert_eq!(first_sub_mbe.get_leaf(&n("eight")), Some(&(8, (8 - 9000))));
-    assert_eq!(first_sub_mbe.get_leaf(&n("x")), None);
+    assert_eq!(first_sub_mbe.get_leaf(n("y")), Some(&(9001, 1)));
+    assert_eq!(first_sub_mbe.get_leaf(n("eight")), Some(&(8, (8 - 9000))));
+    assert_eq!(first_sub_mbe.get_leaf(n("x")), None);
 
     // test that phantoms from the previous level don't cause us trouble when repeats are empty
 
@@ -809,8 +809,8 @@ fn basic_mbe() {
     let mut output = vec![];
     for outer in teens_and_nothing.march_all(&vec![n("outer")]) {
         for inner in outer.march_all(&vec![n("t")]) {
-            output.push( (inner.get_leaf(&n("outer")).map(|x| x.clone()),
-                          inner.get_leaf(&n("t")).map(|x| x.clone()) ));
+            output.push( (inner.get_leaf(n("outer")).map(|x| x.clone()),
+                          inner.get_leaf(n("t")).map(|x| x.clone()) ));
         }
     }
     assert_eq!(output, vec![(Some(0), Some(11)), (Some(0), Some(12)), (Some(0), Some(13))]);
