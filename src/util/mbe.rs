@@ -826,11 +826,6 @@ fn ddd_iter() {
 
     assert_eq!(DddIter::new([0,1,2].iter(), 1, 1).collect::<Vec<_>>(), [&0,&1,&2]);
     assert_eq!(DddIter::new([0,1,2].iter(), 1, 3).collect::<Vec<_>>(), [&0,&1,&1,&1,&2]);
-
-
-    let deeper = mbe!("a" => [["A"] ...(["P0", "P1" ...("P5")..., "P9"])..., ["Z0", "Z1", "Z2"]]);
-
-
 }
 
 #[test]
@@ -856,9 +851,20 @@ fn mbe_ddd_map_with() {
                ast!("4431211100")); // N.B. order is arbitrary
 
 
-    let lhs = mbe!( "a" => [["a", "b"], ["c", "d"], ["c", "d"]]);
-    let rhs = mbe!( "a" => [["a", "b"] ...(["c", "d"])...]);
+    {
+        let lhs = mbe!( "a" => [["a", "b"], ["c", "d"], ["c", "d"]]);
+        let rhs = mbe!( "a" => [["a", "b"] ...(["c", "d"])...]);
 
-    assert_eq!(lhs.map_with(&rhs, &concat),
-               mbe!( "a" => [["aa", "bb"], ["cc", "dd"], ["cc", "dd"]]));
+        assert_eq!(lhs.map_with(&rhs, &concat),
+                   mbe!( "a" => [["aa", "bb"], ["cc", "dd"], ["cc", "dd"]]));
+    }
+    {
+        let lhs = mbe!("a" => [...(["P0", "P1" ...("P")..., "P9"])...]);
+        let rhs = mbe!("a" => [["p0", "p1", "p4", "p5", "p6", "p9"], ["p0", "p1", "p9"]]);
+
+        assert_eq!(lhs.map_with(&rhs, &concat),
+                   mbe!("a" => [["P0p0", "P1p1", "Pp4", "Pp5", "Pp6", "P9p9"], ["P0p0", "P1p1", "P9p9"]]));
+
+    }
+
 }

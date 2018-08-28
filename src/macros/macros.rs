@@ -213,6 +213,14 @@ macro_rules! mbe_one_name {
         )
     };
 
+    ($k:tt => [...($elt_rep:tt)... $(, $elt_post:tt)*]) => { // (the stanza below won't parse it)
+        ::util::mbe::EnvMBE::new_from_anon_repeat_ddd(
+            vec![ mbe_one_name!($k => $elt_rep) ,
+                    $( mbe_one_name!($k => $elt_post) ),* ],
+              Some(0)
+        )
+    };
+
     ($k:tt => [$($elt_pre:tt),* ...($elt_rep:tt)... $(, $elt_post:tt)*]) => {
         ::util::mbe::EnvMBE::new_from_anon_repeat_ddd(
             vec![ $( mbe_one_name!($k => $elt_pre) ),* ,
