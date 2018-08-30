@@ -83,13 +83,13 @@ macro_rules! tokens {
 
 macro_rules! t_elt {
     ( [ $e:expr ;  $( $list:tt )* ] ) => {
-        Group(::name::n(concat!($e,"[")), SquareBracket, tokens!($($list)*))
+        Group(::name::n(concat!($e,"[")), ::read::DelimChar::SquareBracket, tokens!($($list)*))
     };
     ( { $e:expr ;  $( $list:tt )* } ) => {
-        Group(::name::n(concat!($e,"{")), CurlyBracket, tokens!($($list)*))
+        Group(::name::n(concat!($e,"{")), ::read::DelimChar::CurlyBracket, tokens!($($list)*))
     };
     ( ( $e:expr ;  $( $list:tt )* ) ) => {
-        Group(::name::n(concat!($e,"(")), Paren, tokens!($($list)*))
+        Group(::name::n(concat!($e,"(")), ::read::DelimChar::Paren, tokens!($($list)*))
     };
     ($e:expr) => { Simple(::name::n($e)) }
 }

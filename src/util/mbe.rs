@@ -850,7 +850,6 @@ fn mbe_ddd_map_with() {
     assert_eq!(lhs.map_reduce_with(&rhs, &concat, &concat, ast!("")),
                ast!("4431211100")); // N.B. order is arbitrary
 
-
     {
         let lhs = mbe!( "a" => [["a", "b"], ["c", "d"], ["c", "d"]]);
         let rhs = mbe!( "a" => [["a", "b"] ...(["c", "d"])...]);

@@ -17,9 +17,11 @@ impl Name {
     pub fn sp(self) -> String { self.id.to_string() }
 }
 
-/// Special name for negative `ast_walk`ing
+
 // TODO: move to `ast_walk`
 // TODO: this interner doesn't support `gensym`...
+
+/// Special name for negative `ast_walk`ing
 pub fn negative_ret_val() -> Name {
     Name { id: lalrpop_intern::intern("⋄") }
 }

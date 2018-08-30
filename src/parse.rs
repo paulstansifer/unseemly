@@ -24,7 +24,6 @@ impl Token {
     }
 }
 
-
 custom_derive! {
     /**
       `FormPat` is a grammar. Think EBNF, but more extended.
@@ -34,13 +33,12 @@ custom_derive! {
        everything outside of a `Named` (up to a `Scope`, if any) is discarded,
         and `Scope` produces a `Node`, which maps names to what they got.
      */
-    #[derive(Debug, Clone, Reifiable)]
+    #[derive(Debug, Clone, Reifiable, PartialEq)]
     pub enum FormPat {
         /// Matches 0 tokens, produces the argument
         Anyways(Ast),
         /// Never matches
         Impossible,
-
         Literal(Name),
         AnyToken,
         AnyAtomicToken,
@@ -85,10 +83,15 @@ custom_derive! {
 }
 pub struct SyntaxExtension(pub Rc<Box<(Fn(SynEnv, Ast) -> SynEnv)>>);
 
-
 impl Clone for SyntaxExtension {
     fn clone(&self) -> SyntaxExtension {
         SyntaxExtension(self.0.clone())
+    }
+}
+impl PartialEq for SyntaxExtension {
+    /// pointer equality! (for testing)
+    fn eq(&self, other: &SyntaxExtension) -> bool {
+        self as *const SyntaxExtension == other as *const SyntaxExtension
     }
 }
 
@@ -114,6 +117,22 @@ impl ::std::fmt::Debug for SyntaxExtension {
 
 pub type SynEnv = Assoc<Name, Rc<FormPat>>;
 
+/// Currently only used for DDDs
+pub fn plug_hole(outer: &Rc<FormPat>, hole: Name, inner: &Rc<FormPat>) -> Rc<FormPat> {
+    match **outer {
+        Call(n) => if n == hole { inner.clone() } else { outer.clone() },
+        Anyways(_) | Impossible | Literal(_) | AnyToken | AnyAtomicToken | VarRef => {
+            outer.clone()
+        }
+        Seq(ref subs) => {
+            Rc::new(Seq(subs.iter().map(|sub| plug_hole(sub, hole, inner)).collect()))
+        }
+        Delimited(n, ch, ref body) => { Rc::new(Delimited(n, ch, plug_hole(&body, hole, inner))) }
+        _ => {
+            panic!("What are you doing? What do you even think will happen?")
+        }
+    }
+}
 
 pub use ::earley::parse;
 
