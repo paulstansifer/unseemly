@@ -20,6 +20,9 @@ pub trait WalkElt: Clone + Debug + Display + Reifiable {
     fn core_env() -> Assoc<Name, Self> { Assoc::<Name, Self>::new() }
 }
 
+// Abbreviation for Result<…::Out, …>
+type Res<Mode> = Result<<<Mode as WalkMode>::D as Dir>::Out, <Mode as WalkMode>::Err>;
+
 /**
  * This trait exists to walk over `Ast`s in different ways.
  * `get_walk_rule` connects `Form`s to actual walk operations.
@@ -45,7 +48,6 @@ pub trait WalkMode : Debug + Copy + Reifiable {
 
     /** The negated version of this walk */
     type Negated : WalkMode<Elt=Self::Elt, Err=Self::Err, Negated=Self>;
-
 
     fn get_walk_rule(&Form) -> &WalkRule<Self> where Self: Sized ;
 
@@ -73,7 +75,7 @@ pub trait WalkMode : Debug + Copy + Reifiable {
      If the walk is negative, the result might be MatchFailure
      */
     fn walk_quasi_literally(expected: Ast, cnc: &LazyWalkReses<Self>)
-            -> Result<<Self::D as Dir>::Out, Self::Err> {
+            -> Res<Self> {
         Self::D::walk_quasi_literally(expected, cnc)
     }
 
@@ -83,13 +85,17 @@ pub trait WalkMode : Debug + Copy + Reifiable {
     fn out_as_env(o: <Self::D as Dir>::Out) -> Assoc<Name, Self::Elt> { Self::D::out_as_env(o) }
     fn env_as_out(e: Assoc<Name, Self::Elt>) -> <Self::D as Dir>::Out { Self::D::env_as_out(e) }
 
-    fn walk_var(n: Name, cnc: &LazyWalkReses<Self>) -> Result<<Self::D as Dir>::Out, Self::Err> {
+    fn walk_var(n: Name, cnc: &LazyWalkReses<Self>) -> Res<Self> {
         Self::D::walk_var(n, cnc)
     }
 
-    fn walk_atom(n: Name, cnc: &LazyWalkReses<Self>) -> Result<<Self::D as Dir>::Out, Self::Err> {
+    fn walk_atom(n: Name, cnc: &LazyWalkReses<Self>) -> Res<Self> {
         Self::D::walk_atom(n, cnc)
     }
+
+    /// When a DDDed subterm is matched, it matches against multiple `Elt`s.
+    /// How should we represent that?
+    fn collapse_repetition(_: Vec<Res<Self>>) -> Res<Self> { panic!("ICE: unexpected repetition") }
 
     /**
      Make up a special `Elt` that is currently "underspecified",
@@ -101,6 +107,7 @@ pub trait WalkMode : Debug + Copy + Reifiable {
     fn underspecified(Name) -> Self::Elt { panic!("ICE: no underspecified_elt") }
 
     fn name() -> &'static str;
+
 }
 
 pub trait Dir : Debug + Copy + Clone
@@ -118,15 +125,12 @@ pub trait Dir : Debug + Copy + Clone
     ///  and and mode-specific leaf-processing
     fn pre_walk(node: Ast, cnc: LazyWalkReses<Self::Mode>) -> (Ast, LazyWalkReses<Self::Mode>);
 
-    fn walk_quasi_literally(Ast, &LazyWalkReses<Self::Mode>)
-        -> Result<Self::Out, <Self::Mode as WalkMode>::Err>;
+    fn walk_quasi_literally(Ast, &LazyWalkReses<Self::Mode>) -> Res<Self::Mode>;
 
     /// Look up variable in the environment!
-    fn walk_var(Name, &LazyWalkReses<Self::Mode>)
-        -> Result<Self::Out, <Self::Mode as WalkMode>::Err>;
+    fn walk_var(Name, &LazyWalkReses<Self::Mode>) -> Res<Self::Mode>;
 
-    fn walk_atom(Name, &LazyWalkReses<Self::Mode>)
-            -> Result<Self::Out, <Self::Mode as WalkMode>::Err>;
+    fn walk_atom(Name, &LazyWalkReses<Self::Mode>) -> Res<Self::Mode>;
 
     fn out_as_elt(Self::Out) -> <Self::Mode as WalkMode>::Elt;
     fn out_as_env(Self::Out) -> Assoc<Name, <Self::Mode as WalkMode>::Elt>;
@@ -155,8 +159,7 @@ impl<Mode: WalkMode<D=Self>> Dir for Positive<Mode> {
         (freshen(&node), cnc) // No-op
     }
 
-    fn walk_quasi_literally(a: Ast, cnc: &LazyWalkReses<Self::Mode>)
-            -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
+    fn walk_quasi_literally(a: Ast, cnc: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode> {
         match a {
             Node(f, parts, exports) => {
                 let walked : Result<EnvMBE<Ast>, <Self::Mode as WalkMode>::Err> = parts.map(
@@ -191,12 +194,12 @@ impl<Mode: WalkMode<D=Self>> Dir for Positive<Mode> {
     }
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Self::Mode>)
-            -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
+            -> Res<Self::Mode> {
         Ok(cnc.env.find_or_panic(&n).clone())
     }
 
     fn walk_atom(_: Name, _: &LazyWalkReses<Self::Mode>)
-            -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
+            -> Res<Self::Mode> {
         panic!("ICE: Atoms are positively unwalkable");
     }
 
@@ -239,8 +242,7 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
         }
     }
 
-    fn walk_quasi_literally(expected: Ast, cnc: &LazyWalkReses<Self::Mode>)
-            -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
+    fn walk_quasi_literally(expected: Ast, cnc: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode> {
 
         let got = <Mode::Elt as WalkElt>::to_ast(&cnc.context_elt().clone());
 
@@ -250,7 +252,7 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
         let expd_parts = match expected { Node(_, ref p, _) => p,  _ => &its_a_trivial_node };
 
         // Continue the walk on subterms. (`context_match` does the freshening)
-        expd_parts.map_reduce_with(&parts_actual,
+        expd_parts.map_collapse_reduce_with(&parts_actual,
             &|model: &Ast, actual: &Ast| {
                 match *model {
                     Node(_,_,_) | VariableReference(_) | ExtendEnv(_,_) => {
@@ -260,18 +262,17 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
                     _ => { Ok(Assoc::new()) }
                 }
             },
+            &Mode::collapse_repetition,
             &|result, next| { Ok(try!(result.clone()).set_assoc(&try!(next.clone()))) },
             Ok(cnc.env.clone()))
     }
 
-    fn walk_var(n: Name, _: &LazyWalkReses<Self::Mode>)
-            -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
+    fn walk_var(n: Name, _: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode> {
         panic!("{} is a VarRef, which is negatively unwalkable", n);
     }
 
     /// Bind atom to the context!
-    fn walk_atom(n: Name, cnc: &LazyWalkReses<Self::Mode>)
-            -> Result<Self::Out, <Self::Mode as WalkMode>::Err> {
+    fn walk_atom(n: Name, cnc: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode> {
         Ok(Assoc::new().set(n, cnc.context_elt().clone()))
     }
 
