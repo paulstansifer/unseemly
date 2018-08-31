@@ -477,6 +477,7 @@ impl<T: Clone> EnvMBE<T> {
         }
     }
 
+    /// Duplicate contents of the side with a DDD to line it up with the other
     // TODO: this needs to return `Option` (and so does everything `_with`)
     // TODO: for efficiency, this ought to return iterators
     fn resolve_ddd<'a>(lhs: &'a Rc<Vec<EnvMBE<T>>>, lhs_ddd: &'a Option<usize>,
@@ -504,6 +505,49 @@ impl<T: Clone> EnvMBE<T> {
         };
 
         matched
+    }
+
+    // The LHS must be the side with the DDD.
+    // TODO: try just using `reduced` instead of `base.clone()`
+    fn match_collapse_ddd<'a, NewT: Clone>(
+                lhs: &'a Rc<Vec<EnvMBE<T>>>, lhs_ddd: &'a Option<usize>,
+                rhs: &'a Rc<Vec<EnvMBE<T>>>, f:&Fn(&T, &T) -> NewT, col:&Fn(Vec<NewT>) -> NewT,
+                red: &Fn(NewT, NewT) -> NewT, base: NewT)
+            -> NewT {
+
+        let len_diff = lhs.len() as i32 - (rhs.len() as i32);
+
+        let mut reduced = base.clone();
+        if let Some(ddd_idx) = *lhs_ddd {
+            if len_diff - 1 > 0 { panic!("abstract MBE LHS too long") }
+
+            for i in 0..ddd_idx {
+                reduced = red(reduced,
+                              lhs[i].map_collapse_reduce_with(&rhs[i], f, col, red, base.clone()));
+            }
+
+            let mut ddd_rep = vec![];
+            for rep in 0..((1-len_diff) as usize) {
+                ddd_rep.push(
+                    lhs[ddd_idx].map_collapse_reduce_with(&rhs[ddd_idx+rep], f, col, red, base.clone()));
+            }
+            reduced = red(reduced, col(ddd_rep));
+
+            for i in (ddd_idx+1)..lhs.len() {
+                let rhs_i = (i as i32-len_diff) as usize;
+
+                reduced = red(
+                    reduced,
+                    lhs[i].map_collapse_reduce_with(&rhs[rhs_i], f, col, red, base.clone()));
+            }
+        } else {
+            if len_diff != 0 { panic!("mismatched MBE lengths") }
+            for i in 0..lhs.len() {
+                reduced = red(reduced,
+                              lhs[i].map_collapse_reduce_with(&rhs[i], f, col, red, base.clone()));
+            }
+        }
+        reduced
     }
 
     // TODO: we should just have the relevant functions return None...
@@ -586,6 +630,32 @@ impl<T: Clone> EnvMBE<T> {
             for (self_elt, other_elt) in matched {
                 reduced = self_elt.map_reduce_with(other_elt, f, &red, reduced);
             }
+        }
+
+        reduced
+    }
+
+    pub fn map_collapse_reduce_with<NewT: Clone>(
+            &self,  other: &EnvMBE<T>, f: &Fn(&T, &T) -> NewT, col:&Fn(Vec<NewT>) -> NewT,
+            red: &Fn(NewT, NewT) -> NewT, base: NewT) -> NewT {
+        // TODO: this panics all over the place if anything goes wrong
+        let mut reduced : NewT = self.leaves.map_with(&other.leaves, f)
+            .reduce(&|_k, v, res| red(v.clone(), res), base);
+
+        let mut already_processed : Vec<bool> = self.repeats.iter().map(|_| false).collect();
+
+        for (leaf_name, self_idx) in self.leaf_locations.iter_pairs() {
+            let self_idx = match *self_idx {
+                Some(si) => si, None => { continue; }
+            };
+            if already_processed[self_idx] { continue; }
+            already_processed[self_idx] = true;
+
+            let other_idx = other.leaf_locations.find_or_panic(leaf_name).unwrap();
+
+            reduced = Self::match_collapse_ddd(
+                &self.repeats[self_idx], &self.ddd_rep_idxes[self_idx],
+                &other.repeats[other_idx], f, col, red, reduced);
         }
 
         reduced
@@ -827,12 +897,17 @@ fn mbe_ddd_map_with() {
                    mbe!( "a" => [["aa", "bb"], ["cc", "dd"], ["cc", "dd"]]));
     }
     {
-        let lhs = mbe!("a" => [...(["P0", "P1" ...("P")..., "P9"])...]);
+        let lhs = mbe!("a" => [...(["-0", "-1" ...("-")..., "-9"])...]);
         let rhs = mbe!("a" => [["p0", "p1", "p4", "p5", "p6", "p9"], ["p0", "p1", "p9"]]);
 
         assert_eq!(lhs.map_with(&rhs, &concat),
-                   mbe!("a" => [["P0p0", "P1p1", "Pp4", "Pp5", "Pp6", "P9p9"], ["P0p0", "P1p1", "P9p9"]]));
+                   mbe!("a" => [["-0p0", "-1p1", "-p4", "-p5", "-p6", "-9p9"], ["-0p0", "-1p1", "-9p9"]]));
 
+        // Drop all but the first of each repetition:
+        assert_eq!(lhs.map_collapse_reduce_with(
+                &rhs, &concat, &|v| if v.len() > 0 {v[0].clone()} else { ast!("") },
+                &|l,r| concat(&l, &r), ast!("")),
+            ast!("-0p0-1p1-p4-9p9"));
     }
 
 }
