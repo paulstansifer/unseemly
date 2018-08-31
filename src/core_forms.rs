@@ -72,8 +72,8 @@ pub fn make_core_syn_env() -> SynEnv {
                 let lambda_type : Ty =
                     ty!({ find_type(&ctf_0, "fn") ;
                          "param" => [* part_types =>("param") part_types :
-                                       (, try!(part_types.get_res(n("p_t"))).concrete() )],
-                         "ret" => (, try!(part_types.get_res(n("body"))).concrete() )});
+                                       (, part_types.get_res(n("p_t"))?.concrete() )],
+                         "ret" => (, part_types.get_res(n("body"))?.concrete() )});
                 Ok(lambda_type)}),
             /* evaluation */
             cust_rc_box!( move | part_values | {
@@ -93,14 +93,14 @@ pub fn make_core_syn_env() -> SynEnv {
                 let return_type = ::ty_compare::Subtype::underspecified(n("<return_type>"));
 
                 // The `rator` must be a function that takes the `rand`s as arguments:
-                let _ = try!(::ty_compare::must_subtype(
+                let _ = ::ty_compare::must_subtype(
                     &ty!({ "Type" "fn" :
-                        "param" => (,seq try!(part_types.get_rep_res(n("rand")))
+                        "param" => (,seq part_types.get_rep_res(n("rand"))?
                              .iter().map(|t| t.concrete()).collect::<Vec<_>>() ),
                         "ret" => (, return_type.concrete() )}),
-                    &try!(part_types.get_res(n("rator"))),
+                    &part_types.get_res(n("rator"))?,
                     part_types.env.clone())
-                        .map_err(|e| ::util::err::sp(e, part_types.this_ast.clone())));
+                        .map_err(|e| ::util::err::sp(e, part_types.this_ast.clone()))?;
 
 
                 // TODO: test the necessity of this (it's used in the prelude)
@@ -116,18 +116,18 @@ pub fn make_core_syn_env() -> SynEnv {
                 })
             }),
             cust_rc_box!( move | part_values | {
-                match try!(part_values.get_res(n("rator"))) {
+                match part_values.get_res(n("rator"))? {
                     Function(clos) => {
                         let mut new_env = clos.env.clone();
                         for (p, v) in clos.params.iter().zip(
-                                try!(part_values.get_rep_res(n("rand")))) {
+                                part_values.get_rep_res(n("rand"))?) {
                             new_env = new_env.set(*p, v);
                         }
 
                         ::runtime::eval::eval(&clos.body, new_env)
                     },
                     BuiltInFunction(::runtime::eval::BIF(f)) => {
-                        Ok(f(try!(part_values.get_rep_res(n("rand")))))
+                        Ok(f(part_values.get_rep_res(n("rand"))?))
                     }
                     other => {
                         panic!("Type soundness bug: attempted to invoke {:?}
@@ -149,7 +149,7 @@ pub fn make_core_syn_env() -> SynEnv {
                     //  that the arm patterns match the scrutinee;
                     //  the import handles that for us.
 
-                    let arm_res = try!(arm_part_types.get_res(n("arm")));
+                    let arm_res = arm_part_types.get_res(n("arm"))?;
 
                     match res {
                         None => { res = Some(arm_res) }
@@ -187,7 +187,7 @@ pub fn make_core_syn_env() -> SynEnv {
               (lit ":"), (named "t", (call "Type"))],
             /* Typesynth: */
             cust_rc_box!( move | part_types | {
-                let res : Ty = try!(part_types.get_res(n("t")));
+                let res : Ty = part_types.get_res(n("t"))?;
                 expect_ty_node!( (res ; find_type(&ctf_2, "enum") ; &part_types.this_ast)
                     enum_type_parts;
                     {
@@ -203,7 +203,7 @@ pub fn make_core_syn_env() -> SynEnv {
 
                             // TODO: check that they're the same length!
 
-                            for (t, expected_t) in try!(part_types.get_rep_res(n("component")))
+                            for (t, expected_t) in part_types.get_rep_res(n("component"))?
                                     .iter().zip(component_types) {
                                 ty_exp!(t, &expected_t, part_types.this_ast);
                             }
@@ -220,7 +220,7 @@ pub fn make_core_syn_env() -> SynEnv {
             /* Evaluate: */
             cust_rc_box!( move | part_values | {
                 Ok(Enum(ast_to_name(&part_values.get_term(n("name"))),
-                    try!(part_values.get_rep_res(n("component")))))
+                    part_values.get_rep_res(n("component"))?))
             })),
         typed_form!("struct_expr",
             (delim "*[", "[", /*]]*/
@@ -229,7 +229,7 @@ pub fn make_core_syn_env() -> SynEnv {
             cust_rc_box!( move | part_types | {
                 Ok(ty!({ find_type(&ctf_3, "struct") ;
                     "component_name" => (@"c" ,seq part_types.get_rep_term(n("component_name"))),
-                    "component" => (@"c" ,seq try!(part_types.get_rep_res(n("component")))
+                    "component" => (@"c" ,seq part_types.get_rep_res(n("component"))?
                         .into_iter().map(|c : Ty| c.concrete()))
                 }))
             }),
@@ -238,7 +238,7 @@ pub fn make_core_syn_env() -> SynEnv {
 
                 for component_parts in part_values.march_parts(&[n("component")]) {
                     res = res.set(ast_to_name(&component_parts.get_term(n("component_name"))),
-                                  try!(component_parts.get_res(n("component"))));
+                                  component_parts.get_res(n("component"))?);
                 }
 
                 Ok(Struct(res))
@@ -276,7 +276,7 @@ pub fn make_core_syn_env() -> SynEnv {
                 // TODO: this "evaluates" types twice; once in `get_res` and once in `synth_type`
                 // It shouldn't be necessary, and it's probably quadratic.
                 // Maybe this points to a weakness in the LiteralLike approach to traversing types?
-                let mu_typed = try!(unfold_parts.get_res(n("body")));
+                let mu_typed = unfold_parts.get_res(n("body"))?;
 
                 // Pull off the `mu` (and the `ExtendEnv` that it carries):
                 // (This is sound because `mu`'s param must already be in the environment.)
@@ -298,7 +298,7 @@ pub fn make_core_syn_env() -> SynEnv {
         typed_form!("fold",
             [(lit "fold"), (named "body", (call "Expr")), (lit ":"), (named "t", (call "Type"))],
             cust_rc_box!( move |fold_parts| {
-                let goal_type = try!(fold_parts.get_res(n("t")));
+                let goal_type = fold_parts.get_res(n("t"))?;
                 // TODO: I can't figure out how to pull this out into a function
                 //  to invoke both here and above, since `mu_type_0` needs cloning...
                 let folded_goal = expect_ty_node!(
@@ -307,11 +307,11 @@ pub fn make_core_syn_env() -> SynEnv {
                     {
                         // This acts like the `mu` was never there (and hiding the binding)
                         if let ExtendEnv(ref body, _) = *mu_parts.get_leaf_or_panic(&n("body")) {
-                            try!(synth_type(body, fold_parts.env.clone()))
+                            synth_type(body, fold_parts.env.clone())?
                         } else { panic!("ICE: no protection to remove!"); }
                     });
 
-                ty_exp!(&try!(fold_parts.get_res(n("body"))), &folded_goal,
+                ty_exp!(&fold_parts.get_res(n("body"))?, &folded_goal,
                         fold_parts.this_ast);
                 Ok(goal_type)
             }),
@@ -324,7 +324,7 @@ pub fn make_core_syn_env() -> SynEnv {
                 Ok(ty!({"Type" "forall_type" :
                     "param" => (,seq forall_parts.get_rep_term(n("param"))),
                     "body" => (import [* [forall "param"]]
-                        (, try!(forall_parts.get_res(n("body"))).concrete()))
+                        (, forall_parts.get_res(n("body"))?.concrete()))
                 }))
             }),
             Body(n("body"))),
@@ -356,8 +356,8 @@ pub fn make_core_syn_env() -> SynEnv {
                                     .iter().map(|a| Ty::new((*a).clone())).collect();
 
                             let mut res = Assoc::new();
-                            for sub_res in &try!(part_types
-                                    .get_rep_res_with(n("component"), component_types)) {
+                            for sub_res in &part_types
+                                    .get_rep_res_with(n("component"), component_types)? {
                                 res = res.set_assoc(sub_res);
                             }
 
@@ -378,8 +378,8 @@ pub fn make_core_syn_env() -> SynEnv {
                         }
 
                         let mut res = Assoc::new();
-                        for sub_res in &try!(part_values.get_rep_res_with(n("component"),
-                                                                          elts.clone())) {
+                        for sub_res in &part_values.get_rep_res_with(n("component"),
+                                                                     elts.clone())? {
                             res = res.set_assoc(sub_res);
                         }
 
@@ -412,8 +412,8 @@ pub fn make_core_syn_env() -> SynEnv {
                                 let component_type = Ty::new(
                                     struct_type_part.get_leaf_or_panic(&n("component")).clone());
                                 res = res.set_assoc(
-                                    &try!(component_ctx.with_context(component_type)
-                                        .get_res(n("component"))));
+                                    &component_ctx.with_context(component_type)
+                                        .get_res(n("component"))?);
                                 break;
                             }
                             if !component_found {
@@ -432,12 +432,12 @@ pub fn make_core_syn_env() -> SynEnv {
 
                         for component_ctx in part_values.march_parts(&[n("component")]) {
                             res = res.set_assoc(
-                                &try!(component_ctx
+                                &component_ctx
                                     .with_context(contents.find_or_panic(
                                         &ast_to_name(
                                             &component_ctx.get_term(n("component_name"))))
                                             .clone())
-                                    .get_res(n("component"))));
+                                    .get_res(n("component"))?);
                         }
 
                         Ok(res)
