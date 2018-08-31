@@ -170,7 +170,7 @@ impl<T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
                 // is it a named repeat?
                 for (name, idx_maybe) in self.named_repeats.iter_pairs() {
                     if let Some(idx) = *idx_maybe {
-                        if idx == i { try!(write!(f, "({:?}) ", name)); }
+                        if idx == i { try!(write!(f, "⋯({:?})⋯ ", name)); }
                     }
                 }
                 try!(write!(f, "{:?}", rep));
@@ -243,9 +243,7 @@ impl<T: Clone> EnvMBE<T> {
 
     /// Creates an `EnvMBE` containing a single anonymous repeat
     pub fn new_from_anon_repeat(r: Vec<EnvMBE<T>>) -> EnvMBE<T> {
-        let mut res = EnvMBE::new();
-        res.add_anon_repeat(r, None);
-        res
+        EnvMBE::new_from_anon_repeat_ddd(r, None)
     }
 
     /// Creates an `EnvMBE` containing a single anonymous repeat
@@ -254,7 +252,6 @@ impl<T: Clone> EnvMBE<T> {
         res.add_anon_repeat(r, ddd_idx);
         res
     }
-
 
     /// Creates an `EnvMBE` containing a single named repeat
     pub fn new_from_named_repeat(n: Name, r: Vec<EnvMBE<T>>) -> EnvMBE<T> {
@@ -438,16 +435,7 @@ impl<T: Clone> EnvMBE<T> {
 
 
     pub fn map<NewT, F>(&self, f: &mut F) -> EnvMBE<NewT> where F: FnMut(&T) -> NewT {
-        EnvMBE {
-            leaves: self.leaves.map_borrow_f(f),
-            repeats: self.repeats.iter().map(
-                |rc_vec_mbe : &Rc<Vec<EnvMBE<T>>>| Rc::new(rc_vec_mbe.iter().map(
-                    |mbe : &EnvMBE<T>| mbe.map(f)
-                ).collect())).collect(),
-            ddd_rep_idxes: self.ddd_rep_idxes.clone(),
-            leaf_locations: self.leaf_locations.clone(),
-            named_repeats: self.named_repeats.clone()
-        }
+        self.named_map(&mut |_n, elt| f(elt))
     }
 
     pub fn named_map<NewT, F>(&self, f: &mut F) -> EnvMBE<NewT> where F: FnMut(&Name, &T) -> NewT {
@@ -545,27 +533,8 @@ impl<T: Clone> EnvMBE<T> {
         true
     }
 
-    pub fn map_with<NewT: Clone>(&self, o: &EnvMBE<T>, f: &Fn(&T, &T) -> NewT)
-            -> EnvMBE<NewT> {
-        EnvMBE {
-            leaves: self.leaves.map_with(&o.leaves, f),
-            repeats:
-            self.repeats.iter().zip(self.ddd_rep_idxes.iter())
-                .zip(o.repeats.iter().zip(o.ddd_rep_idxes.iter())).map(
-
-                &|((rc_vec_mbe, ddd_idx), (o_rc_vec_mbe, o_ddd_idx)) :
-                  ((&Rc<Vec<EnvMBE<T>>>, &Option<usize>), (&Rc<Vec<EnvMBE<T>>>, &Option<usize>))| {
-
-                    let mapped : Vec<_>
-                        = Self::resolve_ddd(rc_vec_mbe, ddd_idx, o_rc_vec_mbe, o_ddd_idx).iter()
-                        .map(|&(mbe, o_mbe) : &(&EnvMBE<T>, &EnvMBE<T>)| mbe.map_with(o_mbe, f))
-                        .collect();
-
-                  Rc::new(mapped)}).collect(),
-            ddd_rep_idxes: self.repeats.iter().map(|_| None).collect(), // remove all dotdotdots
-            leaf_locations: self.leaf_locations.clone(),
-            named_repeats: self.named_repeats.clone()
-        }
+    pub fn map_with<NewT: Clone>(&self, o: &EnvMBE<T>, f: &Fn(&T, &T) -> NewT) -> EnvMBE<NewT> {
+        self.named_map_with(o, &|_name, l, r| f(l,r))
     }
 
     pub fn named_map_with<NewT: Clone>(&self, o: &EnvMBE<T>, f: &Fn(&Name, &T, &T) -> NewT)
