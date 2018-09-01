@@ -509,16 +509,26 @@ impl<T: Clone> EnvMBE<T> {
 
     // The LHS must be the side with the DDD.
     // TODO: try just using `reduced` instead of `base.clone()`
+    // TODO: `Result` instead of panicing
     fn match_collapse_ddd<'a, NewT: Clone>(
                 lhs: &'a Rc<Vec<EnvMBE<T>>>, lhs_ddd: &'a Option<usize>,
-                rhs: &'a Rc<Vec<EnvMBE<T>>>, f:&Fn(&T, &T) -> NewT, col:&Fn(Vec<NewT>) -> NewT,
-                red: &Fn(NewT, NewT) -> NewT, base: NewT)
+                rhs: &'a Rc<Vec<EnvMBE<T>>>, rhs_ddd: &'a Option<usize>, f:&Fn(&T, &T) -> NewT,
+                col: &Fn(Vec<NewT>) -> NewT, red: &Fn(NewT, NewT) -> NewT, base: NewT)
             -> NewT {
 
         let len_diff = lhs.len() as i32 - (rhs.len() as i32);
 
+        // The RHS can have a DDD if it's exactly the same (subtyping only goes the one way)
+        // TODO: if the user is rebuilding MBEs using `map_collapse_reduce_with`, they'll lose
+        // the DDDs they should keep; how do we get that information back in? (I assume we pass
+        // a bool to one of the function arguments.)
+        if rhs_ddd.is_some() && lhs_ddd != rhs_ddd {
+            panic!("RHS must match LHS exactly if it uses DDD")
+        }
+
         let mut reduced = base.clone();
-        if let Some(ddd_idx) = *lhs_ddd {
+        // Unpack the DDD ... unless the RHS is a DDD also.
+        if let (&Some(ddd_idx), false) = (lhs_ddd, rhs_ddd.is_some()) {
             if len_diff - 1 > 0 { panic!("abstract MBE LHS too long") }
 
             for i in 0..ddd_idx {
@@ -635,6 +645,7 @@ impl<T: Clone> EnvMBE<T> {
         reduced
     }
 
+    // TODO: test this more.
     pub fn map_collapse_reduce_with<NewT: Clone>(
             &self,  other: &EnvMBE<T>, f: &Fn(&T, &T) -> NewT, col:&Fn(Vec<NewT>) -> NewT,
             red: &Fn(NewT, NewT) -> NewT, base: NewT) -> NewT {
@@ -655,7 +666,7 @@ impl<T: Clone> EnvMBE<T> {
 
             reduced = Self::match_collapse_ddd(
                 &self.repeats[self_idx], &self.ddd_rep_idxes[self_idx],
-                &other.repeats[other_idx], f, col, red, reduced);
+                &other.repeats[other_idx], &other.ddd_rep_idxes[other_idx], f, col, red, reduced);
         }
 
         reduced
