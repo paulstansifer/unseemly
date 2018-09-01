@@ -413,7 +413,7 @@ fn end_to_end_list_tools() {
 }
 
 #[test]
-fn end_to_end_quotation() {
+fn end_to_end_quotation_basic() {
     assert_m!(
         eval_unseemly_program("'[Expr | .[ x : Int . x ]. ]'"),
         Ok(_)
@@ -431,4 +431,40 @@ fn end_to_end_quotation() {
     );
 //≫ .[s : Expr <[Int]< . '[Expr | ( ,[Expr | s], '[Expr | ,[Expr | s], ]')]' ].
 
+}
+
+#[test]
+fn end_to_end_quotation_advanced() {
+    assert_eq!(
+        eval_unseemly_program(
+            "(.[five_e : Expr <[Int]< .
+                '[Expr | (plus five ,[Expr | five_e],) ]' ].
+                '[Expr | five]')"),
+        eval_unseemly_program("'[Expr | (plus five five) ]'"));
+
+    // Pass the wrong type (not really a test of quotation)
+    assert_m!(
+        type_unseemly_program(
+            "(.[five_e : Expr <[Int]< .
+                '[Expr | (plus five ,[Expr | five_e],) ]' ].
+                '[Expr | true]')"),
+        Err(_));
+
+    // Interpolate the wrong type
+    assert_m!(
+        type_unseemly_program(
+            "(.[five_e : Expr <[Bool]< .
+                '[Expr | (plus five ,[Expr | five_e],) ]' ].
+                '[Expr | true]')"),
+        Err(_));
+
+/* // We need to ... reify T, I guess?
+   assign_variable("let",
+       "forall T . .[binder : Pat <[T]<
+                     rhs : Expr <[T]<
+                     body : Expr <[Body]< .
+            '[ ( ) ]'
+        >]"
+   )
+*/
 }
