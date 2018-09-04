@@ -532,12 +532,12 @@ fn basic_freshening_with() {
 
 #[test]
 fn mu_substitution() {
-    let trivial_mu = ast!( { "Type" "mu_type" : "param" => [(vr "T")],
+    let trivial_mu = ast!( { "Type" "mu_type" : "param" => [(import [* [prot "param"]] (vr "T"))],
                               "body" => (import [* [prot "param"]] (vr "T")) });
     assert_eq!(freshen(&trivial_mu), trivial_mu);
 
     assert_eq!(substitute(&trivial_mu, &assoc_n!("T" => ast!((vr "S")))),
-        ast!( { "Type" "mu_type" : "param" => [(vr "S")],
+        ast!( { "Type" "mu_type" : "param" => [(import [* [prot "param"]] (vr "S"))],
                                    "body" => (import [* [prot "param"]] (vr "S")) }))
 }
 

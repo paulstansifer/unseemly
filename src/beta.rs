@@ -4,7 +4,7 @@ use std::fmt;
 use name::*;
 use ast_walk::{LazyWalkReses, LazilyWalkedTerm};
 use util::assoc::Assoc;
-use ast::{Ast,Atom,VariableReference};
+use ast::{Ast,Atom,VariableReference,ExtendEnv};
 use util::mbe::EnvMBE;
 use walk_mode::Dir;
 use alpha::Ren;
@@ -132,7 +132,7 @@ impl Beta {
                 }
                 res
             }
-            Basic(n_s, _) | SameAs(n_s, _) | Underspecified(n_s) | Protected(n_s) => {
+            Basic(n_s, _) | SameAs(n_s, _) | Underspecified(n_s) | Protected(n_s)=> {
                 f(parts.get_leaf_or_panic(&n_s)).clone()
             }
         }
@@ -226,16 +226,17 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(b: &Beta, parts: &LazyWalkRese
 
         Protected(ref name_source) => {
             // Since protection isn't binding, it gets variable references instead
-            if let LazilyWalkedTerm {term: VariableReference(ref name), ..}
+            if let LazilyWalkedTerm {term: ExtendEnv(ref boxed_vr,_), ..}
                     = **parts.parts.get_leaf_or_panic(name_source) {
                 use walk_mode::WalkElt;
 
                 // HACK: rely on the fact that `walk_var`
                 //  won't recursively substitute until it "hits bottom"
                 // Drop the variable reference right into the environment.
-                Ok(Assoc::new().set(*name, Mode::Elt::from_ast(&parts.get_term(*name_source))))
+                Ok(Assoc::new().set(::core_forms::vr_to_name(&*boxed_vr),
+                                    Mode::Elt::from_ast(&*boxed_vr)))
             } else {
-                panic!("{:?} is supposed to supply names, but is not an Atom.",
+                panic!("{:?} is supposed to supply names, but is not an EE(VR()).",
                     parts.parts.get_leaf_or_panic(name_source).term)
             }
         }
@@ -398,7 +399,8 @@ pub fn freshening_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>,
             }
             res
         }
-        Basic(n_s, _) | SameAs(n_s, _) | Underspecified(n_s) | Protected(n_s) => {
+        Protected(_n_s) => { unimplemented!("Not hard, just not used yet")}
+        Basic(n_s, _) | SameAs(n_s, _) | Underspecified(n_s) => {
             let this_name = ::core_forms::ast_to_name(parts.get_leaf_or_panic(&n_s));
 
             Assoc::new().set(this_name, ::ast::VariableReference(*memo.entry((n_s, this_name))

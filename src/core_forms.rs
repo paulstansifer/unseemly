@@ -25,7 +25,7 @@ pub fn ast_to_name(ast: &Ast) -> Name {
     match *ast { Atom(n) => n, _ => { panic!("ICE: {:?} is not an atom", ast) } }
 }
 pub fn vr_to_name(ast: &Ast) -> Name {
-    match *ast { VariableReference(n) => n, _ => { panic!("ICE: {:?} is not an atom", ast) } }
+    match *ast { VariableReference(n) => n, _ => { panic!("ICE: {:?} is not a vr", ast) } }
 }
 
 
@@ -835,7 +835,7 @@ fn alg_eval() {
 fn recursive_types() {
     let int_list_ty =
         ty!( { "Type" "mu_type" :
-            "param" => [(vr "IntList")],
+            "param" => [(import [* [prot "param"]] (vr "IntList"))],
             "body" => (import [* [prot "param"]] { "Type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
                 "component" => [@"c" [], [{"Type" "Int":}, (vr "IntList") ]]})});
@@ -934,7 +934,7 @@ fn use__let_type() {
 
     // useless type, but self-referential:
     let trivial_mu_type =
-        ty!( { "Type" "mu_type" : "param" => [(vr "T")],
+        ty!( { "Type" "mu_type" : "param" => [(import [* [prot "param"]] (vr "T"))],
                                   "body" => (import [* [prot "param"]] (vr "T")) }).concrete();
 
     without_freshening!{

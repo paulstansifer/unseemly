@@ -318,7 +318,8 @@ macro_rules! type_defn_wrapper {
                 (, ::ast::Ast::Atom(::name::n(stringify!($ty_param_ty))))
             ),*)*],
             "body" => (import [* [forall "param"]] {"Type" "mu_type" :
-                 "param" => [(, ::ast::Ast::VariableReference(Self::ty_name()))],
+                 "param" => [(import [* [prot "param"]]
+                              (, ::ast::Ast::VariableReference(Self::ty_name())))],
                  "body" => (import [* [prot "param"]] $body)
              })
         })

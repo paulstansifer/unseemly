@@ -193,24 +193,12 @@ pub fn make_core_syn_env_types() -> SynEnv {
      *  to prevent the attempted generation of an infinite type.
      */
     let mu_type = type_defn_complex("mu_type",
-        form_pat!([(lit "mu_type"), (star (named "param", varref)), (lit "."),
-             (named "body", (import [* [prot "param"]], (call "Type")))]),
+        form_pat!([(lit "mu_type"), (star (named "param", (import [* [prot "param"]], varref))),
+             (lit "."), (named "body", (import [* [prot "param"]], (call "Type")))]),
 
-        cust_rc_box!(move |mu_parts| { // Like LiteralLike, but doesn't expand `param`:
-            Ok(ty!( { "Type" "mu_type" :
-                "body" => (import [* [prot "param"]]
-                             (, try!(mu_parts.get_res(n("body"))).concrete())),
-                "param" => (,seq mu_parts.get_rep_term(n("param")))
-            } ))
-        }),
+        LiteralLike,
         Both(
-            cust_rc_box!(move |mu_parts| { // Like LiteralLike, but doesn't expand `param`:
-                Ok(ty!( { "Type" "mu_type" :
-                    "body" => (import [* [prot "param"]]
-                                 (, try!(mu_parts.get_res(n("body"))).concrete())),
-                    "param" => (,seq mu_parts.get_rep_term(n("param")))
-                } ))
-            }),
+            LiteralLike,
             cust_rc_box!(move |mu_parts| {
                 let rhs_mu_parts = try!(Subtype::context_match(
                     &mu_parts.this_ast,
@@ -227,13 +215,19 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 }
                 // Apply the Amber rule; assume the `mu`ed names are subtypes to subtype the bodies
                 let mut amber_environment = mu_parts.env.clone();
-                for (&p_r, p_l) in r_params.iter().zip(l_params.iter()) {
+                for (&ee_r, ee_l) in r_params.iter().zip(l_params.iter()) {
+                    let (p_r, p_l) = if let (ExtendEnv(r,_), ExtendEnv(l, _)) = (ee_r, ee_l) {
+                        (&**r, &**l)
+                    } else {
+                        panic!("ICE")
+                    };
                     if p_r == p_l // short-circuit if the names are the same...
-                        || mu_parts.env.find(&vr_to_name(p_r)) // ...or Amber assumed so already
+                        || mu_parts.env.find(&vr_to_name(&*p_r)) // ...or Amber assumed so already
                              == Some(&Ty(p_l.clone())) { continue; }
 
                     // print!("Ambering: {} = {}\n", p_r, p_l);
-                    amber_environment = amber_environment.set(vr_to_name(p_r), Ty(p_l.clone()));
+                    amber_environment = amber_environment
+                        .set(vr_to_name(p_r), Ty(p_l.clone()));
                 }
 
                 walk::<Subtype>(&mu_parts.get_term(n("body")),
