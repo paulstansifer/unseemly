@@ -458,13 +458,25 @@ fn end_to_end_quotation_advanced() {
                 '[Expr | true]')"),
         Err(_));
 
-/* // We need to ... reify T, I guess?
-   assign_variable("let",
-       "forall T . .[binder : Pat <[T]<
-                     rhs : Expr <[T]<
-                     body : Expr <[Body]< .
-            '[ ( ) ]'
-        >]"
-   )
-*/
+    assert_m!(
+        eval_unseemly_program(
+            "forall T . .[type : Type <[T]<   rhs : Expr <[T]<
+                . '[Expr | (.[x : ,[Type <[T]< | type], . eight].  ,[Expr | rhs], )]' ]."),
+        Ok(_));
+/*
+   // In order to have "traditional", non-type-annotated `let`, we want to ... reify T, I guess?
+   // But the whole language has parametricity kinda baked in, and that seems to make it hard?
+   // I think the solution is to build `let` into the language;
+   //  if a macro wants to have non-annotated binding, it's probably expandable to `let` anyways.
+   assert_m!(assign_variable("let",
+       "forall T S . .[binder : Pat <[T]<
+                       type : Type <[T]<
+                       rhs : Expr <[T]<
+                       body : Expr <[S]< .
+            '[ Expr | (.[x : ,[Type | type],
+                    . match x { ,[Pat <[T]< | binder], => ,[Expr | body], } ].
+                ,[Expr | rhs],)]' ]."),
+        Ok(_));
+
+        */
 }

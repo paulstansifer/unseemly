@@ -1,5 +1,3 @@
-#![macro_use]
-
 /*
 The tokenizer ("reader", in Scheme parlance) for Unseemly.
 

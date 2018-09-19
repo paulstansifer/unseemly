@@ -18,6 +18,7 @@ There are two similar things we should distinguish!
 
 These things are almost identical,
  which is why postive synth_type is usually implemented with `LiteralLike`.
+Performing `SynthTy` translates from (1) to (2). Mainly, it resolves type variable references.
 
 We should also distinguish
 (3) ___, (normally also called "types"). The ___ of an expression is a type,
@@ -219,7 +220,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     let (p_r, p_l) = if let (ExtendEnv(r,_), ExtendEnv(l, _)) = (ee_r, ee_l) {
                         (&**r, &**l)
                     } else {
-                        panic!("ICE")
+                        panic!("ICE: ill-formed mu_type")
                     };
                     if p_r == p_l // short-circuit if the names are the same...
                         || mu_parts.env.find(&vr_to_name(&*p_r)) // ...or Amber assumed so already

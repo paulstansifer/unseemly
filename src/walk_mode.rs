@@ -39,17 +39,20 @@ type Res<Mode> = Result<<<Mode as WalkMode>::D as Dir>::Out, <Mode as WalkMode>:
  *  but they conceptually are mostly relying on the special value.
  */
 pub trait WalkMode : Debug + Copy + Reifiable {
-    /** The object type for the environment to walk in. */
+    /// The object type for the environment to walk in.
     type Elt : Clone + Debug + Reifiable + WalkElt;
 
     type Err : Debug /*Display*/ + Reifiable + Clone;
 
     type D : Dir<Mode=Self>;
 
-    /** The negated version of this walk */
-    type Negated : WalkMode<Elt=Self::Elt, Err=Self::Err, Negated=Self>;
+    /// The negated version of this walk
+    type Negated : WalkMode<Elt=Self::Elt, Err=Self::Err, ExtraInfo=Self::ExtraInfo, Negated=Self>;
 
-    fn get_walk_rule(&Form) -> &WalkRule<Self> where Self: Sized ;
+    /// Any extra information the walk needs
+    type ExtraInfo : ::std::default::Default + Reifiable + Clone;
+
+    fn get_walk_rule(&Form) -> WalkRule<Self> where Self: Sized ;
 
     /**
      Should the walker extend the environment based on imports?

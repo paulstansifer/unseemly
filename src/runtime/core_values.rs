@@ -23,12 +23,12 @@ pub fn core_typed_values() -> Assoc<Name, TypedValue> {
     assoc_n!(
         "fix" =>
         tyf!( { "Type" "forall_type" :
-            "param" => ["f"], // has to be a function, but we don't know its arity
+            "param" => ["F"], // has to be a function, but we don't know its arity
             "body" => (import [* [forall "param"]] { "Type" "fn" :
                 "param" => [ { "Type" "fn" :
-                    "param" => [{"Type" "fn" : "param" => [], "ret" => (vr "f") }],
-                    "ret" => (vr "f")} ],
-                "ret" => (vr "f") })},
+                    "param" => [{"Type" "fn" : "param" => [], "ret" => (vr "F") }],
+                    "ret" => (vr "F")} ],
+                "ret" => (vr "F") })},
             // TODO: built-in functions, even though none of them work, shouldn't crash
             ( Function(cl) ) => {
                 let new_env = cl.env.set(cl.params[0],

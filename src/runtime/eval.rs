@@ -112,8 +112,9 @@ impl WalkMode for Eval {
     type Negated = Destructure;
     type Err = ();
     type D = ::walk_mode::Positive<Eval>;
+    type ExtraInfo = ();
 
-    fn get_walk_rule(f: &Form) -> &WalkRule<Eval> { f.eval.pos() }
+    fn get_walk_rule(f: &Form) -> WalkRule<Eval> { f.eval.pos().clone() }
     fn automatically_extend_env() -> bool { false }
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Eval>) -> Result<Value, ()> {
@@ -131,11 +132,12 @@ impl WalkMode for Destructure {
     type Negated = Eval;
     type Err = ();
     type D = ::walk_mode::Negative<Destructure>;
+    type ExtraInfo = ();
 
     /// The whole point of program evaluation is that the enviornment
     ///  isn't generateable from the source tree.
     /// Does that make sense? I suspect it does not.
-    fn get_walk_rule(f: &Form) -> &WalkRule<Destructure> { f.eval.neg() }
+    fn get_walk_rule(f: &Form) -> WalkRule<Destructure> { f.eval.neg().clone() }
     fn automatically_extend_env() -> bool { false } // TODO: think about this
 }
 
@@ -178,6 +180,7 @@ impl WalkMode for QQuote {
     type Negated = QQuoteDestr;
     type Err = ();
     type D = ::walk_mode::Positive<QQuote>;
+    type ExtraInfo = ();
 
     fn walk_var(n: Name, _: &LazyWalkReses<Self>) -> Result<Value, ()> {
         let n_sp = &n.sp();
@@ -187,7 +190,7 @@ impl WalkMode for QQuote {
         let n_sp = &n.sp();
         Ok(val!(ast n_sp))
     }
-    fn get_walk_rule(f: &Form) -> &WalkRule<QQuote> { f.quasiquote.pos() }
+    fn get_walk_rule(f: &Form) -> WalkRule<QQuote> { f.quasiquote.pos().clone() }
     fn automatically_extend_env() -> bool { true } // This is the point of Unseemly!
 }
 
@@ -198,6 +201,7 @@ impl WalkMode for QQuoteDestr {
     type Negated = QQuote;
     type Err = ();
     type D = ::walk_mode::Negative<QQuoteDestr>;
+    type ExtraInfo = ();
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Self>) -> Result<Assoc<Name, Value>, ()> {
         let n_sp = &n.sp();
@@ -215,7 +219,7 @@ impl WalkMode for QQuoteDestr {
             Err(Self::qlit_mismatch_error(val!(ast (vr n_sp)), cnc.context_elt().clone()))
         }
     }
-    fn get_walk_rule(f: &Form) -> &WalkRule<QQuoteDestr> { f.quasiquote.neg() }
+    fn get_walk_rule(f: &Form) -> WalkRule<QQuoteDestr> { f.quasiquote.neg().clone() }
     fn automatically_extend_env() -> bool { true } // This is the point of Unseemly!
 }
 

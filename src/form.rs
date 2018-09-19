@@ -6,6 +6,7 @@ use std::fmt::{Debug,Formatter,Error};
 use util::assoc::Assoc;
 use std::rc::Rc;
 use ast_walk::WalkRule;
+use walk_mode::WalkMode;
 
 pub type NMap<T> = Assoc<Name, T>;
 
@@ -46,17 +47,17 @@ custom_derive! {
 pub use self::EitherPN::*;
 
 
-impl<L, R> EitherPN<L, R> {
-    pub fn pos(&self) -> &L {
+impl<Mode: WalkMode> EitherPN<WalkRule<Mode>, WalkRule<Mode::Negated>> {
+    pub fn pos(&self) -> &WalkRule<Mode> {
         match *self {
             Positive(ref l) | Both(ref l, _) => l,
-            Negative(_) => panic!("ICE: wanted positive walk"),
+            Negative(_) => &WalkRule::NotWalked,
         }
     }
-    pub fn neg(&self) -> &R {
+    pub fn neg(&self) -> &WalkRule<Mode::Negated> {
         match *self {
             Negative(ref r) | Both(_, ref r)=> r,
-            Positive(_) => panic!("ICE: wanted negative walk"),
+            Positive(_) => &WalkRule::NotWalked,
         }
     }
     pub fn is_pos(&self) -> bool { match *self { Negative(_) => false, _ => true }}

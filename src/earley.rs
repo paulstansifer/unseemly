@@ -41,7 +41,8 @@ thread_local! {
     static all_plugged_ddds: RefCell<HashMap<UniqueIdRef, Rc<FormPat>>>
         = RefCell::new(HashMap::new());
 
-    static best_token: RefCell<(usize, Name)> = RefCell::new((0, n("[nothing parsed]")));
+    static best_token: RefCell<(usize, Name, Rc<FormPat>, usize)>
+        = RefCell::new((0, n("[nothing parsed]"), Rc::new(Impossible), 0));
 }
 
 fn get_next_id() -> UniqueId {
@@ -483,8 +484,10 @@ impl Item {
         };
 
         if !res.is_empty() {
-            if let Some(&Simple(n)) = cur {
-                best_token.with(|bt| *bt.borrow_mut() = (cur_idx, n));
+            if let Some(tok) = cur {
+                let n = match tok { Simple(x) => x, Group(x,_,_) => x };
+                best_token.with(|bt| *bt.borrow_mut()
+                    = (cur_idx, *n, res[0].0.rule.clone(), res[0].0.pos));
             }
         }
 
@@ -800,8 +803,8 @@ pub fn parse(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> ParseResult {
         Some(i) => i.c_parse(&chart, chart.len()-1),
         None => {
             best_token.with(|bt| {
-                let (idx, tok) = *bt.borrow();
-                Err(ParseError{ msg: format!("Could not parse past position {} ({})", idx, tok) })
+                let (idx, tok, ref grammar, pos) = *bt.borrow();
+                Err(ParseError{ msg: format!("Could not parse past token {} ({}) {:?} {}", idx, tok, grammar, pos) })
             })
         }
     }

@@ -74,7 +74,7 @@ impl fmt::Debug for Ast {
                 }
             }
             QuoteLess(ref body, depth) => {
-                write!(f, "..({}){:?}..", depth, body)
+                write!(f, ",,({}){:?},,", depth, body)
             }
             IncompleteNode(ref body) => {
                 write!(f, "{{ INCOMPLETE; {:?} }}", body)

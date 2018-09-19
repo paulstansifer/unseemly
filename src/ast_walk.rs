@@ -132,10 +132,12 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
     //     Some(ref ctxt) => println!("-ctxt: {:?}", ctxt), _ => {}}
     // println!("---in: {:?}", walk_ctxt.env.map_borrow_f(&mut |_| "…"));
 
-    let literally : Option<bool> = // If it's not needed, `get_walk_rule` might panic
+    let literally : Option<bool> = // If we're under a wrapper, `this_ast` might not be a Node
         match a {
             QuoteMore(_,_) | QuoteLess(_,_) | ExtendEnv(_,_) => {
                 match walk_ctxt.this_ast {
+                    // `this_ast` might be `NotWalked` (and non-literal) if under `switch_mode`.
+                    // It's weird, but seems to be the right thing
                     Node(ref f, _, _) => Some(Mode::get_walk_rule(f).is_literally()),
                     _ => None
                 }
@@ -147,7 +149,7 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
         Node(ref f, ref parts, _) => {
             let new_walk_ctxt = walk_ctxt.switch_ast(parts, a.clone());
             // certain walks only work on certain kinds of AST nodes
-            match *Mode::get_walk_rule(f) {
+            match Mode::get_walk_rule(f) {
                 Custom(ref ts_fn) =>  ts_fn(new_walk_ctxt),
                 Body(n) =>            walk(parts.get_leaf(n).unwrap(), &new_walk_ctxt),
                 LiteralLike =>        Mode::walk_quasi_literally(a.clone(), &new_walk_ctxt),
@@ -278,6 +280,7 @@ fn maybe_literally__walk<Mode: WalkMode>(a: &Ast, body: &Ast, walk_ctxt: LazyWal
 }
 
 /// How do we walk a particular node? This is a super-abstract question, hence all the `<>`s.
+#[derive(Clone)]
 pub enum WalkRule<Mode: WalkMode> {
     /// A function from the types/values of the *parts* of this form
     ///  to the type/value of this form.
@@ -285,9 +288,10 @@ pub enum WalkRule<Mode: WalkMode> {
     /// Any of the other `WalkRule`s can be implemented as a simple `Custom`.
     Custom(Rc<Box<(Fn(LazyWalkReses<Mode>) -> Result<<Mode::D as Dir>::Out, Mode::Err>)>>),
     /// "this form has the same type/value as one of its subforms".
+    /// (useful for forms that only exist as wrapper s around other AST nodes)
     Body(Name),
     /// "traverse the subterms, and rebuild this syntax around them".
-    /// Only valid in modes where `Ast`s can be converted to `::Out`s.
+    /// Only valid in modes where `Ast`s can be converted to `::Elt`s.
     LiteralLike,
     /// "this form should not ever be walked".
     NotWalked
@@ -414,6 +418,8 @@ pub struct LazyWalkReses<Mode: WalkMode> {
     pub less_quoted_out_env: Vec<Option<OutEnvHandle<Mode>>>,
 
     pub this_ast: Ast,
+
+    pub extra_info: Mode::ExtraInfo
 }
 
 // trait bounds on parameters are not yet supported by `Reifiable!`
@@ -426,7 +432,8 @@ impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
                     "more_quoted_env" => (,self.more_quoted_env.reify()),
                     "less_quoted_env" => (,self.less_quoted_env.reify()),
                     "less_quoted_out_env" => (,self.less_quoted_out_env.reify()),
-                    "this_ast" => (, self.this_ast.reify()))
+                    "this_ast" => (, self.this_ast.reify()),
+                    "extra_info" => (, self.extra_info.reify()))
     }
     fn reflect(v: &eval::Value) -> Self {
         extract!((v) eval::Value::Struct = (ref contents) =>
@@ -442,7 +449,9 @@ impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
                                 Vec::<Option<Rc<RefCell<Assoc<Name,Mode::Elt>>>>>::reflect(
                                     contents.find_or_panic(&n("less_quoted_out_env"))),
                             this_ast: Ast::reflect(
-                                contents.find_or_panic(&n("this_ast")))})
+                                contents.find_or_panic(&n("this_ast"))),
+                            extra_info: Mode::ExtraInfo::reflect(
+                                contents.find_or_panic(&n("extra_info")))})
     }
 }
 
@@ -458,7 +467,8 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             more_quoted_env: vec![], less_quoted_env: vec![],
             less_quoted_out_env: vec![],
             parts: parts_unwalked.map(&mut LazilyWalkedTerm::new),
-            this_ast: this_ast
+            this_ast: this_ast,
+            extra_info: ::std::default::Default::default()
         }
     }
 
@@ -469,7 +479,8 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             more_quoted_env: vec![],
             less_quoted_env: vec![],
             less_quoted_out_env: vec![],
-            parts: EnvMBE::new(), this_ast: ast!("wrapper")
+            parts: EnvMBE::new(), this_ast: ast!("wrapper"),
+            extra_info: ::std::default::Default::default()
         }
     }
 
@@ -480,7 +491,8 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             more_quoted_env: mqe,
             less_quoted_env: vec![],
             less_quoted_out_env: vec![], // If we want a `lqe`, we need to fill this in, too!
-            parts: EnvMBE::new(), this_ast: ast!("wrapper")
+            parts: EnvMBE::new(), this_ast: ast!("wrapper"),
+            extra_info: ::std::default::Default::default()
         }
     }
 
@@ -518,6 +530,12 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         self.parts.get_leaf_or_panic(&part_name).term.clone()
     }
 
+    /// Only needed if, for some reason, a form could occur with or without a particular term.
+    /// (a hack involving "mu_type" and "opacity_for_different_phase" does this)
+    pub fn maybe_get_term(&self, part_name: Name) -> Option<Ast> {
+        self.parts.get_leaf(part_name).map(|x| x.term.clone())
+    }
+
     // TODO: replace `get_term` with this
     pub fn get_term_ref(&self, part_name: Name) -> &Ast {
         &self.parts.get_leaf_or_panic(&part_name).term
@@ -552,8 +570,9 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         LazyWalkReses { env: env, .. (*self).clone() }
     }
 
-    /** Switch to a different mode with the same `Elt` type. */
-    pub fn switch_mode<NewMode: WalkMode<Elt=Mode::Elt>>(&self) -> LazyWalkReses<NewMode> {
+    /// Switch to a different mode with the same `Elt` type.
+    pub fn switch_mode<NewMode: WalkMode<Elt=Mode::Elt, ExtraInfo=Mode::ExtraInfo>>(&self)
+             -> LazyWalkReses<NewMode> {
         let new_parts: EnvMBE<Rc<LazilyWalkedTerm<NewMode>>> =
             self.parts.map(
                 &mut |part: &Rc<LazilyWalkedTerm<Mode>>|
@@ -564,7 +583,9 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             more_quoted_env: self.more_quoted_env.clone(),
             less_quoted_env: self.less_quoted_env.clone(),
             less_quoted_out_env: self.less_quoted_out_env.clone(),
-            this_ast: self.this_ast.clone() }
+            this_ast: self.this_ast.clone(),
+            extra_info: self.extra_info.clone()
+        }
     }
 
     pub fn quote_more(mut self, oeh: Option<OutEnvHandle<Mode>>) -> LazyWalkReses<Mode> {

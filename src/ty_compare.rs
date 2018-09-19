@@ -213,7 +213,6 @@ thread_local! {
 
 custom_derive!{
     #[derive(Copy, Clone, Debug, Reifiable)]
-    // Canonicalize isn't currently used explicitly, so its name is arbitrary
     pub struct Canonicalize {}
 }
 custom_derive!{
@@ -228,9 +227,10 @@ impl WalkMode for Canonicalize {
     type Negated = Subtype;
     type Err = TyErr;
     type D = ::walk_mode::Positive<Canonicalize>;
+    type ExtraInfo = ();
 
     // Actually, always `LiteralLike`, but need to get the lifetime as long as `f`'s
-    fn get_walk_rule(f: &Form) -> &WalkRule<Canonicalize> { f.type_compare.pos() }
+    fn get_walk_rule(f: &Form) -> WalkRule<Canonicalize> { f.type_compare.pos().clone() }
     fn automatically_extend_env() -> bool { true }
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Canonicalize>) -> Result<Ty, TyErr> {
@@ -250,8 +250,9 @@ impl WalkMode for Subtype {
     type Negated = Canonicalize;
     type Err = TyErr;
     type D = ::walk_mode::Negative<Subtype>;
+    type ExtraInfo = ();
 
-    fn get_walk_rule(f: &Form) -> &WalkRule<Subtype> { f.type_compare.neg() }
+    fn get_walk_rule(f: &Form) -> WalkRule<Subtype> { f.type_compare.neg().clone() }
     fn automatically_extend_env() -> bool { true }
 
     fn underspecified(name: Name) -> Ty {

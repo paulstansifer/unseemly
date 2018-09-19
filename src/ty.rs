@@ -17,9 +17,6 @@ use ast::*;
 use name::*;
 use std::rc::Rc;
 
-
-// TODO: we should validate that types don't have unexpected names in them
-// (i.e. `∀ X. List<X>` is okay, but `X` is not a type; it's just syntax)
 #[derive(PartialEq, Clone)]
 pub struct Ty(pub Ast);
 
@@ -93,8 +90,9 @@ impl WalkMode for SynthTy {
     type Negated = UnpackTy;
     type Err = TypeError;
     type D = ::walk_mode::Positive<SynthTy>;
+    type ExtraInfo = ();
 
-    fn get_walk_rule(f: &Form) -> &WalkRule<SynthTy> { f.synth_type.pos() }
+    fn get_walk_rule(f: &Form) -> WalkRule<SynthTy> { f.synth_type.pos().clone() }
     fn automatically_extend_env() -> bool { true }
 
     fn walk_var(name: Name, parts: &::ast_walk::LazyWalkReses<SynthTy>) -> Result<Ty, TypeError> {
@@ -116,8 +114,9 @@ impl WalkMode for UnpackTy {
     type Negated = SynthTy;
     type Err = TypeError;
     type D = ::walk_mode::Negative<UnpackTy>;
+    type ExtraInfo = ();
 
-    fn get_walk_rule(f: &Form) -> &WalkRule<UnpackTy> { f.synth_type.neg() }
+    fn get_walk_rule(f: &Form) -> WalkRule<UnpackTy> { f.synth_type.neg().clone() }
     fn automatically_extend_env() -> bool { true }
 }
 

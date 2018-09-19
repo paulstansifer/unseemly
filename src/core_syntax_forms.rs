@@ -10,6 +10,7 @@ use ast_walk::WalkRule::*;
 use ast_walk::squirrel_away;
 use ast::Ast;
 use util::assoc::Assoc;
+use walk_mode::WalkMode;
 
 // A brief digression about types and syntax quotation...
 // Expressions are "positive", and are traversed leaf-to-root in an environment, producing a type.
@@ -61,6 +62,98 @@ use util::assoc::Assoc;
 
 
 
+fn adjust_opacity(t: &Ty, env: Assoc<Name, Ty>, delta: i32) -> Ty {
+    let ctxt = ::ast_walk::LazyWalkReses{
+        extra_info: delta, .. ::ast_walk::LazyWalkReses::new_wrapper(env)};
+    ::ast_walk::walk::<MuProtect>(&t.concrete(), &ctxt).unwrap()
+}
+
+// The environment doesn't matter when removing opacity, and in practice, we only do it by
+fn remove_opacity(t: &Ty) -> Ty {
+    adjust_opacity(t, Assoc::new(), -1)
+}
+
+
+// This walk is for one very simple purpose: to add `mu` around unbound names.
+custom_derive!{
+    #[derive(Copy, Clone, Debug, Reifiable)]
+    pub struct MuProtect {}
+}
+// Sadly, we have to define a negative version, even though it's never used.
+custom_derive!{
+    #[derive(Copy, Clone, Debug, Reifiable)]
+    pub struct UnusedUnMuProtect {}
+}
+
+fn change_mu_opacity(parts: ::ast_walk::LazyWalkReses<MuProtect>) -> Result<Ty, ()> {
+    let delta = parts.extra_info;
+    let opacity = &parts.maybe_get_term(n("opacity_for_different_phase")).map(
+        |a| ast_to_name(&a).sp().parse::<i32>().unwrap());
+
+    if let Some(opacity) = opacity  {
+        if opacity + delta < 0 { panic!("ICE, I'm pretty sure; unwrapped too far")}
+
+        if opacity + delta == 0 {
+            if let ::ast::ExtendEnv(node, _) = parts.get_term(n("body")) {
+                return Ok(Ty(*node))
+            } else {
+                panic!("ICE: mal-formed mu_type")
+            }
+        }
+    }
+    match parts.this_ast {
+        Ast::Node(f, mut parts, export) => {
+            if let Some(opacity) = opacity  {
+                parts.add_leaf(n("opacity_for_different_phase"),
+                    Ast::Atom(n(&(opacity+delta).to_string())));
+            }
+            Ok(Ty(Ast::Node(f, parts, export)))
+        }
+        _ => panic!("ICE")
+    }
+
+}
+
+impl WalkMode for MuProtect {
+    fn name() -> &'static str { "MProt" }
+    type Elt = Ty;
+    type Negated = UnusedUnMuProtect;
+    type Err = ();
+    type D = ::walk_mode::Positive<MuProtect>;
+    type ExtraInfo = i32;
+
+    fn get_walk_rule(f: &Form) -> ::ast_walk::WalkRule<MuProtect> {
+        if f.name == n("mu_type") {
+            cust_rc_box!(change_mu_opacity)
+        } else {
+            LiteralLike
+        }
+    }
+    fn automatically_extend_env() -> bool { true }
+
+    fn walk_var(name: Name, parts: &::ast_walk::LazyWalkReses<MuProtect>) -> Result<Ty, ()> {
+        print!("loooking up {} in {}...\n", name, parts.env);
+        if parts.extra_info <= 0 { return Ok(Ty(::ast::VariableReference(name))) }
+        Ok(parts.env.find(&name).map(Clone::clone).unwrap_or_else(||
+            ty!({"Type" "mu_type" :
+                "opacity_for_different_phase" => (, Ast::Atom(n(&parts.extra_info.to_string()))),
+                "param" => [(import [* [prot "param"]] (, Ast::VariableReference(name)))],
+                "body" => (import [* [prot "param"]] (, Ast::VariableReference(name)))})))
+    }
+}
+impl WalkMode for UnusedUnMuProtect {
+    fn name() -> &'static str { "XXXXX" }
+    type Elt = Ty;
+    type Negated = MuProtect;
+    type Err = ();
+    type D = ::walk_mode::Positive<UnusedUnMuProtect>;
+    type ExtraInfo = i32;
+    fn get_walk_rule(_: &Form) -> ::ast_walk::WalkRule<UnusedUnMuProtect> { panic!("ICE") }
+    fn automatically_extend_env() -> bool { panic!("ICE") }
+}
+
+
+
 // Technically, we could have the parser decide whether `unquote` is allowed.
 //  (It only makes sense inside a `quote`.)
 // However, this would leave us with one `unquote` form available per level of quotation
@@ -73,6 +166,16 @@ pub fn unquote(nt: Name, pos_quot: bool) -> Rc<FormPat> {
 
 pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
     let form_delim_start = &format!("{}[",/*]*/ ",".repeat(depth as usize));
+
+
+
+    fn mu_protect__unbound_names(t: Ty, env: Assoc<Name, Ty>) -> Result<Ty,::ty::TypeError> {
+        print!("MP: {}, {}\n", t, env);
+        let res = ::ast_walk::walk::<MuProtect>(&t.concrete(), &::ast_walk::LazyWalkReses::new_wrapper(env))
+            .map_err(|_| panic!("ICE: can't fail"));
+        print!("->  {}\n", res.clone().unwrap());
+        res
+    }
 
     Rc::new(Form {
         name: n("unquote"),
@@ -96,8 +199,8 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
         synth_type:
             // `nt_is_positive` and `pos_quot` have opposite roles from `quote`
             if nt_is_positive(nt) {
-                // (without prejudice as to whether this quotation is positive or negative)
-                // (nt_is_positive is true in this example, though) For example:
+                //  For example: (this quotation could be positive or negative)
+                // (nt_is_positive is true in this example, though)
                 // ` '[Expr | .[a : Int . ,[Expr <[String]< | body], ]. ]' `
                 //                        ^^^^^^^^^^^^^^^^^^^^^^^^^^
                 Positive(
@@ -121,9 +224,17 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
                         };
 
                         for _ in 0..(depth-1) {
-                            res = try!(less_quoted_ty(&res, None, &ast_for_errors))
+                            res = less_quoted_ty(&res, None, &ast_for_errors)?;
                         } // HACK: the way this is structured, we only know the last `nt` to expect
-                        less_quoted_ty(&res, Some(nt), &ast_for_errors)
+                        res = less_quoted_ty(&res, Some(nt), &ast_for_errors)?;
+
+                        let mut walk_ctxt = unquote_parts.clone();
+                        for _ in 0..depth {
+                            let (_, walk_ctxt_new) = walk_ctxt.quote_less();
+                            walk_ctxt = walk_ctxt_new;
+                        }
+
+                        Ok(adjust_opacity(&res, unquote_parts.env, depth as i32))
                     }))
             } else {
                 // For example: ` '[Pat | (x, ,[Pat <[String]< | body], ) ]' `
@@ -132,19 +243,21 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
                     cust_rc_box!( move | unquote_parts | {
                         let nt = ast_to_name(&unquote_parts.get_term(n("nt")));
 
+                        let protected_context_elt = adjust_opacity(
+                            unquote_parts.context_elt(), unquote_parts.env.clone(), depth as i32);
+
                         if pos_quot {
                             // `String`
                             let lq_parts = unquote_parts.switch_mode::<::ty::SynthTy>();
                             let res = try!(lq_parts.get_res(n("body")));
 
                             // Bonus typecheck
-                            ty_exp!(unquote_parts.context_elt(), &res, lq_parts.this_ast);
+                            ty_exp!(&protected_context_elt, &res, lq_parts.this_ast);
 
                             Ok(Assoc::new()) // TODO: this seems like it shouldn't be empty
                         } else {
                             // phase-shift the context_elt:
-                            let ctxt = more_quoted_ty(
-                                unquote_parts.context_elt(), &nt.sp());
+                            let ctxt = more_quoted_ty(&protected_context_elt, &nt.sp());
                             let _res = try!(unquote_parts.with_context(ctxt).get_res(n("body")));
 
                             Ok(Assoc::new()) // TODO: does this make sense?
@@ -240,13 +353,15 @@ pub fn quote(pos: bool) -> Rc<Form> {
                                 (, nt_to_type(ast_to_name(
                                     &quote_parts.get_term(n("nt")))).concrete() ),
                             "arg" => [(,
-                                try!(quote_parts.get_res(n("body"))).concrete())]
+                                remove_opacity(&try!(quote_parts.get_res(n("body")))).concrete()
+                            )]
                         }))
 
                     } else {
                         // TODO: if the user accidentally omits the annotation,
                         //  provide a good error message.
-                        let expected_type = try!(quote_parts.get_res(n("ty_annot")));
+                        let expected_type = remove_opacity(
+                            &try!(quote_parts.get_res(n("ty_annot"))));
 
                         // TODO: do we need this result somewhere?
                         // Note that `Pat <[Point]<` (as opposed to `Pat <:[x: Real, y: Real]<:`)
@@ -489,15 +604,28 @@ fn quote_unquote_type_basic() {
     let pat_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Pat" });
 
     let env = assoc_n!(
+        "T" => ty!((vr "T")), // we're under a `forall T . ⋯`
         "n" => ty!({"Type" "Nat" :}),
         "en" => ty!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]}),
+        "pn" => ty!({"Type" "type_apply" :
+            "type_rator" => (,pat_type.clone()), "arg" => [{"Type" "Nat" :}]}),
+        "pT" => ty!({"Type" "type_apply" :
+            "type_rator" => (,pat_type.clone()), "arg" => [(vr "T")]}),
         "ef" => ty!({"Type" "type_apply" :
-            "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Float" :}]})
+            "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Float" :}]}),
+        "eT" => ty!({"Type" "type_apply" :
+            "type_rator" => (,expr_type.clone()), "arg" => [(vr "T")]}),
+        "eT_to_T" => ty!({"Type" "type_apply" :
+            "type_rator" => (,expr_type.clone()), "arg" =>
+                [{"Type" "fn" : "param" => [(vr "T")], "ret" => (vr "T")}]})
+
     );
 
     let qenv = assoc_n!(
-        "qn" => ty!({"Type" "Nat" :})
+        "qn" => ty!({"Type" "Nat" :}),
+        // We're under a (differently-phased) `forall T . ⋯`
+        "qT" => adjust_opacity(&ty!((vr "T")), Assoc::new(), 1)
     );
 
     fn synth_type_two_phased(expr: &Ast, env: Assoc<Name, Ty>, qenv: Assoc<Name, Ty>)
@@ -524,6 +652,20 @@ fn quote_unquote_type_basic() {
             "arg" => [{"Type" "struct":
                 "component_name" => [@"c" "x", "y", "z"],
                 "component" => [@"c" {"Type" "Nat" :}, {"Type" "Float" :}, {"Type" "Nat" :}]}]})));
+
+
+    // '[Expr | (,[Expr | eT_to_T],  ,[Expr | eT],) ]'
+    assert_eq!(synth_type_two_phased(
+            &ast!({quote(pos) ;
+                "nt" => "Expr",
+                "body" => (++ true {"Expr" "apply":
+                    "rator" => {unquote_form(n("Expr"), pos, 1) ; "nt" => "Expr", "body" =>
+                        (-- 1 (vr "eT_to_T"))},
+                    "rand" => [{unquote_form(n("Expr"), pos, 1) ; "nt" => "Expr", "body" =>
+                        (-- 1 (vr "eT"))}]})}),
+            env.clone(), qenv.clone()),
+        Ok(ty!({"Type" "type_apply" : "type_rator" => (,expr_type.clone()),
+            "arg" => [(vr "T")]})));
 
     fn unpack_type_two_phased(pat: &Ast, env: Assoc<Name, Ty>, qenv: Assoc<Name, Ty>, ctxt: Ty)
             -> Result<Assoc<Name, Ty>, ::ty::TypeError> {
@@ -559,6 +701,41 @@ fn quote_unquote_type_basic() {
             "bar" => ty!({"Type" "type_apply" :
                 "arg" => [{"Type" "Float" :}],
                 "type_rator" => (,pat_type.clone())}))));
+
+    // Interpolate a pattern
+    // '[Expr | match qn { ,[Pat <[Nat]< | pn], => qn }]
+    assert_eq!(synth_type_two_phased(&ast!({quote(pos) ;
+                "nt" => "Expr",
+                "body" => (++ true {"Expr" "match":
+                    "scrutinee" => (vr "qn"),
+                    "p" => [@"c" {quote(neg) ; "nt" => "Pat",
+                                               "ty_annot" =>
+                                                    {"Type" "type_apply" :
+                                                        "type_rator" => (,pat_type.clone()),
+                                                        "arg" => {"Type" "Nat" :}},
+                                                "body" => (-- 1 (vr "pn"))}],
+                    "arm" => [@"c" (vr "qn")]})}),
+            env.clone(), qenv.clone()),
+            Ok(ty!({"Type" "type_apply" :
+                "type_rator" => (,expr_type.clone()), "arg" => [{ "Type" "Nat" :}]})));
+
+    // Interpolate a pattern, with abstract types
+    // '[Expr | match qT { ,[Pat <[T]< | pT], => qT }]
+    assert_eq!(synth_type_two_phased(&ast!({quote(pos) ;
+                "nt" => "Expr",
+                "body" => (++ true {"Expr" "match":
+                    "scrutinee" => (vr "qT"),
+                    "p" => [@"c" {quote(neg) ; "nt" => "Pat",
+                                               "ty_annot" =>
+                                                    {"Type" "type_apply" :
+                                                        "type_rator" => (,pat_type.clone()),
+                                                        "arg" => (vr "T")},
+                                                "body" => (-- 1 (vr "pT"))}],
+                    "arm" => [@"c" (vr "qT")]})}),
+            env.clone(), qenv.clone()),
+            Ok(ty!({"Type" "type_apply" :
+                "type_rator" => (,expr_type.clone()), "arg" => [(vr "T")]})));
+
 }
 
 #[test]
