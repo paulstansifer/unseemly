@@ -426,9 +426,10 @@ pub fn less_quoted_ty(t: &Ty, nt: Option<Name>, loc: &Ast) -> Result<Ty, ::ty::T
     )
 }
 
-pub fn more_quoted_ty(t: &Ty, nt: &str) -> Ty {
+pub fn more_quoted_ty(t: &Ty, nt: Name) -> Ty {
+    let nt_sp = &nt.sp();
     ty!({"Type" "type_apply" :
-        "type_rator" => {get__abstract_parametric_type() ; "name" => nt},
+        "type_rator" => {get__abstract_parametric_type() ; "name" => nt_sp},
         "arg" => [(,t.concrete())]})
 }
 

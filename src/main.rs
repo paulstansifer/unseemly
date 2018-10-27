@@ -97,6 +97,7 @@ fn main() {
         let mut rl = rustyline::Editor::<ValueCompleter>::new();
         rl.set_completer(Some(ValueCompleter{}));
 
+        let just_parse = regex::Regex::new("^:p (.*)$").unwrap();
         let just_type = regex::Regex::new("^:t (.*)$").unwrap();
         let just_eval = regex::Regex::new("^:e (.*)$").unwrap();
         let canon_type = regex::Regex::new("^:tt (.*)$").unwrap();
@@ -116,6 +117,7 @@ fn main() {
         println!("    `<name> t= <type>` to bind a type for this session.");
         println!("    `:s <name> := <expr>` to save a binding to the prelude for the future.");
         println!("    `:s <name> t= <expr>` to save a type binding to the prelude.");
+        println!("    `:p <expr>` to parse `<expr>` and print its debug AST output.");
         println!("    Command history is saved over sessions.");
         println!("    Tab-completion works on variables, and many Bash-isms work.");
         println!();
@@ -144,7 +146,9 @@ fn main() {
             // TODO: count delimiters, and allow line continuation!
             rl.add_history_entry(&line);
 
-            let result_display = if let Some(caps) = just_type.captures(&line) {
+            let result_display = if let Some(caps) = just_parse.captures(&line) {
+                parse_unseemly_program(caps.at(1).unwrap())
+            } else if let Some(caps) = just_type.captures(&line) {
                 type_unseemly_program(caps.at(1).unwrap()).map(|x| format!("{}", x))
             } else if let Some(caps) = just_eval.captures(&line) {
                 eval_unseemly_program_without_typechecking(caps.at(1).unwrap())
@@ -252,6 +256,16 @@ fn canonicalize_type(t: &str) -> Result<ty::Ty, String> {
     ty_env.with(|tys| {
         ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:?}", e))
     })
+}
+
+fn parse_unseemly_program(program: &str) -> Result<String, String> {
+    let tokens = try!(read::read_tokens(program));
+
+    let ast = try!(
+        parse::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
+            .map_err(|e| e.msg));
+
+    Ok(format!("▵ {:?}\n∴ {}\n", ast, ast))
 }
 
 fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
@@ -458,12 +472,22 @@ fn end_to_end_quotation_advanced() {
                 '[Expr | true]')"),
         Err(_));
 
+    // Interpolate the wrong type (no application needed to find the error)
+    assert_m!(
+        type_unseemly_program(
+            ".[five_e : Expr <[Bool]< . '[Expr | (plus five ,[Expr | five_e],) ]' ]."),
+        Err(_));
+
     assert_m!(
         eval_unseemly_program(
             "forall T . .[type : Type <[T]<   rhs : Expr <[T]<
                 . '[Expr | (.[x : ,[Type <[T]< | type], . eight].  ,[Expr | rhs], )]' ]."),
         Ok(_));
-/*
+
+    assert_m!(
+        eval_unseemly_program("'[Pat <[Nat]< | x]'"),
+        Ok(_));
+
    // In order to have "traditional", non-type-annotated `let`, we want to ... reify T, I guess?
    // But the whole language has parametricity kinda baked in, and that seems to make it hard?
    // I think the solution is to build `let` into the language;
@@ -478,5 +502,5 @@ fn end_to_end_quotation_advanced() {
                 ,[Expr | rhs],)]' ]."),
         Ok(_));
 
-        */
+
 }

@@ -552,11 +552,8 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
 
     pub fn maybe__context_elt(&self) -> Option<Mode::Elt> {
-        if <Mode::D as Dir>::is_positive() {
-            None
-        } else { // Force a panic if a negative walk lacks a context elt:
-            Some(self.env.find(&negative_ret_val()).unwrap().clone())
-        }
+        // Kind of a HACK; users might set the context_elt in a positive mode before a mode switch.
+        self.env.find(&negative_ret_val()).map(Clone::clone)
     }
 
     /// Change the context (by editing the environment). Only sensible for negative walks.

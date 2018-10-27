@@ -156,7 +156,7 @@ impl ::std::fmt::Display for TyErr {
         use self::TyErr::*;
         match *self {
             Mismatch(ref got, ref exp) => {
-                write!(f, "[Mismatch] got:\n  `{}`\n   expected:\n  `{}`\n", got, exp)
+                write!(f, "[Mismatch] got:\n  `{:?}`\n   expected:\n  `{:?}`\n", got, exp)
             }
             LengthMismatch(ref got, exp_len) => {
                 try!(write!(f, "[LengthMismatch] got:\n  "));
