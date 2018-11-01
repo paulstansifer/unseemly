@@ -22,7 +22,7 @@ pub struct Ty(pub Ast);
 
 impl ::std::fmt::Debug for Ty {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        write!(f, "[TYPE {:?}]", self.0)
+        write!(f, "[TYPE {:#?}]", self.0)
     }
 }
 
@@ -156,7 +156,7 @@ impl ::std::fmt::Display for TyErr {
         use self::TyErr::*;
         match *self {
             Mismatch(ref got, ref exp) => {
-                write!(f, "[Mismatch] got:\n  `{:?}`\n   expected:\n  `{:?}`\n", got, exp)
+                write!(f, "[Mismatch] got:\n  `{:#?}`\n   expected:\n  `{:#?}`\n", got, exp)
             }
             LengthMismatch(ref got, exp_len) => {
                 try!(write!(f, "[LengthMismatch] got:\n  "));
@@ -166,17 +166,17 @@ impl ::std::fmt::Display for TyErr {
                 write!(f, "\n  expected {} arguments.\n", exp_len)
             }
             NtInterpMismatch(got, exp) => {
-                write!(f, "[NtInterpMismatch] expected the nonterminal `{:?}`, \
-                           but `{:?}` was interpolated",
+                write!(f, "[NtInterpMismatch] expected the nonterminal `{:#?}`, \
+                           but `{:#?}` was interpolated",
                        exp, got)
             }
             NonexistentEnumArm(got_name, ref ty) => {
-                write!(f, "[NonexistentEnumArm] the enum `{}` doesn't have an arm named `{:?}`",
+                write!(f, "[NonexistentEnumArm] the enum `{}` doesn't have an arm named `{:#?}`",
                        ty, got_name)
             }
             NonexistentStructField(got_name, ref ty) => {
                 write!(f, "[NonexistentStructField] the struct `{}` doesn't have a \
-                           field named `{:?}`",
+                           field named `{:#?}`",
                        ty, got_name)
             }
             NonExhaustiveMatch(ref ty) =>

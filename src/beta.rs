@@ -64,19 +64,19 @@ impl fmt::Debug for Beta {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Nothing => { write!(f, "∅") },
-            Shadow(ref lhs, ref rhs) => { write!(f, "({:?} ▷ {:?})", lhs, rhs) },
+            Shadow(ref lhs, ref rhs) => { write!(f, "({:#?} ▷ {:#?})", lhs, rhs) },
             ShadowAll(ref sub_beta, ref drivers) => {
-                write!(f, "( {:?} ▷ ... by {:?})", sub_beta, drivers)
+                write!(f, "( {:#?} ▷ ... by {:#?})", sub_beta, drivers)
             }
-            Basic(ref name, ref ty) => { write!(f, "{:?}:{:?}", name, ty) }
+            Basic(ref name, ref ty) => { write!(f, "{:#?}:{:#?}", name, ty) }
             SameAs(ref name, ref ty_source) => {
-                write!(f, "{:?}={:?}", name, ty_source)
+                write!(f, "{:#?}={:#?}", name, ty_source)
             }
             Underspecified(ref name) => {
-                write!(f, "∀{:?}", name)
+                write!(f, "∀{:#?}", name)
             }
             Protected(ref name) => {
-                write!(f, "↫{:?}", name)
+                write!(f, "↫{:#?}", name)
             }
         }
     }
@@ -147,7 +147,7 @@ impl Beta {
 pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(b: &Beta, parts: &LazyWalkReses<Mode>)
          -> Result<Assoc<Name, Mode::Elt>, Mode::Err> {
     // TODO: figure out why we *do* get called (during subtyping, apparently)
-    //if !Mode::D::is_positive() { panic!("ICE: e_f_b on {:?} in {} (negative)", b, Mode::name())}
+    //if !Mode::D::is_positive() { panic!("ICE: e_f_b on {:#?} in {} (negative)", b, Mode::name())}
     match *b {
         Nothing => { Ok(Assoc::new()) }
         Shadow(ref lhs, ref rhs) => {
@@ -170,7 +170,7 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(b: &Beta, parts: &LazyWalkRese
 
                 Ok(Assoc::new().set(*name, Mode::out_as_elt(ty.clone())))
             } else {
-                panic!("User error: {:?} is supposed to supply names, but is not an Atom.",
+                panic!("User error: {:#?} is supposed to supply names, but is not an Atom.",
                     parts.parts.get_leaf_or_panic(&name_source).term)
             }
         }
@@ -200,7 +200,7 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(b: &Beta, parts: &LazyWalkRese
                 let mut count = 0;
                 for (k, _) in res.iter_pairs() {
                     if !expected_res_keys.contains(k) {
-                        panic!("{} was unexpectedly exported (vs. {:?} via {:?})", k, expected_res_keys, parts.get_term(res_source));
+                        panic!("{} was unexpectedly exported (vs. {:#?} via {:#?})", k, expected_res_keys, parts.get_term(res_source));
                         // TODO: make this an `Err`. And test it with ill-formed `Form`s
                     }
                     count += 1;
@@ -219,7 +219,7 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(b: &Beta, parts: &LazyWalkRese
                     = **parts.parts.get_leaf_or_panic(name_source) {
                 Ok(Assoc::new().set(*name, Mode::underspecified(*name)))
             } else {
-                panic!("{:?} is supposed to supply names, but is not an Atom.",
+                panic!("{:#?} is supposed to supply names, but is not an Atom.",
                     parts.parts.get_leaf_or_panic(name_source).term)
             }
         }
@@ -236,7 +236,7 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(b: &Beta, parts: &LazyWalkRese
                 Ok(Assoc::new().set(::core_forms::vr_to_name(&*boxed_vr),
                                     Mode::Elt::from_ast(&*boxed_vr)))
             } else {
-                panic!("{:?} is supposed to supply names, but is not an EE(VR()).",
+                panic!("{:#?} is supposed to supply names, but is not an EE(VR()).",
                     parts.parts.get_leaf_or_panic(name_source).term)
             }
         }
@@ -263,11 +263,11 @@ impl fmt::Debug for ExportBeta {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ExportBeta::Nothing => { write!(f, "∅") },
-            ExportBeta::Shadow(ref lhs, ref rhs) => { write!(f, "({:?} ▷ {:?})", lhs, rhs) },
+            ExportBeta::Shadow(ref lhs, ref rhs) => { write!(f, "({:#?} ▷ {:#?})", lhs, rhs) },
             ExportBeta::ShadowAll(ref sub_beta, ref drivers) => {
-                write!(f, "( {:?} ▷ ... by {:?})", sub_beta, drivers)
+                write!(f, "( {:#?} ▷ ... by {:#?})", sub_beta, drivers)
             }
-            ExportBeta::Use(ref name) => { write!(f, "{:?}", name) }
+            ExportBeta::Use(ref name) => { write!(f, "{:#?}", name) }
         }
     }
 }

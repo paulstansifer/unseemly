@@ -165,7 +165,7 @@ impl<T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
         if self.leaves.empty() && self.repeats.is_empty() {
             write!(f, "mbe∅")
         } else {
-            try!(write!(f, "{{ 🍂 {:?}, ✶", self.leaves));
+            try!(write!(f, "{{ 🍂 {:#?}, ✶", self.leaves));
             let mut first = true;
             for (i, rep) in self.repeats.iter().enumerate() {
                 if !first { try!(write!(f, ", ")); }
@@ -174,10 +174,10 @@ impl<T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
                 // is it a named repeat?
                 for (name, idx_maybe) in self.named_repeats.iter_pairs() {
                     if let Some(idx) = *idx_maybe {
-                        if idx == i { try!(write!(f, "⋯({:?})⋯ ", name)); }
+                        if idx == i { try!(write!(f, "⋯({:#?})⋯ ", name)); }
                     }
                 }
-                try!(write!(f, "{:?}", rep));
+                try!(write!(f, "{:#?}", rep));
             }
             write!(f, "}}")
         }
@@ -335,7 +335,7 @@ impl<T: Clone> EnvMBE<T> {
                  (None, &Some(loc)) => { march_loc = Some((loc, n)) }
                  (Some((old_loc, old_name)), &Some(new_loc)) => {
                      if old_loc != new_loc {
-                         panic!("{:?} and {:?} cannot march together; they weren't matched to have the same number of repeats",
+                         panic!("{:#?} and {:#?} cannot march together; they weren't matched to have the same number of repeats",
                                 old_name, n);
                      }
                  }
@@ -403,7 +403,7 @@ impl<T: Clone> EnvMBE<T> {
             }
             Some(idx) => {
                 if self.repeats[idx].len() != sub.len() {
-                    panic!("Named repetition {:?} is repeated {:?} times in one place, {:?} times in another.",
+                    panic!("Named repetition {:#?} is repeated {:#?} times in one place, {:#?} times in another.",
                         n, self.repeats[idx].len(), sub.len())
                 }
 
@@ -416,7 +416,7 @@ impl<T: Clone> EnvMBE<T> {
                 self.repeats[idx] = Rc::new(new_repeats_at_idx);
                 if self.ddd_rep_idxes[idx] != sub_ddd_idx {
                     // Maybe we should support this usecase!
-                    panic!("Named repetition {:?} has mismatched ddd rep indices {:?} and {:?}.",
+                    panic!("Named repetition {:#?} has mismatched ddd rep indices {:#?} and {:#?}.",
                            n, self.ddd_rep_idxes[idx], sub_ddd_idx);
                 }
             }
@@ -755,7 +755,7 @@ impl<T: Clone + fmt::Debug> EnvMBE<T> {
     pub fn get_leaf_or_panic(&self, n: &Name) -> &T {
         match self.leaves.find(n) {
             Some(v) => { v }
-            None => { panic!(" {:?} not found in {:?} (perhaps it is still repeated?)", n, self) }
+            None => { panic!(" {:#?} not found in {:#?} (perhaps it is still repeated?)", n, self) }
         }
     }
 

@@ -455,7 +455,7 @@ macro_rules! bind_patterns {
                 bind_patterns!($iter; ($( $p_cdr, )*) => $body)
             }
             None => { panic!("ICE: too few arguments"); }
-            Some(ref other) => { panic!("Type ICE in argument: {:?}", other); }
+            Some(ref other) => { panic!("Type ICE in argument: {:#?}", other); }
         }
     }
 }
@@ -500,11 +500,11 @@ macro_rules! expect_node {
                 $body
             } else {
                 // TODO: make it possible to specify which one
-                panic!("ICE or type error: Expected a {:?} node, got {:?}, which is {:?}.",
+                panic!("ICE or type error: Expected a {:#?} node, got {:#?}, which is {:#?}.",
                        $form, $node, *f)
             }
         } else {
-            panic!("ICE or type error: Expected a {:?} node, got {:?}, which isn't a node.",
+            panic!("ICE or type error: Expected a {:#?} node, got {:#?}, which isn't a node.",
                    $form, $node)
         }
     )
@@ -548,7 +548,7 @@ macro_rules! extract {
     (($v:expr) $( $expected:path = ( $( $sub:pat ),* ) => $body:expr);* ) => {
         match * $v {
             $( $expected ( $($sub),* ) => { $body } )*
-            _ => { panic!("ICE: {:?} isn't a {:?}", $v, stringify!( $($expected),* )) }
+            _ => { panic!("ICE: {:#?} isn't a {:#?}", $v, stringify!( $($expected),* )) }
         }
     }
 }
@@ -578,7 +578,7 @@ macro_rules! assert_m {
         let got = $got;
         match got.clone() {
             $expected => { assert!($body) }
-            _ => { assert!(false, "{:?} does not match {:?}", got, quote!($expected).as_str()) }
+            _ => { assert!(false, "{:#?} does not match {:#?}", got, quote!($expected).as_str()) }
         }
     }};
     ($got:expr, $expected:pat) => {

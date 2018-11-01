@@ -205,7 +205,7 @@ fn main() {
 
         match result {
             Ok(v) => println!("{}", v),
-            Err(e) => println!("\x1b[1;31m✘\x1b[0m {:?}", e)
+            Err(e) => println!("\x1b[1;31m✘\x1b[0m {:#?}", e)
         }
     }
 }
@@ -234,7 +234,7 @@ fn assign_t_var(name: &str, t: &str) -> Result<ty::Ty, String> {
                                 &core_forms::get_core_forms(), &tokens).map_err(|e| e.msg));
 
     let res = ty_env.with(|tys| {
-        ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:?}", e))
+        ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e))
     });
 
     if let Ok(ref t) = res {
@@ -254,7 +254,7 @@ fn canonicalize_type(t: &str) -> Result<ty::Ty, String> {
                                 &core_forms::get_core_forms(), &tokens).map_err(|e| e.msg));
 
     ty_env.with(|tys| {
-        ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:?}", e))
+        ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e))
     })
 }
 
@@ -265,7 +265,7 @@ fn parse_unseemly_program(program: &str) -> Result<String, String> {
         parse::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
             .map_err(|e| e.msg));
 
-    Ok(format!("▵ {:?}\n∴ {}\n", ast, ast))
+    Ok(format!("▵ {:#?}\n∴ {}\n", ast, ast))
 }
 
 fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
@@ -277,7 +277,7 @@ fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
             .map_err(|e| e.msg));
 
     ty_env.with(|tys| {
-        ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:?}", e))
+        ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e))
     })
 }
 
@@ -302,7 +302,7 @@ fn eval_unseemly_program(program: &str) -> Result<Value, String> {
             .map_err(|e| e.msg));
 
     let _type = try!(ty_env.with(|tys| {
-        ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:?}", e))
+        ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e))
     }));
 
 

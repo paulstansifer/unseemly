@@ -222,7 +222,7 @@ impl<K: PartialEq + fmt::Debug + Clone, V: fmt::Debug + Clone> Assoc<K, V> {
     pub fn find_or_panic<'assoc, 'f>(&'assoc self, target: &'f K) -> &'assoc V {
         match self.find(target) {
             None => {
-                panic!("{:?} not found in {:?}", target, self.map(|_| "…"))
+                panic!("{:#?} not found in {:#?}", target, self.map(|_| "…"))
             },
             Some(v) => v
         }
@@ -235,7 +235,7 @@ impl<K : PartialEq + Clone + fmt::Debug, V : fmt::Debug> fmt::Debug for Assoc<K,
         let mut first = true;
         for (k,v) in self.iter_pairs() {
             if !first { try!(write!(f, ", ")); }
-            try!(write!(f, "{:?} ⇒ {:?}", k, v));
+            try!(write!(f, "{:#?} ⇒ {:#?}", k, v));
             first = false;
         }
         write!(f, "⟧")

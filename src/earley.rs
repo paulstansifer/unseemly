@@ -180,7 +180,7 @@ impl PartialOrd for LocalParse {
             (&JustifiedByItem(_), &JustifiedByItemPlanB(_)) => Some(Greater),
             (&JustifiedByItem(_), &JustifiedByItem(_)) => None,
             // semantically, this ought to be `None`, but that would be a hard-to-debug logic error
-            _ => { panic!("Attempted to compare {:?} and {:?}", self, other) }
+            _ => { panic!("Attempted to compare {:#?} and {:#?}", self, other) }
         }
     }
 }
@@ -237,7 +237,7 @@ fn recognize(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> bool {
 fn walk_tt(chart: &mut Vec<Vec<Item>>, t: &Token, cur_tok: &mut usize) {
     chart.push(vec![]);
     examine_state_set(chart, Some(t), *cur_tok);
-    //log!("\n  {:?}\n->{:?}\n", chart[*cur_tok], chart[*cur_tok + 1]);
+    //log!("\n  {:#?}\n->{:#?}\n", chart[*cur_tok], chart[*cur_tok + 1]);
     *cur_tok += 1;
     match *t {
         Simple(_) => { }
@@ -278,12 +278,12 @@ fn merge_into_state_set(item: Item, items: &mut Vec<Item>)
     for i in items.iter() {
         if i.similar(&item) {
             if i.as_good_as(&item) { return false; /* no new information */ }
-            log!("improved item: {:?} vs. {:?}\n", item, i);
+            log!("improved item: {:#?} vs. {:#?}\n", item, i);
             i.merge(&item);
             return true;
         }
     }
-    log!("new item: {:?}\n", item);
+    log!("new item: {:#?}\n", item);
     items.push(item);
 
     true
@@ -291,7 +291,7 @@ fn merge_into_state_set(item: Item, items: &mut Vec<Item>)
 
 impl ::std::fmt::Debug for Item {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        write!(f, "[({:?}){}({:?}.{}){}<{:?} - {:?}>]",
+        write!(f, "[({:#?}){}({:#?}.{}){}<{:#?} - {:#?}>]",
                self.id, self.start_idx, self.rule, self.pos,
                if *self.done.borrow() { "✓" } else { "…" },
                self.local_parse.borrow(), self.wanted_by.borrow())
@@ -327,7 +327,7 @@ impl Item {
 
         use ::std::cmp::Ordering::*;
         let comparison = other.local_parse.borrow().partial_cmp(&*self.local_parse.borrow());
-        log!("\n(For {}) Merging {:?} and {:?}... ", self.id.0, *other.local_parse.borrow(),
+        log!("\n(For {}) Merging {:#?} and {:#?}... ", self.id.0, *other.local_parse.borrow(),
              *self.local_parse.borrow());
         match comparison {
             Some(Greater) => {
@@ -340,7 +340,7 @@ impl Item {
                 *self.local_parse.borrow_mut() = amb;
             }
         }
-        log!("... into {:?}\n", *self.local_parse.borrow());
+        log!("... into {:#?}\n", *self.local_parse.borrow());
 
         for other_wanted in other.wanted_by.borrow().iter() {
             let mut has = false;
@@ -421,7 +421,7 @@ impl Item {
         let mut res = if *self.done.borrow() {
             let mut waiting_satisfied = vec![];
 
-            log!("({:?}) done; {} items want it\n", self, (*self.wanted_by.borrow()).len());
+            log!("({:#?}) done; {} items want it\n", self, (*self.wanted_by.borrow()).len());
 
             for &waiting_item_id in self.wanted_by.borrow().iter() {
                 if let Some(waiting_item) = chart[self.start_idx].iter()
@@ -436,7 +436,7 @@ impl Item {
                     let mut more = match *waiting_item.rule {
                         Anyways(_) | Impossible | Literal(_) | AnyToken | AnyAtomicToken
                         | VarRef => {
-                            panic!("{:?} should not be waiting for anything!", waiting_item)
+                            panic!("{:#?} should not be waiting for anything!", waiting_item)
                         }
                         Seq(ref subs) => {
                             if (waiting_item.pos) as usize == subs.len() {
@@ -658,11 +658,11 @@ impl Item {
                 let r_res = self.c_parse(chart, done_tok);
 
 
-                panic!("Ambiguity! \n{:?}\n{:?}\n", l_res, r_res)
+                panic!("Ambiguity! \n{:#?}\n{:#?}\n", l_res, r_res)
             },
-            _ => panic!("ICE: tried to parse unjustified item: {:?} ", self)
+            _ => panic!("ICE: tried to parse unjustified item: {:#?} ", self)
         };
-        log!("We are {:?} at {}...\n", self, done_tok);
+        log!("We are {:#?} at {}...\n", self, done_tok);
 
         for idx in 0..chart[done_tok].len() {
             let i = &chart[done_tok][idx];
@@ -680,7 +680,7 @@ impl Item {
 
     /// After the chart is built, we parse...
     fn c_parse(&self, chart: &[Vec<Item>], done_tok: usize) -> ParseResult {
-        log!("Tring to parse {:?}...\n", self);
+        log!("Tring to parse {:#?}...\n", self);
         // assert!(*self.done.borrow()); // false during ambiguity reporting
         let res = match *self.rule {
             Anyways(ref a) => Ok(a.clone()),
@@ -719,7 +719,7 @@ impl Item {
                         let mut found = false;
                         for idx in 0..chart[pos].len() {
                             let i = &chart[pos][idx];
-                            log!("Checking {:?}\n", i);
+                            log!("Checking {:#?}\n", i);
                             if self.grammar.almost_ptr_eq(&i.grammar)
                                 && &*self.rule as *const FormPat == &*i.rule as *const FormPat
                                 && step.pos - 1 == i.pos {
@@ -728,7 +728,7 @@ impl Item {
                                 break;
                             }
                         }
-                        if !found { panic!("ICE: Can't find item previous to {:?}", step) }
+                        if !found { panic!("ICE: Can't find item previous to {:#?}", step) }
                     }
                 }
                 subtrees.reverse();
@@ -775,7 +775,7 @@ impl Item {
                 Ok(Ast::QuoteLess(Box::new(sub_parsed), depth))
             }
         };
-        log!(">>>{:?}<<<\n", res);
+        log!(">>>{:#?}<<<\n", res);
 
         if self.ddd {
             res.map(ddd_wrap)
@@ -804,7 +804,7 @@ pub fn parse(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> ParseResult {
         None => {
             best_token.with(|bt| {
                 let (idx, tok, ref grammar, pos) = *bt.borrow();
-                Err(ParseError{ msg: format!("Could not parse past token {} ({}) {:?} {}", idx, tok, grammar, pos) })
+                Err(ParseError{ msg: format!("Could not parse past token {} ({}) {:#?} {}", idx, tok, grammar, pos) })
             })
         }
     }
@@ -876,7 +876,7 @@ fn earley_merging() {
     let id2 = get_next_id().get_ref();
     let id3 = get_next_id().get_ref();
             /*
-        log!("AGA {:?},{:?},{:?},{:?}\n",
+        log!("AGA {:#?},{:#?},{:#?},{:#?}\n",
         (*self.done.borrow() == *other.done.borrow() || !*other.done.borrow())
         , *self.local_parse.borrow() == *other.local_parse.borrow()
             , *(other.local_parse).borrow() == LocalParse::NothingYet
@@ -885,7 +885,7 @@ fn earley_merging() {
                    |w| self.wanted_by.borrow().iter().find(|s_w| w == *s_w).is_some())))
 
     );
-        log!("  {:?}=?{:?}\n", *self.local_parse.borrow(), *other.local_parse.borrow());*/
+        log!("  {:#?}=?{:#?}\n", *self.local_parse.borrow(), *other.local_parse.borrow());*/
     let wanted_item = |ids| {
         Item {
             wanted_by: Rc::new(RefCell::new(ids)), .. basic_item.clone()

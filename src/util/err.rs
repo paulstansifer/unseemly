@@ -14,13 +14,13 @@ pub fn sp<T>(t: T, a: ::ast::Ast) -> Spanned<T> {
 
 impl<T: Display> Display for Spanned<T> {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f, "{} at {:?}", self.body, self.loc)
+        write!(f, "{} at {:#?}", self.body, self.loc)
     }
 }
 
 impl<T: Debug> Debug for Spanned<T> {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f, "{:?} at {:?}", self.body, self.loc)
+        write!(f, "{:#?} at {:#?}", self.body, self.loc)
     }
 }
 

@@ -43,7 +43,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
                 let looked_up = unif.borrow().get(&var).cloned();
                 match looked_up {
                     // Apparently the environment is recursive; `{}`ing it stack-overflows
-                    Some(ref clo) => format!("{} in {:?}", clo.it, clo.env),
+                    Some(ref clo) => format!("{} in {:#?}", clo.it, clo.env),
                     None => format!("¿{}?", var)
                 }
             });
@@ -96,7 +96,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
             }
             res
         }
-        (&ComputeSyntax(_, _), _) => format!("?compute syntax? {:?} ?cs?", actl),
+        (&ComputeSyntax(_, _), _) => format!("?compute syntax? {:#?} ?cs?", actl),
         (&Scope(ref form, _), &Node(ref form_actual, ref body, _)) => {
             if form == form_actual {
                 unparse_mbe(&*form.grammar, actl, body, s)
@@ -108,22 +108,22 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
         (&NameImport(ref body, _), &ExtendEnv(ref actl_body, _)) => {
             unparse_mbe(&*body, &*actl_body, context, s)
         }
-        (&NameImport(_, _), _) => { format!("[Missing import]→{:?}←", actl) }
+        (&NameImport(_, _), _) => { format!("[Missing import]→{:#?}←", actl) }
         (&QuoteDeepen(ref body, _), &QuoteMore(ref actl_body, _)) => {
             unparse_mbe(&*body, &*actl_body, context, s)
         }
-        (&QuoteDeepen(_, _), _) => { format!("[Missing qm]{:?}", actl)}
+        (&QuoteDeepen(_, _), _) => { format!("[Missing qm]{:#?}", actl)}
         (&QuoteEscape(ref body, _), &QuoteLess(ref actl_body, _)) => {
             unparse_mbe(&*body, &*actl_body, context, s)
         }
-        (&QuoteEscape(_, _), _) => { format!("[Missing ql]{:?}", actl)}
+        (&QuoteEscape(_, _), _) => { format!("[Missing ql]{:#?}", actl)}
         (&SynImport(ref _fp, ref _n, ref _se), &Node(_, ref _body, _)) => {
             // TODO: I think we need to store the LHS in the AST somehow for this to work.
 /*            (*se.0)(se, )
             format!("{} {}",
                 unparse_mbe(fp, ????, context, s))
                 unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)*/
-                format!("?synax import? {:?} ?si?", actl)
+                format!("?synax import? {:#?} ?si?", actl)
         }
         (&SynImport(_,_,_), _) => { "".to_string() }
     }

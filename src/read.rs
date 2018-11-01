@@ -112,7 +112,7 @@ pub fn read_tokens(s: &str) -> Result<TokenTree, String> {
 
     match leftover {
         None => Ok(tt),
-        Some(l) => { Err(format!("Read error: leftover {:?}", l)) }
+        Some(l) => { Err(format!("Read error: leftover {:#?}", l)) }
     }
 }
 

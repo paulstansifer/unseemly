@@ -46,8 +46,8 @@ impl fmt::Debug for Ast {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Trivial => { write!(f, "⨉") },
-            Atom(ref n) => { write!(f, "∘{:?}∘", n) },
-            VariableReference(ref v) => { write!(f, "{:?}", v) }
+            Atom(ref n) => { write!(f, "∘{:#?}∘", n) },
+            VariableReference(ref v) => { write!(f, "{:#?}", v) }
             Shape(ref v) => {
                 try!(write!(f, "("));
                 let mut first = true;
@@ -59,28 +59,28 @@ impl fmt::Debug for Ast {
                 write!(f, ")")
             },
             Node(ref form, ref body, ref export) => {
-                try!(write!(f, "{{ ({}); {:?}", form.name.sp(), body));
+                try!(write!(f, "{{ ({}); {:#?}", form.name.sp(), body));
                 match *export {
                     ::beta::ExportBeta::Nothing => {}
-                    _ => try!(write!(f, " ⇑{:?}", export))
+                    _ => try!(write!(f, " ⇑{:#?}", export))
                 }
                 write!(f, "}}")
             }
             QuoteMore(ref body, pos) => {
                 if pos {
-                    write!(f, "pos``{:?}``", body)
+                    write!(f, "pos``{:#?}``", body)
                 } else {
-                    write!(f, "neg``{:?}``", body)
+                    write!(f, "neg``{:#?}``", body)
                 }
             }
             QuoteLess(ref body, depth) => {
-                write!(f, ",,({}){:?},,", depth, body)
+                write!(f, ",,({}){:#?},,", depth, body)
             }
             IncompleteNode(ref body) => {
-                write!(f, "{{ INCOMPLETE; {:?} }}", body)
+                write!(f, "{{ INCOMPLETE; {:#?} }}", body)
             }
             ExtendEnv(ref body, ref beta) => {
-                write!(f, "{:?}↓{:?}", body, beta)
+                write!(f, "{:#?}↓{:#?}", body, beta)
             }
         }
     }
@@ -98,7 +98,7 @@ impl fmt::Display for Ast {
                 write!(f, "{}", s)
             }
             ExtendEnv(ref body, _) => { write!(f, "{}↓", body) }
-            _ => write!(f, "{:?}", self)
+            _ => write!(f, "{:#?}", self)
         }
     }
 }

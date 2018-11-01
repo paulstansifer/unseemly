@@ -303,7 +303,7 @@ impl ::walk_mode::NegativeWalkMode for Subtype {
                 |p| ast_to_name(p.get_leaf_or_panic(&n("id"))));
 
             // print!("%%: {}\n%%: {}\n", lhs, rhs);
-            // print!("in: {:?}\n", env.map(|_| "…"));
+            // print!("in: {:#?}\n", env.map(|_| "…"));
 
             match (lhs_name, rhs_name) {
                 // They are the same underdetermined type; nothing to do:

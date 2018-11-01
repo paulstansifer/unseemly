@@ -129,8 +129,8 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
     // println!("-----: {} {}", Mode::name(), a);
     // println!("-from: {}", walk_ctxt.this_ast);
     // match walk_ctxt.env.find(&negative_ret_val()) {
-    //     Some(ref ctxt) => println!("-ctxt: {:?}", ctxt), _ => {}}
-    // println!("---in: {:?}", walk_ctxt.env.map_borrow_f(&mut |_| "…"));
+    //     Some(ref ctxt) => println!("-ctxt: {:#?}", ctxt), _ => {}}
+    // println!("---in: {:#?}", walk_ctxt.env.map_borrow_f(&mut |_| "…"));
 
     let literally : Option<bool> = // If we're under a wrapper, `this_ast` might not be a Node
         match a {
@@ -153,10 +153,10 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
                 Custom(ref ts_fn) =>  ts_fn(new_walk_ctxt),
                 Body(n) =>            walk(parts.get_leaf(n).unwrap(), &new_walk_ctxt),
                 LiteralLike =>        Mode::walk_quasi_literally(a.clone(), &new_walk_ctxt),
-                NotWalked =>          panic!("ICE: {:?} should not be walked at all!", a)
+                NotWalked =>          panic!("ICE: {:#?} should not be walked at all!", a)
             }
         }
-        IncompleteNode(ref parts) => { panic!("ICE: {:?} isn't a complete node", parts)}
+        IncompleteNode(ref parts) => { panic!("ICE: {:#?} isn't a complete node", parts)}
 
         VariableReference(n) => { Mode::walk_var(n, &walk_ctxt) }
         Atom(n) => { Mode::walk_atom(n, &walk_ctxt) }
@@ -226,7 +226,7 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
         }
 
         Trivial | Shape(_) => {
-            panic!("ICE: {:?} is not a walkable AST", a);
+            panic!("ICE: {:#?} is not a walkable AST", a);
         }
 
         // TODO: `env_from_beta` only works in positive modes... what should we do otherwise?
@@ -237,7 +237,7 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
             } else {
                 walk_ctxt.env.clone()
             };
-            // print!("↓↓↓↓: {:?}\n    : {:?}\n", beta, new_env.map(|_| "…"));
+            // print!("↓↓↓↓: {:#?}\n    : {:#?}\n", beta, new_env.map(|_| "…"));
 
             let new__walk_ctxt = walk_ctxt.with_environment(new_env);
             let new__walk_ctxt = // If the RHS is also binding, assume it's the same

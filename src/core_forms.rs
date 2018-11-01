@@ -22,10 +22,10 @@ use core_type_forms::*; // type forms are kinda bulky
 
 
 pub fn ast_to_name(ast: &Ast) -> Name {
-    match *ast { Atom(n) => n, _ => { panic!("ICE: {:?} is not an atom", ast) } }
+    match *ast { Atom(n) => n, _ => { panic!("ICE: {:#?} is not an atom", ast) } }
 }
 pub fn vr_to_name(ast: &Ast) -> Name {
-    match *ast { VariableReference(n) => n, _ => { panic!("ICE: {:?} is not a vr", ast) } }
+    match *ast { VariableReference(n) => n, _ => { panic!("ICE: {:#?} is not a vr", ast) } }
 }
 
 
@@ -130,7 +130,7 @@ pub fn make_core_syn_env() -> SynEnv {
                         Ok(f(part_values.get_rep_res(n("rand"))?))
                     }
                     other => {
-                        panic!("Type soundness bug: attempted to invoke {:?}
+                        panic!("Type soundness bug: attempted to invoke {:#?}
                         as if it were a function", other)
                     }
                 }
@@ -486,7 +486,7 @@ pub fn find_form(se: &SynEnv, nt: &str, form_name: &str) -> Rc<Form> {
     let pat = se.find_or_panic(&n(nt));
 
     find_form_rec(pat, form_name)
-        .expect(format!("{:?} not found in {:?}", form_name, pat).as_str())
+        .expect(format!("{:#?} not found in {:#?}", form_name, pat).as_str())
 }
 
 fn find_type(se: &SynEnv, form_name: &str) -> Rc<Form> {

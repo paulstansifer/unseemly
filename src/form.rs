@@ -75,7 +75,7 @@ impl PartialEq for Form {
 
 impl Debug for Form {
     fn fmt(&self, formatter: &mut Formatter) -> Result<(), Error> {
-        formatter.write_str(format!("[FORM {:?}]", self.name).as_str())
+        formatter.write_str(format!("[FORM {:#?}]", self.name).as_str())
     }
 }
 
