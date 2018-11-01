@@ -50,7 +50,7 @@ pub trait WalkMode : Debug + Copy + Reifiable {
     type Negated : WalkMode<Elt=Self::Elt, Err=Self::Err, ExtraInfo=Self::ExtraInfo, Negated=Self>;
 
     /// Any extra information the walk needs
-    type ExtraInfo : ::std::default::Default + Reifiable + Clone;
+    type ExtraInfo : ::std::default::Default + Reifiable + Clone + Debug;
 
     fn get_walk_rule(&Form) -> WalkRule<Self> where Self: Sized ;
 
@@ -165,12 +165,14 @@ impl<Mode: WalkMode<D=Self>> Dir for Positive<Mode> {
     fn walk_quasi_literally(a: Ast, cnc: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode> {
         match a {
             Node(f, parts, exports) => {
-                let walked : Result<EnvMBE<Ast>, <Self::Mode as WalkMode>::Err> = parts.map(
-                    &mut |p: &Ast| match *p {
-                        // Yes, `walk`, not `w_q_l`; the mode is in charge of figuring things out.
-                        Node(_,_,_) | VariableReference(_) | ExtendEnv(_,_) => walk(p, cnc),
-                        _ => Ok(<Self::Mode as WalkMode>::Elt::from_ast(&p.clone()))
-                    }.map(|e| <Self::Mode as WalkMode>::Elt::to_ast(&e))).lift_result();
+                let walked : Result<EnvMBE<Ast>, <Self::Mode as WalkMode>::Err> =
+                    parts.map_marched_against(
+                        &mut |p: &Ast, cnc_m: &LazyWalkReses<Self::Mode>| match *p {
+                            // Yes, `walk`, not `w_q_l`; the mode is in charge of figuring things out.
+                            Node(_,_,_) | VariableReference(_) | ExtendEnv(_,_) => walk(p, cnc_m),
+                            _ => Ok(<Self::Mode as WalkMode>::Elt::from_ast(&p.clone()))
+                        }.map(|e| <Self::Mode as WalkMode>::Elt::to_ast(&e)),
+                        cnc).lift_result();
 
                 walked.map(|out| <Self::Mode as WalkMode>::Elt::from_ast(&Node(f, out, exports)))
             },
@@ -255,6 +257,8 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
         let expd_parts = match expected { Node(_, ref p, _) => p,  _ => &its_a_trivial_node };
 
         // Continue the walk on subterms. (`context_match` does the freshening)
+        // TODO: I fear that we need `map_collapse_reduce_with_marched_against`
+        //  so that matching DDDed syntax won't go horribly wrong
         expd_parts.map_collapse_reduce_with(&parts_actual,
             &|model: &Ast, actual: &Ast| {
                 match *model {

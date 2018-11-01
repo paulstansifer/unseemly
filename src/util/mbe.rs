@@ -88,7 +88,11 @@ use std::fmt;
    in which the marched values are not repeated (or one layer less repeated).
  Marching multiple repeated values at once
   is only permitted if they were constructed to repeat the same number of times.
+*/
 
+/*
+How on earth can one data structure need so many variations on `map`?
+There's got to be a better way!
 */
 
 custom_derive! {
@@ -354,6 +358,7 @@ impl<T: Clone> EnvMBE<T> {
         result
     }
 
+
     /// Get a non-repeated thing in the enviornment
     pub fn get_leaf(&self, n: Name) -> Option<&T> {
         self.leaves.find(&n)
@@ -436,6 +441,27 @@ impl<T: Clone> EnvMBE<T> {
 
     pub fn map<NewT, F>(&self, f: &mut F) -> EnvMBE<NewT> where F: FnMut(&T) -> NewT {
         self.named_map(&mut |_n, elt| f(elt))
+    }
+
+    /// Map, but march the `ctxt` along with the structure of `self`
+    pub fn map_marched_against<NewT, Mode: ::walk_mode::WalkMode, F>(
+            &self, f: &mut F, ctxt: &::ast_walk::LazyWalkReses<Mode>) -> EnvMBE<NewT>
+                where F: FnMut(&T, &::ast_walk::LazyWalkReses<Mode>) -> NewT {
+        EnvMBE {
+            leaves: self.leaves.map_borrow_f(&mut |t: &T| f(t, ctxt)),
+            repeats: self.repeats.iter().enumerate().map(
+                |(rpt_idx, rc_vec_mbe) : (usize, &Rc<Vec<EnvMBE<T>>>)| {
+                    let this_rpt_name = self.leaf_locations.find_value(&Some(rpt_idx)).unwrap();
+                    let marched_ctxts = ctxt.march_all(&[*this_rpt_name]);
+                    Rc::new(rc_vec_mbe.iter().zip(marched_ctxts).map(
+                        |(mbe, marched_ctxt) : (&EnvMBE<T>, ::ast_walk::LazyWalkReses<Mode>)| {
+                            mbe.map_marched_against(f, &marched_ctxt) }).collect())
+                }).collect(),
+            ddd_rep_idxes: self.ddd_rep_idxes.clone(),
+            leaf_locations: self.leaf_locations.clone(),
+            named_repeats: self.named_repeats.clone()
+        }
+
     }
 
     pub fn named_map<NewT, F>(&self, f: &mut F) -> EnvMBE<NewT> where F: FnMut(&Name, &T) -> NewT {

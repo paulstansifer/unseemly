@@ -835,7 +835,7 @@ fn alg_eval() {
 fn recursive_types() {
     let int_list_ty =
         ty!( { "Type" "mu_type" :
-            "param" => [(import [* [prot "param"]] (vr "IntList"))],
+            "param" => [(import [prot "param"] (vr "IntList"))],
             "body" => (import [* [prot "param"]] { "Type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
                 "component" => [@"c" [], [{"Type" "Int":}, (vr "IntList") ]]})});
@@ -923,7 +923,7 @@ fn use__let_type() {
     // Basic usage:
     assert_eq!(synth_type(&ast!( { "Expr" "let_type" :
             "type_name" => [@"t" "T"],
-            "type_def" => [@"t" (import [* ["type_name" = "type_def"]] { "Type" "Nat" :})],
+            "type_def" => [@"t"  { "Type" "Nat" :}],
             "body" => (import [* ["type_name" = "type_def"]] { "Expr" "lambda" :
                 "param" => [@"p" "x"],
                 "p_t" => [@"p" (vr "T")],
@@ -934,15 +934,14 @@ fn use__let_type() {
 
     // useless type, but self-referential:
     let trivial_mu_type =
-        ty!( { "Type" "mu_type" : "param" => [(import [* [prot "param"]] (vr "T"))],
+        ty!( { "Type" "mu_type" : "param" => [(import [prot "param"] (vr "T"))],
                                   "body" => (import [* [prot "param"]] (vr "T")) }).concrete();
 
     without_freshening!{
     // Recursive usage:
     assert_eq!(synth_type(&ast!( { "Expr" "let_type" :
             "type_name" => [@"t" "T"],
-            "type_def" => [@"t" (import [* ["type_name" = "type_def"]]
-                 (, trivial_mu_type.clone()))],
+            "type_def" => [@"t"  (, trivial_mu_type.clone())],
             "body" => (import [* ["type_name" = "type_def"]] { "Expr" "lambda" :
                 "param" => [@"p" "x"],
                 "p_t" => [@"p" (vr "T")],
@@ -957,7 +956,7 @@ fn use__let_type() {
     // Basic usage, evaluated:
     assert_m!(eval(&ast!( { "Expr" "let_type" :
             "type_name" => [@"t" "T"],
-            "type_def" => [@"t" (import [* ["type_name" = "type_def"]] { "Type" "Nat" :})],
+            "type_def" => [@"t" { "Type" "Nat" :}],
             "body" => (import [* ["type_name" = "type_def"]] { "Expr" "lambda" :
                 "param" => [@"p" "x"],
                 "p_t" => [@"p" (vr "T")],

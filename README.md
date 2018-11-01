@@ -21,7 +21,7 @@ Install Rust:
 
     curl https://sh.rustup.rs -sSf | sh
 
-(Recommended) Get the default prelude:
+(Recommended) Get the default prelude for the unseemly REPL:
 
     cp src/examples/.unseemly_prelude ~/
 

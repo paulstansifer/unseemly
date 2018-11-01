@@ -194,7 +194,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
      *  to prevent the attempted generation of an infinite type.
      */
     let mu_type = type_defn_complex("mu_type",
-        form_pat!([(lit "mu_type"), (star (named "param", (import [* [prot "param"]], varref))),
+        form_pat!([(lit "mu_type"), (star (named "param", (import [prot "param"], varref))),
              (lit "."), (named "body", (import [* [prot "param"]], (call "Type")))]),
 
         LiteralLike,

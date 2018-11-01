@@ -432,7 +432,7 @@ fn misc_subtyping_problems() {
         ty!( { "Type" "forall_type" :
             "param" => ["Datum"],
             "body" => (import [* [forall "param"]] { "Type" "mu_type" :
-                "param" => [(import [* [prot "param"]] (vr "List"))],
+                "param" => [(import [prot "param"] (vr "List"))],
                 "body" => (import [* [prot "param"]] { "Type" "enum" :
                     "name" => [@"c" "Nil", "Cons"],
                     "component" => [@"c" [],
@@ -442,13 +442,13 @@ fn misc_subtyping_problems() {
 
     let int_list_ty =
         ty!( { "Type" "mu_type" :
-            "param" => [(import [* [prot "param"]] (vr "IntList"))],
+            "param" => [(import [prot "param"] (vr "IntList"))],
             "body" => (import [* [prot "param"]] { "Type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
                 "component" => [@"c" [], [{"Type" "Int" :}, (vr "IntList") ]]})});
     let bool_list_ty =
         ty!( { "Type" "mu_type" :
-            "param" => [(import [* [prot "param"]] (vr "FloatList"))],
+            "param" => [(import [prot "param"] (vr "FloatList"))],
             "body" => (import [* [prot "param"]] { "Type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
                 "component" => [@"c" [], [{"Type" "Float" :}, (vr "FloatList") ]]})});
@@ -471,7 +471,7 @@ fn misc_subtyping_problems() {
               Ok(_));
 
     let basic_mu = ty!({"Type" "mu_type" :
-        "param" => [(import [* [prot "param"]] (vr "X"))],
+        "param" => [(import [prot "param"] (vr "X"))],
         "body" => (import [* [prot "param"]] (vr "X"))});
     let mu_env = assoc_n!("X" => basic_mu.clone());
 
@@ -543,11 +543,11 @@ fn misc_subtyping_problems() {
 
     assert_m!(must_subtype(
         &ty!({"Type" "mu_type" :
-            "param" => [(import [* [prot "param"]] (vr "List"))],
+            "param" => [(import [prot "param"] (vr "List"))],
             "body" =>  (import [* [prot "param"]]
                 {"Type" "type_apply": "type_rator" => (vr "List"), "arg" => [{"Type" "Int" :}]})}),
         &ty!({"Type" "mu_type" :
-            "param" => [(import [* [prot "param"]] (vr "List"))],
+            "param" => [(import [prot "param"] (vr "List"))],
             "body" =>  (import [* [prot "param"]]
                 {"Type" "type_apply": "type_rator" => (vr "List"), "arg" => [{"Type" "Int" :}]})}),
         ty_env.clone()),
@@ -568,15 +568,15 @@ fn misc_subtyping_problems() {
 fn subtype_different_mus() { // testing the Amber rule:
     // These types are non-contractive, but it doesn't matter for subtyping purposes.
     let jane_author = ty!({"Type" "mu_type" :
-        "param" => [(import [* [prot "param"]] (vr "CharlotteBrontë"))],
+        "param" => [(import [prot "param"] (vr "CharlotteBrontë"))],
         "body" => (import [* [prot "param"]]
             {"Type" "fn" : "param" => [{"Type" "Float" :}], "ret" => (vr "CharlotteBrontë")})});
     let jane_psuedonym = ty!({"Type" "mu_type" :
-        "param" => [(import [* [prot "param"]] (vr "CurrerBell"))],
+        "param" => [(import [prot "param"] (vr "CurrerBell"))],
         "body" => (import [* [prot "param"]]
             {"Type" "fn" : "param" => [{"Type" "Float" :}], "ret" => (vr "CurrerBell")})});
     let wuthering_author = ty!({"Type" "mu_type" :
-        "param" => [(import [* [prot "param"]] (vr "EmilyBrontë"))],
+        "param" => [(import [prot "param"] (vr "EmilyBrontë"))],
         "body" => (import [* [prot "param"]]
             {"Type" "fn" : "param" => [{"Type" "Int" :}], "ret" => (vr "EmilyBrontë")})});
     let mu_env = assoc_n!(
@@ -602,7 +602,7 @@ fn basic_resolve() {
         ty!( { "Type" "forall_type" :
             "param" => ["Datum"],
             "body" => (import [* [forall "param"]] { "Type" "mu_type" :
-                "param" => [(import [* [prot "param"]] (vr "List"))],
+                "param" => [(import [prot "param"] (vr "List"))],
                 "body" => (import [* [prot "param"]] { "Type" "enum" :
                     "name" => [@"c" "Nil", "Cons"],
                     "component" => [@"c" [],
@@ -620,7 +620,7 @@ fn basic_resolve() {
     assert_eq!(resolve(Clo{ it: ty!({"Type" "type_apply" :
         "type_rator" => (vr "List"), "arg" => [(,ud0.clone())] }), env: t_env.clone()}, &unif).it,
         ty!({ "Type" "mu_type" :
-            "param" => [(import [* [prot "param"]] (vr "List"))],
+            "param" => [(import [prot "param"] (vr "List"))],
             "body" => (import [* [prot "param"]] { "Type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
                 "component" => [@"c" [],

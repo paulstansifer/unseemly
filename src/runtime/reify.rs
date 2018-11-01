@@ -475,7 +475,7 @@ fn reified_types() {
         ast!({"Type" "forall_type" :
             "param" => ["T", "S"],
             "body" => (import [* [forall "param"]] {"Type" "mu_type" :
-                "param" => [(import [* [prot "param"]] (vr "ParameterizedLifetimeStruct"))],
+                "param" => [(import [prot "param"] (vr "ParameterizedLifetimeStruct"))],
                 "body" => (import [* [prot "param"]] {"Type" "struct" :
                     // TODO: why did the order of fields get reversed?
                     "component_name" => [@"c" "c", "b", "a"],

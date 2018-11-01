@@ -146,7 +146,7 @@ impl WalkMode for MuProtect {
         Ok(parts.env.find(&name).map(Clone::clone).unwrap_or_else(||
             ty!({"Type" "mu_type" :
                 "opacity_for_different_phase" => (, Ast::Atom(n(&parts.extra_info.to_string()))),
-                "param" => [(import [* [prot "param"]] (, Ast::VariableReference(name)))],
+                "param" => [(import [prot "param"] (, Ast::VariableReference(name)))],
                 "body" => (import [* [prot "param"]] (, Ast::VariableReference(name)))})))
     }
 }
@@ -479,10 +479,30 @@ fn quote_unquote_eval_basic() {
 
     assert_eq!(
         destr_two_phased(&ast!({quote(neg) ; "nt" => "Expr", "body" => (++ false (vr "qn"))}),
-                         env, qenv,
+                         env.clone(), qenv.clone(),
                          val!(ast (vr "qn"))),
         Ok(Assoc::<Name, Value>::new()));
+/*
 
+    // '[Expr | match n { x => n }]'
+    assert_m!(eval_two_phased(
+            &ast!({"Expr" "match" :
+                    "scrutinee" => (vr "n"),
+                    "p" => [@"c" "x"],
+                    "arm" => [@"c" (import ["p" = "scrutinee"] (vr "n"))]}),
+            env.clone(), qenv.clone()),
+        Ok(_));
+
+    // '[Expr | match qn { x => qn }]'
+    assert_m!(eval_two_phased(
+            &ast!({quote(pos) ; "nt" => "Expr", "body" => (++ true
+                {"Expr" "match" :
+                    "scrutinee" => (vr "qn"),
+                    "p" => [@"c" "x"],
+                    "arm" => [@"c" (import ["p" = "scrutinee"] (vr "qn"))]})}),
+            env.clone(), qenv.clone()),
+        Ok(_));
+*/
 }
 
 #[test]
@@ -513,6 +533,18 @@ fn quote_type_basic() {
             env.clone(), qenv.clone()),
         Ok(ty!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]})));
+
+    // '[Expr | match qn { x => qn }]'
+    assert_eq!(synth_type_two_phased(
+            &ast!({quote(pos) ; "nt" => "Expr", "body" => (++ true
+                {"Expr" "match" :
+                    "scrutinee" => (vr "qn"),
+                    "p" => [@"c" "x"],
+                    "arm" => [@"c" (import ["p" = "scrutinee"] (vr "qn"))]})}),
+            env.clone(), qenv.clone()),
+        Ok(ty!({"Type" "type_apply" :
+            "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]})));
+
 
     // previously unaccessed environments default to the core values/types
     // '[Expr | '[Expr | five]']'

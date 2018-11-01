@@ -66,7 +66,6 @@ impl<K: PartialEq + Clone, V: Clone> Clone for AssocNode<K, V> {
     }
 }
 
-
 impl<K : PartialEq, V> Assoc<K, V> {
 
     /// Possibly unintuitively, all empty assocs are identical.
@@ -202,7 +201,21 @@ impl<K: PartialEq + Clone, V: Clone> Assoc<K,V> {
             }
         }
     }
+}
 
+impl<K, V : PartialEq> Assoc<K, V> {
+    pub fn find_value<'assoc, 'f>(&'assoc self, target: &'f V) -> Option<&'assoc K> {
+        match self.n {
+            None => None,
+            Some(ref node) => {
+                if (*node).v == *target {
+                    Some(&node.k)
+                } else {
+                    (*node).next.find_value(target)
+                }
+            }
+        }
+    }
 }
 
 impl<K: PartialEq + fmt::Debug + Clone, V: fmt::Debug + Clone> Assoc<K, V> {
