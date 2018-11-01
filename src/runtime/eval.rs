@@ -115,7 +115,7 @@ impl WalkMode for Eval {
     type ExtraInfo = ();
 
     fn get_walk_rule(f: &Form) -> WalkRule<Eval> { f.eval.pos().clone() }
-    fn automatically_extend_env() -> bool { false }
+    fn automatically_extend_env() -> bool { true }
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Eval>) -> Result<Value, ()> {
         Ok(cnc.env.find(&n).expect("Undefined var; did you use a type name as a value?").clone())
@@ -138,7 +138,7 @@ impl WalkMode for Destructure {
     ///  isn't generateable from the source tree.
     /// Does that make sense? I suspect it does not.
     fn get_walk_rule(f: &Form) -> WalkRule<Destructure> { f.eval.neg().clone() }
-    fn automatically_extend_env() -> bool { false } // TODO: think about this
+    fn automatically_extend_env() -> bool { true } // TODO: think about this
 }
 
 impl NegativeWalkMode for Destructure {
@@ -191,7 +191,7 @@ impl WalkMode for QQuote {
         Ok(val!(ast n_sp))
     }
     fn get_walk_rule(f: &Form) -> WalkRule<QQuote> { f.quasiquote.pos().clone() }
-    fn automatically_extend_env() -> bool { true } // This is the point of Unseemly!
+    fn automatically_extend_env() -> bool { false }
 }
 
 impl WalkMode for QQuoteDestr {
@@ -220,7 +220,7 @@ impl WalkMode for QQuoteDestr {
         }
     }
     fn get_walk_rule(f: &Form) -> WalkRule<QQuoteDestr> { f.quasiquote.neg().clone() }
-    fn automatically_extend_env() -> bool { true } // This is the point of Unseemly!
+    fn automatically_extend_env() -> bool { false }
 }
 
 impl NegativeWalkMode for QQuoteDestr {

@@ -231,9 +231,12 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
 
         // TODO: `env_from_beta` only works in positive modes... what should we do otherwise?
         ExtendEnv(ref body, ref beta) => {
-            let new_env = walk_ctxt.env.set_assoc(
-                &try!(env_from_beta(beta, &walk_ctxt)));
-
+            let new_env = if Mode::automatically_extend_env() {
+                walk_ctxt.env.set_assoc(
+                    &try!(env_from_beta(beta, &walk_ctxt)))
+            } else {
+                walk_ctxt.env.clone()
+            };
             // print!("↓↓↓↓: {:?}\n    : {:?}\n", beta, new_env.map(|_| "…"));
 
             let new__walk_ctxt = walk_ctxt.with_environment(new_env);

@@ -482,16 +482,6 @@ fn quote_unquote_eval_basic() {
                          env.clone(), qenv.clone(),
                          val!(ast (vr "qn"))),
         Ok(Assoc::<Name, Value>::new()));
-/*
-
-    // '[Expr | match n { x => n }]'
-    assert_m!(eval_two_phased(
-            &ast!({"Expr" "match" :
-                    "scrutinee" => (vr "n"),
-                    "p" => [@"c" "x"],
-                    "arm" => [@"c" (import ["p" = "scrutinee"] (vr "n"))]}),
-            env.clone(), qenv.clone()),
-        Ok(_));
 
     // '[Expr | match qn { x => qn }]'
     assert_m!(eval_two_phased(
@@ -502,7 +492,6 @@ fn quote_unquote_eval_basic() {
                     "arm" => [@"c" (import ["p" = "scrutinee"] (vr "qn"))]})}),
             env.clone(), qenv.clone()),
         Ok(_));
-*/
 }
 
 #[test]
