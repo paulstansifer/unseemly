@@ -32,7 +32,7 @@ Start the REPL:
 
 Run an example programs:
 
-    cargo run src/examples/sum_list.un
+    cargo run src/examples/sum_list.≉
 
 ## Documentation
 

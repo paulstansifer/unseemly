@@ -450,10 +450,6 @@ fake_reifiability!(S);
 
 #[test]
 fn reified_types() {
-    fn tbn(nm: &'static str) -> ::ast::Ast {
-        ::ast::Ast::VariableReference(n(nm))
-    }
-
     //"ParameterizedLifetimeStruct<[Option<[Rust_usize]< integer]<"
     assert_eq!(
         ParameterizedLifetimeStruct::<'static, Option<usize>, BigInt>::ty_invocation(),

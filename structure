@@ -26,7 +26,7 @@ This means that the typechecker has to operate on
     from the type of its definition.
 The weirdness of this language implementation starts with the AST.
 
-Well, the parser and tokenizer are weird, but in a sort of optional way.
+Well, the parser and tokenizer are weird, but they don't have to be.
 
 
 

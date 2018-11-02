@@ -29,7 +29,7 @@ pub fn core_typed_values() -> Assoc<Name, TypedValue> {
                     "param" => [{"Type" "fn" : "param" => [], "ret" => (vr "F") }],
                     "ret" => (vr "F")} ],
                 "ret" => (vr "F") })},
-            // TODO: built-in functions, even though none of them work, shouldn't crash
+            // TODO: built-in functions, even though none of them make sense here, shouldn't crash
             ( Function(cl) ) => {
                 let new_env = cl.env.set(cl.params[0],
                     // reconstruct the invocation that caused this:

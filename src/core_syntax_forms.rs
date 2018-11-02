@@ -176,14 +176,6 @@ pub fn unquote(nt: Name, pos_quot: bool) -> Rc<FormPat> {
 pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
     let form_delim_start = &format!("{}[",/*]*/ ",".repeat(depth as usize));
 
-    fn mu_protect__unbound_names(t: Ty, env: Assoc<Name, Ty>) -> Result<Ty,::ty::TypeError> {
-        print!("MP: {}, {}\n", t, env);
-        let res = ::ast_walk::walk::<MuProtect>(&t.concrete(), &::ast_walk::LazyWalkReses::new_wrapper(env))
-            .map_err(|_| panic!("ICE: can't fail"));
-        print!("->  {}\n", res.clone().unwrap());
-        res
-    }
-
     Rc::new(Form {
         name: n("unquote"),
         grammar:
