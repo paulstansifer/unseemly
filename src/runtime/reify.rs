@@ -453,7 +453,7 @@ fake_reifiability!(S);
 #[test]
 fn reified_types() {
     fn tbn(nm: &'static str) -> ::ast::Ast {
-        ast!( { "Type" "type_by_name" : "name" => (, ::ast::Ast::Atom(n(nm))) } )
+        ::ast::Ast::VariableReference(n(nm))
     }
 
     //"ParameterizedLifetimeStruct<[Option<[Rust_usize]< integer]<"

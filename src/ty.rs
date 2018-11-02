@@ -272,7 +272,7 @@ fn type_specialization() {
     let nat_ty = ty!( { "Type" "Nat" : });
 
     fn tbn(nm: &'static str) -> Ty {
-        ty!( { "Type" "type_by_name" : "name" => (, ::ast::Ast::Atom(n(nm))) } )
+        Ty(::ast::Ast::VariableReference(n(nm)))
     }
 
     let _para_ty_env = assoc_n!(

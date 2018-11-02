@@ -247,25 +247,6 @@ pub fn make_core_syn_env_types() -> SynEnv {
     let dotdotdot_type = type_defn("dotdotdot",
         form_pat!((delim "...[", "[", /*]]*/ (named "body", (call "Type")))));
 
-    // Like a variable reference (but `LiteralLike` typing prevents us from doing that)
-    // TODO: I think this can be removed, and replaced with `VariableReference` now
-    let type_by_name = type_defn_complex("type_by_name",
-        form_pat!([(lit "DEPRECATED"), (named "name", aat)]),
-        cust_rc_box!(move |tbn_part| {
-            let name = ast_to_name(&tbn_part.get_term(n("name")));
-            ::ty::SynthTy::walk_var(name, &tbn_part)
-        }),
-        Both(
-            cust_rc_box!(move |tbn_part| {
-                ::ty_compare::Canonicalize::walk_var(
-                    ast_to_name(&tbn_part.get_term(n("name"))), &tbn_part)
-            }),
-            cust_rc_box!(move |tbn_part| {
-                ::ty_compare::Subtype::walk_var(
-                    ast_to_name(&tbn_part.get_term(n("name"))), &tbn_part)
-
-            })));
-
     let forall_type_0 = forall_type.clone();
 
    /* [Type theory alert!]
@@ -372,8 +353,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         forall_type.clone(),
         dotdotdot_type.clone(),
         mu_type.clone(),
-        type_apply.clone(),
-        type_by_name.clone()
+        type_apply.clone()
         ]), Rc::new(VarRef))))
 }
 

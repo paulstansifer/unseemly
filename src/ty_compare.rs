@@ -123,7 +123,7 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
                 Clo{it: Ty(VariableReference(rator_vr)), env} => {
                     // e.g. `X<[int, Y]<` underneath `mu X. ...`
 
-                    // Rebuild a type_by_name, but evaulate its arguments
+                    // Rebuild a type_apply, but evaulate its arguments
                     // This kind of thing is necessary because
                     //  we wish to avoid aliasing problems at the type level.
                     // In System F, this is avoided by performing capture-avoiding substitution.
@@ -168,11 +168,6 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
                     }
                 }
             }
-        }
-        Ty(Node(ref form, ref parts, _)) if form == &find_core_form("Type", "type_by_name") =>  {
-            // TODO: remove this stanza when type_by_name is gone
-            let vr = ast_to_name(parts.get_leaf_or_panic(&n("name")));
-            env.find(&vr).map(|t| Clo{ it: t.clone(), env: env.clone() })
         }
         Ty(Node(ref form, ref parts, _)) if form == &u_f => { // underdetermined
             unif.get(&ast_to_name(parts.get_leaf_or_panic(&n("id")))).cloned()
