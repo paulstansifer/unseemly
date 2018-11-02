@@ -125,8 +125,8 @@ pub fn make_core_syn_env_types() -> SynEnv {
             Both(LiteralLike,
                 cust_rc_box!(move |fn_parts| {
                     let actual = fn_parts.context_elt().concrete();
-                    let actual_parts = try!(Subtype::context_match(
-                        &fn_parts.this_ast, &actual, fn_parts.env.clone()));
+                    let actual_parts = Subtype::context_match(
+                        &fn_parts.this_ast, &actual, fn_parts.env.clone())?;
 
                     let expd_params = fn_parts.get_rep_term(n("param"));
                     let actl_params = actual_parts.get_rep_leaf_or_panic(n("param"));
@@ -137,8 +137,8 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     }
                     for (p_expected, p_got) in expd_params.iter().zip(actl_params.iter()) {
                         // Parameters have reversed subtyping:
-                        let _ : ::util::assoc::Assoc<Name, Ty> = try!(walk::<Subtype>(
-                            *p_got, &fn_parts.with_context(Ty::new(p_expected.clone()))));
+                        let _ : ::util::assoc::Assoc<Name, Ty> = walk::<Subtype>(
+                            *p_got, &fn_parts.with_context(Ty::new(p_expected.clone())))?;
                     }
 
                     walk::<Subtype>(&fn_parts.get_term(n("ret")),
@@ -201,10 +201,10 @@ pub fn make_core_syn_env_types() -> SynEnv {
         Both(
             LiteralLike,
             cust_rc_box!(move |mu_parts| {
-                let rhs_mu_parts = try!(Subtype::context_match(
+                let rhs_mu_parts = Subtype::context_match(
                     &mu_parts.this_ast,
                     &mu_parts.context_elt().concrete(),
-                    mu_parts.env.clone()));
+                    mu_parts.env.clone())?;
 
                 let rhs_body = rhs_mu_parts.get_leaf_or_panic(&n("body"));
 
@@ -283,8 +283,8 @@ pub fn make_core_syn_env_types() -> SynEnv {
          (delim "<[", "[", /*]]*/ (star [(named "arg", (call "Type"))]))]),
          // TODO: shouldn't it be "args"?
         cust_rc_box!(move |tapp_parts| {
-            let arg_res = try!(tapp_parts.get_rep_res(n("arg")));
-            let rator_res = try!(tapp_parts.get_res(n("type_rator")));
+            let arg_res = tapp_parts.get_rep_res(n("arg"))?;
+            let rator_res = tapp_parts.get_res(n("type_rator"))?;
             match rator_res.0 {
                 VariableReference(rator_vr) => {
                     // e.g. `X<[int, Y]<` underneath `mu X. ...`

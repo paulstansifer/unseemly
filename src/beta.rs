@@ -151,13 +151,13 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(b: &Beta, parts: &LazyWalkRese
     match *b {
         Nothing => { Ok(Assoc::new()) }
         Shadow(ref lhs, ref rhs) => {
-            Ok(try!(env_from_beta::<Mode>(&*lhs, parts))
-                .set_assoc(&try!(env_from_beta::<Mode>(&*rhs, parts))))
+            Ok(env_from_beta::<Mode>(&*lhs, parts)?
+                .set_assoc(&env_from_beta::<Mode>(&*rhs, parts)?))
         }
         ShadowAll(ref sub_beta, ref drivers) => {
             let mut res = Assoc::new();
             for parts in parts.march_all(drivers) {
-                res = res.set_assoc(&try!(env_from_beta::<Mode>(&*sub_beta, &parts)));
+                res = res.set_assoc(&env_from_beta::<Mode>(&*sub_beta, &parts)?);
             }
             Ok(res)
         }
@@ -166,7 +166,7 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(b: &Beta, parts: &LazyWalkRese
                     = **parts.parts.get_leaf_or_panic(&name_source) {
                 //let LazilyWalkedTerm {term: ref ty_stx, ..}
                 //    = **parts.parts.get_leaf_or_panic(ty_source);
-                let ty = try!(parts.get_res(ty_source));
+                let ty = parts.get_res(ty_source)?;
 
                 Ok(Assoc::new().set(*name, Mode::out_as_elt(ty.clone())))
             } else {
@@ -180,12 +180,12 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(b: &Beta, parts: &LazyWalkRese
         SameAs(name_source, res_source) => {
             use walk_mode::WalkMode;
 
-            let ty = try!(parts.get_res(res_source));
+            let ty = parts.get_res(res_source)?;
 
             let res = Mode::Negated::out_as_env(
-                try!(parts.switch_mode::<Mode::Negated>()
+                parts.switch_mode::<Mode::Negated>()
                     .with_context(Mode::out_as_elt(ty))
-                    .get_res(name_source)));
+                    .get_res(name_source)?);
 
             // Somewhat awkward (but not unsound!) run-time error in the case that
             //  the declared export does not match the actual result of negative type synthesis.

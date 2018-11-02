@@ -186,8 +186,8 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
             if pos_inside == currently_positive { // stay in the same mode?
                 let inner_walk_ctxt = walk_ctxt.clone()
                     .quote_more(oeh_m.clone());
-                let res = try!(maybe_literally__walk(&a, body, inner_walk_ctxt, old_ctxt_elt,
-                                                     literally));
+                let res = maybe_literally__walk(&a, body, inner_walk_ctxt, old_ctxt_elt,
+                                                literally)?;
 
                 match oeh_m {
                     None => Ok(res), // positive walk, result is useful. Otherwise, unsquirrel:
@@ -196,8 +196,8 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
             } else {
                 let inner_walk_ctxt = walk_ctxt.clone()
                     .switch_mode::<Mode::Negated>().quote_more(oeh_m.clone());
-                let _ = try!(maybe_literally__walk(&a, body, inner_walk_ctxt, old_ctxt_elt,
-                                                   literally));
+                let _ = maybe_literally__walk(&a, body, inner_walk_ctxt, old_ctxt_elt,
+                                              literally)?;
 
                 match oeh_m {
                     // HACK: just return the context element (and massage the type)
@@ -218,7 +218,7 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
                 walk_ctxt = walk_ctxt_new;
             }
 
-            let res = try!(maybe_literally__walk(&a, body, walk_ctxt, old_ctxt_elt, literally));
+            let res = maybe_literally__walk(&a, body, walk_ctxt, old_ctxt_elt, literally)?;
 
             squirrel_away::<Mode>(oeh, res.clone());
 
@@ -233,7 +233,7 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
         ExtendEnv(ref body, ref beta) => {
             let new_env = if Mode::automatically_extend_env() {
                 walk_ctxt.env.set_assoc(
-                    &try!(env_from_beta(beta, &walk_ctxt)))
+                    &env_from_beta(beta, &walk_ctxt)?)
             } else {
                 walk_ctxt.env.clone()
             };
@@ -661,7 +661,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             //Some(sub_parts.iter().map(|sp| sp.get_res(n)).collect())
             let mut res = vec![];
             for sub_part in sub_parts {
-                res.push(try!(sub_part.get_res(n)));
+                res.push(sub_part.get_res(n)?);
             }
             Ok(res)
         } else {

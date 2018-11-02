@@ -219,13 +219,13 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
                         // TODO: check annotation if present
 
                         let mut res = if pos_quot {
-                            try!(unquote_parts.get_res(n("body"))) // `String`
+                            unquote_parts.get_res(n("body"))? // `String`
                         } else {
                             // need a type annotation
-                            let expected_type = try!(unquote_parts.get_res(n("ty_annot")));
+                            let expected_type = unquote_parts.get_res(n("ty_annot"))?;
 
                             let negative_parts = unquote_parts.switch_mode::<::ty::UnpackTy>();
-                            let _res = try!(negative_parts.get_res(n("body")));
+                            let _res = negative_parts.get_res(n("body"))?;
 
                             expected_type//, nt, &ast_for_errors)
                         };
@@ -262,15 +262,15 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
                         if pos_quot {
                             // `String`
                             let lq_parts = unquote_parts.switch_mode::<::ty::SynthTy>();
-                            let res = try!(lq_parts.get_res(n("body")));
+                            let res = lq_parts.get_res(n("body"))?;
 
                             // Bonus typecheck
-                            ty_exp!(&ctxt_elt, &res, lq_parts.this_ast);
+                            ty_exp!(&ctxt_elt, &res, ast_for_errors);
 
                             Ok(Assoc::new()) // TODO: this seems like it shouldn't be empty
                         } else {
                             // phase-shift the context_elt:
-                            let _res = try!(unquote_parts.with_context(ctxt_elt).get_res(n("body")));
+                            let _res = unquote_parts.with_context(ctxt_elt).get_res(n("body"))?;
 
                             Ok(Assoc::new()) // TODO: does this make sense?
                         }
@@ -365,14 +365,14 @@ pub fn quote(pos: bool) -> Rc<Form> {
                                 (, nt_to_type(ast_to_name(
                                     &quote_parts.get_term(n("nt")))).concrete() ),
                             "arg" => [(,
-                                remove_opacity(&try!(quote_parts.get_res(n("body"))), -1).concrete()
+                                remove_opacity(&quote_parts.get_res(n("body"))?, -1).concrete()
                             )]
                         }))
 
                     } else {
                         // TODO: if the user accidentally omits the annotation,
                         //  provide a good error message.
-                        let expected_type = &try!(quote_parts.get_res(n("ty_annot")));
+                        let expected_type = &quote_parts.get_res(n("ty_annot"))?;
 
                         // We're looking at things 1 level deeper:
                         let prot_expected_type = adjust_opacity(
@@ -403,10 +403,9 @@ pub fn quote(pos: bool) -> Rc<Form> {
                         // TODO: check that this matches the type annotation, if provided!
                         quote_parts.get_res(n("body"))
                     } else {
-                        let new_context =
-                            try!(less_quoted_ty(
-                                quote_parts.context_elt(), Some(nt),
-                                &quote_parts.this_ast));
+                        let new_context = less_quoted_ty(
+                            quote_parts.context_elt(), Some(nt),
+                            &quote_parts.this_ast)?;
                         // TODO: check that this matches the type annotation, if provided!
                         quote_parts.with_context(new_context).get_res(n("body"))
                     }

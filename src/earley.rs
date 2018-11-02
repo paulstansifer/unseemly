@@ -711,7 +711,7 @@ impl Item {
                     if let NothingYet = step.local_parse.borrow().clone() { break; }
 
                     let sub = step.find_wanted(chart, pos);
-                    subtrees.push(try!(sub.c_parse(chart, pos)));
+                    subtrees.push(sub.c_parse(chart, pos)?);
                     if sub.start_idx == self.start_idx && step.pos == 1 {
                         break;
                     } else {
@@ -754,24 +754,24 @@ impl Item {
             },
             ComputeSyntax(_, _) => { panic!("TODO") },
             Named(name, _) => {
-                let sub_parsed = try!(self.find_wanted(chart, done_tok).c_parse(chart, done_tok));
+                let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
                 Ok(Ast::IncompleteNode(::util::mbe::EnvMBE::new_from_leaves(
                     ::util::assoc::Assoc::single(name, sub_parsed))))
             },
             Scope(ref form, ref export) => {
-                let sub_parsed = try!(self.find_wanted(chart, done_tok).c_parse(chart, done_tok));
+                let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
                 Ok(Ast::Node(form.clone(), sub_parsed.flatten(), export.clone()))
             },
             NameImport(_, ref beta) => {
-                let sub_parsed = try!(self.find_wanted(chart, done_tok).c_parse(chart, done_tok));
+                let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
                 Ok(Ast::ExtendEnv(Box::new(sub_parsed), beta.clone()))
             }
             QuoteDeepen(_, pos) => {
-                let sub_parsed = try!(self.find_wanted(chart, done_tok).c_parse(chart, done_tok));
+                let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
                 Ok(Ast::QuoteMore(Box::new(sub_parsed), pos))
             }
             QuoteEscape(_, depth) => {
-                let sub_parsed = try!(self.find_wanted(chart, done_tok).c_parse(chart, done_tok));
+                let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
                 Ok(Ast::QuoteLess(Box::new(sub_parsed), depth))
             }
         };

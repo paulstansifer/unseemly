@@ -49,20 +49,20 @@ impl fmt::Debug for Ast {
             Atom(ref n) => { write!(f, "∘{:#?}∘", n) },
             VariableReference(ref v) => { write!(f, "{:#?}", v) }
             Shape(ref v) => {
-                try!(write!(f, "("));
+                write!(f, "(")?;
                 let mut first = true;
                 for elt in v {
-                    if !first { try!(write!(f, " ")) }
-                    try!(elt.fmt(f));
+                    if !first { write!(f, " ")? }
+                    elt.fmt(f)?;
                     first = false;
                 }
                 write!(f, ")")
             },
             Node(ref form, ref body, ref export) => {
-                try!(write!(f, "{{ ({}); {:#?}", form.name.sp(), body));
+                write!(f, "{{ ({}); {:#?}", form.name.sp(), body)?;
                 match *export {
                     ::beta::ExportBeta::Nothing => {}
-                    _ => try!(write!(f, " ⇑{:#?}", export))
+                    _ => write!(f, " ⇑{:#?}", export)?
                 }
                 write!(f, "}}")
             }

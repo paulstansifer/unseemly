@@ -199,7 +199,7 @@ thread_local! {
                 unification.with(|unif| {
                     let unif = unif.borrow();
                     // TODO: don't use the id in an error message; it's user-hostile:
-                    let clo = try!(unif.get(&id).ok_or(TyErr::UnboundName(id)));
+                    let clo = unif.get(&id).ok_or(TyErr::UnboundName(id))?;
                     canonicalize(&clo.it, clo.env.clone())
                 })
             }),

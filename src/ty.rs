@@ -159,9 +159,9 @@ impl ::std::fmt::Display for TyErr {
                 write!(f, "[Mismatch] got:\n  `{:#?}`\n   expected:\n  `{:#?}`\n", got, exp)
             }
             LengthMismatch(ref got, exp_len) => {
-                try!(write!(f, "[LengthMismatch] got:\n  "));
+                write!(f, "[LengthMismatch] got:\n  ")?;
                 for g in got {
-                    try!(write!(f, "{}, ", g))
+                    write!(f, "{}, ", g)?;
                 }
                 write!(f, "\n  expected {} arguments.\n", exp_len)
             }

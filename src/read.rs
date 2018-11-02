@@ -85,7 +85,7 @@ pub fn read_tokens(s: &str) -> Result<TokenTree, String> {
                         this_level.push(Simple(n(normal)));
                     } else if let (Some(_main), Some(o_del), Some(all))
                         = (c.name("main_o"), c.name("open"), c.name("open_all")) {
-                        let (inside, last) = try!(read_token_tree(flat_tokens));
+                        let (inside, last) = read_token_tree(flat_tokens)?;
 
                         if let Some(last) = last {
                             if format!("{}{}",last.1, o_del) == all {
@@ -108,7 +108,7 @@ pub fn read_tokens(s: &str) -> Result<TokenTree, String> {
         }
     }
 
-    let (tt, leftover) = try!(read_token_tree(&mut flat_tokens));
+    let (tt, leftover) = read_token_tree(&mut flat_tokens)?;
 
     match leftover {
         None => Ok(tt),

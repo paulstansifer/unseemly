@@ -17,6 +17,8 @@
    as if I were aiming for them.
 
  Who wrote that piece of junk, anyway?
+
+ This should be rewritten, now that user-defined derives are stable.
  */
 
 macro_rules! Reifiable {

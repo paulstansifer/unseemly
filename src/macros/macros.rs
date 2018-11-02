@@ -513,7 +513,7 @@ macro_rules! expect_node {
 macro_rules! expect_ty_node {
     ( ($node:expr ; $form:expr ; $loc:expr) $env:ident ; $body:expr ) => ({
         // This is tied to the signature of `Custom`
-        let $env = try!($node.destructure($form, $loc));
+        let $env = $node.destructure($form, $loc)?;
         $body
     })
 }
