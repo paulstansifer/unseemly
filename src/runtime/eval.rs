@@ -17,7 +17,6 @@ use std;
 #[derive(Debug,Clone,PartialEq)]
 pub enum Value {
     Int(BigInt),
-    Ident(Name), // TODO: this is subsumed by AbstractSyntax, isn't it?
     Sequence(Vec<Rc<Value>>), // TODO: switch to a different core sequence type
     Function(Rc<Closure>), // TODO: unsure if this Rc is needed
     BuiltInFunction(BIF),
@@ -53,7 +52,6 @@ impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match *self {
             Int(ref bi) => { write!(f, "{}", bi) }
-            Ident(n) => { write!(f, "{}", n) }
             Sequence(ref seq) => {
                 for elt in seq { try!(write!(f, "{}", &*elt)); }; Ok(())
             }

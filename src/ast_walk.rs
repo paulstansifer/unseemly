@@ -312,7 +312,7 @@ impl<Mode: WalkMode + Copy + 'static> reify::Reifiable for WalkRule<Mode> {
     fn reify(&self) -> eval::Value {
         match *self {
             NotWalked => val!(enum "NotWalked",),
-            Body(ref n) => val!(enum "Body", (ident *n)),
+            Body(ref n) => val!(enum "Body", (, n.reify())),
             Custom(ref lwr_to_out) => val!(enum "Custom", (,
                 reify::reify_1ary_function(lwr_to_out.clone()))),
             LiteralLike => val!(enum "LiteralLike",)

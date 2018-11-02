@@ -10,6 +10,19 @@ pub struct Name {
     id: lalrpop_intern::InternedString
 }
 
+impl ::runtime::reify::Reifiable for Name {
+    fn ty_name() -> Name { n("Name") }
+
+    fn reify(&self) -> ::runtime::eval::Value {
+        ::runtime::eval::Value::AbstractSyntax(::ast::Ast::Atom(*self))
+    }
+
+    fn reflect(v: &::runtime::eval::Value) -> Name {
+        extract!((v) ::runtime::eval::Value::AbstractSyntax = (ref ast)
+                          => ::core_forms::ast_to_name(ast))
+    }
+}
+
 // only available on nightly:
 // impl !Send for Name {}
 

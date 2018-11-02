@@ -76,8 +76,6 @@ macro_rules! basic_reifiability {
 
 basic_reifiability!(BigInt, "Int", Int);
 
-basic_reifiability!(Name, "Ident", Ident);
-
 impl Reifiable for bool {
     fn ty_name() -> Name { n("Bool") }
 
@@ -348,10 +346,10 @@ fn new_oldname<'t>(nm: Name) -> OldName<'t> {
 impl<'t> Reifiable for OldName<'t> {
     fn ty_name() -> Name { n("OldName") }
 
-    fn reify(&self) -> Value { Value::Ident(self.actual) }
+    fn reify(&self) -> Value { self.actual.reify() }
 
     fn reflect(v: &Value) -> Self {
-        extract!((v) Value::Ident = (nm) => new_oldname(nm) )
+        new_oldname(Name::reflect(v))
     }
 }
 
