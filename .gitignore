@@ -3,3 +3,4 @@ target-install
 *~
 Cargo.lock
 .unseemly_history
+.vscode
