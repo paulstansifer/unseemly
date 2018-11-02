@@ -1,6 +1,6 @@
 use name::*;
-use parse::{FormPat, SynEnv};
-use parse::FormPat::*;
+use grammar::{FormPat, SynEnv};
+use grammar::FormPat::*;
 use ast::Ast;
 use ast::Ast::*;
 use util::mbe::EnvMBE;

@@ -1,6 +1,6 @@
 #![macro_use]
 
-use parse::FormPat;
+use grammar::FormPat;
 use name::*;
 use std::fmt::{Debug,Formatter,Error};
 use util::assoc::Assoc;

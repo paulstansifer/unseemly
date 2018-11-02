@@ -2,8 +2,8 @@
 
 
 use name::*;
-use parse::{SynEnv, FormPat};
-use parse::FormPat::*;
+use grammar::{SynEnv, FormPat};
+use grammar::FormPat::*;
 use form::Form;
 use util::assoc::Assoc;
 use ast::*;
@@ -520,7 +520,7 @@ fn form_grammar() {
     use read::*;
     use read::DelimChar::*;
 
-    assert_eq!(::parse::parse(&form_pat!((call "Type")),
+    assert_eq!(::grammar::parse(&form_pat!((call "Type")),
                               &cse.clone(),
                               &tokens!([""; "Ident" "->" "Ident"])),
                Ok(ast!({ find_form(&cse, "Type", "fn");

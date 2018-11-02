@@ -48,9 +48,9 @@ It is at this point that I am reminded of a passage from GEB:
 */
 
 use std::rc::Rc;
-use parse::{SynEnv, FormPat};
+use grammar::{SynEnv, FormPat};
 use form::{Form, simple_form, BiDiWR, Positive, Both};
-use parse::FormPat::*;
+use grammar::FormPat::*;
 use ast_walk::{WalkRule, walk};
 use ast_walk::WalkRule::*;
 use walk_mode::{WalkMode, NegativeWalkMode};

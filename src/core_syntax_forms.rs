@@ -2,7 +2,7 @@ use std::rc::Rc;
 use ty::Ty;
 use name::*;
 use runtime::eval::{Eval, Destructure, QQuote, QQuoteDestr};
-use parse::{SynEnv, FormPat};
+use grammar::{SynEnv, FormPat};
 use form::{Form, Positive, Negative, Both};
 use core_forms::ast_to_name;
 use core_type_forms::{nt_to_type, nt_is_positive, less_quoted_ty, more_quoted_ty};
@@ -309,8 +309,8 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
 // Furthermore, the direction of the walk is determined by the direction of the original quotation.
 
 pub fn quote(pos: bool) -> Rc<Form> {
-    use ::parse::FormPat;
-    use ::parse::FormPat::*;
+    use ::grammar::FormPat;
+    use ::grammar::FormPat::*;
     let perform_quotation = move |se: SynEnv, starter_info: Ast| -> SynEnv {
         let starter_nt = match starter_info {
             ::ast::IncompleteNode(ref parts) => ::core_forms::ast_to_name(

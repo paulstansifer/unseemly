@@ -26,7 +26,7 @@ pub trait Reifiable {
         // By default, this is an opaque primitive.
         Ast::Node(Rc::new(::form::Form {
             name: Self::ty_name(),
-            grammar: Rc::new(::parse::FormPat::Impossible),
+            grammar: Rc::new(::grammar::FormPat::Impossible),
             type_compare: ::form::Positive(::ast_walk::WalkRule::NotWalked),
             synth_type: ::form::Positive(::ast_walk::WalkRule::LiteralLike),
             quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike,

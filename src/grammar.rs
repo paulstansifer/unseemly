@@ -1,5 +1,3 @@
-// TODO: rename this file to "grammar.rs"
-
 #![macro_use]
 
 use read::{Token, TokenTree, DelimChar, Group, Simple};

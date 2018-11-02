@@ -16,9 +16,9 @@
 //
 // Also, it turns out that implementing an Earley parser goes pretty smoothly. Yay!
 
-use parse::{FormPat, SynEnv};
-use parse::FormPat::*;
-use parse::plug_hole;
+use grammar::{FormPat, SynEnv};
+use grammar::FormPat::*;
+use grammar::plug_hole;
 use read::{Token, TokenTree};
 use read::Token::*;
 use ast::Ast;

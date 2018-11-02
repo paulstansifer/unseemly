@@ -38,7 +38,7 @@ mod read;
 mod ast;
 
 mod earley;
-mod parse;
+mod grammar;
 mod unparse;
 
 mod form;
@@ -230,7 +230,7 @@ fn assign_variable(name: &str, expr: &str) -> Result<Value, String> {
 fn assign_t_var(name: &str, t: &str) -> Result<ty::Ty, String> {
     let tokens = try!(read::read_tokens(t));
 
-    let ast = try!(parse::parse(&parse::FormPat::Call(n("Type")),
+    let ast = try!(grammar::parse(&grammar::FormPat::Call(n("Type")),
                                 &core_forms::get_core_forms(), &tokens).map_err(|e| e.msg));
 
     let res = ty_env.with(|tys| {
@@ -250,7 +250,7 @@ fn assign_t_var(name: &str, t: &str) -> Result<ty::Ty, String> {
 fn canonicalize_type(t: &str) -> Result<ty::Ty, String> {
     let tokens = try!(read::read_tokens(t));
 
-    let ast = try!(parse::parse(&parse::FormPat::Call(n("Type")),
+    let ast = try!(grammar::parse(&grammar::FormPat::Call(n("Type")),
                                 &core_forms::get_core_forms(), &tokens).map_err(|e| e.msg));
 
     ty_env.with(|tys| {
@@ -262,7 +262,7 @@ fn parse_unseemly_program(program: &str) -> Result<String, String> {
     let tokens = try!(read::read_tokens(program));
 
     let ast = try!(
-        parse::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
+        grammar::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
             .map_err(|e| e.msg));
 
     Ok(format!("▵ {:#?}\n∴ {}\n", ast, ast))
@@ -273,7 +273,7 @@ fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
 
 
     let ast = try!(
-        parse::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
+        grammar::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
             .map_err(|e| e.msg));
 
     ty_env.with(|tys| {
@@ -285,7 +285,7 @@ fn eval_unseemly_program_without_typechecking(program: &str) -> Result<Value, St
     let tokens = try!(read::read_tokens(program));
 
     let ast : ::ast::Ast = try!(
-        parse::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
+        grammar::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
             .map_err(|e| e.msg));
 
     val_env.with(|vals| {
@@ -298,7 +298,7 @@ fn eval_unseemly_program(program: &str) -> Result<Value, String> {
     let tokens = try!(read::read_tokens(program));
 
     let ast : ::ast::Ast = try!(
-        parse::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
+        grammar::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
             .map_err(|e| e.msg));
 
     let _type = try!(ty_env.with(|tys| {

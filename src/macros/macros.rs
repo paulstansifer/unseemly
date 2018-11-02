@@ -283,46 +283,46 @@ macro_rules! mbe {
 /* FormPat */
 
 macro_rules! form_pat {
-    ((lit $e:expr)) => { ::parse::FormPat::Literal(::name::n($e)) };
-    ((lit_by_name $e:expr)) => { ::parse::FormPat::Literal($e) };
-    ((anyways $a:tt)) => { ::parse::FormPat::Anyways(ast!($a)) };
-    ((impossible)) => { ::parse::FormPat::Impossible };
-    (at) => { ::parse::FormPat::AnyToken };
-    (aat) => { ::parse::FormPat::AnyAtomicToken };
-    (varref) => { ::parse::FormPat::VarRef };
+    ((lit $e:expr)) => { ::grammar::FormPat::Literal(::name::n($e)) };
+    ((lit_by_name $e:expr)) => { ::grammar::FormPat::Literal($e) };
+    ((anyways $a:tt)) => { ::grammar::FormPat::Anyways(ast!($a)) };
+    ((impossible)) => { ::grammar::FormPat::Impossible };
+    (at) => { ::grammar::FormPat::AnyToken };
+    (aat) => { ::grammar::FormPat::AnyAtomicToken };
+    (varref) => { ::grammar::FormPat::VarRef };
     ((delim $n:expr, $d:expr, $body:tt)) => {
-        ::parse::FormPat::Delimited(::name::n($n), ::read::delim($d),
+        ::grammar::FormPat::Delimited(::name::n($n), ::read::delim($d),
                           ::std::rc::Rc::new(form_pat!($body)))
     };
-    ((star $body:tt)) => { ::parse::FormPat::Star(::std::rc::Rc::new(form_pat!($body))) };
-    ((plus $body:tt)) => { ::parse::FormPat::Plus(::std::rc::Rc::new(form_pat!($body))) };
-    ((alt $($body:tt),* )) => { ::parse::FormPat::Alt(vec![
+    ((star $body:tt)) => { ::grammar::FormPat::Star(::std::rc::Rc::new(form_pat!($body))) };
+    ((plus $body:tt)) => { ::grammar::FormPat::Plus(::std::rc::Rc::new(form_pat!($body))) };
+    ((alt $($body:tt),* )) => { ::grammar::FormPat::Alt(vec![
         $( ::std::rc::Rc::new(form_pat!($body)) ),* ] )};
     ((biased $lhs:tt, $rhs:tt)) => {
-        ::parse::FormPat::Biased(::std::rc::Rc::new(form_pat!($lhs)),
+        ::grammar::FormPat::Biased(::std::rc::Rc::new(form_pat!($lhs)),
                                  ::std::rc::Rc::new(form_pat!($rhs))) };
-    ((call $n:expr)) => { ::parse::FormPat::Call(::name::n($n)) };
-    ((call_by_name $n:expr)) => { ::parse::FormPat::Call($n) };
-    ((scope $f:expr)) => { ::parse::FormPat::Scope($f, ::beta::ExportBeta::Nothing) };
-    ((scope $f:expr, $ebeta:tt)) => { ::parse::FormPat::Scope($f, ebeta!($ebeta)) };
+    ((call $n:expr)) => { ::grammar::FormPat::Call(::name::n($n)) };
+    ((call_by_name $n:expr)) => { ::grammar::FormPat::Call($n) };
+    ((scope $f:expr)) => { ::grammar::FormPat::Scope($f, ::beta::ExportBeta::Nothing) };
+    ((scope $f:expr, $ebeta:tt)) => { ::grammar::FormPat::Scope($f, ebeta!($ebeta)) };
     ((named $n:expr, $body:tt)) => {
-        ::parse::FormPat::Named(::name::n($n), ::std::rc::Rc::new(form_pat!($body)))
+        ::grammar::FormPat::Named(::name::n($n), ::std::rc::Rc::new(form_pat!($body)))
     };
     ((import $beta:tt, $body:tt)) => {
-        ::parse::FormPat::NameImport(::std::rc::Rc::new(form_pat!($body)), beta!($beta))
+        ::grammar::FormPat::NameImport(::std::rc::Rc::new(form_pat!($body)), beta!($beta))
     };
     ((++ $pos:tt $body:tt)) => { // `pos` should be an expr, but I didn't want a comma. Name it.
-        ::parse::FormPat::QuoteDeepen(::std::rc::Rc::new(form_pat!($body)), $pos)
+        ::grammar::FormPat::QuoteDeepen(::std::rc::Rc::new(form_pat!($body)), $pos)
     };
     ((-- $depth:tt $body:tt)) => {
-        ::parse::FormPat::QuoteEscape(::std::rc::Rc::new(form_pat!($body)), $depth)
+        ::grammar::FormPat::QuoteEscape(::std::rc::Rc::new(form_pat!($body)), $depth)
     };
     ((extend $lhs:tt, $n:expr, $f:expr)) => {
-        ::parse::FormPat::SynImport(::std::rc::Rc::new(form_pat!($lhs)), ::name::n($n),
-            ::parse::SyntaxExtension(::std::rc::Rc::new(Box::new($f))))
+        ::grammar::FormPat::SynImport(::std::rc::Rc::new(form_pat!($lhs)), ::name::n($n),
+            ::grammar::SyntaxExtension(::std::rc::Rc::new(Box::new($f))))
     };
     ( [$($body:tt),*] ) => {
-        ::parse::FormPat::Seq(vec![ $( ::std::rc::Rc::new(form_pat!($body)) ),* ])}
+        ::grammar::FormPat::Seq(vec![ $( ::std::rc::Rc::new(form_pat!($body)) ),* ])}
 }
 
 
@@ -473,7 +473,6 @@ macro_rules! core_fn {
 
 
 /* Alpha */
-
 macro_rules! without_freshening {
     ($( $body:tt )*) => {{
         let mut orig: bool = false;
