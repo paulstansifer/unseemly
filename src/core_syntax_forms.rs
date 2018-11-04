@@ -205,8 +205,6 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
                 Positive(
                     // `body` has the type `Expr <[String]<` (annotation is superfluous):
                     cust_rc_box!( move | unquote_parts | {
-                        // TODO: What the heck is the difference between this and the `nt` that it shadows!!!?!?!?!?!?
-                        let nt = ast_to_name(&unquote_parts.get_term(n("nt")));
                         let ast_for_errors = unquote_parts.get_term(n("body"));
                         // TODO: check annotation if present
 
@@ -240,8 +238,6 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
                 //                            ^^^^^^^^^^^^^^^^^^^^^^^^^
                 Negative(
                     cust_rc_box!( move | unquote_parts | {
-                        let nt = ast_to_name(&unquote_parts.get_term(n("nt")));
-
                         let ast_for_errors = unquote_parts.get_term(n("body"));
                         let ctxt_elt = remove_opacity(unquote_parts.context_elt(), -(depth as i32));
 
