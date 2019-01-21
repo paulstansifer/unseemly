@@ -212,13 +212,13 @@ pub type TypeError = ::util::err::Spanned<TyErr>;
 pub type TypeResult = Result<Ty, TypeError>;
 
 
-pub fn expect_type(expected: &Ty, got: &Ty, loc: &Ast) -> TypeResult {
+pub fn expect_type(expected: &Ty, got: &Ty, loc: &Ast) -> Result<(), TypeError> {
     if got != expected {
         Err(::util::err::Spanned {
             loc: loc.clone(), body: TyErr::Mismatch(expected.clone(), got.clone())
         } )
     } else {
-        Ok(got.clone()) // HACK: we don't really care about this value...
+        Ok(())
     }
 }
 
@@ -279,14 +279,14 @@ fn type_specialization() {
         "some_int" => ty!( { "Type" "Int" : }),
         "convert_to_nat" => ty!({ "Type" "forall_type" :
             "param" => ["t"],
-            "body" => { "Type" "fn" :
+            "body" => (import [* [forall "param"]] { "Type" "fn" :
                 "param" => [ (, tbn("t").concrete() ) ],
-                "ret" => (, nat_ty.concrete() ) }}),
+                "ret" => (, nat_ty.concrete() ) })}),
         "identity" => ty!({ "Type" "forall_type" :
             "param" => ["t"],
-            "body" => { "Type" "fn" :
+            "body" => (import [* [forall "param"]] { "Type" "fn" :
                 "param" => [ (, tbn("t").concrete() ) ],
-                "ret" => (, tbn("t").concrete() ) }}));
+                "ret" => (, tbn("t").concrete() ) })}));
     /*
     assert_eq!(synth_type(&ast!({ "Expr" "apply" :
                 "rator" => (vr "convert_to_nat"),

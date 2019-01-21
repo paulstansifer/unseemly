@@ -103,6 +103,7 @@ macro_rules! ast_shape {
 }
 
 macro_rules! ast {
+    ( (trivial) ) => { ::ast::Trivial };
     ( (++ $pos:tt $sub:tt) ) => {
         ::ast::QuoteMore(Box::new(ast!($sub)), $pos)
     };
@@ -385,7 +386,6 @@ macro_rules! negative_typed_form {
 
 macro_rules! val {
     (i $i:expr) => { ::runtime::eval::Value::Int(::num::bigint::BigInt::from($i)) };
-    (ident $n:expr) => { ::runtime::eval::Value::Ident($n) };
     (b $b:expr) => {
         ::runtime::eval::Value::Enum( ::name::n(if $b {"True"} else {"False"}), vec![])
     };

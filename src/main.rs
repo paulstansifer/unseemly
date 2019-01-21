@@ -20,7 +20,7 @@ extern crate num;
 extern crate rustyline;
 extern crate regex;
 extern crate dirs;
-
+extern crate tap;
 
 use std::path::Path;
 use std::fs::File;

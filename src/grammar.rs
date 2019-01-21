@@ -81,6 +81,68 @@ custom_derive! {
 }
 pub struct SyntaxExtension(pub Rc<Box<(Fn(SynEnv, Ast) -> SynEnv)>>);
 
+impl FormPat {
+    // TODO: it might make sense to indicate what level of repetition each name is matched under
+    pub fn binders(&self) -> Vec<Name> {
+        use tap::TapOps;
+        match *self {
+            Named(n, ref body) => { vec![n].tap(|v| v.append(&mut body.binders())) }
+            Seq(ref bodies) | Alt(ref bodies) => {
+                let mut res = vec![];
+                for ref body in bodies {
+                    res.append(&mut body.binders());
+                }
+                res
+            }
+            Scope(_,_) => vec![], // No more bindings in this scope
+            Delimited(_,_,ref body) |Star(ref body) | Plus(ref body) | ComputeSyntax(_, ref body)
+                    | SynImport(ref body, _, _) | NameImport(ref body, _) | QuoteDeepen(ref body, _)
+                    | QuoteEscape(ref body, _) => {
+                body.binders()
+            }
+            Biased(ref body_a, ref body_b) => {
+                body_a.binders().tap(|v| v.append(&mut body_b.binders()))
+            }
+            Anyways(_) | Impossible | Literal(_) | AnyToken | AnyAtomicToken | VarRef | Call(_) => {
+                vec![]
+            }
+        }
+    }
+
+    // In this grammar, what kind of thing is `n`? Outer `None` means "not found",
+    // inner means "not a call".
+    pub fn find_named_call(&self, n: Name) -> Option<Option<Name>> {
+        match *self {
+            Named(this_n, ref sub) if this_n == n => {
+                match **sub {
+                    Call(nt) => Some(Some(nt)),
+                    AnyAtomicToken => Some(None),
+                    _ => None
+                }
+            }
+            Named(_,_) => None, // Otherwise, skip
+            Call(_) => None,
+            Scope(_,_) => None, // Only look in the current scope
+            Anyways(_) | Impossible | Literal(_) | AnyToken | AnyAtomicToken | VarRef => None,
+            Delimited(_,_,ref body) |Star(ref body) | Plus(ref body) | ComputeSyntax(_, ref body)
+                    | SynImport(ref body, _, _) | NameImport(ref body, _) | QuoteDeepen(ref body, _)
+                    | QuoteEscape(ref body, _) => {
+                body.find_named_call(n)
+            }
+            Seq(ref bodies) | Alt(ref bodies) => {
+                for ref body in bodies {
+                    let sub_fnc = body.find_named_call(n);
+                    if sub_fnc.is_some() { return sub_fnc; }
+                }
+                None
+            }
+            Biased(ref body_a, ref body_b) => {
+                body_a.find_named_call(n).or_else(|| body_b.find_named_call(n))
+            }
+        }
+    }
+}
+
 impl Clone for SyntaxExtension {
     fn clone(&self) -> SyntaxExtension {
         SyntaxExtension(self.0.clone())

@@ -37,3 +37,22 @@ Run an example programs:
 ## Documentation
 
 Look at core_language_basics.txt for documentation of the language.
+
+## Related work
+
+### FreshML / Romeo
+
+Unseemly is sort of a descendant of FreshML and Romeo
+ (but without the parts of Romeo corresponding to Pure FreshML).
+Romeo allowed for manipulation of syntax types with complex binding information,
+ but (a) syntax was otherwise untyped
+     (b) there was no macro system (so the syntax manipulation was pointless!)
+     (c) it was more of a core calculus
+
+### SugarJ / SoundX
+
+
+
+### Wyvern
+
+### Terra

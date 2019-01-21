@@ -46,7 +46,13 @@ It contains only:
   (actually a stack of environments, for nested quotation)
   set up appropriately.
 
-[Core] core_forms.rs, core_type_forms.rs, core_syntax_forms.rs
+A "positive" walk takes an environment of `Elt`, and results in a single `Elt`.
+A "negative" walk takes an `Elt`, and produces an environment of `Elt`.
+Evaluation or typechecking expressions is a positive walk;
+ evaluating or typechecking patterns is negative.
+
+
+[Core] core_forms.rs, core_type_forms.rs, core_syntax_forms.rs, core_macro_forms.rs
 
 The Turing-complete "core" language is Unseemly's user interface.
 
@@ -93,8 +99,8 @@ Pipeline:
   Evaluation is a tree traversal, surprisingly similar to type synthesis.
 
   Maybe at some point, this will be translation into some other language
-    (like Rust?),
-   but it's probably faster to interpret
+    (like Ocaml? Rust? LLVM?),
+   but it may be faster to interpret
     the many small programs that macros are.
 
 [↩ (Reflection)] reify.rs

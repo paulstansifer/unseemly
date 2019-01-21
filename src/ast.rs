@@ -128,6 +128,13 @@ impl Ast {
             ExtendEnv(ref body, _) => body.flatten()
         }
     }
+
+    pub fn node_parts(&self) -> &EnvMBE<Ast> {
+        match *self {
+            Node(_, ref body, _) => body,
+            _ => panic!("ICE")
+        }
+    }
 }
 
 // This is used by combine::many, which is used by the Star parser

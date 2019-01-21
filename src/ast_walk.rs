@@ -654,6 +654,16 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         Some(res)
     }
 
+    pub fn map_terms<F>(self, f: &mut F) -> LazyWalkReses<Mode> where F: FnMut(Name, &Ast) -> Ast {
+        use std::clone::Clone;
+        LazyWalkReses {
+            parts: self.parts.named_map(
+                &mut |n: &Name, lwt: &Rc<LazilyWalkedTerm<Mode>>|
+                    LazilyWalkedTerm::new(&f(*n, &lwt.term))),
+            .. self
+        }
+    }
+
     /** Like `get_rep_res`, but with a different context for each repetition */
     pub fn get_rep_res_with(&self, n: Name, new_contexts: Vec<Mode::Elt>)
             -> Result<Vec<<Mode::D as Dir>::Out>, Mode::Err> {
