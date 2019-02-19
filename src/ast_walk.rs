@@ -106,6 +106,9 @@ impl<Elt: WalkElt> Clo<Elt> {
     }
 }
 
+thread_local! {
+    pub static ast_walk_layer: RefCell<u32> = RefCell::new(0);
+}
 
 /**
  * Make a `<Mode::D as Dir>::Out` by walking `node` in the environment from `walk_ctxt`.
@@ -113,7 +116,7 @@ impl<Elt: WalkElt> Clo<Elt> {
  *  and by betas to access other parts of the current node.
  */
 pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
-        -> Result<<Mode::D as Dir>::Out, Mode::Err> {
+        -> Result<<Mode::D as Dir>::Out, Mode::Err> { layer_watch!{ ast_walk_layer :
     // TODO: can we get rid of the & in front of our arguments and save the cloning?
     // TODO: this has a lot of direction-specific runtime hackery.
     //  Maybe we want separate positive and negative versions?
@@ -126,11 +129,11 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
       _ => Mode::D::pre_walk(a.clone(), walk_ctxt.clone())
     };
 
-    // println!("-----: {} {}", Mode::name(), a);
-    // println!("-from: {}", walk_ctxt.this_ast);
+    ld!(ast_walk_layer, "{} {}", Mode::name(), a);
+    // lc!(ast_walk_layer, "  from: {}", walk_ctxt.this_ast);
     // match walk_ctxt.env.find(&negative_ret_val()) {
-    //     Some(ref ctxt) => println!("-ctxt: {:#?}", ctxt), _ => {}}
-    // println!("---in: {:#?}", walk_ctxt.env.map_borrow_f(&mut |_| "…"));
+    //     Some(ref ctxt) => lc!(ast_walk_layer, "  ctxt: {:#?}", ctxt), _ => {}};
+    // lc!(ast_walk_layer, "  in: {:#?}", walk_ctxt.env.map_borrow_f(&mut |_| "…"));
 
     let literally : Option<bool> = // If we're under a wrapper, `this_ast` might not be a Node
         match a {
@@ -264,7 +267,7 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
                 walk_ctxt.maybe__context_elt().map(extract__ee_body::<Mode>), literally)
         }
     }
-}
+}}
 
 /// If a `Node` is `LiteralLike`, its imports and [un]quotes should be, too!
 fn maybe_literally__walk<Mode: WalkMode>(a: &Ast, body: &Ast, walk_ctxt: LazyWalkReses<Mode>,

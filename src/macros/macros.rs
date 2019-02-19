@@ -584,3 +584,51 @@ macro_rules! assert_m {
         assert_m!($got, $expected, true)
     }
 }
+
+macro_rules! layer_watch {
+    {$layer:ident : $( $body:stmt );* } => {
+        $layer.with(|l| *l.borrow_mut() += 1);
+        let res = {
+            $( $body );*
+        };
+        $layer.with(|l| *l.borrow_mut() -= 1);
+        res
+    }
+}
+
+// "Layer debug"
+macro_rules! ld {
+    ($layer:ident, $template:tt, $($arg:expr),*) => {{
+        let layers = $layer.with(|l| *l.borrow()) - 1;
+        for i in 1..layers {
+            if i % 2 == 0 {
+                print!("║ ")
+            } else {
+                print!("│ ");
+            }
+        }
+        if layers > 0 {
+            if layers % 2 == 0 {
+                print!("╠═")
+            } else {
+                print!("├─");
+            }
+        }
+        println!($template, $($arg),*);
+    }}
+}
+
+// "Layer debug, continued"
+macro_rules! lc {
+    ($layer:ident, $template:tt, $($arg:expr),*) => {{
+        let layers = $layer.with(|l| *l.borrow()) - 1;
+        for i in 1..(layers+1) {
+            if i % 2 == 0 {
+                print!("║ ")
+            } else {
+                print!("│ ");
+            }
+        }
+        println!($template, $($arg),*);
+    }}
+}
