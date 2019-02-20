@@ -90,7 +90,7 @@ impl<Elt: WalkElt> Clo<Elt> {
         let o_different_env = other.env.cut_common(&self.env);
 
         let o_renaming = o_different_env.keyed_map_borrow_f(
-            &mut |name, _| VariableReference(::alpha::fresh_name(*name)));
+            &mut |name, _| VariableReference(name.freshen()));
 
         // if !o_renaming.empty() { println!("MERGE: {}", o_renaming); }
 

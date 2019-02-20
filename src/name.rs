@@ -1,13 +1,34 @@
 #![macro_use]
 
-extern crate lalrpop_intern;
-
 use std::fmt;
 use std::string::String;
+use std::collections::HashMap;
+use std::cell::RefCell;
+
+lazy_static! {
+    static ref single_lowercase_letter : regex::Regex = regex::Regex::new("^[a-z]$").unwrap();
+}
 
 #[derive(PartialEq,Eq,Clone,Copy,Hash)]
 pub struct Name {
-    id: lalrpop_intern::InternedString
+    id: usize
+}
+
+pub struct Spelling {
+    // No two different variables have this the same. Tomatoes may have been added:
+    unique: String,
+    // The original spelling that the programmer chose.
+    orig: String
+}
+
+thread_local! {
+    // From `Spelling.unique` to `id`s:
+    static id_map: RefCell<HashMap<String, usize>> = RefCell::new(HashMap::new());
+    // From `id`s to `Spelling`s
+    static spellings: RefCell<Vec<Spelling>> = RefCell::new(vec![]);
+
+    // Should we do "naive" freshening for testing purposes?
+    static fake_freshness: RefCell<bool> = RefCell::new(false);
 }
 
 impl ::runtime::reify::Reifiable for Name {
@@ -23,20 +44,88 @@ impl ::runtime::reify::Reifiable for Name {
     }
 }
 
+// These are for isolating tests of alpha-equivalence from each other.
+
+pub fn enable_fake_freshness(ff: bool)  {
+    use std::borrow::BorrowMut;
+    
+    fake_freshness.with(|fake_freshness_| {
+        *fake_freshness_.borrow_mut() = ff;
+    })
+}
+
 // only available on nightly:
 // impl !Send for Name {}
 
 impl Name {
-    pub fn sp(self) -> String { self.id.to_string() }
+    pub fn sp(self) -> String { spellings.with(|us| us.borrow()[self.id].unique.clone()) }
+    pub fn orig_sp(self) -> String { spellings.with(|us| us.borrow()[self.id].orig.clone()) }
+
+    pub fn global(s: &str) -> Name {
+        Name::new(s, false)
+    }
+    pub fn gensym(s: &str) -> Name {
+        Name::new(s, true)
+    }
+    pub fn freshen(self) -> Name {
+        Name::new(&self.orig_sp(), true)
+    }
+
+    fn new(orig_spelling: &str, freshen: bool) -> Name {
+        use std::borrow::{BorrowMut, Borrow};
+
+        let fake_freshness_ = fake_freshness.with(|ff| *ff.borrow());
+
+        id_map.with(|id_map_| {
+            let mut unique_spelling = orig_spelling.to_owned();
+            // Find a fresh version by adding tomatoes, if requested:
+            while freshen && id_map_.borrow().contains_key(&unique_spelling) {
+                unique_spelling = format!("{}🍅", unique_spelling);
+            }
+
+            if freshen && fake_freshness_ {
+                // Forget doing it right; only add exactly one tomato:
+                unique_spelling = format!("{}🍅", orig_spelling);
+            }
+
+
+            let claim_id = || {
+                spellings.with(|spellings_| {
+                    let new_id = spellings_.borrow().len();
+                    spellings_.borrow_mut().push(Spelling { 
+                        unique: unique_spelling.clone(),
+                        orig: orig_spelling.to_owned()
+                    });
+                    new_id
+                })
+            };
+
+            // If we're faking freshness, make the freshened name findable. Otherwise...
+            let id = if freshen && !fake_freshness_ {
+                claim_id() // ...don't put it in the table
+            } else {
+                *id_map_.borrow_mut().entry(unique_spelling.clone()).or_insert_with(claim_id)
+            };
+
+            Name { id: id }
+        })
+    }
+    pub fn is(self, s: &str) -> bool {
+        self.sp() == s
+    }
+
+    pub fn is_name(self, n: Name) -> bool {
+        self.sp() == n.sp()
+    }
+
 }
 
 
 // TODO: move to `ast_walk`
-// TODO: this interner doesn't support `gensym`...
-
+// TODO: using `lazy_static!` (with or without gensym) makes some tests fail. Why?
 /// Special name for negative `ast_walk`ing
 pub fn negative_ret_val() -> Name {
-    Name { id: lalrpop_intern::intern("⋄") }
+    Name::global("⋄")
 }
 
 impl fmt::Debug for Name {
@@ -51,29 +140,31 @@ impl fmt::Display for Name {
     }
 }
 
-impl Name {
-    pub fn is(self, s: &str) -> bool {
-        self.sp() == s
-    }
-
-    pub fn is_name(self, n: Name) -> bool {
-        self.sp() == n.sp()
-    }
-}
-
 pub fn n(s: &str) -> Name {
-    Name{ id: lalrpop_intern::intern(s) }
+    Name::global(s)
 }
 
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub struct ContainedName {
-    spelling: String
-}
+#[test]
+fn name_interning() {
+    let a = n("a");
+    assert_eq!(a, a);
+    assert_eq!(a, n("a"));
+    assert_ne!(a, a.freshen());
 
-impl ContainedName {
-    pub fn from_name(n: Name) -> ContainedName {
-        ContainedName {
-            spelling: n.sp()
-        }
-    }
+    assert_ne!(a, n("x🍅"));
+    assert_ne!(a.freshen(), a.freshen());
+
+    assert_ne!(n("a"), n("y"));
+
+    enable_fake_freshness(true);
+
+    let x = n("x");
+    assert_eq!(x, x);
+    assert_eq!(x, n("x"));
+    assert_ne!(x, x.freshen());
+
+    // ... but now we the freshened version of `x` is accessible (and doesn't avoid existing names)
+    assert_eq!(x.freshen(), n("x🍅"));
+    assert_eq!(x.freshen(), x.freshen());
+
 }

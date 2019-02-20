@@ -138,7 +138,6 @@ fn freshen_rec(node: &Ast, renamings: &EnvMBE<(Ast, Ren)>, env: Ren) -> Ast {
 
 thread_local! {
     pub static freshening_enabled: ::std::cell::RefCell<bool> = ::std::cell::RefCell::new(true);
-    pub static next_id: ::std::cell::RefCell<u32> = ::std::cell::RefCell::new(0);
 }
 
 pub fn freshen(a: &Ast) -> Ast { // TODO: I think this shouldn't take a reference for performance
@@ -220,23 +219,13 @@ pub fn freshen_binders_inside_node_with(p_lhs: &EnvMBE<Ast>, p_rhs: &EnvMBE<Ast>
         }).lift_result().ok()
 }
 
-/// TODO: `Name` needs to support interning!
-pub fn fresh_name(old_name: Name) -> Name {
-    next_id.with(|n_i| {
-        let new_name = n(&format!("{}🍅{}", old_name, *n_i.borrow()));
-        *n_i.borrow_mut() += 1;
-        new_name
-    })
-}
-
-
 /// Returns an `Ast` like `a`, but with fresh `Atom`s
 ///  and a map to change references in the same manner
 pub fn freshen_binders(a: &Ast) -> (Ast, Ren) {
     match *a {
         Trivial | VariableReference(_) => (a.clone(), Ren::new()),
         Atom(old_name) => {
-            let new_name = fresh_name(old_name);
+            let new_name = old_name.freshen();
             (Atom(new_name), Ren::single(old_name, VariableReference(new_name)))
         }
         Node(ref f, ref parts, ref export) => {
@@ -272,12 +261,9 @@ pub fn freshen_binders_with(lhs: &Ast, rhs: &Ast) -> Option<(Ast, Ren, Ast, Ren)
             Some((lhs.clone(), Ren::new(), rhs.clone(), Ren::new()))
         },
         (&Atom(old_name_lhs), &Atom(old_name_rhs)) => {
-            next_id.with(|n_i| {
-                let new_name = n(&format!("{}🍅{}", old_name_lhs, *n_i.borrow()));
-                *n_i.borrow_mut() += 1;
-                Some((Atom(new_name), Ren::single(old_name_lhs, VariableReference(new_name)),
-                      Atom(new_name), Ren::single(old_name_rhs, VariableReference(new_name))))
-            })
+            let new_name = old_name_lhs.freshen();
+            Some((Atom(new_name), Ren::single(old_name_lhs, VariableReference(new_name)),
+                  Atom(new_name), Ren::single(old_name_rhs, VariableReference(new_name))))
         }
         // TODO: Handle matching `'[let (a,b) = ⋯]'` against the pattern `'[let ,[p], = ⋯]'` !!
         (&Node(ref f, ref parts_lhs, ref export),
@@ -340,6 +326,8 @@ pub fn freshen_binders_with(lhs: &Ast, rhs: &Ast) -> Option<(Ast, Ren, Ast, Ren)
 
 #[test]
 fn basic_substitution() {
+    ::name::enable_fake_freshness(true);
+
     assert_eq!(substitute(
             &ast!({"Expr" "apply" : "rator" => (vr "a"), "rand" => [(vr "b"), (vr "c")]}),
             &assoc_n!("x" => ast!((vr "y")), "buchanan" => ast!((vr "lincoln")))),
@@ -368,24 +356,24 @@ fn basic_substitution() {
 
 #[test]
 fn basic_binder_freshening() {
-    next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
+    ::name::enable_fake_freshness(true);
 
     assert_eq!(freshen_binders(&ast!((vr "a"))), (ast!((vr "a")), Ren::new()));
 
     assert_eq!(freshen_binders(&ast!("a")),
-        (ast!("a🍅0"), Ren::from(assoc_n!("a" => ast!((vr "a🍅0"))))));
+        (ast!("a🍅"), Ren::from(assoc_n!("a" => ast!((vr "a🍅"))))));
 
     assert_eq!(freshen_binders(
         &ast!({ "Pat" "enum_pat" => [* ["component"]] :
             "name" => "[ignored]", "component" => ["a", "b"] })),
         (ast!({ "Pat" "enum_pat" => [* ["component"]] :
-            "name" => "[ignored]", "component" => ["a🍅1", "b🍅2"] }),
-        Ren::from(assoc_n!("a" => ast!((vr "a🍅1")), "b" => ast!((vr "b🍅2"))))));
+            "name" => "[ignored]", "component" => ["a🍅", "b🍅"] }),
+        Ren::from(assoc_n!("a" => ast!((vr "a🍅")), "b" => ast!((vr "b🍅"))))));
 }
 
 #[test]
 fn basic_freshening() {
-    next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
+    ::name::enable_fake_freshness(true);
 
     assert_eq!(
         freshen(
@@ -395,12 +383,10 @@ fn basic_freshening() {
                     {"Expr" "apply" : "rator" => (vr "f"),
                                       "rand" => [(vr "a"), (vr "b"), (vr "c"), (vr "d")]})})),
         ast!({"Expr" "lambda" :
-            "param" => ["a🍅0", "b🍅1"],
+            "param" => ["a🍅", "b🍅"],
             "body" => (import [* ["param" : "[ignored]"]]
                 {"Expr" "apply" : "rator" => (vr "f"),
-                                  "rand" => [(vr "a🍅0"), (vr "b🍅1"), (vr "c"), (vr "d")]})}));
-
-    next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
+                                  "rand" => [(vr "a🍅"), (vr "b🍅"), (vr "c"), (vr "d")]})}));
 
     assert_eq!(
         freshen(
@@ -412,11 +398,9 @@ fn basic_freshening() {
             })),
         ast!({"Expr" "match" :
             "scrutinee" => (vr "x"),
-            "p" => [@"arm" "a🍅0", "b🍅1"],
-            "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "a🍅0")),
+            "p" => [@"arm" "a🍅", "b🍅"],
+            "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "a🍅")),
                              (import ["p" = "scrutinee"] (vr "x"))]}));
-
-    next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
 
     // Test that importing non-atoms works
     assert_eq!(
@@ -431,22 +415,20 @@ fn basic_freshening() {
         ast!({"Expr" "match" :
             "scrutinee" => (vr "x"),
             "p" => [@"arm" { "Pat" "enum_pat" => [* ["component"]] :
-                "name" => "[ignored]", "component" => ["a🍅0"]
+                "name" => "[ignored]", "component" => ["a🍅"]
             }],
-            "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "a🍅0"))]}));
+            "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "a🍅"))]}));
 
     //TODO: test more!
 }
 
 #[test]
 fn basic_freshening_with() {
-    next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
+    ::name::enable_fake_freshness(true);
 
     assert_eq!(
         freshen_with(&ast!({"Type" "Int" :}), &ast!({"Type" "Float" :})),
         (ast!({"Type" "Int" :}), ast!({"Type" "Float" :})));
-
-    next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
 
     assert_eq!(
         freshen_with(
@@ -456,23 +438,21 @@ fn basic_freshening_with() {
                     {"Expr" "apply" : "rator" => (vr "f"),
                                       "rand" => [(vr "a"), (vr "b"), (vr "c"), (vr "d")]})}),
             &ast!({"Expr" "lambda" :
-                "param" => ["aaa", "bbb"],
+                "param" => ["j", "k"],
                 "body" => (import [* ["param" : "[ignored]"]]
                     {"Expr" "apply" : "rator" => (vr "f"),
-                                      "rand" => [(vr "aaa"), (vr "bbb"), (vr "x"), (vr "x")]})})),
+                                      "rand" => [(vr "j"), (vr "k"), (vr "x"), (vr "x")]})})),
 
         (ast!({"Expr" "lambda" :
-             "param" => ["a🍅0", "b🍅1"],
+             "param" => ["a🍅", "b🍅"],
              "body" => (import [* ["param" : "[ignored]"]]
                  {"Expr" "apply" : "rator" => (vr "f"),
-                                   "rand" => [(vr "a🍅0"), (vr "b🍅1"), (vr "c"), (vr "d")]})}),
+                                   "rand" => [(vr "a🍅"), (vr "b🍅"), (vr "c"), (vr "d")]})}),
          ast!({"Expr" "lambda" :
-             "param" => ["a🍅0", "b🍅1"],
+             "param" => ["a🍅", "b🍅"],
              "body" => (import [* ["param" : "[ignored]"]]
                  {"Expr" "apply" : "rator" => (vr "f"),
-                                   "rand" => [(vr "a🍅0"), (vr "b🍅1"), (vr "x"), (vr "x")]})})));
-
-    next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
+                                   "rand" => [(vr "a🍅"), (vr "b🍅"), (vr "x"), (vr "x")]})})));
 
     assert_eq!(
         freshen_with(
@@ -486,24 +466,22 @@ fn basic_freshening_with() {
             &ast!({"Expr" "match" :
                 "scrutinee" => (vr "x"),
                 "p" => [@"arm" { "Pat" "enum_pat" => [* ["component"]] :
-                    "name" => "[ignored]", "component" => ["aaa"]
+                    "name" => "[ignored]", "component" => ["x"]
                 }],
-                "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "aaa"))]
+                "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "x"))]
             })),
         (ast!({"Expr" "match" :
              "scrutinee" => (vr "x"),
              "p" => [@"arm" { "Pat" "enum_pat" => [* ["component"]] :
-                 "name" => "[ignored]", "component" => ["a🍅0"]
+                 "name" => "[ignored]", "component" => ["a🍅"]
              }],
-             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "a🍅0"))]}),
+             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "a🍅"))]}),
          ast!({"Expr" "match" :
               "scrutinee" => (vr "x"),
               "p" => [@"arm" { "Pat" "enum_pat" => [* ["component"]] :
-                  "name" => "[ignored]", "component" => ["a🍅0"]
+                  "name" => "[ignored]", "component" => ["a🍅"]
               }],
-              "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "a🍅0"))]})));
-
-      next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
+              "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "a🍅"))]})));
 
       // Terms that don't match are unaffected
       assert_eq!(
@@ -544,7 +522,7 @@ fn mu_substitution() {
 
 #[test]
 fn alpha_quote_more_or_less() {
-    next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
+    ::name::enable_fake_freshness(true);
 
     assert_eq!(
         freshen(
@@ -554,13 +532,10 @@ fn alpha_quote_more_or_less() {
                     (++ true {"Expr" "apply" : "rator" => (vr "f"),
                                                "rand" => [(vr "a"), (vr "b")]}))})),
         ast!({"Expr" "lambda" :
-            "param" => ["a🍅0", "b🍅1"],
+            "param" => ["a🍅", "b🍅"],
             "body" => (import [* ["param" : "[ignored]"]]
                 (++ true {"Expr" "apply" : "rator" => (vr "f"),
                                            "rand" => [(vr "a"), (vr "b")]}))}));
-    1;
-
-    next_id.with(|n_i| { *n_i.borrow_mut() = 0 }); // Make freshening determinisitic
 
     assert_eq!(
         freshen(
@@ -570,10 +545,10 @@ fn alpha_quote_more_or_less() {
                     (++ true (-- 1 {"Expr" "apply" : "rator" => (vr "f"),
                                                      "rand" => [(vr "a"), (vr "b")]})))})),
         ast!({"Expr" "lambda" :
-            "param" => ["a🍅0", "b🍅1"],
+            "param" => ["a🍅", "b🍅"],
             "body" => (import [* ["param" : "[ignored]"]]
                 (++ true (-- 1 {"Expr" "apply" : "rator" => (vr "f"),
-                                                 "rand" => [(vr "a🍅0"), (vr "b🍅1")]})))}));
+                                                 "rand" => [(vr "a🍅"), (vr "b🍅")]})))}));
 
 
 

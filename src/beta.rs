@@ -373,15 +373,12 @@ pub fn bound_from_export_beta(b: &ExportBeta, parts: &EnvMBE<::ast::Ast>) -> Vec
     }
 }
 
-thread_local! {
-    pub static next_id: ::std::cell::RefCell<u32> = ::std::cell::RefCell::new(0);
-}
 
 // TODO NOW: make this return the atom-freshened node (possibly freshening recursive nodes)
 
 // We keep a table, keyed on leaf names and actual atoms, to keep track of the freshening.
 // This means that shadowing in leaf-named atom set doesn't get separated.
-// (e.g. `.[a : Int  a : Int . ⋯].` freshens to `.[🍅a5 : Int  🍅a5 : Int . ⋯].`).
+// (e.g. `.[a : Int  a : Int . ⋯].` freshens to `.[a🍅 : Int  a🍅 : Int . ⋯].`).
 // As long as betas can't select a different shadowing direction, this isn't a problem.
 pub fn freshening_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>,
                             memo: &mut ::std::collections::HashMap<(Name, Name), Name>)
@@ -404,10 +401,7 @@ pub fn freshening_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>,
             let this_name = ::core_forms::ast_to_name(parts.get_leaf_or_panic(&n_s));
 
             Assoc::new().set(this_name, ::ast::VariableReference(*memo.entry((n_s, this_name))
-                .or_insert_with(||{
-                    next_id.with(|n_i| {
-                        *n_i.borrow_mut() += 1; n(&format!("🍅{}{}", this_name, *n_i.borrow()))
-                    })})))
+                .or_insert_with(||{ this_name.freshen() })))
         }
     }
 }
