@@ -2,12 +2,8 @@
 
 use std::fmt;
 use std::string::String;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
-
-lazy_static! {
-    static ref single_lowercase_letter : regex::Regex = regex::Regex::new("^[a-z]$").unwrap();
-}
 
 #[derive(PartialEq,Eq,Clone,Copy,Hash)]
 pub struct Name {
@@ -26,6 +22,10 @@ thread_local! {
     static id_map: RefCell<HashMap<String, usize>> = RefCell::new(HashMap::new());
     // From `id`s to `Spelling`s
     static spellings: RefCell<Vec<Spelling>> = RefCell::new(vec![]);
+
+    static printables: RefCell<HashMap<usize, String>> = RefCell::new(HashMap::new());
+    // The values of `printables`, for lookup purposes.
+    static printables_used: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
 
     // Should we do "naive" freshening for testing purposes?
     static fake_freshness: RefCell<bool> = RefCell::new(false);
@@ -60,6 +60,24 @@ pub fn enable_fake_freshness(ff: bool)  {
 impl Name {
     pub fn sp(self) -> String { spellings.with(|us| us.borrow()[self.id].unique.clone()) }
     pub fn orig_sp(self) -> String { spellings.with(|us| us.borrow()[self.id].orig.clone()) }
+
+    // Printable names are unique, like `unique_spelling`s, but are assigned during printing.
+    // This way if the compiler freshens some name a bunch of times, producing a tomato-filled mess,
+    // but only prints one version of the name, it gets to print an unadorned name.
+    pub fn print(self) -> String {
+        printables.with(|printables_| {
+            printables_used.with(|printables_used_| {
+                printables_.borrow_mut().entry(self.id).or_insert_with(|| {
+                    let mut print_version = self.orig_sp();
+                    while printables_used_.borrow().contains(&print_version) {
+                        print_version = format!("{}🥕", print_version);
+                    }
+                    printables_used_.borrow_mut().insert(print_version.clone());
+                    print_version.clone()
+                }).clone()
+            })
+        })
+    }
 
     pub fn global(s: &str) -> Name {
         Name::new(s, false)
@@ -136,7 +154,7 @@ impl fmt::Debug for Name {
 
 impl fmt::Display for Name {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.sp())
+        write!(f, "{}", self.print())
     }
 }
 
@@ -167,4 +185,7 @@ fn name_interning() {
     assert_eq!(x.freshen(), n("x🍅"));
     assert_eq!(x.freshen(), x.freshen());
 
+    // Printable versions are first-come, first-served
+    assert_eq!(a.freshen().print(), "a");
+    assert_eq!(a.print(), "a🥕");
 }

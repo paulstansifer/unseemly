@@ -90,8 +90,8 @@ impl fmt::Debug for Ast {
 impl fmt::Display for Ast {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Atom(ref n) => { write!(f, "{}", n) },
-            VariableReference(ref v) => { write!(f, "{}", v) }
+            Atom(ref n) => { write!(f, "{}", n.print()) },
+            VariableReference(ref v) => { write!(f, "{}", v.print()) }
             Node(ref form, ref body, _) => {
                 let s = ::unparse::unparse_mbe(
                     &form.grammar, self, body, &::core_forms::get_core_forms());

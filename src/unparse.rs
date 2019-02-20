@@ -59,18 +59,18 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
             //=> unparse_mbe(&*body, context.get_leaf(name).unwrap_or(&Atom(n("<MISSING>"))), context, s),
         (&Call(sub_form), _) => unparse_mbe(s.find_or_panic(&sub_form), actl, context, s),
         (&Anyways(_), _) | (&Impossible, _) => "".to_string(),
-        (&Literal(n), _) => n.sp(),
-        (&AnyToken, &Atom(n)) => n.sp(),
+        (&Literal(n), _) => n.print(),
+        (&AnyToken, &Atom(n)) => n.print(),
         (&AnyToken, _) => panic!("TODO: pretty print arbitrary token trees"),
-        (&AnyAtomicToken, &Atom(n)) => n.sp(),
+        (&AnyAtomicToken, &Atom(n)) => n.print(),
         (&AnyAtomicToken, _) => "".to_string(), // HACK for `Alt`
-        (&VarRef, &VariableReference(n)) => n.sp(),
+        (&VarRef, &VariableReference(n)) => n.print(),
         (&VarRef, _) => "".to_string(), // HACK for `Alt`
         (&Delimited(opener, delim, ref body), _) => {
-            let mut closer = opener.sp();
+            let mut closer = opener.print();
             closer.pop();
             format!("{}{}{}{}",
-                opener.sp(), unparse_mbe(&*body, actl, context, s), delim.close(), closer)
+                opener.print(), unparse_mbe(&*body, actl, context, s), delim.close(), closer)
         }
         (&Seq(ref sub_pats), _) | (&Alt(ref sub_pats), _) => {
             let mut prev_empty = true;
