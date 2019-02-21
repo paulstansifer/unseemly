@@ -51,7 +51,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
         _ => {}
     }
 
-    // TODO: this really ought to notice when `actl` is all-formed for `pat`.
+    // TODO: this really ought to notice when `actl` is ill-formed for `pat`.
     match (pat, actl) {
         (&Named(name, ref body), _) => {
             unparse_mbe(&*body, context.get_leaf(name).unwrap_or(&Atom(n("<->"))), context, s)
@@ -72,16 +72,39 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
             format!("{}{}{}{}",
                 opener.print(), unparse_mbe(&*body, actl, context, s), delim.close(), closer)
         }
-        (&Seq(ref sub_pats), _) | (&Alt(ref sub_pats), _) => {
+        (&Seq(ref sub_pats), _) => {
             let mut prev_empty = true;
             let mut res = String::new();
             for sub_pat in sub_pats {
-                if !prev_empty { res.push(' '); }
                 let sub_res = unparse_mbe(&*sub_pat, actl, context, s);
+                if !prev_empty && sub_res != "" { res.push(' '); }
                 prev_empty = sub_res == "";
                 res.push_str(&sub_res);
             }
             res
+        }
+        (&Alt(ref sub_pats), _) => {
+            let mut any_scopes = false;
+            for sub_pat in sub_pats {
+                match &**sub_pat {
+                    Scope(_, _) => { any_scopes = true; continue; }
+                    _ => {}
+                }
+                let sub_res = unparse_mbe(&*sub_pat, actl, context, s);
+                if sub_res != "" { return sub_res } // HACK: should use `Option`
+            }
+            // HACK: certain forms don't live in the syntax environment, 
+            //  but "belong" under an `Alt`, so just assume forms know their grammar:
+            if any_scopes {
+                match actl {
+                    &Node(ref form_actual, ref body, _) => {
+                        return unparse_mbe(&*form_actual.grammar, actl, body, s);
+                    }
+                    _ => { }
+                }
+            }
+
+            return "".to_string(); // Not sure if it's an error, or really just empty
         }
         (&Biased(ref lhs, ref rhs), _) => {
             format!("{}{}", unparse_mbe(lhs, actl, context, s), unparse_mbe(rhs, actl, context, s))
@@ -104,7 +127,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
                 "".to_string() // HACK for `Alt`
             }
         }
-        (&Scope(_,_), _) => "".to_string(),
+        (&Scope(_,_), _) => "".to_string(), // Non-match
         (&NameImport(ref body, _), &ExtendEnv(ref actl_body, _)) => {
             unparse_mbe(&*body, &*actl_body, context, s)
         }

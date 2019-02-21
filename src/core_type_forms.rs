@@ -90,7 +90,7 @@ thread_local! {
     // An internal type to keep the compiler from trying to dig into the `Expr` in `Expr <[X]<`.
     pub static abstract_parametric_type : Rc<Form> = Rc::new(Form {
         name: n("abstract_parametric_type"),
-        grammar: Rc::new(form_pat!((delim "abstract[", "[", /*]]*/ (named "name", aat)))),
+        grammar: Rc::new(form_pat!([(named "name", aat)])),
         type_compare: Both(LiteralLike, LiteralLike),
         synth_type: Positive(LiteralLike),
         quasiquote: Both(LiteralLike, LiteralLike),
