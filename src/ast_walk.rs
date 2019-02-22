@@ -129,7 +129,7 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
       _ => Mode::D::pre_walk(a.clone(), walk_ctxt.clone())
     };
 
-    ld!(ast_walk_layer, "{} {}", Mode::name(), a);
+    // ld!(ast_walk_layer, "{} {}", Mode::name(), a);
     // lc!(ast_walk_layer, "  from: {}", walk_ctxt.this_ast);
     // match walk_ctxt.env.find(&negative_ret_val()) {
     //     Some(ref ctxt) => lc!(ast_walk_layer, "  ctxt: {:#?}", ctxt), _ => {}};
@@ -657,14 +657,15 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         Some(res)
     }
 
-    pub fn map_terms<F>(self, f: &mut F) -> LazyWalkReses<Mode> where F: FnMut(Name, &Ast) -> Ast {
+    pub fn map_terms<F, E: Clone>(self, f: &mut F) -> Result<LazyWalkReses<Mode>, E> 
+            where F: FnMut(Name, &Ast) -> Result<Ast, E> {
         use std::clone::Clone;
-        LazyWalkReses {
+        Ok(LazyWalkReses {
             parts: self.parts.named_map(
                 &mut |n: &Name, lwt: &Rc<LazilyWalkedTerm<Mode>>|
-                    LazilyWalkedTerm::new(&f(*n, &lwt.term))),
+                    Ok(LazilyWalkedTerm::new(&f(*n, &lwt.term)?))).lift_result()?,
             .. self
-        }
+        })
     }
 
     /** Like `get_rep_res`, but with a different context for each repetition */

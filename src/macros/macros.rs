@@ -136,6 +136,9 @@ macro_rules! ast {
         ::ast::Node(::core_forms::find_core_form($nt, $form), mbe!( $($mbe_arg)* ),
                     ebeta!($beta))
     };
+    ( { $form:expr => $beta:tt ; $($mbe_arg:tt)*} ) => {
+        ::ast::Node($form, mbe!( $($mbe_arg)* ), ebeta!($beta))
+    };
     ( { $form:expr; [ $($mbe_arg:tt)* ] }) => {
         ast!( { $form ; $($mbe_arg)* } )
     };
