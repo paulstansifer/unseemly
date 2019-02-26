@@ -1,3 +1,7 @@
+The Unseemly core language is not intended to be ergonomic,
+but to support the bare minimum of an algebraic type system and a procedural macro system.
+
+## Low-level structure
 The Unseemly tokenizer is very simple.
 Tokens are only separated by whitespace and the *inside edges* of `([{}])`.
 Furthermore, groupers are named. Thus `[]`, `.[ ].`, `hi[ ]hi` are all legal,
@@ -7,7 +11,7 @@ Probably, there's a reason that they have tokenizers
  that can't be described in five sentences.
 
 
-=Expressions=
+## Expressions
 * `(expr expr ⋯)` is function application.
 
 * `.[ x : Type  ⋯ . expr ].` is lambda.
@@ -28,7 +32,16 @@ Probably, there's a reason that they have tokenizers
     It is almost exclusively used right after constructing an enum or struct.
     `Type` is the type you want after adding the `mu`.
 
-=Pre-defined values=
+* `[Nonterminal <[Type]< | whatever_that_nonterminal_represents ]` is syntax quotation.
+    For example, `[Expr | (plus one one) ]`.
+    (The `<[Type]<` is sometimes optional).
+    When? I don't remember; it's complex.
+
+    * Inside a quotation, `,[Nonterminal <[Type]< | expr ],` is an unquotation.
+        For example `[Expr | (plus ,[Expr | syn_for_number], one)]` is the syntax for 
+        adding one to whatever `syn_for_number` represents.
+
+## Pre-defined values
 * `zero` through `ten` are integers. (What are these "literals" you speak of?)
 * `plus`, `minus`, `times`, and `equal?` are binary functions.
 * `zero?` is a unary function.
@@ -37,15 +50,15 @@ Probably, there's a reason that they have tokenizers
     `(fix .[again : [ -> [Int -> Int]] . .[ n : Int . ((again) (plus n one))]. ].)`
 
 
-
-=Patterns=
+## Patterns
 * `+[Choice pat ⋯]+` deconstructs an enumerated value.
 
 * `*[ component : pat  ⋯ ]*` deconstructs a structure value.
 
+* Quotation and unquotation are also useful as patterns.
 
 
-=Types=
+## Types
 * `[Type ⋯  -> Type]` is the function type.
 
 * `enum { Choice (Type ⋯) ⋯ }` is the enumeration type.
@@ -61,17 +74,13 @@ Probably, there's a reason that they have tokenizers
     For example, `List <[Int]<` is a list of integers.
     The technical term for this operator is "Fish X-ray".
 
-=Pre-defined types=
+## Pre-defined types
 * `Int` is a built-in type.
 * `Bool` is defined as `enum { True () False () }`.
 
 
-
-
-
-
-=Example unseemly programs=
-_ (in `src/examples/)` _
+## Example unseemly programs
+*(in `src/examples/`)*
 
 *  fact.≉ takes 5 factorial
     Demonstrates recursion with `fix`
