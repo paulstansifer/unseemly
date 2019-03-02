@@ -560,6 +560,55 @@ fn misc_subtyping_problems() {
 }
 
 #[test]
+fn struct_subtyping() {
+    // Trivial struct subtying:
+    assert_m!(must_subtype(
+        &ty!( { "Type" "struct" :
+            "component_name" => [@"c" "a", "b"],
+            "component" => [@"c" {"Type" "Int" :}, {"Type" "Nat" :}]}),
+        &ty!( { "Type" "struct" :
+            "component_name" => [@"c" "a", "b"],
+            "component" => [@"c" {"Type" "Int" :}, {"Type" "Nat" :}]}),
+        Assoc::new()),
+    Ok(_));
+
+    // Add a component:
+    assert_m!(must_subtype(
+        &ty!( { "Type" "struct" :
+            "component_name" => [@"c" "a", "b", "c"],
+            "component" => [@"c" {"Type" "Int" :}, {"Type" "Nat" :}, {"Type" "Float" :}]}),
+        &ty!( { "Type" "struct" :
+            "component_name" => [@"c" "a", "b"],
+            "component" => [@"c" {"Type" "Int" :}, {"Type" "Nat" :}]}),
+        Assoc::new()),
+    Ok(_));
+
+    // Reorder components:
+    assert_m!(must_subtype(
+        &ty!( { "Type" "struct" :
+            "component_name" => [@"c" "a", "b"],
+            "component" => [@"c" {"Type" "Int" :}, {"Type" "Nat" :}]}),
+        &ty!( { "Type" "struct" :
+            "component_name" => [@"c" "b", "a"],
+            "component" => [@"c" {"Type" "Nat" :}, {"Type" "Int" :}]}),
+        Assoc::new()),
+    Ok(_));
+
+    // Scramble:
+    assert_m!(must_subtype(
+        &ty!( { "Type" "struct" :
+            "component_name" => [@"c" "a", "b"],
+            "component" => [@"c" {"Type" "Int" :}, {"Type" "Nat" :}]}),
+        &ty!( { "Type" "struct" :
+            "component_name" => [@"c" "b", "a"],
+            "component" => [@"c" {"Type" "Int" :}, {"Type" "Nat" :}]}),
+        Assoc::new()),
+    Err(_));
+
+
+}
+
+#[test]
 fn subtype_different_mus() { // testing the Amber rule:
     // These types are non-contractive, but it doesn't matter for subtyping purposes.
     let jane_author = ty!({"Type" "mu_type" :

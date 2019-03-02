@@ -153,10 +153,39 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 (delim "(", "(", /*))*/ (star (named "component", (call "Type"))))]))]));
 
     let struct_type =
-        type_defn("struct", form_pat!(
+        type_defn_complex("struct", form_pat!(
             [(lit "struct"),
              (delim "{", "{", /*}}*/ (star [(named "component_name", aat), (lit ":"),
-                                            (named "component", (call "Type"))]))]));
+                                            (named "component", (call "Type"))]))]),
+            LiteralLike, // synth is normal
+            Both(
+                LiteralLike,
+                cust_rc_box!(move |struct_parts| {
+                    let actual_struct_parts = Subtype::context_match(&struct_parts.this_ast,
+                        &struct_parts.context_elt().concrete(), struct_parts.env.clone())?;
+
+                    for (exp_name, exp_ty) in
+                            struct_parts.get_rep_term(n("component_name")).iter()
+                                .zip(struct_parts.get_rep_term(n("component"))) {
+                        let mut found = false;
+                        for (got_name, got_ty) in
+                                actual_struct_parts.get_rep_leaf_or_panic(n("component_name")).iter()
+                                    .zip(actual_struct_parts.get_rep_leaf_or_panic(n("component"))) {
+                            if ast_to_name(exp_name) != ast_to_name(got_name) {
+                                continue;
+                            }
+                            found = true;
+                            let _ = walk::<Subtype>(
+                                &exp_ty, &struct_parts.with_context(Ty(got_ty.clone())))?;
+                        }
+                        if !found {
+                            return Err(TyErr::NonexistentStructField(
+                                ast_to_name(&exp_name), struct_parts.context_elt().clone()));
+                        }
+                    }
+
+                    Ok(assoc_n!())
+                })));
 
     let forall_type =
         type_defn_complex("forall_type",
