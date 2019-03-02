@@ -43,7 +43,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
                 let looked_up = unif.borrow().get(&var).cloned();
                 match looked_up {
                     // Apparently the environment is recursive; `{}`ing it stack-overflows
-                    Some(ref clo) => format!("{} in {:#?}", clo.it, clo.env),
+                    Some(ref clo) => format!("{} in some environment", clo.it /*, {:#?} clo.env*/),
                     None => format!("¿{}?", var)
                 }
             });

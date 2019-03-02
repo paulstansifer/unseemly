@@ -577,7 +577,7 @@ impl<T: Clone> EnvMBE<T> {
                     lhs[i].map_collapse_reduce_with(&rhs[rhs_i], f, col, red, base.clone()));
             }
         } else {
-            if len_diff != 0 { panic!("mismatched MBE lengths") }
+            if len_diff != 0 { panic!("mismatched MBE lengths {} vs. {}", lhs.len(), rhs.len()) }
             for i in 0..lhs.len() {
                 reduced = red(reduced,
                               lhs[i].map_collapse_reduce_with(&rhs[i], f, col, red, base.clone()));
