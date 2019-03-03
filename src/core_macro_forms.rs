@@ -20,11 +20,12 @@ use core_forms::ast_to_name;
 // You'd think I'd remember that better, what with that being the whole point of Unseemly, but nope.
 // Here's how macros work:
 // The programmer writes a syntax extension, e.g.:
-//   extend '{ forall T . #{ (lit if) ,{Expr <[Bool]< | cond},
-//                           (lit then) ,{Expr <[T]< | then}, (lit else) ,{Expr <[T]< | else}, }#
-//              conditional -> .{ '[Expr | match ,[Expr | cond], {
-//                                             +[True]+ => ,[Expr | then],
-//                                             +[False]+ => ,[Expr | else], } ]' }. }'
+//   extend forall T . '{ (lit if) ,{Expr <[Bool]< | cond},
+//                        (lit then) ,{Expr <[T]< | then_e},
+//                        (lit else) ,{Expr <[T]< | else_e}, }'
+//           conditional -> .{ '[Expr | match ,[Expr | cond], {
+//                                          +[True]+ => ,[Expr | then_e],
+//                                          +[False]+ => ,[Expr | else_e], } ]' }.
 //   in if (zero? five) then three else eight
 //
 // The parser parses the `if` as a macro invocation, but doesn't lose the '{…}'!
@@ -36,7 +37,7 @@ use core_forms::ast_to_name;
 // Everything is typechecked (including the `.{ ⋯ }.` implementation and the invocation).
 //  The macro name (`conditional`) is a bit of a hack
 // The syntax extension is typechecked, much like a function definition is.
-//  (`cond`, `then`, and `else` are assumed to be their respective types,
+//  (`cond`, `then_e`, and `else_e` are assumed to be their respective types,
 //    and the macro is shown to produce an `Expr <[T]<`.)
 // So is the invocation, which subtypes away the `T`, checks its arguments, and produces `T`.
 //
@@ -303,22 +304,20 @@ pub fn make_core_macro_forms() -> SynEnv {
             plan_a => Rc::new(FormPat::reflect(&plan_a)),
             plan_b => Rc::new(FormPat::reflect(&plan_b))
         )) => ["plan_a" "plan_b"],
-        // This has to have the same named parts as `unquote`, because it reuses its typechecker
-        syntax_syntax!( ([(named "binder", aat), (lit "="),
-                          (delim ",{", "{",
+        // TODO: replace `binder` with a `Pat`, and make the following true:
+        //   This has to have the same named parts as `unquote`, because it reuses its typechecker
+        //   But the type walk (as an overall quotation and locally) is always negative.
+        syntax_syntax!( ([(delim ",{", "{",
                            [(named "nt", aat),
-                            (delim "<[", "[", /*]]*/ (named "ty_annot", (call "Type"))),
-                            (lit "|"), (-- 1 (named "body", (call "Pat")))])])
+                            (delim "<[", "[", (named "ty_annot", (call "Type"))),
+                            (lit "|"), (named "binder", aat)])])
         NamedCall { // We combine `Named` and `Call`
             |parts| {
-                // This is a lot like the typechecker for `unquote`.
-                // But the type walk (as an overall quotation and locally) is always negative.
                 let expected_type = parts.switch_mode::<::ty::SynthTy>().get_res(n("ty_annot"))?;
                 let nt = ast_to_name(&parts.get_term(n("nt")));
 
-                let _res = parts.with_context(more_quoted_ty(&expected_type, nt));
-
-                Ok(Assoc::new())
+                let binder = ast_to_name(&parts.get_term(n("binder")));
+                Ok(Assoc::new().set(binder, more_quoted_ty(&expected_type, nt)))
             }
         } {
             |parts| {
@@ -327,9 +326,9 @@ pub fn make_core_macro_forms() -> SynEnv {
                     Rc::new(Call(::name::Name::reflect(&parts.get_res(n("nt"))?)))).reify())
             }
         }) => ["binder"],
-        // TODO ComputeSyntax
+        // TODO implement syntax for ComputeSyntax
         syntax_syntax!( ([(lit "forall"), (star (named "param", aat)), (lit "."),
-                          (delim "#{", "{",
+                          (delim "'{", "{",
                               (import [* [forall "param"]], (named "syntax", (call "Syntax")))),
                           (named "fake_type", (anyways (trivial))),
                           (named "macro_name", aat), (lit "->"),
@@ -365,8 +364,6 @@ pub fn make_core_macro_forms() -> SynEnv {
 
                 // This macro invocation (will replace `syntax`)
                 Ok(Scope(macro_invocation(
-                    // This needs to be used somewhere!
-                        /*,*/
                         FormPat::reflect(&parts.get_res(n("syntax"))?),
                         ast_to_name(&parts.get_term(n("macro_name"))),
                         export_names),
@@ -396,6 +393,23 @@ fn formpat_reflection() {
                 {"Expr" "quote_expr" : "nt" => "Expr", "body" => (++ true "<--->")}
              })).unwrap()),
         Literal(n("<--->")));
+}
+
+#[test]
+fn macro_definitions() {
+    let expr_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Expr" });
+    let int_expr_type = ty!({"Type" "type_apply" :
+        "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Int" :}]
+    });
+
+    assert_eq!(
+    ::ty::neg_synth_type(
+        &ast!({"Syntax" "namedcall" :
+            "binder" => "x",
+            "nt" => "Expr",
+            "ty_annot" => {"Type" "Int" :}
+        }), Assoc::new().set(negative_ret_val(), ty!((trivial)))),
+    Ok(assoc_n!("x" => int_expr_type)));
 }
 
 #[test]

@@ -48,6 +48,7 @@ pub fn strip_ee(a: &Ast) -> &Ast {
 pub fn make_core_syn_env() -> SynEnv {
 
     let ctf: SynEnv = make_core_syn_env_types();
+    let cmf: SynEnv = ::core_macro_forms::make_core_macro_forms();
 
     // This seems to be necessary to get separate `Rc`s into the closures.
     let ctf_0 = ctf.clone();
@@ -451,7 +452,8 @@ pub fn make_core_syn_env() -> SynEnv {
         "dotdotdot" => Rc::new(form_pat!([(delim "...(", "(", (call "body"))])),
         "Pat" => Rc::new(Biased(Rc::new(main_pat_forms), Rc::new(AnyAtomicToken))),
         "Expr" => Rc::new(Biased(Rc::new(main_expr_forms), Rc::new(VarRef)))
-    ).set_assoc(&ctf) /* throw in the types! */
+    ).set_assoc(&ctf).set_assoc(&cmf) /* throw in the types and macros! */
+
 }
 
 /**
