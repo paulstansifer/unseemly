@@ -114,6 +114,11 @@ impl FormPat {
     pub fn find_named_call(&self, n: Name) -> Option<Option<Name>> {
         match *self {
             Named(this_n, ref sub) if this_n == n => {
+                // Pass though any number of `Import`s:
+                let mut sub = sub;
+                while let NameImport(ref new_sub, _) = **sub {
+                    sub = new_sub;
+                }
                 match **sub {
                     Call(nt) => Some(Some(nt)),
                     AnyAtomicToken => Some(None),

@@ -160,6 +160,8 @@ macro_rules! ty {
     ( $($contents:tt)* ) => { ::ty::Ty::new(ast!($($contents)*)) }
 }
 
+// These construct spanned type errors (so, for type synthesis, not subtyping)
+
 macro_rules! ty_err {
     ( $name:tt ( $($arg:expr),* ) at $loc:expr) => {
         return Err(::util::err::sp(::ty::TyErr::$name( $($arg),* ), $loc.clone()));
