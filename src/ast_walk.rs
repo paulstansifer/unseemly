@@ -132,7 +132,7 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
     // ld!(ast_walk_layer, "{} {}", Mode::name(), a);
     // lc!(ast_walk_layer, "  from: {}", walk_ctxt.this_ast);
     // match walk_ctxt.env.find(&negative_ret_val()) {
-    //     Some(ref ctxt) => lc!(ast_walk_layer, "  ctxt: {:#?}", ctxt), _ => {}};
+    //     Some(ref ctxt) => lc!(ast_walk_layer, "  ctxt: {}", ctxt), _ => {}};
     // lc!(ast_walk_layer, "  in: {:#?}", walk_ctxt.env.map_borrow_f(&mut |_| "…"));
 
     let literally : Option<bool> = // If we're under a wrapper, `this_ast` might not be a Node
@@ -657,7 +657,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         Some(res)
     }
 
-    pub fn map_terms<F, E: Clone>(self, f: &mut F) -> Result<LazyWalkReses<Mode>, E> 
+    pub fn map_terms<F, E: Clone>(self, f: &mut F) -> Result<LazyWalkReses<Mode>, E>
             where F: FnMut(Name, &Ast) -> Result<Ast, E> {
         use std::clone::Clone;
         Ok(LazyWalkReses {
