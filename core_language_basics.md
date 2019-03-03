@@ -1,6 +1,8 @@
 The Unseemly core language is not intended to be ergonomic,
 but to support the bare minimum of an algebraic type system and a procedural macro system.
 
+The file extension for Unseemly source code is `.≉`.
+
 ## Low-level structure
 The Unseemly tokenizer is very simple.
 Tokens are only separated by whitespace and the *inside edges* of `([{}])`.
@@ -34,12 +36,12 @@ Probably, there's a reason that they have tokenizers
 
 * `[Nonterminal <[Type]< | whatever_that_nonterminal_represents ]` is syntax quotation.
     For example, `[Expr | (plus one one) ]`.
-    (The `<[Type]<` is sometimes optional).
-    When? I don't remember; it's complex.
+    (The `<[Type]<` annotation is usually optional, but you need it for `Pat`).
 
     * Inside a quotation, `,[Nonterminal <[Type]< | expr ],` is an unquotation.
-        For example `[Expr | (plus ,[Expr | syn_for_number], one)]` is the syntax for 
+        For example `[Expr | (plus ,[Expr | syn_for_number], one)]` is the syntax for
         adding one to whatever `syn_for_number` represents.
+        (The `<[Type]<` annotation is usually optional, but you need it for `Pat`).
 
 ## Pre-defined values
 * `zero` through `ten` are integers. (What are these "literals" you speak of?)
@@ -53,9 +55,10 @@ Probably, there's a reason that they have tokenizers
 ## Patterns
 * `+[Choice pat ⋯]+` deconstructs an enumerated value.
 
-* `*[ component : pat  ⋯ ]*` deconstructs a structure value.
+* `*[component : pat  ⋯]*` deconstructs a structure value.
 
 * Quotation and unquotation are also useful as patterns.
+  The `<[Type]<` annotation is always optional starting from a pattern.
 
 
 ## Types
