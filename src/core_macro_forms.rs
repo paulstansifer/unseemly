@@ -16,16 +16,18 @@ use core_type_forms::{more_quoted_ty, less_quoted_ty};
 use core_forms::ast_to_name;
 
 // Macros!
+//
 // Macro expansion happens after typechecking. Macro expansion happens after typechecking.
 // You'd think I'd remember that better, what with that being the whole point of Unseemly, but nope.
 // Here's how macros work:
-// The programmer writes a syntax extension, e.g.:
-//   extend forall T . '{ (lit if) ,{Expr <[Bool]< | cond},
-//                        (lit then) ,{Expr <[T]< | then_e},
-//                        (lit else) ,{Expr <[T]< | else_e}, }'
-//           conditional -> .{ '[Expr | match ,[Expr | cond], {
-//                                          +[True]+ => ,[Expr | then_e],
-//                                          +[False]+ => ,[Expr | else_e], } ]' }.
+// The programmer writes a macro definition, e.g.:
+// forall T . '{ (lit if) ,{Expr <[Bool]< | cond},
+//               (lit then) ,{Expr <[T]< | then_e},
+//               (lit else) ,{Expr <[T]< | else_e}, }'
+//  conditional -> .{ '[Expr | match ,[Expr | cond], {
+//                                 +[True]+ => ,[Expr | then_e],
+//                                 +[False]+ => ,[Expr | else_e], } ]' }.
+// ...which can be added to the `SynEnv` in order to make the following valid:
 //   in if (zero? five) then three else eight
 //
 // The parser parses the `if` as a macro invocation, but doesn't lose the '{…}'!

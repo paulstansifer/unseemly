@@ -491,6 +491,38 @@ pub fn find_form(se: &SynEnv, nt: &str, form_name: &str) -> Rc<Form> {
         .expect(format!("{:#?} not found in {:#?}", form_name, pat).as_str())
 }
 
+
+// Inserts a new form into a grammar in the "sensible" place
+//  (underneath any number of `Biased`s, as a new arm of an `Alt`).
+// Macros will usually want to do this to extend an existing NT.
+pub fn insert_form_pat(se: &SynEnv, nt: Name, f: &FormPat) -> SynEnv {
+    let nt_form: Rc<FormPat> = se.find_or_panic(&nt).clone();
+
+    se.set(nt, Rc::new(add_form_at_the_alt(nt_form, f).unwrap()))
+}
+
+pub fn add_form_at_the_alt(outer: Rc<FormPat>, inner: &FormPat) -> Option<FormPat> {
+    match *outer {
+        Biased(ref l, ref r) => {
+            match add_form_at_the_alt(l.clone(), inner) {
+                Some(new_l) => { return Some(Biased(Rc::new(new_l), r.clone())); }
+                None => {}
+            }
+            match add_form_at_the_alt(r.clone(), inner) {
+                Some(new_r) => { return Some(Biased(l.clone(), Rc::new(new_r))); }
+                None => {}
+            }
+            return None;
+        }
+        Alt(ref subs) => {
+            let mut my_subs: Vec<Rc<FormPat>> = subs.clone();
+            my_subs.push(Rc::new(inner.clone()));
+            return Some(Alt(my_subs))
+        }
+        _ => None
+    }
+}
+
 fn find_type(se: &SynEnv, form_name: &str) -> Rc<Form> {
     find_form(se, "Type", form_name)
 }
@@ -966,4 +998,18 @@ fn use__let_type() {
             })
         }), Assoc::new()),
     Ok(_));
+}
+
+#[test]
+fn use_insert_form_pat() {
+    let se = assoc_n!("Pat" => Rc::new(form_pat!((impossible))),
+                      "Expr" => Rc::new(form_pat!(
+                          (biased (biased aat, aat),
+                                  (biased (alt (lit "a"), (lit "b")), aat)))));
+    assert_eq!(
+        insert_form_pat(&se, n("Expr"), &form_pat!((lit "c"))),
+        assoc_n!("Pat" => Rc::new(form_pat!((impossible))),
+                 "Expr" => Rc::new(form_pat!(
+                     (biased (biased aat, aat),
+                             (biased (alt (lit "a"), (lit "b"), (lit "c")), aat))))));
 }
