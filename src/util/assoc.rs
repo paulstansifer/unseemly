@@ -3,9 +3,6 @@ use std::clone::Clone;
 use runtime::reify::Reifiable;
 use std::fmt;
 
-
-// TODO: we can get rid of a lot of these `pub`s by making `Assoc` iterable
-
 // Potential optimization: replace a run of ten nodes with a `HashMap`.
 // Recursively replace runs of those, too...
 
@@ -16,13 +13,12 @@ custom_derive! {
     #[must_use]
     #[derive(Reifiable, Default)]
     pub struct Assoc<K, V> {
-        pub n: Option<Rc<AssocNode<K, V>>> // This could be a newtype, except for `custom_derive`
+        n: Option<Rc<AssocNode<K, V>>> // This could be a newtype, except for `custom_derive`
     }
 }
 
 impl<K : PartialEq + Clone, V: Clone> Clone for Assoc<K, V> {
     fn clone(&self) -> Assoc<K, V> {
-        //self.map(&|rc| rc.clone()) // TODO: did I want this behavior somehow?
         Assoc {
             n: self.n.clone()
         }
@@ -53,9 +49,9 @@ impl <K : PartialEq + Clone, V: PartialEq> Eq for Assoc<K, V> {}
 custom_derive! {
     #[derive(Reifiable)]
     pub struct AssocNode<K, V> {
-        pub k: K,
-        pub v: V,
-        pub next: Assoc<K,V>
+        k: K,
+        v: V,
+        next: Assoc<K,V>
     }
 }
 

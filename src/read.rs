@@ -2,7 +2,7 @@
 The tokenizer ("reader", in Scheme parlance) for Unseemly.
 
 TODO: Make tokenization lazy...
-TODO: ...so that it's possible to switch tokenizers mid-file.
+TODO #6: ...so that it's possible to switch tokenizers mid-file.
 */
 
 extern crate regex;

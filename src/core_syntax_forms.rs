@@ -335,7 +335,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
                      (named "body", (++ pos_inside (call_by_name starter_nt)))])))
     };
 
-    // TODO: the following hardcodes positive walks as `Expr` and negative walks as `Pat`.
+    // TODO #4: the following hardcodes positive walks as `Expr` and negative walks as `Pat`.
     // What happens when more NTs are added?
     Rc::new(Form {
         name: if pos { n("quote_expr") } else { n("quote_pat") },

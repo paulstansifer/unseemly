@@ -104,7 +104,7 @@ pub fn make_core_syn_env() -> SynEnv {
                         .map_err(|e| ::util::err::sp(e, part_types.this_ast.clone()))?;
 
 
-                // TODO: test the necessity of this (it's used in the prelude)
+                // TODO: write a test that exercises this (it's used in the prelude)
                 // What return type made that work?
                 ::ty_compare::unification.with(|unif| {
                     let res = ::ty_compare::resolve(
@@ -160,7 +160,7 @@ pub fn make_core_syn_env() -> SynEnv {
                     }
                 }
                 match res {
-                    None => { // TODO: this isn't anywhere near exhaustive
+                    None => { // TODO #2: this isn't anywhere near exhaustive
                         ty_err!(NonExhaustiveMatch(part_types.get_res(n("scrutinee")).unwrap())
                             at Trivial /* TODO */)
                     },
@@ -877,7 +877,7 @@ fn recursive_types() {
     let ty_env = assoc_n!(
         "IntList" => int_list_ty.clone(),  // this is a type definition...
         "il_direct" => int_list_ty.clone()  // ...and this is a value with a type
-        // TODO: ... distinguish between these in the environment! Is the difference ... kind?
+        // TODO #3: ... distinguish between these kinds in the environment!
 
         // We should never have `vr`s in the environment unless "protected" by a μ.
         // TODO: enforce that:

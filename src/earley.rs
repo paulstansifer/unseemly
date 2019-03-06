@@ -100,6 +100,7 @@ fn ddd_unwrap(a: &Ast) -> Option<Ast> {
 
 
 // TODO: this shouldn't be hardcoded into the parser; it should be ... how should it work?
+// (Maybe the `Biased`s in the grammar take care of this now?)
 fn reserved(nm: Name) -> bool {
     Simple(nm) == end_of_delim() || nm == n("forall") || nm == n("mu_type")
         || nm == n("Int") || nm == n("Ident") || nm == n("Float") || nm == n("match")

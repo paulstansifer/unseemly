@@ -28,7 +28,7 @@ use core_forms::ast_to_name;
 //                                 +[True]+ => ,[Expr | then_e],
 //                                 +[False]+ => ,[Expr | else_e], } ]' }.
 // ...which can be added to the `SynEnv` in order to make the following valid:
-//   in if (zero? five) then three else eight
+//   if (zero? five) then three else eight
 //
 // The parser parses the `if` as a macro invocation, but doesn't lose the '{…}'!
 //  It spits out an `Ast` in which the `extend` binds `conditional` and `if ⋯` references it.
@@ -328,7 +328,7 @@ pub fn make_core_macro_forms() -> SynEnv {
                     Rc::new(Call(::name::Name::reflect(&parts.get_res(n("nt"))?)))).reify())
             }
         }) => ["binder"],
-        // TODO implement syntax for ComputeSyntax
+        // TODO: implement syntax for ComputeSyntax
         syntax_syntax!( ([(lit "forall"), (star (named "param", aat)), (lit "."),
                           (delim "'{", "{",
                               (import [* [forall "param"]], (named "syntax", (call "Syntax")))),

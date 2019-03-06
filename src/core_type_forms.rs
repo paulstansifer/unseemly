@@ -61,7 +61,7 @@ use ty_compare::{Canonicalize, Subtype};
 use ast::*;
 use ::util::assoc::Assoc;
 
-//TODO: I think we need to extend `Form` with `synth_kind`...
+//TODO #3: I think we need to extend `Form` with `synth_kind`...
 fn type_defn(form_name: &str, p: FormPat) -> Rc<Form> {
     Rc::new(Form {
         name: n(form_name),
@@ -255,7 +255,6 @@ pub fn make_core_syn_env_types() -> SynEnv {
                         || mu_parts.env.find(&vr_to_name(&*p_r)) // ...or Amber assumed so already
                              == Some(&Ty(p_l.clone())) { continue; }
 
-                    // print!("Ambering: {} = {}\n", p_r, p_l);
                     amber_environment = amber_environment
                         .set(vr_to_name(p_r), Ty(p_l.clone()));
                 }
@@ -370,13 +369,6 @@ pub fn make_core_syn_env_types() -> SynEnv {
         type_defn("Int", form_pat!((lit "Int"))),
         type_defn("Nat", form_pat!((lit "Nat"))),
         type_defn("Float", form_pat!((lit "Float"))),
-/* // Moved to core_values
-        // We want the names of NTs to be bound in the environment;
-        //  these opaque types are what they're bound to:
-        type_defn("Pat", form_pat!((lit "Pat"))),
-        type_defn("Ty", form_pat!((lit "Ty"))), // TODO: change to "Type"
-        type_defn("Expr", form_pat!((lit "Expr"))),
-*/
         enum_type.clone(),
         struct_type.clone(),
         forall_type.clone(),
@@ -387,7 +379,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
 }
 
 
-// TODO: this should be extensible for when the syntax environment is extended...
+// TODO #4: this should be extensible for when the syntax environment is extended...
 //  or just automatically have one type per NT. Probably the latter.
 pub fn nt_to_type(nt: Name) -> Ty {
     if nt == n("Type") || nt == n("Pat") || nt == n("Expr") {
@@ -398,7 +390,7 @@ pub fn nt_to_type(nt: Name) -> Ty {
     }
 }
 
-// TODO: make this extensible, too! When the user creates a new NT,
+// TODO #4: make this extensible, too! When the user creates a new NT,
 //  do they need to specify the direction?
 pub fn nt_is_positive(nt: Name) -> bool {
     if nt == n("Type") || nt == n("Expr") {
