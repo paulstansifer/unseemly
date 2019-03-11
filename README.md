@@ -15,11 +15,37 @@ Informally, Unseemly guarantees that,
 Unseemly has a bare minimum of forms
  necessary to bootstrap the implementation of practical languages.
 
+## Features
+
+### From the ML family
+ * Algebraic types (i.e., supports structs and (rich) enums)
+ * Typesafe destructuring with `match`.
+ * Generic types (or parametric types) (e.g. `List <[T]<` (Unseemly's syntax is weird))
+ * Recursive types
+### From the Scheme family
+ * Syntax quasiquotation
+    (`'[Expr | … ]'` quotes an expression,
+      but inside that, `,[Expr | … ],` evaluates its contents and interpolates them)
+ * Pretty-printing respects macro invocations and quoted syntax
+    (the pretty-printer is rather limited at the moment, though)
+ * Hygenic macros (all operations respect α-equivalence)
+### Unique features
+ * Typechecking under syntax quotation
+   (so `'[Expr | (plus one ,[Expr | e1],)]'` is a type error
+     if `e1` has the type `Expr <[String]<`)
+ * No type errors in generated code
+   (if a macro invocation typechecks, the code it expands to doesn't need typechecking)
+
+
 ## How to use it
 
-Install Rust:
+Install Rust, if you haven't already:
 
     curl https://sh.rustup.rs -sSf | sh
+
+From your Unseemly repository directory, run an example program:
+
+    cargo run src/examples/sum_list.≉
 
 (Recommended) Get the default prelude for the unseemly REPL:
 
@@ -29,14 +55,9 @@ Start the REPL:
 
     cargo run
 
-
-Run an example programs:
-
-    cargo run src/examples/sum_list.≉
-
 ## Documentation
 
-Look at core_language_basics.txt for documentation of the language.
+Look at core_language_basics.md for documentation of the language.
 
 ## Related work
 
@@ -44,15 +65,44 @@ Look at core_language_basics.txt for documentation of the language.
 
 Unseemly is sort of a descendant of FreshML and Romeo
  (but without the parts of Romeo corresponding to Pure FreshML).
-Romeo allowed for manipulation of syntax types with complex binding information,
- but (a) syntax was otherwise untyped
-     (b) there was no macro system (so the syntax manipulation was pointless!)
-     (c) it was more of a core calculus
+Romeo allowed for manipulation of syntax types with complex binding information, but
+  * syntax was otherwise untyped
+  * there was no macro system (so the syntax manipulation was pointless!)
+  * it is just a core calculus
 
 ### SugarJ / SoundX
 
+SoundX is a language with syntax extensions in which typechecking occurs before expansion.
+It provides sound language extensions, but
+  * it doesn't support binding annotations
+    (in practice, this means that syntax extension authors wind up writing specifications
+     that contain logic-y things like `x ∉ dom(E)`.)
+  * the language extensions aren't macros (they're not themselves part of the language)
+  * it is just a core calculus
 
+(TODO: are the extensions themselves statically verified to be type-preserving?
+ I think so, but I don't remember for sure.)
 
 ### Wyvern
 
+Wyvern's primary motivating example
+ (write SQL, not strings containing SQL, in your general-purpose code)
+ is a lot like Unseemly's vision of inline syntax extension.
+Wyvern is an engineered programming language, not a core calculus.
+
+Wyvern also includes a number of features that are outside the scope of Unseemly.
+
+(TODO: learn more about Wyvern)
+
 ### Terra
+
+Terra, from a quick glance (TODO: learn more),
+ appears to be a language with a close relationship to Lua,
+  similar to the relationship that Unseemly-based languages would have.
+
+In this case, it looks like the goal is to marry a high-level and low-level language together,
+ without an FFI and with inline embedding.
+
+### Rust and SweetJS
+
+Rust and SweetJS are non-S-expression-based language with macro systems that allow rich syntax.
