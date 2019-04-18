@@ -105,4 +105,4 @@ In this case, it looks like the goal is to marry a high-level and low-level lang
 
 ### Rust and SweetJS
 
-Rust and SweetJS are non-S-expression-based language with macro systems that allow rich syntax.
+Rust and SweetJS are non-S-expression-based languages with macro systems that allow rich syntax.

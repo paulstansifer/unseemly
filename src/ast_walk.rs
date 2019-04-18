@@ -464,7 +464,7 @@ impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
 
 
 impl<Mode: WalkMode> LazyWalkReses<Mode> {
-    pub fn new(env: ResEnv<Mode::Elt>, // TODO: we could get rid of the middle element
+    pub fn new(env: ResEnv<Mode::Elt>, // TODO: we could get rid of the middle argument
                parts_unwalked: &EnvMBE<Ast>,
                this_ast: Ast)
             -> LazyWalkReses<Mode> {
@@ -680,7 +680,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             Ok(res)
         } else {
             panic!("Type error: Length mismatch")
-            //Err(()) // TODO: When we actually start using results, emit something specific.
+            //Err(()) // TODO: Generate a mode-appropriate error
         }
     }
 }

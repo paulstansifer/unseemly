@@ -5,6 +5,7 @@ use grammar::SynEnv;
 use std::rc::Rc;
 use name::*;
 use form::Form;
+use form::EitherPN::{Both};
 use ast::{Ast, Node, Atom};
 use ast_walk::WalkRule::{NotWalked, LiteralLike, Custom};
 use runtime::reify::Reifiable;
@@ -190,7 +191,6 @@ fn macro_invocation(grammar: FormPat, macro_name: Name, export_names: Vec<Name>)
                 less_quoted_ty(&q_result, Some(n("Expr")), &parts.this_ast)
             }),
             cust_rc_box!( move |parts| {
-                println!("nst: mi");
                 // From the macro's point of view, its parts are all positive;
                 // they all produce (well, expand to), rather than consume, syntax.
                 let parts_positive = parts.switch_mode::<SynthTy>();
@@ -198,7 +198,6 @@ fn macro_invocation(grammar: FormPat, macro_name: Name, export_names: Vec<Name>)
 
                 let arguments = type_macro_invocation(macro_name, &parts_positive,
                                                       expected_return_type, &grammar2)?;
-                println!("done!");
 
                 // What argument types made that work?
                 let mut res : Assoc<Name, Ty> = Assoc::new();
@@ -235,6 +234,10 @@ fn macro_invocation(grammar: FormPat, macro_name: Name, export_names: Vec<Name>)
 }
 
 pub fn make_core_macro_forms() -> SynEnv {
+    let trivial_type_form = ::core_type_forms::type_defn("unused", form_pat!((impossible)));
+
+    // Most of "Syntax" is a negative walk (because it produces an environment),
+    //  but lacking a `negative_ret_val`.
     let grammar_grammar = forms_to_form_pat_export![
         syntax_syntax!( ( (delim "anyways,{", "{", (named "body", (call "Expr"))) ) Anyways (
             body => ::ast::Ast::reflect(&body)
@@ -306,44 +309,77 @@ pub fn make_core_macro_forms() -> SynEnv {
             plan_a => Rc::new(FormPat::reflect(&plan_a)),
             plan_b => Rc::new(FormPat::reflect(&plan_b))
         )) => ["plan_a" "plan_b"],
-        // TODO: replace `binder` with a `Pat`, and make the following true:
-        //   This has to have the same named parts as `unquote`, because it reuses its typechecker
-        //   But the type walk (as an overall quotation and locally) is always negative.
-        syntax_syntax!( ([(delim ",{", "{",
-                           [(named "nt", aat),
-                            (delim "<[", "[", (named "ty_annot", (call "Type"))),
-                            (lit "|"), (named "binder", aat)])])
-        NamedCall { // We combine `Named` and `Call`
+        // `Named` switches to a positive mode for typechecking its body.
+        // TODO: I don't think this makes sense, now that `Named` and `Call` are split apart:
+        //   TODO: replace `binder` with a `Pat`, and make the following true:
+        //     This has to have the same named parts as `unquote`, because it reuses its typechecker
+        //     But the type walk (as an overall quotation and locally) is always negative.
+        syntax_syntax!( ([(named "part_name", aat), (lit "="), (named "body", (call "Syntax"))])
+        Named {
             |parts| {
-                let expected_type = parts.switch_mode::<::ty::SynthTy>().get_res(n("ty_annot"))?;
-                let nt = ast_to_name(&parts.get_term(n("nt")));
-
-                let binder = ast_to_name(&parts.get_term(n("binder")));
-                Ok(Assoc::new().set(binder, more_quoted_ty(&expected_type, nt)))
+                let binder = ast_to_name(&parts.get_term(n("part_name")));
+                Ok(Assoc::new().set(binder, parts.switch_mode::<SynthTy>().get_res(n("body"))?))
             }
         } {
             |parts| {
                 Ok(Named(
-                    ::name::Name::reflect(&parts.get_res(n("binder"))?),
-                    Rc::new(Call(::name::Name::reflect(&parts.get_res(n("nt"))?)))).reify())
+                    ::name::Name::reflect(&parts.get_res(n("part_name"))?),
+                    Rc::new(FormPat::reflect(&parts.get_res(n("body"))?))).reify())
             }
-        }) => ["binder"],
+        }) => ["part_name"],
+        // `Call` is positive (has to be under a `Named`)
+        Rc::new(Form {
+            name: n("call"),
+            grammar: Rc::new(form_pat!(
+                (delim ",{", "{",
+                    [(named "nt", aat), (delim "<[", "[", (named "ty_annot", (call "Type")))]))),
+            type_compare: ::form::Both(NotWalked,NotWalked), // Not a type
+            synth_type: Both(cust_rc_box!(|parts| {
+                let expected_type = parts.get_res(n("ty_annot"))?;
+                let nt = ast_to_name(&parts.get_term(n("nt")));
+
+                Ok(more_quoted_ty(&expected_type, nt))
+            }), NotWalked),
+            eval: ::form::Positive(cust_rc_box!(|parts| {
+                Ok(Rc::new(Call(::name::Name::reflect(&parts.get_res(n("nt"))?))).reify())
+            })),
+            quasiquote: ::form::Both(LiteralLike, LiteralLike)
+        }) => [],
+        // `Import` is positive (has to be under a `Named`)
+        Rc::new(Form {
+            name: n("import"),
+            grammar: Rc::new(form_pat!(
+                (delim ",{", "{",
+                    [(named "nt", aat), (delim "<[", "[", (named "ty_annot", (call "Type")))]))),
+            type_compare: ::form::Both(NotWalked,NotWalked), // Not a type
+            synth_type: Both(cust_rc_box!(|parts| {
+                let expected_type = parts.get_res(n("ty_annot"))?;
+                let nt = ast_to_name(&parts.get_term(n("nt")));
+
+                Ok(more_quoted_ty(&expected_type, nt))
+            }), NotWalked),
+            eval: ::form::Positive(cust_rc_box!(|parts| {
+                Ok(Rc::new(Call(::name::Name::reflect(&parts.get_res(n("nt"))?))).reify())
+            })),
+            quasiquote: ::form::Both(LiteralLike, LiteralLike)
+        }) => [],
         // TODO: implement syntax for ComputeSyntax
+        // Not sure if `Scope` syntax should be positive or negative.
         syntax_syntax!( ([(lit "forall"), (star (named "param", aat)), (lit "."),
                           (delim "'{", "{",
                               (import [* [forall "param"]], (named "syntax", (call "Syntax")))),
-                          (named "fake_type", (anyways (trivial))),
+                          // We need an arbitrary negative_ret_val:
+                          (named "unused_type", (anyways {trivial_type_form ; } )),
                           (named "macro_name", aat), (lit "->"),
                           (delim ".{", "{", (named "implementation",
                               // TODO `beta!` needs `Shadow` so we can combine these `import`s:
                               (import [* [forall "param"]],
-                                  (import ["body" = "fake_type"], (call "Expr"))))),
+                                  (import ["syntax" = "unused_type"], (call "Expr"))))),
                           (alt [], // TODO: needs proper `beta` structure, not just a name list:
                                [(lit "=>"), (star (named "export", aat))])])
         Scope {
             |parts| {
-                // TODO: this ought to be tested!
-                let return_ty = parts.switch_mode::<::ty::SynthTy>().get_res(n("body"))?;
+                let return_ty = parts.switch_mode::<::ty::SynthTy>().get_res(n("implementation"))?;
                 let arguments = parts.get_res(n("syntax"))?;
                 let ty_params = &parts.get_rep_term(n("param")).iter().map(
                             |p| ast_to_name(p)).collect::<Vec<_>>();
@@ -400,18 +436,62 @@ fn formpat_reflection() {
 #[test]
 fn macro_definitions() {
     let expr_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Expr" });
+    let pat_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Pat" });
     let int_expr_type = ty!({"Type" "type_apply" :
         "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Int" :}]
     });
+    let env = assoc_n!("ie" => int_expr_type.clone()).set(negative_ret_val(), ty!((trivial)));
 
     assert_eq!(
-    ::ty::neg_synth_type(
-        &ast!({"Syntax" "namedcall" :
-            "binder" => "x",
-            "nt" => "Expr",
-            "ty_annot" => {"Type" "Int" :}
-        }), Assoc::new().set(negative_ret_val(), ty!((trivial)))),
-    Ok(assoc_n!("x" => int_expr_type)));
+        ::ty::neg_synth_type(
+            &ast!({"Syntax" "named" => ["part_name"] :
+                "part_name" => "x",
+                "body" => {"Syntax" "call" :
+                    "nt" => "Expr",
+                    "ty_annot" => {"Type" "Int" :}
+                }
+            }), env.clone()),
+        Ok(assoc_n!("x" => int_expr_type.clone())));
+
+    let t_expr_type = ty!({"Type" "type_apply" :
+        "type_rator" => (,expr_type.clone()), "arg" => [(vr "T")]
+    });
+    let s_expr_type = ty!({"Type" "type_apply" :
+        "type_rator" => (,expr_type.clone()), "arg" => [(vr "S")]
+    });
+    let t_pat_type = ty!({"Type" "type_apply" :
+        "type_rator" => (,pat_type.clone()), "arg" => [(vr "T")]
+    });
+
+    assert_eq!(
+    ::ty::neg_synth_type(&ast!(
+            {"Syntax" "scope" :
+                "param" => ["T", "S"],
+                "syntax" => (import [* [forall "param"]] {"Syntax" "seq" => [* ["elt"]] :
+                    "elt" => [
+                        {"Syntax" "named" => ["part_name"] :
+                            "part_name" => "val",
+                            "body" => {"Syntax" "call" : "nt" => "Expr", "ty_annot" => (vr "T")}},
+                        {"Syntax" "named" => ["part_name"] :
+                            "part_name" => "binding",
+                            "body" => {"Syntax" "call" : "nt" => "Pat", "ty_annot" => (vr "T")}},
+                        {"Syntax" "named" => ["part_name"] :
+                            "part_name" => "body",
+                            "body" => {"Syntax" "call" : "nt" => "Expr", "ty_annot" => (vr "S")}}]
+                }),
+                "unused_type" => {"Type" "Nat" :}, // In practice, this is a `trivial_type_form`
+                "macro_name" => "some_macro",
+                "implementation" => (import [* [forall "param"]] (import ["syntax" = "unused_type"]
+                    (vr "ie")))
+            }), env.clone()),
+        Ok(assoc_n!(
+            "some_macro" => macro_type(&vec![n("T"), n("S")],
+                                       assoc_n!("body" => s_expr_type.clone(),
+                                                "binding" => t_pat_type.clone(),
+                                                "val" => t_expr_type.clone()),
+                                       int_expr_type.clone())
+        )));
+
 }
 
 #[test]

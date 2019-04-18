@@ -126,7 +126,7 @@ macro_rules! ast {
         }
     };*/
     ( (vr $var:expr) ) => { ::ast::VariableReference(::name::n($var)) };
-    ( (, $interp:expr)) => { $interp };
+    ( (, $interpolate:expr)) => { $interpolate };
     // TODO: maybe we should use commas for consistency:
     ( ( $( $list:tt )* ) ) => { ast_shape!($($list)*)};
     ( { - $($mbe_arg:tt)* } ) => {
@@ -282,7 +282,6 @@ macro_rules! mbe {
         res
     }}
 }
-
 
 
 

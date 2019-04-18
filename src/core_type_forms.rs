@@ -62,7 +62,7 @@ use ast::*;
 use ::util::assoc::Assoc;
 
 //TODO #3: I think we need to extend `Form` with `synth_kind`...
-fn type_defn(form_name: &str, p: FormPat) -> Rc<Form> {
+pub fn type_defn(form_name: &str, p: FormPat) -> Rc<Form> {
     Rc::new(Form {
         name: n(form_name),
         grammar: Rc::new(p),

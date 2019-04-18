@@ -27,7 +27,7 @@ impl ::std::fmt::Debug for Ty {
 }
 
 impl Ty {
-    pub fn new(a: Ast) -> Ty { Ty(a) } // TODO: use `Ty()` instead of `Ty::new()`
+    pub fn new(a: Ast) -> Ty { Ty(a) } // TODO: deprecate in favor of `Ty()`
     pub fn concrete(&self) -> Ast { // TODO: just use `Ty::to_ast()`; this name is obsolete
         self.0.clone()
     }
@@ -118,6 +118,8 @@ impl WalkMode for UnpackTy {
 
     fn get_walk_rule(f: &Form) -> WalkRule<UnpackTy> { f.synth_type.neg().clone() }
     fn automatically_extend_env() -> bool { true }
+
+    fn underspecified(name: Name) -> Ty { Ty(VariableReference(name)) }
 }
 
 impl ::walk_mode::NegativeWalkMode for UnpackTy {
