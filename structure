@@ -52,13 +52,13 @@ Evaluation or typechecking expressions is a positive walk;
  evaluating or typechecking patterns is negative.
 
 
-[Core] core_forms.rs, core_type_forms.rs, core_syntax_forms.rs, core_macro_forms.rs
+[Core] core_forms.rs, core_type_forms.rs, core_qq_forms.rs, core_macro_forms.rs
 
 The Turing-complete "core" language is Unseemly's user interface.
 
 There are separate files
  for defining the types themselves ("core_type_forms.rs")
- and for defining syntax (un)quotation ("core_syntax_forms.rs").
+ and for defining syntax (un)quotation ("core_qq_forms.rs").
 
 
 Pipeline:

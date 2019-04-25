@@ -52,7 +52,7 @@ mod runtime;
 
 mod core_forms;
 mod core_type_forms;
-mod core_syntax_forms;
+mod core_qq_forms;
 mod core_macro_forms;
 
 use runtime::core_values;

@@ -92,7 +92,7 @@ custom_derive!{
 // Sadly, we have to define a negative version, even though it's never used.
 custom_derive!{
     #[derive(Copy, Clone, Debug, Reifiable)]
-    pub struct UnusedUnMuProtect {}
+    pub struct UnusedNegativeMuProtect {}
 }
 
 fn change_mu_opacity(parts: ::ast_walk::LazyWalkReses<MuProtect>) -> Result<Ty, ()> {
@@ -127,7 +127,7 @@ fn change_mu_opacity(parts: ::ast_walk::LazyWalkReses<MuProtect>) -> Result<Ty, 
 impl WalkMode for MuProtect {
     fn name() -> &'static str { "MProt" }
     type Elt = Ty;
-    type Negated = UnusedUnMuProtect;
+    type Negated = UnusedNegativeMuProtect;
     type Err = ();
     type D = ::walk_mode::Positive<MuProtect>;
     type ExtraInfo = i32;
@@ -150,14 +150,14 @@ impl WalkMode for MuProtect {
                 "body" => (import [* [prot "param"]] (, Ast::VariableReference(name)))})))
     }
 }
-impl WalkMode for UnusedUnMuProtect {
+impl WalkMode for UnusedNegativeMuProtect {
     fn name() -> &'static str { "XXXXX" }
     type Elt = Ty;
     type Negated = MuProtect;
     type Err = ();
-    type D = ::walk_mode::Positive<UnusedUnMuProtect>;
+    type D = ::walk_mode::Positive<UnusedNegativeMuProtect>;
     type ExtraInfo = i32;
-    fn get_walk_rule(_: &Form) -> ::ast_walk::WalkRule<UnusedUnMuProtect> { panic!("ICE") }
+    fn get_walk_rule(_: &Form) -> ::ast_walk::WalkRule<UnusedNegativeMuProtect> { panic!("ICE") }
     fn automatically_extend_env() -> bool { panic!("ICE") }
 }
 

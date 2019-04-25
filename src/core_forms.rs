@@ -330,7 +330,7 @@ pub fn make_core_syn_env() -> SynEnv {
             }),
             Body(n("body"))),
 
-        ::core_syntax_forms::quote(/*positive=*/true)
+        ::core_qq_forms::quote(/*positive=*/true)
     ];
 
 
