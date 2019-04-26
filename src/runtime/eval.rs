@@ -34,6 +34,7 @@ pub struct Closure {
     pub env: Assoc<Name, Value>
 }
 
+// Built-in function
 pub struct BIF(pub Rc<(Fn(Vec<Value>) -> Value)>);
 
 impl PartialEq for BIF {

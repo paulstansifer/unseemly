@@ -12,7 +12,7 @@ use runtime::reify::Reifiable;
 use runtime::eval::Closure;
 use util::assoc::Assoc;
 use ty::{Ty, SynthTy};
-use walk_mode::WalkElt;
+use walk_mode::{WalkElt, WalkMode};
 use core_type_forms::{more_quoted_ty, less_quoted_ty};
 use core_forms::ast_to_name;
 
@@ -202,11 +202,8 @@ fn macro_invocation(grammar: FormPat, macro_name: Name, export_names: Vec<Name>)
                 // What argument types made that work?
                 let mut res : Assoc<Name, Ty> = Assoc::new();
                 ::ty_compare::unification.with(|unif| {
-                    println!("en: {:#?}", export_names);
                     for binder in &export_names {
-                        println!("b: {}", binder);
                         let ty = arguments.find_or_panic(binder);
-                        println!("ty: {}", ty);
                         let binder_clo = ::ty_compare::resolve(
                                 ::ast_walk::Clo{
                                     it: ty.clone(),
@@ -215,7 +212,6 @@ fn macro_invocation(grammar: FormPat, macro_name: Name, export_names: Vec<Name>)
                             &unif.borrow());
                         let binder_ty = ::ty_compare::canonicalize(&binder_clo.it, binder_clo.env)
                             .map_err(|e| ::util::err::sp(e, parts.this_ast.clone()))?;
-                        println!("binder_ty: {}", binder_ty);
 
                         for (ty_n, ty)
                                 in parts.with_context(binder_ty).get_res(*binder)?.iter_pairs() {
@@ -414,6 +410,69 @@ pub fn make_core_macro_forms() -> SynEnv {
     assoc_n!("Syntax" => Rc::new(grammar_grammar))
 }
 
+custom_derive!{
+    #[derive(Copy, Clone, Debug, Reifiable)]
+    pub struct ExpandMacros {}
+}
+custom_derive!{
+    #[derive(Copy, Clone, Debug, Reifiable)]
+    pub struct UnusedNegativeExpandMacros {}
+}
+
+fn expand_macro(parts: ::ast_walk::LazyWalkReses<ExpandMacros>) -> Result<Ast, ()> {
+    let mut env = Assoc::new(); // TODO: there should probably be something in scope here...
+
+    let macro_form: &Form = parts.this_ast.node_form();
+
+    // Turn the subterms into values
+    for binder in macro_form.grammar.binders() {
+        match macro_form.grammar.find_named_call(binder).unwrap() {
+            Some(_nt) => {
+                env = env.set(binder, ::runtime::eval::Value::from_ast(&parts.get_term(binder)));
+            }
+            // Not a call (presumably a binder)
+            None => {}
+        }
+    }
+
+    let expanded = ::runtime::eval::eval(&parts.get_term(n("implementation")), env)?.to_ast();
+
+    expand(&expanded, parts.env)
+}
+
+impl WalkMode for ExpandMacros {
+    fn name() -> &'static str { "MExpand" }
+    type Elt = Ast;
+    type Negated = UnusedNegativeExpandMacros;
+    type Err = ();  // TODO: should be the same as runtime errors
+    type D = ::walk_mode::Positive<ExpandMacros>;
+    type ExtraInfo = ();
+
+    fn get_walk_rule(f: &Form) -> ::ast_walk::WalkRule<ExpandMacros> {
+        if f.name == n("macro_invocation") {
+            cust_rc_box!(expand_macro)
+        } else {
+            LiteralLike
+        }
+    }
+    fn automatically_extend_env() -> bool { true }
+}
+impl WalkMode for UnusedNegativeExpandMacros {
+    fn name() -> &'static str { "XXXXX" }
+    type Elt = Ast;
+    type Negated = ExpandMacros;
+    type Err = ();
+    type D = ::walk_mode::Positive<UnusedNegativeExpandMacros>;
+    type ExtraInfo = ();
+    fn get_walk_rule(_: &Form) -> ::ast_walk::WalkRule<UnusedNegativeExpandMacros> { panic!("ICE") }
+    fn automatically_extend_env() -> bool { panic!("ICE") }
+}
+
+pub fn expand(ast: &Ast, env: Assoc<Name, Ast>) -> Result<Ast, ()> {
+    ::ast_walk::walk::<ExpandMacros>(ast, &LazyWalkReses::new_wrapper(env))
+}
+
+
 #[test]
 fn formpat_reflection() {
     use ::runtime::eval::eval_top;
@@ -523,7 +582,7 @@ fn macro_types() {
 }
 
 #[test]
-fn use_basic_macro_invocation() {
+fn type_basic_macro_invocation() {
     let expr_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Expr" });
     let pat_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Pat" });
     let type_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Type" });
@@ -643,3 +702,7 @@ fn use_basic_macro_invocation() {
 
 }
 
+#[test]
+fn expand_basic_macros() {
+
+}

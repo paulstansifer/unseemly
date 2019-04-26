@@ -129,9 +129,16 @@ impl Ast {
         }
     }
 
+    // TODO: I think we have a lot of places where we ought to use this function:
     pub fn node_parts(&self) -> &EnvMBE<Ast> {
         match *self {
             Node(_, ref body, _) => body,
+            _ => panic!("ICE")
+        }
+    }
+    pub fn node_form(&self) -> &::form::Form {
+        match *self {
+            Node(ref form, _, _) => form,
             _ => panic!("ICE")
         }
     }
