@@ -445,7 +445,9 @@ pub fn make_core_syn_env() -> SynEnv {
                     }
                     _ => panic!("Type ICE: non-struct")
                 }
-            }))  => [* ["component"]]];
+            }))  => [* ["component"]],
+
+            ::core_qq_forms::quote(/*positive=*/false) => ["body"]];
 
     assoc_n!(
         // special case; allow repetition (defined in earley.rs):

@@ -25,7 +25,7 @@ We should also distinguish
      and the ___ of a type is a kind.
 
 
-It is at this point that I am reminded of a passage from GEB:
+It is at this point that I am reminded of a passage:
 
  Now in set theory, which deals with abstractions that we don't use all the time, a
  stratification like the theory of types seems acceptable, even if a little strange-but when it
@@ -43,8 +43,7 @@ It is at this point that I am reminded of a passage from GEB:
  nor metalanguage, nor metametalanguage, etc. So the very act of discussing the theory
  would be the most blatant possible violation of it!
 
-   — Douglas Hofstadter, Godel, Escher, Bach: and Eternal Golden Braid
-
+   — Douglas Hofstadter, Gödel, Escher, Bach: an Eternal Golden Braid
 */
 
 use std::rc::Rc;
@@ -272,6 +271,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
     //            in ,[ expr<[S]< ↓ ...{v = T}...], ]'
     //        -> expr<[S]<
     // TODO: add named repeats. Add type-level numbers!
+    // TODO: `...{T}...` is a kind annotation; we'll probably want kinds
     let dotdotdot_type = type_defn("dotdotdot",
         form_pat!((delim "...[", "[", /*]]*/ (named "body", (call "Type")))));
 

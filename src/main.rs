@@ -13,6 +13,10 @@
 
 // unstable; only for testing
 // #[macro_use] extern crate log;
+
+// only for testing:
+#![feature(dbg_macro)]
+
 #[macro_use] extern crate lazy_static;
 extern crate num;
 #[macro_use] extern crate custom_derive;
@@ -120,7 +124,7 @@ fn main() {
         println!("    `:s <name> t= <expr>` to save a type binding to the prelude.");
         println!("    `:p <expr>` to parse `<expr>` and print its debug AST output.");
         println!("    Command history is saved over sessions.");
-        println!("    Tab-completion works on variables, and many Bash-isms work.");
+        println!("    Tab-completion works on variables, and lots of Bash-isms work.");
         println!();
 
         if let Ok(prelude_file) = File::open(&Path::new(&prelude_filename)) {
@@ -488,6 +492,12 @@ fn end_to_end_quotation_advanced() {
     assert_m!(
         eval_unseemly_program("'[Pat <[Nat]< | x]'"),
         Ok(_));
+
+    // Actually import a pattern of quoted syntax:
+    assert_eq!(eval_unseemly_program(
+            "match '[Expr | (plus one two) ]' {
+                 '[Expr <[Int]< | (plus ,[Expr <[Int]< | e], two) ]' => e }"),
+            Ok(val!(ast (vr "one"))));
 
 
     // In order to have "traditional", non-type-annotated `let`, we want to ... reify T, I guess?

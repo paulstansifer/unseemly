@@ -175,18 +175,20 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(b: &Beta, parts: &LazyWalkRese
             }
         }
 
-        // TODO: I need more help understanding this
-        // treats the node `name_source` mentions as a negative node, and gets names from it
+        // `res_source` should be positive and `name_source` should be negative.
+        // Gets the names from `name_source`, treating `res_source` as the context.
         SameAs(name_source, res_source) => {
             use walk_mode::WalkMode;
 
-            let ty = parts.get_res(res_source)?;
+            let ctxt = parts.get_res(res_source)?;
 
+            // Do the actual work:
             let res = Mode::Negated::out_as_env(
                 parts.switch_mode::<Mode::Negated>()
-                    .with_context(Mode::out_as_elt(ty))
+                    .with_context(Mode::out_as_elt(ctxt))
                     .get_res(name_source)?);
 
+            // ... and then check that it's the right set of names!
             // Somewhat awkward (but not unsound!) run-time error in the case that
             //  the declared export does not match the actual result of negative type synthesis.
             // This is parallel to unbound variable name errors that we also don't protect against.
@@ -195,19 +197,21 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(b: &Beta, parts: &LazyWalkRese
             //    because the errors in question aren't that bad to debug.)
 
             if let Ast::Node(_, ref sub_parts, ref export) = parts.get_term(name_source) {
-                let expected_res_keys = bound_from_export_beta(export, sub_parts);
+                // For our purposes, this syntax is "real", so `quote_depth` is 0:
+                let expected_res_keys = bound_from_export_beta(export, sub_parts, 0);
 
                 let mut count = 0;
                 for (k, _) in res.iter_pairs() {
                     if !expected_res_keys.contains(k) {
-                        panic!("{} was unexpectedly exported (vs. {:#?} via {:#?})", k, expected_res_keys, parts.get_term(res_source));
+                        panic!("{} was exported (we only wanted {:#?} via {:#?})",
+                               k, expected_res_keys, parts.get_term(res_source));
                         // TODO: make this an `Err`. And test it with ill-formed `Form`s
                     }
                     count += 1;
                 }
 
                 if count != expected_res_keys.len() { // TODO: Likewise:
-                    panic!("expected {} exports, only got {}", expected_res_keys.len(), count)
+                    panic!("expected {:?} exports, got {}", expected_res_keys, count)
                 }
             }
 
@@ -310,32 +314,50 @@ impl ExportBeta {
     }
 }
 
+// Helper for `bound_from_[export_]beta`:
+fn names_exported_by(ast: &Ast, quote_depth: i16) -> Vec<Name> {
+    use tap::TapOps;
 
-// Like just taking the (non-Protected) keys from `env_from_beta`, but faster and non-failing
-pub fn bound_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>) -> Vec<Name> {
+    match *ast {
+        Ast::Atom(n) => vec![n],
+        Ast::Node(_, ref sub_parts, ref export) => {
+            if quote_depth <= 0 {
+                bound_from_export_beta(export, sub_parts, quote_depth)
+            } else {
+                sub_parts.map_reduce(&|a: &Ast| names_exported_by(a, quote_depth),
+                                     &|v1, v2| v1.clone().tap(|v1| v1.append(&mut v2.clone())),
+                                     vec![])
+            }
+        }
+        Ast::QuoteMore(ref body, _) => names_exported_by(body, quote_depth+1),
+        Ast::QuoteLess(ref body, _) => names_exported_by(body, quote_depth-1),
+        ref ast if quote_depth <= 0 => {
+            panic!("ICE: beta SameAs refers to an invalid AST node: {}", ast)
+        }
+        _ => { vec![] }
+    }
+}
+
+// Like just taking the (non-Protected) keys from `env_from_beta`, but faster and non-failing.
+// It's a runtime error if the definition of a form causes `env_from_beta` to diverge from this.
+pub fn bound_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>, quote_depth: i16) -> Vec<Name> {
     match *b {
         Nothing => { vec![] }
         Shadow(ref lhs, ref rhs) => {
-            let mut res = bound_from_beta(&*lhs, parts);
-            let mut res_r = bound_from_beta(&*rhs, parts);
+            let mut res = bound_from_beta(&*lhs, parts, quote_depth);
+            let mut res_r = bound_from_beta(&*rhs, parts, quote_depth);
             res.append(&mut res_r);
             res
         }
         ShadowAll(ref sub_beta, ref drivers) => {
             let mut res = vec![];
             for ref sub_parts in parts.march_all(drivers) {
-                res.append(&mut bound_from_beta(&*sub_beta, sub_parts));
+                res.append(&mut bound_from_beta(&*sub_beta, sub_parts, quote_depth));
             }
             res
         }
         SameAs(ref n_s, _) => { // Can be a non-atom
-            match *parts.get_leaf_or_panic(n_s) {
-                Ast::Atom(n) => vec![n],
-                Ast::Node(_, ref sub_parts, ref export) => {
-                    bound_from_export_beta(export, sub_parts)
-                }
-                _ => panic!("ICE: beta SameAs refers to a non-node, non-atom")
-            }
+            names_exported_by(parts.get_leaf_or_panic(n_s), quote_depth)
         }
         Protected(ref _n_s) => { vec![] } // Non-binding
         Basic(ref n_s, _) | Underspecified(ref n_s) => {
@@ -345,30 +367,25 @@ pub fn bound_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>) -> Vec<Name> {
 }
 
 // Like just taking the keys from `env_from_export_beta`, but faster and non-failing
-pub fn bound_from_export_beta(b: &ExportBeta, parts: &EnvMBE<::ast::Ast>) -> Vec<Name> {
+pub fn bound_from_export_beta(b: &ExportBeta, parts: &EnvMBE<::ast::Ast>, quote_depth: i16)
+        -> Vec<Name> {
     match *b {
         ExportBeta::Nothing => { vec![] }
         ExportBeta::Shadow(ref lhs, ref rhs) => {
-            let mut res = bound_from_export_beta(&*lhs, parts);
-            let mut res_r = bound_from_export_beta(&*rhs, parts);
+            let mut res = bound_from_export_beta(&*lhs, parts, quote_depth);
+            let mut res_r = bound_from_export_beta(&*rhs, parts, quote_depth);
             res.append(&mut res_r);
             res
         }
         ExportBeta::ShadowAll(ref sub_beta, ref drivers) => {
             let mut res = vec![];
             for ref sub_parts in parts.march_all(drivers) {
-                res.append(&mut bound_from_export_beta(&*sub_beta, sub_parts));
+                res.append(&mut bound_from_export_beta(&*sub_beta, sub_parts, quote_depth));
             }
             res
         }
         ExportBeta::Use(ref n_s) => { // Can be a non-atom
-            match *parts.get_leaf_or_panic(n_s) {
-                Ast::Atom(n) => vec![n],
-                Ast::Node(_, ref sub_parts, ref export) => {
-                    bound_from_export_beta(export, sub_parts)
-                }
-                _ => panic!("ICE: beta SameAs refers to a non-node, non-atom")
-            }
+            names_exported_by(parts.get_leaf_or_panic(n_s), quote_depth)
         }
     }
 }

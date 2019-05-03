@@ -10,7 +10,7 @@ use ast::Ast;
 use ast::Ast::*;
 use util::assoc::Assoc;
 
-// Renaming:
+// A renaming that only affects names at the "current" quotation level
 #[derive(Clone, Debug, PartialEq)]
 pub struct Ren {
     env: Assoc<Name, Ast>,
@@ -64,7 +64,7 @@ fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Ren) -> Ast
         }
         ExtendEnv(ref body, ref beta) => {
             let mut new_env = env.clone();
-            for bound_name in ::beta::bound_from_beta(beta, cur_node_contents) {
+            for bound_name in ::beta::bound_from_beta(beta, cur_node_contents, 0) {
                 new_env = new_env.unset(bound_name);
             }
 

@@ -253,8 +253,8 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
 
         let parts_actual = try!(Mode::context_match(&expected, &got, cnc.env.clone()));
 
-        let its_a_trivial_node = EnvMBE::new(); // No more walking to do
-        let expd_parts = match expected { Node(_, ref p, _) => p,  _ => &its_a_trivial_node };
+        let its_a_trivial_ast = EnvMBE::new(); // No more walking to do
+        let expd_parts = match expected { Node(_, ref p, _) => p,  _ => &its_a_trivial_ast };
 
         // Continue the walk on subterms. (`context_match` does the freshening)
         // TODO: I fear that we need `map_collapse_reduce_with_marched_against`
@@ -271,7 +271,7 @@ impl<Mode: WalkMode<D=Self> + NegativeWalkMode> Dir for Negative<Mode> {
             },
             &Mode::collapse_repetition,
             &|result, next| { Ok(try!(result.clone()).set_assoc(&try!(next.clone()))) },
-            Ok(cnc.env.clone()))
+            Ok(Assoc::new()))
     }
 
     fn walk_var(n: Name, _: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode> {

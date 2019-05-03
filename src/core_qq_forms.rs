@@ -77,9 +77,9 @@ fn adjust_opacity(t: &Ty, env: Assoc<Name, Ty>, delta: i32) -> Ty {
     ::ast_walk::walk::<MuProtect>(&t.concrete(), &ctxt).unwrap()
 }
 
-// The environment doesn't matter when removing opacity
 fn remove_opacity(t: &Ty, delta: i32) -> Ty {
     if delta > 0 { panic!("ICE") }
+    // The environment doesn't matter when removing opacity
     adjust_opacity(t, Assoc::new(), delta)
 }
 
@@ -170,7 +170,9 @@ impl WalkMode for UnusedNegativeMuProtect {
 /// Generate a (depth-1) n unquoting form.
 /// `pos_quot` is true iff the quotation itself (and thus the interpolation) is positive.
 pub fn unquote(nt: Name, pos_quot: bool) -> Rc<FormPat> {
-    Rc::new(FormPat::Scope(unquote_form(nt, pos_quot, 1), ::beta::ExportBeta::Nothing))
+    Rc::new(FormPat::Scope(unquote_form(nt, pos_quot, 1),
+                           if pos_quot {::beta::ExportBeta::Nothing}
+                           else {::beta::ExportBeta::Use(n("body"))}))
 }
 
 pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
@@ -183,13 +185,13 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
             //  so it's optional
             Rc::new(if pos_quot {
                 form_pat!((delim form_delim_start, "[", /*]*/
-                    [(named "nt", (lit_by_name nt)),
+                    [(lit_by_name nt), (named "nt", (anyways (, ::ast::VariableReference(nt)))),
                      (alt [], (delim "<[", "[", /*]]*/ (named "ty_annot", (call "Type")))),
                      (lit "|"),
                      (named "body", (-- depth (call "Expr")))]))
             } else {
                 form_pat!((delim form_delim_start, "[", /*]*/
-                    [(named "nt", (lit_by_name nt)),
+                    [(lit_by_name nt), (named "nt", (anyways (, ::ast::VariableReference(nt)))),
                      (alt [], (delim "<[", "[", /*]]*/ (named "ty_annot", (call "Type")))),
                      (lit "|"),
                      (named "body", (-- depth (call "Pat")))]))
@@ -206,30 +208,31 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
                     // `body` has the type `Expr <[String]<` (annotation is superfluous):
                     cust_rc_box!( move | unquote_parts | {
                         let ast_for_errors = unquote_parts.get_term(n("body"));
-                        // TODO: check annotation if present
 
-                        let mut res = if pos_quot {
-                            unquote_parts.get_res(n("body"))? // `String`
+                        let res = if pos_quot {
+                            // TODO: check annotation if present
+
+                            let mut res = unquote_parts.get_res(n("body"))?; // `Expr <[String]<`
+                            for _ in 0..(depth-1) {
+                                res = less_quoted_ty(&res, None, &ast_for_errors)?;
+                            } // HACK: we only know the last `nt` to expect
+                            less_quoted_ty(&res, Some(nt), &ast_for_errors)?
                         } else {
                             // need a type annotation
                             let expected_type = unquote_parts.get_res(n("ty_annot"))?;
 
+                            let mut ctxt_elt = expected_type.clone();
+                            for _ in 0..(depth-1) {
+                                unimplemented!("I think we need a stack of what NTs are quoted")
+                            }
+                            ctxt_elt = more_quoted_ty(&ctxt_elt, nt);
+                            println!("expected: {} ctxt: {}", expected_type, ctxt_elt);
+
                             let negative_parts = unquote_parts.switch_mode::<::ty::UnpackTy>();
-                            let _res = negative_parts.get_res(n("body"))?;
+                            let _res = negative_parts.with_context(ctxt_elt).get_res(n("body"))?;
 
-                            expected_type//, nt, &ast_for_errors)
+                            expected_type
                         };
-
-                        for _ in 0..(depth-1) {
-                            res = less_quoted_ty(&res, None, &ast_for_errors)?;
-                        } // HACK: the way this is structured, we only know the last `nt` to expect
-                        res = less_quoted_ty(&res, Some(nt), &ast_for_errors)?;
-
-                        let mut walk_ctxt = unquote_parts.clone();
-                        for _ in 0..depth {
-                            let (_, walk_ctxt_new) = walk_ctxt.quote_less();
-                            walk_ctxt = walk_ctxt_new;
-                        }
 
                         Ok(adjust_opacity(&res, unquote_parts.env, depth as i32))
                     }))
@@ -383,7 +386,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
                 }))
             } else {
                 ::form::Negative(cust_rc_box!(|quote_parts| {
-                    // There's no need for a type annotation s
+                    // There's no need for a type annotation
                     let nt = vr_to_name(&quote_parts.get_term(n("nt")));
                     if nt_is_positive(nt) {
                         // TODO: check that this matches the type annotation, if provided!
@@ -763,7 +766,6 @@ fn quote_unquote_type_basic() {
             env.clone(), qenv.clone()),
             Ok(ty!({"Type" "type_apply" :
                 "type_rator" => (,expr_type.clone()), "arg" => [(vr "T")]})));
-
 }
 
 #[test]
@@ -802,7 +804,7 @@ fn unquote_type_basic() {
 }
 
 // TODO:
-// '[Expr | ( ,[Expr | could_be_anything ] five)]'
+// '[Expr | ( ,[Expr | could_be_anything ], five)]'
 #[test]
 fn subtyping_under_negative_quote() {
 

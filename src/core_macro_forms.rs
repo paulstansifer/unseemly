@@ -384,8 +384,10 @@ pub fn make_core_macro_forms() -> SynEnv {
             }
         } {
             |parts| {
+                // TODO: I think this is to check that `get_res` will work, but it might be
+                // a leftover mistake:
                 let _macro_params = ::beta::bound_from_export_beta(
-                    &ebeta!(["syntax"]), &parts.this_ast.node_parts());
+                    &ebeta!(["syntax"]), &parts.this_ast.node_parts(), 0);
 
                 let mut export = ::beta::ExportBeta::Nothing;
                 let export_names = parts.get_rep_term(n("export")).iter()

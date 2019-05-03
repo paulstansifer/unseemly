@@ -12,6 +12,8 @@ Informally, Unseemly guarantees that,
   type errors will be expressed
    entirely in terms of code you directly wrote.
 
+For a more complete pitch, see http://unseemly.github.io
+
 Unseemly has a bare minimum of forms
  necessary to bootstrap the implementation of practical languages.
 
@@ -35,6 +37,8 @@ Unseemly has a bare minimum of forms
      if `e1` has the type `Expr <[String]<`)
  * No type errors in generated code
    (if a macro invocation typechecks, the code it expands to doesn't need typechecking)
+### Other features
+ * Full-featured REPL, with command history and line editing (courtesy of `rustyline`).
 
 
 ## How to use it

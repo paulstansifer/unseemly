@@ -477,6 +477,18 @@ impl<T: Clone> EnvMBE<T> {
         }
     }
 
+    pub fn map_reduce<NewT: Clone>(&self, f: &Fn(&T) -> NewT, red: &Fn(&NewT, &NewT) -> NewT,
+                base: NewT)
+            -> NewT {
+        let reduced : NewT = self.leaves.map(f).reduce(&|_k, v, res| red(v, &res), base);
+
+        self.repeats.iter().fold(
+            reduced,
+            |base: NewT, rc_vec_mbe : &Rc<Vec<EnvMBE<T>>>| rc_vec_mbe.iter().fold(
+                base,
+                |base: NewT, mbe : &EnvMBE<T>| mbe.map_reduce(f, red, base)))
+    }
+
 
     /// Provide the map map function with the name of the current leaf,
     /// and the appropriately-marched context element

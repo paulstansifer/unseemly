@@ -338,6 +338,17 @@ impl<Mode: WalkMode + Copy + 'static> reify::Reifiable for WalkRule<Mode> {
     }
 }
 
+impl<Mode: WalkMode> ::std::fmt::Debug for WalkRule<Mode> {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            NotWalked => write!(f, "NotWalked"),
+            Body(ref n) => write!(f, "Body({})", n),
+            Custom(_) => write!(f, "Custom(-)"),
+            LiteralLike => write!(f, "LiteralLike")
+        }
+    }
+}
+
 
 pub use self::WalkRule::*;
 
