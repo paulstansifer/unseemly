@@ -109,15 +109,14 @@ pub fn make_core_syn_env_types() -> SynEnv {
     /* kinds */
     let _type_kind = simple_form("Type", form_pat!((lit "*")));
     let _higher_kind = simple_form("higher", form_pat!(
-        (delim "k[", "[", /*]]*/
+        (delim "k[", "[",
             [ (star (named "param", (call "kind"))), (lit "->"), (named "res", (call "kind"))])));
 
 
     /* types */
     let fn_type =
         type_defn_complex("fn",
-            /* Friggin' Atom bracket matching doesn't ignore strings or comments. */
-            form_pat!((delim "[", "[", /*]]*/
+            form_pat!((delim "[", "[",
                 [ (star (named "param", (call "Type"))), (lit "->"),
                   (named "ret", (call "Type") ) ])),
             LiteralLike, // synth is normal
@@ -148,14 +147,14 @@ pub fn make_core_syn_env_types() -> SynEnv {
 
     let enum_type =
         type_defn("enum", form_pat!([(lit "enum"),
-            (delim "{", "{", /*}}*/ (star [(named "name", aat),
-                (delim "(", "(", /*))*/ (star (named "component", (call "Type"))))]))]));
+            (delim "{", "{", (star [(named "name", aat),
+                (delim "(", "(", (star (named "component", (call "Type"))))]))]));
 
     let struct_type =
         type_defn_complex("struct", form_pat!(
             [(lit "struct"),
-             (delim "{", "{", /*}}*/ (star [(named "component_name", aat), (lit ":"),
-                                            (named "component", (call "Type"))]))]),
+             (delim "{", "{", (star [(named "component_name", aat), (lit ":"),
+                                     (named "component", (call "Type"))]))]),
             LiteralLike, // synth is normal
             Both(
                 LiteralLike,
@@ -273,7 +272,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
     // TODO: add named repeats. Add type-level numbers!
     // TODO: `...{T}...` is a kind annotation; we'll probably want kinds
     let dotdotdot_type = type_defn("dotdotdot",
-        form_pat!((delim "...[", "[", /*]]*/ (named "body", (call "Type")))));
+        form_pat!((delim "...[", "[", (named "body", (call "Type")))));
 
     let forall_type_0 = forall_type.clone();
 
@@ -289,7 +288,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
     let type_apply = type_defn_complex("type_apply",
         // The technical term for `<[...]<` is "fish X-ray"
         form_pat!([(named "type_rator", (call "Type")),
-         (delim "<[", "[", /*]]*/ (star [(named "arg", (call "Type"))]))]),
+         (delim "<[", "[", (star [(named "arg", (call "Type"))]))]),
          // TODO: shouldn't it be "args"?
         cust_rc_box!(move |tapp_parts| {
             let arg_res = tapp_parts.get_rep_res(n("arg"))?;

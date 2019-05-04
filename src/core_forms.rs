@@ -64,7 +64,7 @@ pub fn make_core_syn_env() -> SynEnv {
     let main_expr_forms = forms_to_form_pat![
         typed_form!("lambda",
             /* syntax */ /* TODO: add comma separators to the syntax! */
-            (delim ".[", "[", /*]]*/ [
+            (delim ".[", "[", [
                                (star [(named "param", aat), (lit ":"),
                                       (named "p_t", (call "Type"))]), (lit "."),
                 (named "body",
@@ -88,7 +88,7 @@ pub fn make_core_syn_env() -> SynEnv {
             })),
 
         typed_form!("apply", /* function application*/
-            (delim "(", "(", /*))*/ [(named "rator", (call "Expr")),
+            (delim "(", "(", [(named "rator", (call "Expr")),
              (star (named "rand", (call "Expr")))]),
             cust_rc_box!(move | part_types | {
                 use walk_mode::WalkMode;
@@ -184,8 +184,8 @@ pub fn make_core_syn_env() -> SynEnv {
            "real" languages infer the type from the (required-to-be-unique)
            component name. */
         typed_form!("enum_expr",
-             [(delim "+[", "[", /*]]*/ [(named "name", aat),
-                                       (star (named "component", (call "Expr")))]),
+             [(delim "+[", "[", [(named "name", aat),
+                                 (star (named "component", (call "Expr")))]),
               (lit ":"), (named "t", (call "Type"))],
             /* Typesynth: */
             cust_rc_box!( move | part_types | {
@@ -209,8 +209,7 @@ pub fn make_core_syn_env() -> SynEnv {
                                     .iter().zip(component_types) {
                                 ty_exp!(t, &expected_t, part_types.this_ast);
                             }
-
-                            return Ok(res.clone());
+                        return Ok(res.clone());
                         }
 
                         ty_err!(NonexistentEnumArm
@@ -225,7 +224,7 @@ pub fn make_core_syn_env() -> SynEnv {
                     part_values.get_rep_res(n("component"))?))
             })),
         typed_form!("struct_expr",
-            (delim "*[", "[", /*]]*/
+            (delim "*[", "[",
                 (star [(named "component_name", aat), (lit ":"),
                        (named "component", (call "Expr"))])),
             cust_rc_box!( move | part_types | {
@@ -337,8 +336,8 @@ pub fn make_core_syn_env() -> SynEnv {
 
     let main_pat_forms = forms_to_form_pat_export![
         negative_typed_form!("enum_pat",
-            (delim "+[", "[", /*]]*/ [(named "name", aat),
-                                      (star (named "component", (call "Pat")))]),
+            (delim "+[", "[", [(named "name", aat),
+                               (star (named "component", (call "Pat")))]),
             /* (Negatively) Typecheck: */
             cust_rc_box!( move | part_types |
                 expect_ty_node!( (part_types.context_elt() ; find_type(&ctf_6, "enum") ;
@@ -391,7 +390,7 @@ pub fn make_core_syn_env() -> SynEnv {
                 }
             })) => [* ["component"]],
         negative_typed_form!("struct_pat",
-            [(delim "*[", "[", /*]]*/
+            [(delim "*[", "[",
                  (star [(named "component_name", aat), (lit ":"),
                         (named "component", (call "Pat"))]))],
             /* (Negatively) typesynth: */

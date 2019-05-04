@@ -176,7 +176,7 @@ pub fn unquote(nt: Name, pos_quot: bool) -> Rc<FormPat> {
 }
 
 pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
-    let form_delim_start = &format!("{}[",/*]*/ ",".repeat(depth as usize));
+    let form_delim_start = &format!("{}[", ",".repeat(depth as usize));
 
     Rc::new(Form {
         name: n("unquote"),
@@ -184,15 +184,15 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
             // It's a pain to determine whether type annotation is needed at syntax time,
             //  so it's optional
             Rc::new(if pos_quot {
-                form_pat!((delim form_delim_start, "[", /*]*/
+                form_pat!((delim form_delim_start, "[",
                     [(lit_by_name nt), (named "nt", (anyways (, ::ast::VariableReference(nt)))),
-                     (alt [], (delim "<[", "[", /*]]*/ (named "ty_annot", (call "Type")))),
+                     (alt [], (delim "<[", "[", (named "ty_annot", (call "Type")))),
                      (lit "|"),
                      (named "body", (-- depth (call "Expr")))]))
             } else {
-                form_pat!((delim form_delim_start, "[", /*]*/
+                form_pat!((delim form_delim_start, "[",
                     [(lit_by_name nt), (named "nt", (anyways (, ::ast::VariableReference(nt)))),
-                     (alt [], (delim "<[", "[", /*]]*/ (named "ty_annot", (call "Type")))),
+                     (alt [], (delim "<[", "[", (named "ty_annot", (call "Type")))),
                      (lit "|"),
                      (named "body", (-- depth (call "Pat")))]))
             }),
@@ -333,7 +333,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
                 Rc::new(form_pat!(
                     // HACK: I guess the `nt` from outside isn't in the same Scope:
                     [(named "nt", (anyways (, ::ast::VariableReference(starter_nt)))),
-                     (alt [], (delim "<[", "[", /*]]*/ (named "ty_annot", (call "Type")))),
+                     (alt [], (delim "<[", "[", (named "ty_annot", (call "Type")))),
                      (lit "|"),
                      (named "body", (++ pos_inside (call_by_name starter_nt)))])))
     };
@@ -342,7 +342,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
     // What happens when more NTs are added?
     Rc::new(Form {
         name: if pos { n("quote_expr") } else { n("quote_pat") },
-        grammar: Rc::new(form_pat!((delim "'[", "[", /*]]*/
+        grammar: Rc::new(form_pat!((delim "'[", "[",
             [(extend (named "nt", varref), "starterer_nt", perform_quotation)]))),
         type_compare: ::form::Both(NotWalked, NotWalked), // Not a type
         synth_type:
