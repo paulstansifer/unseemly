@@ -13,6 +13,7 @@ quote = "0.3"
 rustyline = "1.0.0"
 dirs = "1.0.3"
 tap = "0.3.0"
+color-backtrace = { version = "*" }
 
 [[bin]]
 name = "unseemly"

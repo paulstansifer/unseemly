@@ -46,6 +46,7 @@ pub fn strip_ee(a: &Ast) -> &Ast {
 
 /// This is the Unseemly language.
 pub fn make_core_syn_env() -> SynEnv {
+    color_backtrace::install(); // HACK: this is around the first thing that happens in any test.
 
     let ctf: SynEnv = make_core_syn_env_types();
     let cmf: SynEnv = ::core_macro_forms::make_core_macro_forms();
