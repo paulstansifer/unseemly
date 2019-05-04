@@ -254,6 +254,14 @@ impl<T: Reifiable> Reifiable for ::std::rc::Rc<T> {
     fn reflect(v: &Value) -> Self { ::std::rc::Rc::new(T::reflect(v)) }
 }
 
+// for when we have a `Ty`, rather than a Rust type.
+pub fn sequence_type__of(ty: &::ty::Ty) -> ::ty::Ty {
+    ty!({ "Type" "type_apply" :
+        "type_rator" => {
+            ::core_type_forms::get__abstract_parametric_type(); "name" => "Sequence"},
+        "arg" => [(, ty.concrete()) ]})
+}
+
 impl<T: Reifiable> Reifiable for Vec<T> {
     fn ty() -> Ast {
         ast!({ "Type" "type_apply" :

@@ -27,10 +27,10 @@ This is no small issue.
 Type errors are the user interface of a typed language;
  the primary purpose of types is to produce useful error messages.
 
-Macros in Unseemly have types. 
+Macros in Unseemly have types.
 This means that typechecking happens on code with macros in it,
  as opposed to code with all the macros expanded away.
 
-So, just like a true Lisp, in Unseemly you don't know 
+So, just like a true Scheme, in Unseemly you don't know
  whether something is part of the language or whether it's a macro.
 And, just like a true ML, Unseemly's type errors are concise and useful.

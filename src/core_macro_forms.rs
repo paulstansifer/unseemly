@@ -276,12 +276,28 @@ pub fn make_core_macro_forms() -> SynEnv {
                 }).collect()).reify())
             }
         }) => [* ["elt"]],
-        syntax_syntax!( ([(named "body", (call "Syntax")), (lit "*")]) Star (
-            body => Rc::new(FormPat::reflect(&body))
-        )) => ["body"],
-        syntax_syntax!( ([(named "body", (call "Syntax")), (lit "+")]) Plus (
-            body => Rc::new(FormPat::reflect(&body))
-        )) => ["body"],
+        syntax_syntax!( ([(named "body", (call "Syntax")), (lit "*")]) Star {
+            |parts| {
+                let body : Assoc<Name, Ty> = parts.get_res(n("body"))?;
+                let seq_body = body.map(::runtime::reify::sequence_type__of);
+                Ok(seq_body)
+            }
+        } {
+            |parts| {
+                Ok(Star(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?))).reify())
+            }
+        }) => ["body"],
+        syntax_syntax!( ([(named "body", (call "Syntax")), (lit "+")]) Plus {
+            |parts| {
+                let body : Assoc<Name, Ty> = parts.get_res(n("body"))?;
+                let seq_body = body.map(::runtime::reify::sequence_type__of);
+                Ok(seq_body)
+            }
+        } {
+            |parts| {
+                Ok(Plus(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?))).reify())
+            }
+        }) => ["body"],
         syntax_syntax!( ( (delim "alt[", "[", (star (named "elt", (call "Syntax"))))) Alt {
             |parts| {
                 let mut out = Assoc::<Name, Ty>::new();
@@ -498,14 +514,17 @@ fn macro_definitions() {
 
     assert_eq!(
         ::ty::neg_synth_type(
-            &ast!({"Syntax" "named" => ["part_name"] :
-                "part_name" => "x",
-                "body" => {"Syntax" "call" :
-                    "nt" => "Expr",
-                    "ty_annot" => {"Type" "Int" :}
+            &ast!({"Syntax" "star" => ["body"] :
+                "body" => {"Syntax" "named" => ["part_name"] :
+                    "part_name" => "x",
+                    "body" => {"Syntax" "call" :
+                        "nt" => "Expr",
+                        "ty_annot" => {"Type" "Int" :}
+                    }
                 }
             }), env.clone()),
-        Ok(assoc_n!("x" => int_expr_type.clone())));
+        Ok(assoc_n!("x" => ::runtime::reify::sequence_type__of(
+            &int_expr_type))));
 
     let t_expr_type = ty!({"Type" "type_apply" :
         "type_rator" => (,expr_type.clone()), "arg" => [(vr "T")]
@@ -543,8 +562,7 @@ fn macro_definitions() {
                                        assoc_n!("body" => s_expr_type.clone(),
                                                 "binding" => t_pat_type.clone(),
                                                 "val" => t_expr_type.clone()),
-                                       int_expr_type.clone())
-        )));
+                                       int_expr_type.clone()))));
 
 }
 
