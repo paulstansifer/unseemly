@@ -117,9 +117,9 @@ fn macro_type(forall_ty_vars: &[Name], arguments: Assoc<Name, Ty>, output: Ty) -
     });
 
     if forall_ty_vars.is_empty() {
-        return Ty(mac_fn);
+        Ty(mac_fn)
     } else {
-        return ty!({"Type" "forall_type" :
+        ty!({"Type" "forall_type" :
             "body" => (import [* [forall "param"]] (, mac_fn)),
             "param" => (,seq forall_ty_vars.iter().map(|n| { Atom(*n) }).collect::<Vec<_>>())
         })
@@ -133,18 +133,14 @@ fn type_macro_invocation(macro_name: Name, parts: &LazyWalkReses<::ty::SynthTy>,
     let mut q_arguments = Assoc::new();
 
     for binder in grammar.binders() {
-        match grammar.find_named_call(binder).unwrap() {
-            Some(nt) => {
-                let term_ty = if ::core_type_forms::nt_is_positive(nt) {
-                    parts.get_res(binder)?
-                } else {
-                    ::ty_compare::Subtype::underspecified(binder)
-                };
-                q_arguments = q_arguments.set(binder, more_quoted_ty(&term_ty, nt));
-            }
-            // Not a call (presumably a binder)
-            None => {} //ast!({"Type" "Int" :}) // maybe treat this more like `Pat`?
-        }
+        if let Some(nt) = grammar.find_named_call(binder).unwrap() {
+            let term_ty = if ::core_type_forms::nt_is_positive(nt) {
+                parts.get_res(binder)?
+            } else {
+                ::ty_compare::Subtype::underspecified(binder)
+            };
+            q_arguments = q_arguments.set(binder, more_quoted_ty(&term_ty, nt));
+        } // Otherwise, it's not a call (should we treat this more like `Pat`?)
     }
 
     // This is lifted almost verbatim from "Expr" "apply". Maybe they should be unified?
@@ -154,7 +150,8 @@ fn type_macro_invocation(macro_name: Name, parts: &LazyWalkReses<::ty::SynthTy>,
         &macro_type(&[], q_arguments.clone(), expected_return),
         &SynthTy::walk_var(macro_name, &parts)?,
         parts.env.clone()).map_err(|e| ::util::err::sp(e, parts.this_ast.clone()))?;
-    return Ok(q_arguments);
+
+    Ok(q_arguments)
 }
 
 // This will be called at parse-time to generate the `Ast` for a macro invocation.
@@ -267,7 +264,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         syntax_syntax!( ( (delim "[", "[", (star (named "elt", (call "Syntax"))))) Seq {
             |parts| {
                 let mut out = Assoc::<Name, Ty>::new();
-                for ref sub in parts.get_rep_res(n("elt"))? {
+                for sub in &parts.get_rep_res(n("elt"))? {
                     out = out.set_assoc(sub);
                 }
                 Ok(out)
@@ -288,7 +285,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         syntax_syntax!( ( (delim "alt[", "[", (star (named "elt", (call "Syntax"))))) Alt {
             |parts| {
                 let mut out = Assoc::<Name, Ty>::new();
-                for ref sub in parts.get_rep_res(n("elt"))? {
+                for sub in &parts.get_rep_res(n("elt"))? {
                     out = out.set_assoc(sub);
                 }
                 Ok(out)
@@ -428,13 +425,9 @@ fn expand_macro(parts: ::ast_walk::LazyWalkReses<ExpandMacros>) -> Result<Ast, (
 
     // Turn the subterms into values
     for binder in macro_form.grammar.binders() {
-        match macro_form.grammar.find_named_call(binder).unwrap() {
-            Some(_nt) => {
-                env = env.set(binder, ::runtime::eval::Value::from_ast(&parts.get_term(binder)));
-            }
-            // Not a call (presumably a binder)
-            None => {}
-        }
+        if let Some(_nt) = macro_form.grammar.find_named_call(binder).unwrap() {
+            env = env.set(binder, ::runtime::eval::Value::from_ast(&parts.get_term(binder)));
+        } // Otherwise, it's not a call (presumably a binder)
     }
 
     let expanded = ::runtime::eval::eval(&parts.get_term(n("implementation")), env)?.to_ast();

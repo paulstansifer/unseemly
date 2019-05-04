@@ -234,7 +234,7 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
                             expected_type
                         };
 
-                        Ok(adjust_opacity(&res, unquote_parts.env, depth as i32))
+                        Ok(adjust_opacity(&res, unquote_parts.env, i32::from(depth)))
                     }))
             } else {
                 // For example: ` '[Pat | (x, ,[Pat <[String]< | body], ) ]' `
@@ -242,7 +242,8 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
                 Negative(
                     cust_rc_box!( move | unquote_parts | {
                         let ast_for_errors = unquote_parts.get_term(n("body"));
-                        let ctxt_elt = remove_opacity(unquote_parts.context_elt(), -(depth as i32));
+                        let ctxt_elt = remove_opacity(unquote_parts.context_elt(),
+                                                      -(i32::from(depth)));
 
                         let mut ctxt_elt = ctxt_elt;
                         for _ in 0..(depth-1) {

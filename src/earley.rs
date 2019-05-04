@@ -735,12 +735,12 @@ impl Item {
                 subtrees.reverse();
 
                 let mut ddd_pos : Option<usize> = None;
-                for i in 0..subtrees.len() {
-                    if let Some(unwrapped) = ddd_unwrap(&subtrees[i]) {
+                for (i, subtree) in subtrees.iter_mut().enumerate() {
+                    if let Some(unwrapped) = ddd_unwrap(&subtree) {
                         if ddd_pos != None {
                             return Err(ParseError{msg: format!("Found two DDDs at {}", unwrapped)});
                         }
-                        subtrees[i] = unwrapped;
+                        *subtree = unwrapped;
                         ddd_pos = Some(i);
                     }
                 }

@@ -86,14 +86,12 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
         (&Alt(ref sub_pats), _) => {
             let mut any_scopes = false;
             for sub_pat in sub_pats {
-                match &**sub_pat {
-                    Scope(_, _) => { any_scopes = true; continue; }
-                    _ => {}
-                }
+                if let Scope(_, _) = &**sub_pat { any_scopes = true; continue; }
+
                 let sub_res = unparse_mbe(&*sub_pat, actl, context, s);
                 if sub_res != "" { return sub_res } // HACK: should use `Option`
             }
-            // HACK: certain forms don't live in the syntax environment, 
+            // HACK: certain forms don't live in the syntax environment,
             //  but "belong" under an `Alt`, so just assume forms know their grammar:
             if any_scopes {
                 match actl {

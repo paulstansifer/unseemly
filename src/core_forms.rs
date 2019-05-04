@@ -491,7 +491,7 @@ pub fn find_form(se: &SynEnv, nt: &str, form_name: &str) -> Rc<Form> {
     let pat = se.find_or_panic(&n(nt));
 
     find_form_rec(pat, form_name)
-        .expect(format!("{:#?} not found in {:#?}", form_name, pat).as_str())
+        .unwrap_or_else(|| panic!(format!("{:#?} not found in {:#?}", form_name, pat)))
 }
 
 
@@ -507,13 +507,11 @@ pub fn insert_form_pat(se: &SynEnv, nt: Name, f: &FormPat) -> SynEnv {
 pub fn add_form_at_the_alt(outer: Rc<FormPat>, inner: &FormPat) -> Option<FormPat> {
     match *outer {
         Biased(ref l, ref r) => {
-            match add_form_at_the_alt(l.clone(), inner) {
-                Some(new_l) => { return Some(Biased(Rc::new(new_l), r.clone())); }
-                None => {}
+            if let Some(new_l) = add_form_at_the_alt(l.clone(), inner) {
+                return Some(Biased(Rc::new(new_l), r.clone()));
             }
-            match add_form_at_the_alt(r.clone(), inner) {
-                Some(new_r) => { return Some(Biased(l.clone(), Rc::new(new_r))); }
-                None => {}
+            if let Some(new_r) = add_form_at_the_alt(r.clone(), inner) {
+                return Some(Biased(l.clone(), Rc::new(new_r)));
             }
             return None;
         }

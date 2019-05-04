@@ -89,7 +89,7 @@ impl FormPat {
             Named(n, ref body) => { vec![n].tap(|v| v.append(&mut body.binders())) }
             Seq(ref bodies) | Alt(ref bodies) => {
                 let mut res = vec![];
-                for ref body in bodies {
+                for body in bodies {
                     res.append(&mut body.binders());
                 }
                 res
@@ -135,7 +135,7 @@ impl FormPat {
                 body.find_named_call(n)
             }
             Seq(ref bodies) | Alt(ref bodies) => {
-                for ref body in bodies {
+                for body in bodies {
                     let sub_fnc = body.find_named_call(n);
                     if sub_fnc.is_some() { return sub_fnc; }
                 }
