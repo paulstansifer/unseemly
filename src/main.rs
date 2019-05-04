@@ -2,8 +2,9 @@
 // You shouldn't write code in Unseemly.
 // Instead, you should implement your programming language as Unseemly macros.
 
-#![allow(dead_code,unused_macros,non_snake_case,unused_imports,non_upper_case_globals)]
+#![allow(dead_code,unused_macros,non_snake_case,unused_imports,non_upper_case_globals,unused_doc_comments)]
 // dead_code and unused_macros are hopefully temporary allowances
+// unused_doc_comments
 // non_snake_case is stylistic, unused_imports is inaccurate for `cargo check`
 // non_upper_case_globals is stylistic; I like my thread_local!s lowercase.
 
@@ -13,9 +14,6 @@
 
 // unstable; only for testing
 // #[macro_use] extern crate log;
-
-// only for testing:
-#![feature(dbg_macro)]
 
 #[macro_use] extern crate lazy_static;
 extern crate num;

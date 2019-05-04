@@ -77,26 +77,24 @@ use name::*;
 use std::rc::Rc;
 use std::fmt;
 
-/**
- `EnvMBE` is like an environment,
-  except that some of its contents are "repeats",
-   which represent _n_ different values
-   (or repeats of repeats, etc.).
- Non-repeated values may be retrieved by `get_leaf`.
- To access repeated values, one must `march` them,
-  which produces _n_ different environments,
-   in which the marched values are not repeated (or one layer less repeated).
- Marching multiple repeated values at once
-  is only permitted if they were constructed to repeat the same number of times.
-*/
 
-/*
-How on earth can one data structure need so many variations on `map`?
-There's got to be a better way!
-*/
+// How on earth can one data structure need so many variations on `map`?
+// There's got to be a better way!
 
 custom_derive! {
     // `Clone` needs to traverse the whole `Vec` ):
+    /**
+     `EnvMBE` is like an environment,
+    except that some of its contents are "repeats",
+    which represent _n_ different values
+    (or repeats of repeats, etc.).
+    Non-repeated values may be retrieved by `get_leaf`.
+    To access repeated values, one must `march` them,
+    which produces _n_ different environments,
+    in which the marched values are not repeated (or one layer less repeated).
+    Marching multiple repeated values at once
+    is only permitted if they were constructed to repeat the same number of times.
+    */
     #[derive(Eq, Clone, Reifiable)]
     pub struct EnvMBE<T> {
         /// Non-repeated values

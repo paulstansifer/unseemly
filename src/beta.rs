@@ -9,31 +9,30 @@ use util::mbe::EnvMBE;
 use walk_mode::Dir;
 use alpha::Ren;
 
-/**
- `Beta`s are always tied to a particular `Form`,
-  and they have names that refer to the parts of that `Form`.
- They are generally used to talk about environmental operations,
-  and they are most useful for typechecking
-   (the evaluation process ignores them,
-     because it needs to do more complex operations
-      to calculate extended environments).
-
- `Beta`s are trees that determine how variables shadow each other,
-  if multiple variables are being handled at once.
- The leaf nodes, `Basic` and `SameAs`, indicate
-  (a) where the name comes from
-  (b) where to get the type annotation (`Basic`)
-       or an expression producting the type (`SameAs`)
-       for that name.
-
- I have no idea where the name "β" came from, and whether it has any connection to α-equivalence.
-
- There's probably a very elegant way to make `Beta` just another kind of `Ast`.
- Finding it might require some time in the math mines, though.
-
- */
 
 custom_derive! {
+    /**
+     `Beta`s are always tied to a particular `Form`,
+    and they have names that refer to the parts of that `Form`.
+    They are generally used to talk about environmental operations,
+    and they are most useful for typechecking
+    (the evaluation process ignores them,
+        because it needs to do more complex operations
+        to calculate extended environments).
+
+    `Beta`s are trees that determine how variables shadow each other,
+    if multiple variables are being handled at once.
+    The leaf nodes, `Basic` and `SameAs`, indicate
+    (a) where the name comes from
+    (b) where to get the type annotation (`Basic`)
+        or an expression producting the type (`SameAs`)
+        for that name.
+
+    I have no idea where the name "β" came from, and whether it has any connection to α-equivalence.
+
+    There's probably a very elegant way to make `Beta` just another kind of `Ast`.
+    Finding it might require some time in the math mines, though.
+    */
     #[derive(PartialEq, Eq, Clone, Reifiable)]
     pub enum Beta {
         /// Both of these `Name`s refer to named terms in the current `Scope`
