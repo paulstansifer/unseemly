@@ -18,6 +18,11 @@ use util::assoc::Assoc;
  */
 
 pub trait Reifiable {
+    /// TODO: I think that `ty`/`ty_name`/`ty_invocation` doesn't make sense.
+    /// I think it could make sense to just have `ty` and `ty_name`, where one writes
+    /// `let_type <<ty_name>> = <<ty>>` once and `<<ty_name>>` elsewhere.
+    /// The type parameters, if any, are always known at reification time.
+
     /// The Unseemly type that corresponds to to the `Reifiable` type.
     /// Suitable for type definition, so any parameters will be abstract.
     /// e.g. `∀ A. Pair <[A int]<`
@@ -233,7 +238,7 @@ impl<A: Reifiable, R: Reifiable> Reifiable for Box<Fn(A) -> R> {
 
 
 
-/* we can't add derive(), but we can `impl` these ourselves directly */
+// We can't add derive() to existing types, but we can `impl` these ourselves directly
 
 // This feels a little awkward, just dropping the `Rc`ness on the floor.
 // But I think `Value` has enouch `Rc` inside that nothing can go wrong... right?
@@ -251,10 +256,14 @@ impl<T: Reifiable> Reifiable for ::std::rc::Rc<T> {
 
 impl<T: Reifiable> Reifiable for Vec<T> {
     fn ty() -> Ast {
-        panic!("TODO")
+        ast!({ "Type" "type_apply" :
+            "type_rator" => {
+                ::core_type_forms::get__abstract_parametric_type(); "name" => "Sequence"},
+            "arg" => [(, T::ty() )]})
     }
 
-    fn ty_name() -> Name { n("Sequence") }
+
+    fn ty_name() -> Name { n(&format!("Sequence_of_{}", T::ty_name())) }
 
     fn ty_invocation() -> Ast {
         ast!({ "Type" "type_apply" :
