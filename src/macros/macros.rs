@@ -287,6 +287,7 @@ macro_rules! mbe {
 
 /* FormPat */
 
+// TODO #8: `ast!` and `form_pat!` are inconsistent with each other.
 macro_rules! form_pat {
     ((lit $e:expr)) => { ::grammar::FormPat::Literal(::name::n($e)) };
     ((lit_by_name $e:expr)) => { ::grammar::FormPat::Literal($e) };

@@ -425,12 +425,10 @@ pub fn freshening_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>,
 //fn fold_beta<T>(b: Beta, over: Assoc<Name, T>,
 //                    leaf: Fn(&Ast ) -> S
 
-// TODO: I know we don't handle negative quasiquotation correctly:
+// TODO: Test negative quasiquotation (in a non end-to-end way):
 //   '[Expr | (plus one (plus one (plus ,[Expr | lhs], ,[Expr | rhs], )))]'
-// should export `lhs` and `rhs`. But how?
-/*
-#[test]
-fn beta_with_negative_quasiquote() {
+// #[test]
+// fn beta_with_negative_quasiquote() {
+//
+// }
 
-}
-*/

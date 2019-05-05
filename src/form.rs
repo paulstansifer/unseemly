@@ -19,17 +19,16 @@ custom_derive! {
     pub struct Form {
         /// The name of the form. Mainly for internal use.
         pub name: Name,
-        /** The grammar the programmer should use to invoke this form.
-         * This contains information about bindings and syntax extension; this is where it belongs!
-         */
+        /// The grammar the programmer should use to invoke this form.
+        /// This contains information about bindings and syntax extension:
         pub grammar: Rc<FormPat>,
-        /** (type only) If this is a type, compare types */
+        /// (type only) Compare types
         pub type_compare: BiDiWR<::ty_compare::Canonicalize, ::ty_compare::Subtype>,
-        /** From a type environment, construct the type of this term. */
+        /// From a type environment, construct the type of this term.
         pub synth_type: BiDiWR<::ty::SynthTy, ::ty::UnpackTy>,
-        /** (expr and pat only) From a value environment, evaluate this term.*/
+        /// (expr and pat only) From a value environment, evaluate this term.
         pub eval: BiDiWR<::runtime::eval::Eval, ::runtime::eval::Destructure>,
-        /** At runtime, pick up code to use it as a value */
+        /// At runtime, pick up code to use it as a value
         pub quasiquote: BiDiWR<::runtime::eval::QQuote, ::runtime::eval::QQuoteDestr>,
     }
 }

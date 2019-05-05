@@ -349,7 +349,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
             if pos {
                 ::form::Positive(cust_rc_box!(|quote_parts| {
                     if nt_is_positive(vr_to_name(&quote_parts.get_term(n("nt")))) {
-                        // TODO: if the user provides an annotation, check it!
+                        // TODO #9: if the user provides an annotation, check it!
                         Ok(ty!({"Type" "type_apply" :
                             "type_rator" =>
                                 (, nt_to_type(vr_to_name(
@@ -390,13 +390,13 @@ pub fn quote(pos: bool) -> Rc<Form> {
                     // There's no need for a type annotation
                     let nt = vr_to_name(&quote_parts.get_term(n("nt")));
                     if nt_is_positive(nt) {
-                        // TODO: check that this matches the type annotation, if provided!
+                        // TODO #9: check that this matches the type annotation, if provided!
                         quote_parts.get_res(n("body"))
                     } else {
                         let new_context = less_quoted_ty(
                             quote_parts.context_elt(), Some(nt),
                             &quote_parts.this_ast)?;
-                        // TODO: check that this matches the type annotation, if provided!
+                        // TODO #9: check that this matches the type annotation, if provided!
                         quote_parts.with_context(new_context).get_res(n("body"))
                     }
                 }))
