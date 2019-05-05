@@ -207,7 +207,6 @@ pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
                     None => Mode::walk_var(negative_ret_val(), &walk_ctxt),
                     Some(oeh) => { Ok( Mode::env_as_out((*oeh.borrow()).clone()) ) }
                 }
-
             }
         }
         QuoteLess(ref body, depth) => {
@@ -397,6 +396,10 @@ impl<Mode: WalkMode> LazilyWalkedTerm<Mode> {
         * self.res.borrow_mut() = Some(result.clone());
         result
     }
+
+    fn clear_memo(&self) {
+        * self.res.borrow_mut() = None;
+    }
 }
 
 pub type OutEnvHandle<Mode> = Rc<RefCell<Assoc<Name,<Mode as WalkMode>::Elt>>>;
@@ -579,9 +582,15 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         LazyWalkReses { env: self.env.set(negative_ret_val(), e), .. (*self).clone() }
     }
 
-    /** Change the whole environment */
+    /// Change the whole environment
     pub fn with_environment(&self, env: ResEnv<Mode::Elt>) -> LazyWalkReses<Mode> {
         LazyWalkReses { env: env, .. (*self).clone() }
+    }
+
+    /// Clear the memo table; important if you're re-evaluating the same term,
+    /// but have changed the environment
+    pub fn clear_memo(&self) {
+        self.parts.map(&mut |lwt: &Rc<LazilyWalkedTerm<Mode>>| lwt.clear_memo());
     }
 
     /// Switch to a different mode with the same `Elt` type.

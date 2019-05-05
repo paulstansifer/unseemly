@@ -262,6 +262,11 @@ pub fn sequence_type__of(ty: &::ty::Ty) -> ::ty::Ty {
         "arg" => [(, ty.concrete()) ]})
 }
 
+pub fn un__sequence_type(ty: &::ty::Ty, loc: &Ast) -> Result<::ty::Ty, ::ty::TypeError> {
+    // This is a hack; `Sequence` is not a nonterminal!
+    ::core_type_forms::less_quoted_ty(ty, Some(n("Sequence")), loc)
+}
+
 impl<T: Reifiable> Reifiable for Vec<T> {
     fn ty() -> Ast {
         ast!({ "Type" "type_apply" :

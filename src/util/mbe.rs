@@ -730,7 +730,7 @@ impl<T: Clone> EnvMBE<T> {
     }
 
     // If `f` turns a leaf into a `Vec`, splice those results in
-    fn heal_splices(&mut self, f: &Fn(&T) -> Option<Vec<T>>) where T: std::fmt::Debug {
+    pub fn heal_splices(&mut self, f: &Fn(&T) -> Option<Vec<T>>) where T: std::fmt::Debug {
         for repeat in &mut self.repeats {
             let mut cur_repeat : Vec<EnvMBE<T>> = (**repeat).clone();
             for i in 0..cur_repeat.len() {
@@ -742,7 +742,7 @@ impl<T: Clone> EnvMBE<T> {
                     let n_and_vals = cur_repeat[i].leaves.iter_pairs();
                     for (n, val) in  n_and_vals {
                         if let Some(splice) = f(val) {
-                            splices.push(dbg!((*n,splice)));
+                            splices.push((*n,splice));
                         }
                     }
                 }
@@ -754,7 +754,7 @@ impl<T: Clone> EnvMBE<T> {
                     // I don't know what has to go wrong to violate that rule.
                     for rep in 0..splices[0].1.len() {
                         for splice in &splices {
-                            template.add_leaf(splice.0, dbg!(splice.1[rep].clone()));
+                            template.add_leaf(splice.0, splice.1[rep].clone());
                         }
                         cur_repeat.insert(i+rep, template.clone())
                     }
@@ -948,11 +948,11 @@ fn splice_healing() {
     noop.heal_splices(&|_| None);
     assert_eq!(noop, orig);
 
-    let mut b_to_xx = orig.clone();
-    b_to_xx.heal_splices(
-        &|a| if a == &ast!((vr "b")) { Some(vec![ast!((vr "x")), ast!((vr "x"))]) } else { None });
-    assert_eq!(b_to_xx, mbe!(
-        "rator" => (vr "add"), "rand" => [(vr "a"), (vr "x"), (vr "x"), (vr "c"), (vr "d")]
+    let mut b_to_xxx = orig.clone();
+    b_to_xxx.heal_splices(
+        &|a| if a == &ast!((vr "b")) { Some(vec![ast!((vr "x")), ast!((vr "xx"))]) } else { None });
+    assert_eq!(b_to_xxx, mbe!(
+        "rator" => (vr "add"), "rand" => [(vr "a"), (vr "x"), (vr "xx"), (vr "c"), (vr "d")]
     ));
 
     // TODO: test this more!

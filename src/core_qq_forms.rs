@@ -167,7 +167,7 @@ impl WalkMode for UnusedNegativeMuProtect {
 //  (It only makes sense inside a `quote`.)
 // However, this would leave us with one `unquote` form available per level of quotation
 
-/// Generate a (depth-1) n unquoting form.
+/// Generate a (depth-1) unquoting form.
 /// `pos_quot` is true iff the quotation itself (and thus the interpolation) is positive.
 pub fn unquote(nt: Name, pos_quot: bool) -> Rc<FormPat> {
     Rc::new(FormPat::Scope(unquote_form(nt, pos_quot, 1),
@@ -276,7 +276,7 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
             // ...what then?
         eval:
             Both(NotWalked, NotWalked), // Outside a quotation? Makes no sense!
-        quasiquote: // the only kind of form for which this *isn't* `LiteralLike`:
+        quasiquote: // this and "dotdotdot" are the only forms that *aren't* `LiteralLike`:
             Both( // TODO: double-check that `pos` and `neg` don't matter here
                 cust_rc_box!( move | unquote_parts | {
                     let lq_parts = unquote_parts.switch_mode::<Eval>();
@@ -289,6 +289,76 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
                     ::ast_walk::walk::<Destructure>(lq_parts.get_term_ref(n("body")),
                         &lq_parts.with_context(context))
                 }))
+    })
+}
+
+
+// Macro By Example transcription. TODO: currently positive-only
+
+pub fn dotdotdot(nt: Name) -> Rc<FormPat> {
+    Rc::new(FormPat::Scope(dotdotdot_form(nt), ::beta::ExportBeta::Nothing))
+}
+
+pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
+    Rc::new(Form {
+        name: n("dotdotdot"),
+        grammar: Rc::new(form_pat!((delim "...[", "[",
+            [(star (named "driver", varref)), (lit ">>"), (named "body", (call_by_name nt))]))),
+        type_compare: Positive(NotWalked), // this is not a type form
+        synth_type: Positive(
+            cust_rc_box!(| ddd_parts | {
+                let drivers = ddd_parts.get_rep_term(n("driver"));
+                let mut walked_env = Assoc::new();
+                for (n, ty) in ddd_parts.env.iter_pairs() {
+                    if drivers.contains(&::ast::VariableReference(*n)) {
+                        walked_env = walked_env.set(
+                            *n, ::runtime::reify::un__sequence_type(ty, &ddd_parts.this_ast)?);
+                    } else {
+                        walked_env = walked_env.set(*n, ty.clone());
+                    }
+                }
+                ddd_parts.with_environment(walked_env).get_res(n("body"))
+            }
+        )),
+        eval: Positive(NotWalked),
+        quasiquote: Positive(
+            cust_rc_box!(| ddd_parts | {
+                use ::runtime::eval::{Value,Sequence};
+                use walk_mode::WalkElt;
+
+                let drivers = ddd_parts.get_rep_term(n("driver"));
+
+                // TODO: the typechecker should reject dotdotdotds with no drivers,
+                // or where a driver isn't in scope.
+                let count = match *ddd_parts.env.find_or_panic(
+                        &::core_forms::vr_to_name(&drivers[0])) {
+                    Sequence(ref contents) => { contents.len() }
+                    _ => { panic!("ICE: type error")}
+                };
+                let mut reps = vec![];
+
+                for i in 0..count {
+                    let mut walked_env = Assoc::new();
+                    for (n, val) in ddd_parts.env.iter_pairs() {
+                        let walked_val = if drivers.contains(&::ast::VariableReference(*n)) {
+                            match *val {
+                                Sequence(ref contents) => (*contents[i]).clone(),
+                                _ => panic!("ICE: type error")
+                            }
+                        } else {
+                            val.clone()
+                        };
+                        walked_env = walked_env.set(*n, walked_val);
+                    }
+
+                    ddd_parts.clear_memo();
+                    reps.push(ddd_parts.with_environment(walked_env).get_res(n("body"))?.to_ast());
+                }
+
+                // HACK: this signals to `LiteralLike` that it needs to splice the sequence
+                Ok(Value::from_ast(&::ast::Shape(reps)))
+            }
+        ))
     })
 }
 
@@ -802,6 +872,87 @@ fn unquote_type_basic() {
         &ast!({unquote_form(n("Expr"), pos, 1) ;
             "nt" => (vr "Expr"), "body" => (-- 1 (vr "en"))}), env, qenv);
     assert_eq!(res, Ok(ty!({"Type" "Nat" :})));
+}
+
+#[test]
+fn use_dotdotdot() {
+    use ::runtime::eval::Value;
+
+    let pos = true;
+    let expr_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Expr" });
+
+    let env = assoc_n!(
+        "n" => ty!({"Type" "Nat" :})
+    );
+
+    let qenv = assoc_n!(
+        "qn" => ty!({"Type" "Nat" :}),
+        "qns" => ::runtime::reify::sequence_type__of(&ty!({"Type" "type_apply" :
+            "type_rator" => (,expr_type.clone()),
+            "arg" => [{"Type" "Nat" :}]}))
+    );
+
+    let eval_env = assoc_n!(
+        "n" => val!(i 5),
+        "en" => val!(ast (vr "qn"))
+    );
+
+    let eval_qenv = assoc_n!(
+        "qn" => val!(i 6),
+        "qnn" => val!(i 7),
+        "qns" => val!(seq (ast (vr "qn")) (ast (vr "qnn")))
+    );
+
+
+    let expr_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Expr" });
+
+    fn synth_type_two_phased(expr: &Ast, env: Assoc<Name, Ty>, qenv: Assoc<Name, Ty>)
+            -> ::ty::TypeResult {
+        ::ast_walk::walk::<::ty::SynthTy>(expr, &::ast_walk::LazyWalkReses::new_mq_wrapper(
+            env, vec![qenv]))
+    }
+
+
+    fn eval_two_phased(expr: &Ast, eval_env: Assoc<Name, Value>, eval_qenv: Assoc<Name, Value>)
+            -> Result<Value, ()> {
+        ::ast_walk::walk::<Eval>(expr, &::ast_walk::LazyWalkReses::new_mq_wrapper(
+            eval_env, vec![eval_qenv]))
+    }
+
+
+    // '[Expr | match qn { x =>  ...[qns >> ,[Expr | qns],]... }]'
+    assert_eq!(synth_type_two_phased(
+            &ast!({quote(pos) ; "nt" => (vr "Expr"), "body" => (++ true
+                {"Expr" "match" :
+                    "scrutinee" => (vr "qn"),
+                    "p" => [@"c" "x"],
+                    "arm" => [@"c" (import ["p" = "scrutinee"]
+                        {dotdotdot_form(n("Expr")) ;
+                            "driver" => [(vr "qns")],
+                            "body" =>
+                                {unquote_form(n("Expr"), pos, 1) ; "body" => (vr "qns")}})]})}),
+            env.clone(), qenv.clone()),
+        Ok(ty!({"Type" "type_apply" :
+            "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]})));
+    without_freshening!{
+        assert_eq!(eval_two_phased(
+                &ast!({quote(pos) ; "nt" => (vr "Expr"), "body" => (++ true
+                    {"Expr" "match" :
+                        "scrutinee" => (vr "qn"),
+                        "p" => [@"c" "x"],
+                        "arm" => [@"c" (import ["p" = "scrutinee"]
+                            {dotdotdot_form(n("Expr")) ;
+                                "driver" => [(vr "qns")],
+                                "body" =>
+                                    {unquote_form(n("Expr"), pos, 1) ; "body" => (vr "qns")}})]})}),
+                eval_env.clone(), eval_qenv.clone()),
+            Ok(val!(ast {"Expr" "match" :
+                        "scrutinee" => (vr "qn"),
+                        "p" => [@"c" "x", "x"],
+                        "arm" => [@"c" (import ["p" = "scrutinee"] (vr "qn")),
+                                    (import ["p" = "scrutinee"] (vr "qnn"))]})));
+    }
+
 }
 
 // TODO:

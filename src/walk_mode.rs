@@ -165,36 +165,54 @@ impl<Mode: WalkMode<D=Self>> Dir for Positive<Mode> {
     fn walk_quasi_literally(a: Ast, cnc: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode> {
         match a {
             Node(f, parts, exports) => {
-                let walked : Result<EnvMBE<Ast>, <Self::Mode as WalkMode>::Err> =
+                let mut walked : EnvMBE<Ast> =
                     parts.map_marched_against(
                         &mut |p: &Ast, cnc_m: &LazyWalkReses<Self::Mode>| match *p {
                             // Yes, `walk`, not `w_q_l`; the mode is in charge of figuring things out.
                             Node(_,_,_) | VariableReference(_) | ExtendEnv(_,_) => walk(p, cnc_m),
                             _ => Ok(<Self::Mode as WalkMode>::Elt::from_ast(&p.clone()))
                         }.map(|e| <Self::Mode as WalkMode>::Elt::to_ast(&e)),
-                        cnc).lift_result();
+                        cnc).lift_result()?;
 
-                walked.map(|out| <Self::Mode as WalkMode>::Elt::from_ast(&Node(f, out, exports)))
+                // HACK: recognize `Shape` as the output of `core_qq_forms::dotdotdot`:
+                walked.heal_splices(&|a| match a { Shape(ref v) => Some(v.clone()), _ => None});
+
+                Ok(<Self::Mode as WalkMode>::Elt::from_ast(&Node(f, walked, exports)))
             },
-            ExtendEnv(body, beta) => { // Environment extension is handled at `walk`
-                Ok(<Self::Mode as WalkMode>::Elt::from_ast(
-                    &ExtendEnv(Box::new(
-                        <Self::Mode as WalkMode>::Elt::to_ast(&try!(walk(&*body, cnc)))),
-                               beta)))
+            orig => {
+                // All this mess is to push `Shape` down past a wrapper (i.e. `ExtendEnv`),
+                //  duplicating the wrapper around each element of `Shape`.
+                // This is all for splicing the result of `dotdotdot`
+
+                let body = match orig {
+                    ExtendEnv(ref b, _) | QuoteMore(ref b, _) | QuoteLess(ref b, _) => b,
+                    _ => panic!("ICE")
+                };
+                let sub_result = Mode::Elt::to_ast(&walk(&**body, cnc)?);
+
+                fn handle_wrapper<Mode: WalkMode>(orig: &Ast, a: Ast) -> Ast {
+                    let boxed = Box::new(a);
+                    match orig {
+                        // Environment extension is handled at `walk`
+                        ExtendEnv(_, beta) => ExtendEnv(boxed, beta.clone()),
+                        QuoteMore(_, pos) => QuoteMore(boxed, *pos),
+                        QuoteLess(_, depth) => QuoteLess(boxed, *depth),
+                        _ => panic!("ICE")
+                    }
+                }
+
+                let res: Ast = match sub_result {
+                    Shape(sub_results) => {
+                        Shape(sub_results.into_iter().map(
+                            |sub| handle_wrapper::<Self::Mode>(&orig, sub)).collect())
+                    }
+                    sub_result => {
+                        handle_wrapper::<Self::Mode>(&orig, sub_result)
+                    }
+                };
+
+                Ok(Mode::Elt::from_ast(&res))
             }
-            QuoteMore(body, pos) => {
-                Ok(<Self::Mode as WalkMode>::Elt::from_ast(
-                    &QuoteMore(Box::new(
-                        <Self::Mode as WalkMode>::Elt::to_ast(&try!(walk(&*body, cnc)))),
-                               pos)))
-            }
-            QuoteLess(body, depth) => {
-                Ok(<Self::Mode as WalkMode>::Elt::from_ast(
-                    &QuoteLess(Box::new(
-                        <Self::Mode as WalkMode>::Elt::to_ast(&try!(walk(&*body, cnc)))),
-                               depth)))
-            }
-            _ => panic!("ICE")
         }
     }
 

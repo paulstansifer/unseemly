@@ -175,6 +175,7 @@ custom_derive!{
 impl WalkMode for QQuote {
     fn name() -> &'static str { "QQuote" }
 
+    // Why not `Ast`? Because QQuote and Eval need to share environments.
     type Elt = Value;
     type Negated = QQuoteDestr;
     type Err = ();

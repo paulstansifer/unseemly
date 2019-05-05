@@ -411,6 +411,9 @@ macro_rules! val {
     (enum $nm:expr, $($v:tt),*) => {
         ::runtime::eval::Value::Enum(::name::n($nm), vec![ $( val! $v ),* ])
     };
+    (seq $($v:tt)*) => {
+        ::runtime::eval::Value::Sequence(vec![ $( Rc::new(val! $v) ),* ])
+    };
     (, $interpolate:expr) => { $interpolate }
 }
 
