@@ -728,6 +728,41 @@ impl<T: Clone> EnvMBE<T> {
             }
         }
     }
+
+    // If `f` turns a leaf into a `Vec`, splice those results in
+    fn heal_splices(&mut self, f: &Fn(&T) -> Option<Vec<T>>) where T: std::fmt::Debug {
+        for repeat in &mut self.repeats {
+            let mut cur_repeat : Vec<EnvMBE<T>> = (**repeat).clone();
+            for i in 0..cur_repeat.len() {
+                cur_repeat[i].heal_splices(f);
+                //repeat[i].heal_splices(f);
+
+                let mut splices = vec![];
+                {
+                    let n_and_vals = cur_repeat[i].leaves.iter_pairs();
+                    for (n, val) in  n_and_vals {
+                        if let Some(splice) = f(val) {
+                            splices.push(dbg!((*n,splice)));
+                        }
+                    }
+                }
+
+                if !splices.is_empty() {
+                    let mut template = cur_repeat.remove(i);
+
+                    // TODO: each of the splices better be the same length.
+                    // I don't know what has to go wrong to violate that rule.
+                    for rep in 0..splices[0].1.len() {
+                        for splice in &splices {
+                            template.add_leaf(splice.0, dbg!(splice.1[rep].clone()));
+                        }
+                        cur_repeat.insert(i+rep, template.clone())
+                    }
+                }
+            }
+            *repeat = Rc::new(cur_repeat)
+        }
+    }
 }
 
 impl<T: Clone, E: Clone> EnvMBE<Result<T, E>> {
@@ -902,6 +937,25 @@ fn basic_mbe() {
     assert_eq!(output, vec![(Some(0), Some(11)), (Some(0), Some(12)), (Some(0), Some(13))]);
 
 
+}
+
+#[test]
+fn splice_healing() {
+    let orig = mbe!(
+        "rator" => (vr "add"), "rand" => [(vr "a"), (vr "b"), (vr "c"), (vr "d")]
+    );
+    let mut noop = orig.clone();
+    noop.heal_splices(&|_| None);
+    assert_eq!(noop, orig);
+
+    let mut b_to_xx = orig.clone();
+    b_to_xx.heal_splices(
+        &|a| if a == &ast!((vr "b")) { Some(vec![ast!((vr "x")), ast!((vr "x"))]) } else { None });
+    assert_eq!(b_to_xx, mbe!(
+        "rator" => (vr "add"), "rand" => [(vr "a"), (vr "x"), (vr "x"), (vr "c"), (vr "d")]
+    ));
+
+    // TODO: test this more!
 }
 
 #[test]
