@@ -92,6 +92,7 @@ pub fn core_types() -> Assoc<Name, Ty> {
         .set(n("Pat"), ty!({get__abstract_parametric_type() ; "name" => "Pat" }))
         .set(n("Type"), ty!({get__abstract_parametric_type() ; "name" => "Type" }))
         .set(n("Expr"), ty!({get__abstract_parametric_type() ; "name" => "Expr" }))
+        .set(n("Sequence"), ty!({get__abstract_parametric_type() ; "name" => "Sequence" }))
 }
 
 

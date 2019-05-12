@@ -397,7 +397,8 @@ pub fn quote(pos: bool) -> Rc<Form> {
                || (nt != &n("Expr") && nt != &n("Pat") && nt != &n("Type")) {
                 nt_def.clone()
             } else {
-                Rc::new(Biased(unquote(*nt, pos), nt_def.clone()))
+                // TODO: maybe we should only insert `dotdotdot` in repetition positions?
+                Rc::new(Biased(unquote(*nt, pos), Rc::new(Biased(dotdotdot(*nt), nt_def.clone()))))
             }})
             .set(n("starterer_nt"),
                 Rc::new(form_pat!(
