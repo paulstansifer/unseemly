@@ -51,7 +51,7 @@ use walk_mode::WalkMode;
 //   the type of `my_pat` (after peeling off its `Pat <[]<`).
 //
 // Note that it doesn't matter whether the boundary is a quotation or an unquotation!
-// Like I said, the phase doesn't matter much.
+// The phase only matters inasmuch as variables don't leave their phase.
 
 
 
@@ -101,7 +101,7 @@ fn change_mu_opacity(parts: ::ast_walk::LazyWalkReses<MuProtect>) -> Result<Ty, 
         |a| ::core_forms::ast_to_name(&a).sp().parse::<i32>().unwrap());
 
     if let Some(opacity) = opacity  {
-        if opacity + delta < 0 { panic!("ICE, I'm pretty sure; unwrapped too far")}
+        if opacity + delta < 0 { panic!("ICE: unwrapped too far")}
 
         if opacity + delta == 0 {
             if let ::ast::ExtendEnv(node, _) = parts.get_term(n("body")) {
@@ -223,7 +223,7 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
 
                             let mut ctxt_elt = expected_type.clone();
                             for _ in 0..(depth-1) {
-                                unimplemented!("I think we need a stack of what NTs are quoted")
+                                unimplemented!("We may need a stack of what NTs are quoted")
                             }
                             ctxt_elt = more_quoted_ty(&ctxt_elt, nt);
                             println!("expected: {} ctxt: {}", expected_type, ctxt_elt);
@@ -247,7 +247,7 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
 
                         let mut ctxt_elt = ctxt_elt;
                         for _ in 0..(depth-1) {
-                            unimplemented!("I think we need a stack of what NTs are quoted")
+                            unimplemented!("We may need a stack of what NTs are quoted")
                         }
                         ctxt_elt = more_quoted_ty(&ctxt_elt, nt);
 
@@ -402,7 +402,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
             }})
             .set(n("starterer_nt"),
                 Rc::new(form_pat!(
-                    // HACK: I guess the `nt` from outside isn't in the same Scope:
+                    // HACK: The `nt` from outside isn't in the same Scope, it seems:
                     [(named "nt", (anyways (, ::ast::VariableReference(starter_nt)))),
                      (alt [], (delim "<[", "[", (named "ty_annot", (call "Type")))),
                      (lit "|"),
@@ -443,7 +443,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
                         // Note that `Pat <[Point]<` (as opposed to `Pat <:[x: Real, y: Real]<:`)
                         //  is what we want!
                         // In other words, syntax types don't care about positive vs. negative!
-                        // I wrote down an argument in the form of code to this effect elsewhere,
+                        // There's a longer argument in the form of code to this effect elsewhere,
                         //  but it boils down to this: environments can always be managed directly,
                         //   by introducing and referencing bindings.
                         let _ = &quote_parts.with_context(prot_expected_type)
