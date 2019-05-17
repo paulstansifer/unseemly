@@ -185,6 +185,10 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     Ok(assoc_n!())
                 })));
 
+    let tuple_type =
+        type_defn("tuple",
+                  form_pat!((delim ".*[", "[", (star (named "component", (call "Type"))))));
+
     let forall_type =
         type_defn_complex("forall_type",
             form_pat!([(lit "forall"), (star (named "param", aat)), (lit "."),
@@ -370,6 +374,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         type_defn("Float", form_pat!((lit "Float"))),
         enum_type.clone(),
         struct_type.clone(),
+        tuple_type.clone(),
         forall_type.clone(),
         dotdotdot_type.clone(),
         mu_type.clone(),
