@@ -28,15 +28,6 @@ pub fn vr_to_name(ast: &Ast) -> Name {
     match *ast { VariableReference(n) => n, _ => { panic!("ICE: {:#?} is not a vr", ast) } }
 }
 
-
-/*
-fn eval_quoted_stx(a: Ast, env: Assoc<Name, Value>) -> Ast {
-    match a {
-        Trivial | Atom(_) | VariableReference(_)
-    }
-}
-*/
-
 /// Remove an `ExtendEnv` without respecting its binding behavior.
 /// This is safe if directly inside a `Node` that was just freshened.
 /// (TODO: think about what "just" means here. It's super-subtle!)

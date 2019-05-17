@@ -82,11 +82,11 @@ custom_derive! {
 pub struct SyntaxExtension(pub Rc<Box<(Fn(SynEnv, Ast) -> SynEnv)>>);
 
 impl FormPat {
-    // TODO: it might make sense to indicate what level of repetition each name is matched under
-    pub fn binders(&self) -> Vec<Name> {
+    // Finds all `Named` nodes, and how many layers of repetition they are underneath.
+    pub fn binders(&self) -> Vec<(Name, u8)> {
         use tap::TapOps;
         match *self {
-            Named(n, ref body) => { vec![n].tap(|v| v.append(&mut body.binders())) }
+            Named(n, ref body) => { vec![(n,0)].tap(|v| v.append(&mut body.binders())) }
             Seq(ref bodies) | Alt(ref bodies) => {
                 let mut res = vec![];
                 for body in bodies {
@@ -95,7 +95,10 @@ impl FormPat {
                 res
             }
             Scope(_,_) => vec![], // No more bindings in this scope
-            Delimited(_,_,ref body) |Star(ref body) | Plus(ref body) | ComputeSyntax(_, ref body)
+            Star(ref body) | Plus(ref body) => {
+                body.binders().into_iter().map(|(n, depth)| (n, depth+1)).collect()
+            }
+            Delimited(_,_,ref body) | ComputeSyntax(_, ref body)
                     | SynImport(ref body, _, _) | NameImport(ref body, _) | QuoteDeepen(ref body, _)
                     | QuoteEscape(ref body, _) => {
                 body.binders()

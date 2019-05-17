@@ -132,10 +132,14 @@ fn type_macro_invocation(macro_name: Name, parts: &LazyWalkReses<::ty::SynthTy>,
     // Typecheck the subterms, and then quote them:
     let mut q_arguments = Assoc::new();
 
-    for binder in grammar.binders() {
+    for (binder, depth) in grammar.binders() {
         if let Some(nt) = grammar.find_named_call(binder).unwrap() {
             let term_ty = if ::core_type_forms::nt_is_positive(nt) {
-                parts.get_res(binder)?
+                parts.flatten_res_at_depth(binder, depth, &|ty_vec: Vec<Ty>| {
+                    ty!({"Type" "tuple" :
+                        "component" => (,seq ty_vec.iter().map(|ty| ty.concrete()))
+                    })
+                })?
             } else {
                 ::ty_compare::Subtype::underspecified(binder)
             };
@@ -440,7 +444,7 @@ fn expand_macro(parts: ::ast_walk::LazyWalkReses<ExpandMacros>) -> Result<Ast, (
     let macro_form: &Form = parts.this_ast.node_form();
 
     // Turn the subterms into values
-    for binder in macro_form.grammar.binders() {
+    for (binder, _depth) in macro_form.grammar.binders() {
         if let Some(_nt) = macro_form.grammar.find_named_call(binder).unwrap() {
             env = env.set(binder, ::runtime::eval::Value::from_ast(&parts.get_term(binder)));
         } // Otherwise, it's not a call (presumably a binder)
@@ -714,6 +718,47 @@ fn type_basic_macro_invocation() {
         Ok(assoc_n!("x" => ty!({ "Type" "Int" :}))));
 
 }
+
+#[test]
+fn type_ddd_macro() {
+        let expr_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Expr" });
+    let pat_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Pat" });
+    let t_expr_type = ty!({"Type" "type_apply" :
+        "type_rator" => (,expr_type.clone()), "arg" => [(vr "T")]
+    });
+    let s_expr_type = ty!({"Type" "type_apply" :
+        "type_rator" => (,expr_type.clone()), "arg" => [(vr "S")]
+    });
+    let t_pat_type = ty!({"Type" "type_apply" :
+        "type_rator" => (,pat_type.clone()), "arg" => [(vr "T")]
+    });
+    let env = assoc_n!(
+        "int_var" => ty!({ "Type" "Int" :}),
+        "nat_var" => ty!({ "Type" "Nat" :}),
+        "let_like_macro" =>
+            macro_type(&vec![n("T"), n("S")],
+                       assoc_n!("val" => t_expr_type.clone(),
+                                "binding" => t_pat_type.clone(),
+                                "body" => s_expr_type.clone()),
+                       s_expr_type.clone()));
+
+    assert_eq!(
+    ::ty::synth_type(
+        &ast!({
+            macro_invocation(
+                form_pat!([(lit "invoke let_like_macro"),
+                            (star (named "val", (call "Expr"))),
+                            (star (named "binding", (call "Pat"))),
+                            (named "body", (import [* ["binding" = "val"]], (call "Expr")))]),
+                n("let_like_macro"), vec![]) ;
+            "val" => [@"arm" (vr "nat_var"), (vr "nat_var")],
+            "binding" => [@"arm" "x1", "x2"],
+            "body" => (import [* ["binding" = "val"]] (vr "x1"))
+        }),
+        env.clone()),
+    Ok(ty!({ "Type" "Nat" :})));
+}
+
 
 #[test]
 fn expand_basic_macros() {

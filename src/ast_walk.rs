@@ -528,15 +528,34 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         }
     }
 
-    /** The result of walking the subform named `part_name`. This is memoized. */
+    /// The result of walking the subform named `part_name`. This is memoized.
     pub fn get_res(&self, part_name: Name) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
         self.parts.get_leaf_or_panic(&part_name).get_res(self)
     }
 
-    /** Like `get_res`, but for subforms that are repeated at depth 1. Sort of a hack. */
+    /// Like `get_res`, but for subforms that are repeated at depth 1. Sort of a hack.
     pub fn get_rep_res(&self, part_name: Name) -> Result<Vec<<Mode::D as Dir>::Out>, Mode::Err> {
         self.parts.get_rep_leaf_or_panic(part_name)
             .iter().map( |&lwt| lwt.get_res(self)).collect()
+    }
+
+    /// Like `get_res`, but with `depth` levels of repetition, and calling `f` to flatten the result
+    pub fn flatten_res_at_depth(
+            &self, part_name: Name, depth: u8,
+            f: &Fn(Vec<<Mode::D as Dir>::Out>) -> <Mode::D as Dir>::Out)
+                -> Result<<Mode::D as Dir>::Out, Mode::Err> {
+        self.parts.map_flatten_rep_leaf_or_panic(
+            part_name, depth,
+            &|lwt: &Rc<LazilyWalkedTerm<Mode>>| -> Result<<Mode::D as Dir>::Out, Mode::Err> {
+                return lwt.get_res(self);
+            },
+            &|v: Vec<Result<<Mode::D as Dir>::Out, Mode::Err>>| {
+                let mut accum = vec![];
+                for elt in v {
+                    accum.push(elt?);
+                }
+                Ok(f(accum))
+            })
     }
 
     /*/** Like `get_rep_res`, but doesn't panic if the name is absent. */

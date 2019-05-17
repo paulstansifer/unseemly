@@ -362,7 +362,7 @@ impl<T: Clone> EnvMBE<T> {
         self.leaves.find(&n)
     }
 
-    pub fn get_rep_leaf(&self, n: Name) -> Option<Vec<&T>> where T: ::std::fmt::Debug{
+    pub fn get_rep_leaf(&self, n: Name) -> Option<Vec<&T>> {
         // FOOTGUN: can't distinguish wrong leaf names from 0-repeated leaves
         // TODO: remove get_rep_leaf_or_panic, as this never returns `None`
 
@@ -380,7 +380,6 @@ impl<T: Clone> EnvMBE<T> {
         }
         Some(res)
     }
-
 
     /// Extend with a non-repeated thing
     pub fn add_leaf(&mut self, n: Name, v: T) {
@@ -806,6 +805,20 @@ impl<T: Clone + fmt::Debug> EnvMBE<T> {
 
     pub fn get_rep_leaf_or_panic(&self, n: Name) -> Vec<&T> {
         self.get_rep_leaf(n).unwrap()
+    }
+
+    pub fn map_flatten_rep_leaf_or_panic<S>(&self, n: Name, depth: u8, m: &Fn(&T) -> S, f: &Fn(Vec<S>) -> S)
+            -> S {
+        if depth == 0 {
+            return m(self.get_leaf_or_panic(&n));
+        }
+        let leaf_loc = match self.leaf_locations.find(&n) {
+            Some(&Some(ll)) => ll,
+            _ => { panic!("Leaf {} not found", n) }
+        };
+
+        f(self.repeats[leaf_loc].iter().map(
+            |mbe| mbe.map_flatten_rep_leaf_or_panic(n, depth-1, m, f)).collect())
     }
 }
 
