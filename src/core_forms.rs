@@ -444,7 +444,8 @@ pub fn make_core_syn_env() -> SynEnv {
         // special case; allow repetition (defined in earley.rs):
         "dotdotdot" => Rc::new(form_pat!([(delim "...(", "(", (call "body"))])),
         "Pat" => Rc::new(Biased(Rc::new(main_pat_forms), Rc::new(AnyAtomicToken))),
-        "Expr" => Rc::new(Biased(Rc::new(main_expr_forms), Rc::new(VarRef)))
+        "Expr" => Rc::new(Biased(Rc::new(main_expr_forms), Rc::new(VarRef))),
+        "Ident" => Rc::new(AnyAtomicToken)
     ).set_assoc(&ctf).set_assoc(&cmf) /* throw in the types and macros! */
 
 }

@@ -399,7 +399,8 @@ pub fn nt_to_type(nt: Name) -> Ty {
 pub fn nt_is_positive(nt: Name) -> bool {
     if nt == n("Type") || nt == n("Expr") {
         true
-    } else if nt == n("Pat") {
+    } else if nt == n("Pat") || nt == n("Ident") {
+        // HACK: "Ident" is just not walked; this should probably be three-armed
         false
     } else {
         panic!("ICE: unknown NT {}", nt)
