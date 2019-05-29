@@ -20,3 +20,7 @@ If I had to do it all over again...
   Also, `FormPat` is a bad name.
 * The walk_mode.rs/ast_walk.rs distinction isn't great; I never know what's where.
 * I should have used procedural macros for `Reifiable`.
+* In examples and tests, `Int` and `Nat` are frequently used,
+  and the user is supposed to assume that neither is a subtype of the other.
+  That's unintuitive!
+  Also, they are a little similar-looking.
