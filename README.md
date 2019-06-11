@@ -1,4 +1,4 @@
-### ≉
+## ≉ [![Build Status](https://travis-ci.com/paulstansifer/unseemly.svg?branch=master)](https://travis-ci.com/paulstansifer/unseemly)
 
 In Unseemly, typechecking occurs entirely prior to macro expansion.
 
