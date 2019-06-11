@@ -309,12 +309,36 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
             cust_rc_box!(| ddd_parts | {
                 let drivers = ddd_parts.get_rep_term(n("driver"));
                 let mut walked_env = Assoc::new();
-                for (n, ty) in ddd_parts.env.iter_pairs() {
-                    if drivers.contains(&::ast::VariableReference(*n)) {
-                        walked_env = walked_env.set(
-                            *n, ::runtime::reify::un__sequence_type(ty, &ddd_parts.this_ast)?);
-                    } else {
-                        walked_env = walked_env.set(*n, ty.clone());
+
+                let repeats = match ddd_parts.env.find(&::core_forms::vr_to_name(&drivers[0])) {
+                    Some(&Ty(::ast::Node(ref form, ref parts, _))) if form.name == n("tuple") => {
+                        parts.get_rep_leaf_or_panic(n("component")).len()
+                    }
+                    Some(other_t) => {
+                        ty_err!(UnableToDestructure(other_t.clone(), n("tuple"))
+                                at ddd_parts.this_ast);
+                    }
+                    _ => ty_err!(UnboundName(::core_forms::vr_to_name(&drivers[0]))
+                                 at ddd_parts.this_ast)
+                };
+
+                for i in 0..repeats {
+                    for (name, ty) in ddd_parts.env.iter_pairs() {
+                        if drivers.contains(&::ast::VariableReference(*name)) {
+                            walked_env = walked_env.set(
+                                *name,
+                                match ty {
+                                    Ty(::ast::Node(ref form, ref parts, _))
+                                            if form.name == n("tuple") => {
+                                        Ty(parts.get_rep_leaf_or_panic(n("component"))[i].clone())
+                                    }
+                                    t =>
+                                        ty_err!(UnableToDestructure(t.clone(), n("tuple"))
+                                            at t.0)
+                                });
+                        } else {
+                            walked_env = walked_env.set(*name, ty.clone());
+                        }
                     }
                 }
                 ddd_parts.with_environment(walked_env).get_res(n("body"))
@@ -888,9 +912,15 @@ fn use_dotdotdot() {
 
     let qenv = assoc_n!(
         "qn" => ty!({"Type" "Nat" :}),
-        "qns" => ::runtime::reify::sequence_type__of(&ty!({"Type" "type_apply" :
-            "type_rator" => (,expr_type.clone()),
-            "arg" => [{"Type" "Nat" :}]}))
+        "qns" => ty!({"Type" "tuple" :
+          "component" => [
+            {"Type" "type_apply" :
+              "type_rator" => (,expr_type.clone()),
+              "arg" => [{"Type" "Nat" :}]},
+            {"Type" "type_apply" :
+              "type_rator" => (,expr_type.clone()),
+              "arg" => [{"Type" "Nat" :}]}
+            ]})
     );
 
     let eval_env = assoc_n!(

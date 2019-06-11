@@ -95,8 +95,14 @@ But let's not do that weird thing just yet.
 
 */
 
+/*
+The other thing that subtyping has to deal with is `...[T >> T]...`.
+
+*/
+
 /// Follow variable references in `env` and underdeterminednesses in `unif`
 ///  until we hit something that can't move further.
+/// TODO: could this be replaced by `synth_type`? Can `canonicalize` be replaced by it, too?
 pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Clo<Ty> {
     let u_f = underdetermined_form.with(|u_f| { u_f.clone() });
 
