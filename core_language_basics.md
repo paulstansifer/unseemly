@@ -42,6 +42,12 @@ Probably, there's a reason that they have tokenizers
         For example `[Expr | (plus ,[Expr | syn_for_number], one)]` is the syntax for
         adding one to whatever `syn_for_number` represents.
         (The `<[Type]<` annotation is usually optional, but you need it for `Pat`).
+    * Inside a quotation `...[x ⋯ >> whatever_that_nonterminal_represents ]...`
+      is an abstract repetition;
+      it's only valid at parts of the grammar that accept an arbitrary number of something.
+      `x` must have been parsed under some kind of repetition; this expands `x` to its components,
+      duplicating everything else.
+      It will usually contain an unquotation immediately inside it.
 
 ## Pre-defined values
 * `zero` through `ten` are integers. (What are these "literals" you speak of?)
