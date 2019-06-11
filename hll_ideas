@@ -18,6 +18,7 @@
 * macro-powered mocks. Need to mock something with a concrete type? No problem,
   recompile everything with a different type.
   (https://klausi.github.io/rustnish/2019/03/31/mocking-in-rust-with-conditional-compilation.html)
-
+* a simple syntax for trait-directed `.` resolution: `something.Trait::member()`
+  (https://twitter.com/myrrlyn/status/1133799922082492416)
 
 - example systems I've heard good things about: ggplot, R
