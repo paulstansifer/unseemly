@@ -63,21 +63,29 @@ use name::{Name, n};
 use ty::Ty;
 use runtime::eval::{eval, Value};
 use std::io::BufRead;
+use std::borrow::Cow;
 
 thread_local! {
     pub static ty_env : RefCell<Assoc<Name, Ty>> = RefCell::new(core_values::core_types());
     pub static val_env : RefCell<Assoc<Name, Value>> = RefCell::new(core_values::core_values());
 }
 
-struct ValueCompleter {}
+struct LineHelper { highlighter: rustyline::highlight::MatchingBracketHighlighter }
 
-impl rustyline::completion::Completer for ValueCompleter {
-    fn complete(&self, line: &str, pos: usize)
+impl LineHelper {
+    fn new() -> LineHelper {
+        LineHelper { highlighter: rustyline::highlight::MatchingBracketHighlighter::new() }
+    }
+}
+
+impl rustyline::completion::Completer for LineHelper {
+    type Candidate = String;
+
+    fn complete(&self, line: &str, pos: usize, _ctxt: &rustyline::Context)
             -> Result<(usize, Vec<String>), rustyline::error::ReadlineError> {
-        let mut break_chars = std::collections::BTreeSet::new();
-        break_chars.extend(vec!['[', '(', '{', ' ', '}', ')',  ']'].iter());
         let mut res = vec![];
-        let (start, word_so_far) = rustyline::completion::extract_word(line, pos, &break_chars);
+        let (start, word_so_far)
+            = rustyline::completion::extract_word(line, pos, None, b"[({ })]");
         val_env.with(|vals| {
             let vals = vals.borrow();
             for k in vals.iter_keys() {
@@ -88,6 +96,34 @@ impl rustyline::completion::Completer for ValueCompleter {
     }
 }
 
+impl rustyline::hint::Hinter for LineHelper {
+    fn hint(&self, _line: &str, _pos: usize, _ctxt: &rustyline::Context) -> Option<String> {
+        None
+    }
+}
+
+impl rustyline::highlight::Highlighter for LineHelper {
+    fn highlight<'l>(&self, line: &'l str, pos: usize) -> Cow<'l, str> {
+        self.highlighter.highlight(line, pos)
+    }
+    fn highlight_prompt<'p>(&self, prompt: &'p str) -> Cow<'p, str> {
+        self.highlighter.highlight_prompt(prompt)
+    }
+    fn highlight_hint<'h>(&self, hint: &'h str) -> Cow<'h, str> {
+        self.highlighter.highlight_hint(hint)
+    }
+    fn highlight_candidate<'c>(
+            &self, candidate: &'c str, completion: rustyline::config::CompletionType)
+        -> Cow<'c, str> {
+        self.highlighter.highlight_candidate(candidate, completion)
+    }
+    fn highlight_char(&self, line: &str, pos: usize) -> bool {
+        self.highlighter.highlight_char(line, pos)
+    }
+}
+
+impl rustyline::Helper for LineHelper {}
+
 fn main() {
     let arguments : Vec<String> = std::env::args().collect();
     let prelude_filename = format!("{}/.unseemly_prelude",
@@ -96,8 +132,8 @@ fn main() {
                                    dirs::home_dir().unwrap().display());
 
     if arguments.len() == 1 {
-        let mut rl = rustyline::Editor::<ValueCompleter>::new();
-        rl.set_completer(Some(ValueCompleter{}));
+        let mut rl = rustyline::Editor::<LineHelper>::new();
+        rl.set_helper(Some(LineHelper::new()));
 
         let just_parse = regex::Regex::new("^:p (.*)$").unwrap();
         let just_type = regex::Regex::new("^:t (.*)$").unwrap();
@@ -146,7 +182,7 @@ fn main() {
         let _ = rl.load_history(&history_filename);
         while let Ok(line) = rl.readline("\x1b[1;36m≫\x1b[0m ") {
             // TODO: count delimiters, and allow line continuation!
-            rl.add_history_entry(&line);
+            rl.add_history_entry(line.clone());
 
             let result_display = if let Some(caps) = just_parse.captures(&line) {
                 parse_unseemly_program(caps.at(1).unwrap())
