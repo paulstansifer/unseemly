@@ -41,7 +41,9 @@ Okay, we know that negative positions have the opposite subtyping relationship..
 
 ...weirdly, this kinda suggests that there's an alternative formulation of `∀`
  that's more concise, and might play better with our system,
- and (for better or worse) can't express certain "exotic" types:
+  and (for better or worse) can't express certain "exotic" types.
+ In this forumlation, instead of writing `∀X. …`,
+  we paste `∀` in front of a negative-position variable:
 id: ∀X ⇒ X
 map: List<[∀X]< (X ⇒ ∀Y) ⇒ List<[Y]<   (need `letrec`-style binding!)
 boring_map: List<[Int]< (Int ⇒ ∀Y) ⇒ List<[Y]<    (need `∀` to distinguish binders and refs!)

@@ -187,7 +187,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
 
     let tuple_type =
         type_defn("tuple",
-                  form_pat!((delim ".*[", "[", (star (named "component", (call "Type"))))));
+                  form_pat!((delim "**[", "[", (star (named "component", (call "Type"))))));
 
     let forall_type =
         type_defn_complex("forall_type",
