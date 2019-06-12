@@ -166,11 +166,11 @@ fn main() {
                 let line = line.unwrap();
                 if comment.captures(&line).is_some() { /*comment*/
                 } else if let Some(caps) = assign_value.captures(&line) {
-                    if let Err(e) = assign_variable(caps.at(1).unwrap(), caps.at(2).unwrap()) {
+                    if let Err(e) = assign_variable(&caps[1], &caps[2]) {
                         println!("    Error in prelude line: {}\n    {}", line, e);
                     }
                 } else if let Some(caps) = assign_type.captures(&line) {
-                    if let Err(e) = assign_t_var(caps.at(1).unwrap(), caps.at(2).unwrap()) {
+                    if let Err(e) = assign_t_var(&caps[1], &caps[2]) {
                         println!("    Error in prelude line: {}\n    {}", line, e);
                     }
                 }
@@ -185,36 +185,36 @@ fn main() {
             rl.add_history_entry(line.clone());
 
             let result_display = if let Some(caps) = just_parse.captures(&line) {
-                parse_unseemly_program(caps.at(1).unwrap())
+                parse_unseemly_program(&caps[1])
             } else if let Some(caps) = just_type.captures(&line) {
-                type_unseemly_program(caps.at(1).unwrap()).map(|x| format!("{}", x))
+                type_unseemly_program(&caps[1]).map(|x| format!("{}", x))
             } else if let Some(caps) = just_eval.captures(&line) {
-                eval_unseemly_program_without_typechecking(caps.at(1).unwrap())
+                eval_unseemly_program_without_typechecking(&caps[1])
                     .map(|x| format!("{}", x))
             } else if let Some(caps) = canon_type.captures(&line) {
-                canonicalize_type(caps.at(1).unwrap()).map(|x| format!("{}", x))
+                canonicalize_type(&caps[1]).map(|x| format!("{}", x))
             } else if let Some(caps) = assign_value.captures(&line) {
-                assign_variable(caps.at(1).unwrap(), caps.at(2).unwrap()).map(|x| format!("{}", x))
+                assign_variable(&caps[1], &caps[2]).map(|x| format!("{}", x))
             } else if let Some(caps) = save_value.captures(&line) {
-                match assign_variable(caps.at(2).unwrap(), caps.at(3).unwrap()) {
+                match assign_variable(&caps[2], &caps[3]) {
                     Ok(_) => {
                         use std::io::Write;
                         let mut prel_file = ::std::fs::OpenOptions::new().create(true).append(true)
                             .open(&prelude_filename).unwrap();
-                        writeln!(prel_file, "{}", caps.at(1).unwrap()).unwrap();
+                        writeln!(prel_file, "{}", &caps[1]).unwrap();
                         Ok(format!("[saved to {}]", &prelude_filename))
                     }
                     Err(e) => Err(e)
                 }
             } else if let Some(caps) = assign_type.captures(&line) {
-                assign_t_var(caps.at(1).unwrap(), caps.at(2).unwrap()).map(|x| format!("{}", x))
+                assign_t_var(&caps[1], &caps[2]).map(|x| format!("{}", x))
             } else if let Some(caps) = save_type.captures(&line) {
-                match assign_t_var(caps.at(2).unwrap(), caps.at(3).unwrap()) {
+                match assign_t_var(&caps[2], &caps[3]) {
                     Ok(_) => {
                         use std::io::Write;
                         let mut prel_file = ::std::fs::OpenOptions::new().create(true).append(true)
                             .open(&prelude_filename).unwrap();
-                        writeln!(prel_file, "{}", caps.at(1).unwrap()).unwrap();
+                        writeln!(prel_file, "{}", &caps[1]).unwrap();
                         Ok(format!("[saved to {}]", &prelude_filename))
                     }
                     Err(e) => Err(e)
