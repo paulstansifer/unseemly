@@ -630,6 +630,8 @@ impl<T: Clone> EnvMBE<T> {
             -> EnvMBE<NewT> {
         EnvMBE {
             leaves: self.leaves.keyed_map_with(&o.leaves, f),
+
+            // This assumes that "equivalent" repeats have the same indices... ) :
             repeats:
             self.repeats.iter().zip(self.ddd_rep_idxes.iter())
                 .zip(o.repeats.iter().zip(o.ddd_rep_idxes.iter())).map(
@@ -729,12 +731,12 @@ impl<T: Clone> EnvMBE<T> {
     }
 
     // If `f` turns a leaf into a `Vec`, splice those results in
-    pub fn heal_splices(&mut self, f: &Fn(&T) -> Option<Vec<T>>) where T: std::fmt::Debug {
+    pub fn heal_splices(&mut self, f: &Fn(&T) -> Option<Vec<T>>)  {
         for repeat in &mut self.repeats {
             let mut cur_repeat : Vec<EnvMBE<T>> = (**repeat).clone();
-            for i in 0..cur_repeat.len() {
+            let mut i = 0;
+            while i < cur_repeat.len() {
                 cur_repeat[i].heal_splices(f);
-                //repeat[i].heal_splices(f);
 
                 let mut splices = vec![];
                 {
@@ -757,11 +759,90 @@ impl<T: Clone> EnvMBE<T> {
                         }
                         cur_repeat.insert(i+rep, template.clone())
                     }
+                    i += splices[0].1.len();
+
+                } else {
+                    i += 1;
                 }
             }
             *repeat = Rc::new(cur_repeat)
         }
     }
+
+    // TODO: this should return a usable error
+    pub fn heal_splices__with(&mut self, other: &EnvMBE<T>,
+                              f: &Fn(&T, &Fn() -> Vec<T>) -> Option<Vec<T>>)
+            -> Result<(), ()>
+                where T: std::fmt::Debug {
+
+        for repeat in &mut self.repeats {
+            // Find the same repeat in `other`:
+            let mut names_needed = vec![];
+            for (name, _) in self.leaf_locations.iter_pairs() {
+                names_needed.push(name);
+            }
+            let other__rep_loc = other.leaf_locations.find(names_needed[0])
+                .unwrap_or(&None).ok_or(())?;
+            // TODO: error out if we don't get the same result for all `names_needed[n]`
+
+            let other__cur_repeat : &Vec<EnvMBE<T>> = &*other.repeats[other__rep_loc];
+            let mut cur_repeat : Vec<EnvMBE<T>> = (**repeat).clone();
+
+            // If an item splices, how wide does the other side need to be
+            //  in order to make everything line up?
+            let splice_length = (other__cur_repeat.len()+1).checked_sub(cur_repeat.len())
+                .ok_or(())?;
+
+            let mut i = 0;
+            let mut other_i = 0;
+            while i < cur_repeat.len() {
+                cur_repeat[i].heal_splices__with(&other__cur_repeat[other_i], f)?;
+
+                let mut splices = vec![];
+                {
+                    let n_and_vals = cur_repeat[i].leaves.iter_pairs();
+                    for (n, val) in n_and_vals {
+
+                        let concrete_splice__thunk = || {
+                            let mut result = vec![];
+                            for spliced_i in i .. i+splice_length {
+                                result.push(other__cur_repeat[spliced_i].leaves.find_or_panic(n).clone())
+                            }
+                            result
+                        };
+
+                        if let Some(splice) = f(val, &concrete_splice__thunk) {
+                            splices.push((*n,splice));
+                        }
+                    }
+                }
+
+                if !splices.is_empty() {
+                    let mut template = cur_repeat.remove(i);
+
+                    // TODO: each of the splices better be the same length.
+                    // I don't know what has to go wrong to violate that rule.
+                    for rep in 0..splices[0].1.len() {
+                        for splice in &splices {
+                            template.add_leaf(splice.0, splice.1[rep].clone());
+                        }
+                        cur_repeat.insert(i+rep, template.clone())
+                    }
+                    i += splice_length;
+                    other_i += splice_length;
+                } else {
+                    i += 1;
+                    other_i += 1;
+                }
+            }
+            if cur_repeat.len() != other__cur_repeat.len() {
+                return Err(()) // Needed a splice to make things line up
+            }
+            *repeat = Rc::new(cur_repeat)
+        }
+        Ok(())
+    }
+
 }
 
 impl<T: Clone, E: Clone> EnvMBE<Result<T, E>> {
@@ -967,6 +1048,40 @@ fn splice_healing() {
     assert_eq!(b_to_xxx, mbe!(
         "rator" => (vr "add"), "rand" => [(vr "a"), (vr "x"), (vr "xx"), (vr "c"), (vr "d")]
     ));
+
+    let steal_from_other = |a: &::ast::Ast, other__a_vec__thunk: &Fn() -> Vec<::ast::Ast>|
+            -> Option<Vec<::ast::Ast>> {
+        if a == &ast!((vr "c")) {
+            Some(other__a_vec__thunk())
+        } else {
+            None
+        }
+    };
+
+    let other_short = mbe!(
+        "rator" => (vr "---"), "rand" => [(vr "1"), (vr "2"), (vr "3")]);
+
+    let mut with_short = orig.clone();
+    assert_eq!(with_short.heal_splices__with(&other_short, &steal_from_other), Ok(()));
+    assert_eq!(with_short,
+               mbe!("rator" => (vr "add"), "rand" => [(vr "a"), (vr "b"), (vr "d")]));
+
+    let other_long = mbe!(
+        "rator" => (vr "---"),
+        "rand" => [(vr "1"), (vr "2"), (vr "3"), (vr "4"), (vr "5"), (vr "6")]);
+
+    let mut with_long = orig.clone();
+    assert_eq!(with_long.heal_splices__with(&other_long, &steal_from_other), Ok(()));
+    assert_eq!(with_long, mbe!("rator" => (vr "add"),
+        "rand" => [(vr "a"), (vr "b"), (vr "3"), (vr "4"), (vr "5"), (vr "d")]));
+
+    let other__too_short = mbe!(
+        "rator" => (vr "---"),
+        "rand" => [(vr "1"), (vr "2")]);
+
+    let mut with__too_short = orig.clone();
+    assert_eq!(with__too_short.heal_splices__with(&other__too_short, &steal_from_other), Err(()));
+
 
     // TODO: test this more!
 }
