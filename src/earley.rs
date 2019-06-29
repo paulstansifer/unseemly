@@ -761,6 +761,7 @@ impl Item {
             },
             Scope(ref form, ref export) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
+                // TODO #14: We should add zero-length repeats of missing `Named`s,
                 Ok(Ast::Node(form.clone(), sub_parsed.flatten(), export.clone()))
             },
             NameImport(_, ref beta) => {

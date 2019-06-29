@@ -481,8 +481,29 @@ fn end_to_end_quotation_basic() {
         eval_unseemly_program("'[Expr | '[Expr | (plus five five) ]' ]'"),
         Ok(_)
     );
+
 //≫ .[s : Expr <[Int]< . '[Expr | ( ,[Expr | s], '[Expr | ,[Expr | s], ]')]' ].
 
+}
+#[test]
+fn subtyping_direction() {
+    // Let's check to make sure that "supertype" and "subtype" never got mixed up:
+
+    assert_m!(assign_variable("ident", "forall T . .[ a : T . a ]."), Ok(_));
+
+    assert_eq!(eval_unseemly_program("(ident five)"), Ok(val!(i 5)));
+
+    assert_m!(eval_unseemly_program("( .[ a : [Int -> Int] . a]. ident)"), Ok(_));
+
+    assert_m!(eval_unseemly_program("( .[ a : forall T . [T -> T] . a]. .[a : Int . a].)"), Err(_));
+
+    assert_m!(eval_unseemly_program(".[ a : struct {} . a]."), Ok(_));
+
+    assert_m!(eval_unseemly_program(
+        "( .[ a : struct {normal : Int extra : Int} . a]. *[normal : one]*)"), Err(_));
+
+    assert_m!(eval_unseemly_program(
+        "( .[ a : struct {normal : Int} . a]. *[normal : one extra : five]*)"), Ok(_));
 }
 
 #[test]

@@ -583,11 +583,11 @@ fn struct_subtyping() {
     // Add a component:
     assert_m!(must_subtype(
         &ty!( { "Type" "struct" :
-            "component_name" => [@"c" "a", "b", "c"],
-            "component" => [@"c" {"Type" "Int" :}, {"Type" "Nat" :}, {"Type" "Float" :}]}),
-        &ty!( { "Type" "struct" :
             "component_name" => [@"c" "a", "b"],
             "component" => [@"c" {"Type" "Int" :}, {"Type" "Nat" :}]}),
+        &ty!( { "Type" "struct" :
+            "component_name" => [@"c" "a", "b", "c"],
+            "component" => [@"c" {"Type" "Int" :}, {"Type" "Nat" :}, {"Type" "Float" :}]}),
         Assoc::new()),
     Ok(_));
 
