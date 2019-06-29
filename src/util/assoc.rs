@@ -108,7 +108,7 @@ impl<K : PartialEq, V> Assoc<K, V> {
         PairIter{ seen: Assoc::new(), cur: self }
     }
 
-    pub fn reduce<Out>(&self, red: &Fn(&K, &V, Out) -> Out, base: Out) -> Out {
+    pub fn reduce<Out>(&self, red: &dyn Fn(&K, &V, Out) -> Out, base: Out) -> Out {
         match self.n {
             None => base,
             Some(ref node) => {
@@ -119,13 +119,13 @@ impl<K : PartialEq, V> Assoc<K, V> {
 }
 
 impl<K: PartialEq + Clone, V> Assoc<K,V> {
-    pub fn iter_keys<'assoc>(&'assoc self) -> Box<Iterator<Item=K> +'assoc> {
+    pub fn iter_keys<'assoc>(&'assoc self) -> Box<dyn Iterator<Item=K> +'assoc> {
         Box::new(self.iter_pairs().map(|p| (*p.0).clone()))
     }
 }
 
 impl<K: PartialEq + Clone, V: Clone> Assoc<K,V> {
-    pub fn iter_values<'assoc>(&'assoc self) -> Box<Iterator<Item=V> + 'assoc> {
+    pub fn iter_values<'assoc>(&'assoc self) -> Box<dyn Iterator<Item=V> + 'assoc> {
         Box::new(self.iter_pairs().map(|p| (*p.1).clone()))
     }
 
@@ -163,7 +163,7 @@ impl<K: PartialEq + Clone, V: Clone> Assoc<K,V> {
     }
 
     // TODO: this should handle missing keys symmetrically
-    pub fn map_with<NewV>(&self, other: &Assoc<K, V>, f: &Fn(&V, &V) -> NewV)
+    pub fn map_with<NewV>(&self, other: &Assoc<K, V>, f: &dyn Fn(&V, &V) -> NewV)
             -> Assoc<K, NewV> {
         match self.n {
             None => Assoc{ n: None },
@@ -180,7 +180,7 @@ impl<K: PartialEq + Clone, V: Clone> Assoc<K,V> {
         }
     }
 
-    pub fn keyed_map_with<NewV>(&self, other: &Assoc<K, V>, f: &Fn(&K, &V, &V) -> NewV)
+    pub fn keyed_map_with<NewV>(&self, other: &Assoc<K, V>, f: &dyn Fn(&K, &V, &V) -> NewV)
             -> Assoc<K, NewV> {
         match self.n {
             None => Assoc{ n: None },

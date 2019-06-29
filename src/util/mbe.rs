@@ -474,8 +474,8 @@ impl<T: Clone> EnvMBE<T> {
         }
     }
 
-    pub fn map_reduce<NewT: Clone>(&self, f: &Fn(&T) -> NewT, red: &Fn(&NewT, &NewT) -> NewT,
-                base: NewT)
+    pub fn map_reduce<NewT: Clone>(&self, f: &dyn Fn(&T) -> NewT,
+                                   red: &dyn Fn(&NewT, &NewT) -> NewT, base: NewT)
             -> NewT {
         let reduced : NewT = self.leaves.map(f).reduce(&|_k, v, res| red(v, &res), base);
 
@@ -547,8 +547,8 @@ impl<T: Clone> EnvMBE<T> {
     // TODO #15: `Result` instead of panicing
     fn match_collapse_ddd<'a, NewT: Clone>(
                 lhs: &'a Rc<Vec<EnvMBE<T>>>, lhs_ddd: &'a Option<usize>,
-                rhs: &'a Rc<Vec<EnvMBE<T>>>, rhs_ddd: &'a Option<usize>, f:&Fn(&T, &T) -> NewT,
-                col: &Fn(Vec<NewT>) -> NewT, red: &Fn(NewT, NewT) -> NewT, base: NewT)
+                rhs: &'a Rc<Vec<EnvMBE<T>>>, rhs_ddd: &'a Option<usize>, f: &dyn Fn(&T, &T) -> NewT,
+                col: &dyn Fn(Vec<NewT>) -> NewT, red: &dyn Fn(NewT, NewT) -> NewT, base: NewT)
             -> NewT {
 
         let len_diff = lhs.len() as i32 - (rhs.len() as i32);
@@ -622,11 +622,11 @@ impl<T: Clone> EnvMBE<T> {
         true
     }
 
-    pub fn map_with<NewT: Clone>(&self, o: &EnvMBE<T>, f: &Fn(&T, &T) -> NewT) -> EnvMBE<NewT> {
+    pub fn map_with<NewT: Clone>(&self, o: &EnvMBE<T>, f: &dyn Fn(&T, &T) -> NewT) -> EnvMBE<NewT> {
         self.named_map_with(o, &|_name, l, r| f(l,r))
     }
 
-    pub fn named_map_with<NewT: Clone>(&self, o: &EnvMBE<T>, f: &Fn(&Name, &T, &T) -> NewT)
+    pub fn named_map_with<NewT: Clone>(&self, o: &EnvMBE<T>, f: &dyn Fn(&Name, &T, &T) -> NewT)
             -> EnvMBE<NewT> {
         EnvMBE {
             leaves: self.leaves.keyed_map_with(&o.leaves, f),
@@ -654,7 +654,7 @@ impl<T: Clone> EnvMBE<T> {
 
 
     pub fn map_reduce_with<NewT: Clone>(&self,  other: &EnvMBE<T>,
-            f: &Fn(&T, &T) -> NewT, red: &Fn(&NewT, &NewT) -> NewT, base: NewT) -> NewT {
+            f: &dyn Fn(&T, &T) -> NewT, red: &dyn Fn(&NewT, &NewT) -> NewT, base: NewT) -> NewT {
         // TODO #15: this panics all over the place if anything goes wrong
         let mut reduced : NewT = self.leaves.map_with(&other.leaves, f)
             .reduce(&|_k, v, res| red(v, &res), base);
@@ -684,8 +684,8 @@ impl<T: Clone> EnvMBE<T> {
 
     // TODO: test this more.
     pub fn map_collapse_reduce_with<NewT: Clone>(
-            &self,  other: &EnvMBE<T>, f: &Fn(&T, &T) -> NewT, col:&Fn(Vec<NewT>) -> NewT,
-            red: &Fn(NewT, NewT) -> NewT, base: NewT) -> NewT {
+            &self,  other: &EnvMBE<T>, f: &dyn Fn(&T, &T) -> NewT, col: &dyn Fn(Vec<NewT>) -> NewT,
+            red: &dyn Fn(NewT, NewT) -> NewT, base: NewT) -> NewT {
         // TODO #15: this panics all over the place if anything goes wrong
         let mut reduced : NewT = self.leaves.map_with(&other.leaves, f)
             .reduce(&|_k, v, res| red(v.clone(), res), base);
@@ -731,7 +731,7 @@ impl<T: Clone> EnvMBE<T> {
     }
 
     // If `f` turns a leaf into a `Vec`, splice those results in
-    pub fn heal_splices(&mut self, f: &Fn(&T) -> Option<Vec<T>>)  {
+    pub fn heal_splices(&mut self, f: &dyn Fn(&T) -> Option<Vec<T>>)  {
         for repeat in &mut self.repeats {
             let mut cur_repeat : Vec<EnvMBE<T>> = (**repeat).clone();
             let mut i = 0;
@@ -771,7 +771,7 @@ impl<T: Clone> EnvMBE<T> {
 
     // TODO: this should return a usable error
     pub fn heal_splices__with(&mut self, other: &EnvMBE<T>,
-                              f: &Fn(&T, &Fn() -> Vec<T>) -> Option<Vec<T>>)
+                              f: &dyn Fn(&T, &dyn Fn() -> Vec<T>) -> Option<Vec<T>>)
             -> Result<(), ()>
                 where T: std::fmt::Debug {
 
@@ -890,8 +890,8 @@ impl<T: Clone + fmt::Debug> EnvMBE<T> {
         self.get_rep_leaf(n).unwrap()
     }
 
-    pub fn map_flatten_rep_leaf_or_panic<S>(&self, n: Name, depth: u8, m: &Fn(&T) -> S, f: &Fn(Vec<S>) -> S)
-            -> S {
+    pub fn map_flatten_rep_leaf_or_panic<S>(&self, n: Name, depth: u8, m: &dyn Fn(&T) -> S,
+                                            f: &dyn Fn(Vec<S>) -> S) -> S {
         if depth == 0 {
             return m(self.get_leaf_or_panic(&n));
         }
@@ -1051,7 +1051,7 @@ fn splice_healing() {
         "rator" => (vr "add"), "rand" => [(vr "a"), (vr "x"), (vr "xx"), (vr "c"), (vr "d")]
     ));
 
-    let steal_from_other = |a: &::ast::Ast, other__a_vec__thunk: &Fn() -> Vec<::ast::Ast>|
+    let steal_from_other = |a: &::ast::Ast, other__a_vec__thunk: &dyn Fn() -> Vec<::ast::Ast>|
             -> Option<Vec<::ast::Ast>> {
         if a == &ast!((vr "c")) {
             Some(other__a_vec__thunk())

@@ -35,7 +35,7 @@ pub struct Closure {
 }
 
 // Built-in function
-pub struct BIF(pub Rc<(Fn(Vec<Value>) -> Value)>);
+pub struct BIF(pub Rc<(dyn Fn(Vec<Value>) -> Value)>);
 
 impl PartialEq for BIF {
     fn eq(&self, other: &BIF) -> bool {

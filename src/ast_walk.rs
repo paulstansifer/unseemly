@@ -291,7 +291,7 @@ pub enum WalkRule<Mode: WalkMode> {
     ///  to the type/value of this form.
     /// The environment is accessible via the `LazyWalkReses`.
     /// Any of the other `WalkRule`s can be implemented as a simple `Custom`.
-    Custom(Rc<Box<(Fn(LazyWalkReses<Mode>) -> Result<<Mode::D as Dir>::Out, Mode::Err>)>>),
+    Custom(Rc<Box<(dyn Fn(LazyWalkReses<Mode>) -> Result<<Mode::D as Dir>::Out, Mode::Err>)>>),
     /// "this form has the same type/value as one of its subforms".
     /// (useful for forms that only exist as wrapper s around other AST nodes)
     Body(Name),
@@ -390,7 +390,7 @@ impl<Mode: WalkMode> LazilyWalkedTerm<Mode> {
         self.memoized(&|| walk::<Mode>(&self.term, cur_node_contents))
     }
 
-    fn memoized(&self, f: &Fn() -> Result<<Mode::D as Dir>::Out, Mode::Err>)
+    fn memoized(&self, f: &dyn Fn() -> Result<<Mode::D as Dir>::Out, Mode::Err>)
             -> Result<<Mode::D as Dir>::Out, Mode::Err> {
         let result = self.res.borrow_mut().take().unwrap_or_else(f);
         * self.res.borrow_mut() = Some(result.clone());
@@ -542,7 +542,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     /// Like `get_res`, but with `depth` levels of repetition, and calling `f` to flatten the result
     pub fn flatten_res_at_depth(
             &self, part_name: Name, depth: u8,
-            f: &Fn(Vec<<Mode::D as Dir>::Out>) -> <Mode::D as Dir>::Out)
+            f: &dyn Fn(Vec<<Mode::D as Dir>::Out>) -> <Mode::D as Dir>::Out)
                 -> Result<<Mode::D as Dir>::Out, Mode::Err> {
         self.parts.map_flatten_rep_leaf_or_panic(
             part_name, depth,

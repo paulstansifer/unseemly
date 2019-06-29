@@ -118,7 +118,7 @@ impl Beta {
 
     // alpha::freshen_binders wants this to extract from complex payloads, hence `f`
     pub fn extract_from_mbe<T: Clone + ::std::fmt::Debug>(
-                &self, parts: &EnvMBE<T>, f: &Fn(&T) -> &Ren) -> Ren {
+                &self, parts: &EnvMBE<T>, f: &dyn Fn(&T) -> &Ren) -> Ren {
         match *self {
             Nothing => { Ren::new() }
             Shadow(ref lhs, ref rhs) => {
@@ -293,7 +293,7 @@ impl ExportBeta {
     // This has an overly-specific type to match implementation details of alpha::freshen_binders.
     // Not sure if we need a generalization, though.
     pub fn extract_from_mbe<T: Clone + ::std::fmt::Debug>(
-            &self, parts: &EnvMBE<T>, f: &Fn(&T) -> &Ren) -> Ren {
+            &self, parts: &EnvMBE<T>, f: &dyn Fn(&T) -> &Ren) -> Ren {
         match *self {
             ExportBeta::Nothing => { Ren::new() }
             ExportBeta::Shadow(ref lhs, ref rhs) => {

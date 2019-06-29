@@ -288,9 +288,9 @@ impl WalkMode for Subtype {
 // This captures the environment, and produces a function suitable for `heal_splices__with`.
 // `sup` is the general type that needs specializing into `sub`.
 fn match_dotdotdot<'a>(env: &'a Assoc<Name, Ty>)
-        -> impl Fn(&Ast, &Fn() -> Vec<Ast>) -> Option<Vec<Ast>> + 'a {
+        -> impl Fn(&Ast, &dyn Fn() -> Vec<Ast>) -> Option<Vec<Ast>> + 'a {
     let env = env.clone();
-    move |sup: &Ast, sub_thunk: &Fn() -> Vec<Ast>| -> Option<Vec<Ast>> {
+    move |sup: &Ast, sub_thunk: &dyn Fn() -> Vec<Ast>| -> Option<Vec<Ast>> {
         let ddd_form = ::core_forms::find("Type", "dotdotdot");
         let tuple_form = ::core_forms::find("Type", "tuple");
         let undet_form = underdetermined_form.with(|u_f| { u_f.clone() });

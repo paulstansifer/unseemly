@@ -79,7 +79,7 @@ custom_derive! {
         QuoteEscape(Rc<FormPat>, u8)
     }
 }
-pub struct SyntaxExtension(pub Rc<Box<(Fn(SynEnv, Ast) -> SynEnv)>>);
+pub struct SyntaxExtension(pub Rc<Box<(dyn Fn(SynEnv, Ast) -> SynEnv)>>);
 
 impl FormPat {
     // Finds all `Named` nodes, and how many layers of repetition they are underneath.
