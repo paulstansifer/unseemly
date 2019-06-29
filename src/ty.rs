@@ -33,19 +33,11 @@ impl Ty {
     }
 
     // TODO: use this more
+    // TODO: make `expd_form` a reference
     pub fn destructure(&self, expd_form: Rc<Form>, loc: &Ast)
             -> Result<::util::mbe::EnvMBE<Ast>, TypeError> {
-        match self.0 {
-            Node(ref f, ref env, _) => {
-                if f == &expd_form {
-                    return Ok(env.clone());
-                }
-                ty_err!(UnableToDestructure(self.clone(), expd_form.name) at loc /*TODO*/);
-            }
-            _ => {
-                ty_err!(UnableToDestructure(self.clone(), expd_form.name) at loc /*TODO*/);
-            }
-        }
+        self.0.destructure(expd_form.clone()).ok_or(
+            ty_err_val!(UnableToDestructure(self.clone(), expd_form.name) at loc /*TODO*/))
     }
 }
 

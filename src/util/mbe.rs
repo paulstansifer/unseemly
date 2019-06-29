@@ -544,7 +544,7 @@ impl<T: Clone> EnvMBE<T> {
 
     // The LHS must be the side with the DDD.
     // TODO: try just using `reduced` instead of `base.clone()`
-    // TODO: `Result` instead of panicing
+    // TODO #15: `Result` instead of panicing
     fn match_collapse_ddd<'a, NewT: Clone>(
                 lhs: &'a Rc<Vec<EnvMBE<T>>>, lhs_ddd: &'a Option<usize>,
                 rhs: &'a Rc<Vec<EnvMBE<T>>>, rhs_ddd: &'a Option<usize>, f:&Fn(&T, &T) -> NewT,
@@ -655,7 +655,7 @@ impl<T: Clone> EnvMBE<T> {
 
     pub fn map_reduce_with<NewT: Clone>(&self,  other: &EnvMBE<T>,
             f: &Fn(&T, &T) -> NewT, red: &Fn(&NewT, &NewT) -> NewT, base: NewT) -> NewT {
-        // TODO: this panics all over the place if anything goes wrong
+        // TODO #15: this panics all over the place if anything goes wrong
         let mut reduced : NewT = self.leaves.map_with(&other.leaves, f)
             .reduce(&|_k, v, res| red(v, &res), base);
 
@@ -686,7 +686,7 @@ impl<T: Clone> EnvMBE<T> {
     pub fn map_collapse_reduce_with<NewT: Clone>(
             &self,  other: &EnvMBE<T>, f: &Fn(&T, &T) -> NewT, col:&Fn(Vec<NewT>) -> NewT,
             red: &Fn(NewT, NewT) -> NewT, base: NewT) -> NewT {
-        // TODO: this panics all over the place if anything goes wrong
+        // TODO #15: this panics all over the place if anything goes wrong
         let mut reduced : NewT = self.leaves.map_with(&other.leaves, f)
             .reduce(&|_k, v, res| red(v.clone(), res), base);
 
@@ -795,7 +795,7 @@ impl<T: Clone> EnvMBE<T> {
 
             let mut i = 0;
             let mut other_i = 0;
-            while i < cur_repeat.len() {
+            while i < cur_repeat.len() && other_i < other__cur_repeat.len() {
                 cur_repeat[i].heal_splices__with(&other__cur_repeat[other_i], f)?;
 
                 let mut splices = vec![];
@@ -806,7 +806,8 @@ impl<T: Clone> EnvMBE<T> {
                         let concrete_splice__thunk = || {
                             let mut result = vec![];
                             for spliced_i in i .. i+splice_length {
-                                result.push(other__cur_repeat[spliced_i].leaves.find_or_panic(n).clone())
+                                result.push(
+                                    other__cur_repeat[spliced_i].leaves.find_or_panic(n).clone())
                             }
                             result
                         };
@@ -835,9 +836,9 @@ impl<T: Clone> EnvMBE<T> {
                     other_i += 1;
                 }
             }
-            if cur_repeat.len() != other__cur_repeat.len() {
-                return Err(()) // Needed a splice to make things line up
-            }
+            // The lengths might not line up, but that doesn't mean matching will fail!
+            // struct {a : Int b : Nat}  <:  struct {a : Int b : Nat c : Float}
+
             *repeat = Rc::new(cur_repeat)
         }
         Ok(())
@@ -877,6 +878,7 @@ impl<T: Clone, E: Clone> EnvMBE<Result<T, E>> {
 
 
 impl<T: Clone + fmt::Debug> EnvMBE<T> {
+    // TODO: this should just take `Name`, not `&Name`
     pub fn get_leaf_or_panic(&self, n: &Name) -> &T {
         match self.leaves.find(n) {
             Some(v) => { v }

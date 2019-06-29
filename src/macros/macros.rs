@@ -162,9 +162,15 @@ macro_rules! ty {
 
 // These construct spanned type errors (so, for type synthesis, not subtyping)
 
+macro_rules! ty_err_val {
+    ( $name:tt ( $($arg:expr),* ) at $loc:expr) => {
+        ::util::err::sp(::ty::TyErr::$name( $($arg),* ), $loc.clone())
+    }
+}
+
 macro_rules! ty_err {
     ( $name:tt ( $($arg:expr),* ) at $loc:expr) => {
-        return Err(::util::err::sp(::ty::TyErr::$name( $($arg),* ), $loc.clone()));
+        return Err(ty_err_val!( $name ( $($arg),* ) at $loc));
     }
 }
 

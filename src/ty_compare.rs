@@ -105,6 +105,7 @@ The other thing that subtyping has to deal with is `...[T >> T]...`.
 /// Follow variable references in `env` and underdeterminednesses in `unif`
 ///  until we hit something that can't move further.
 /// TODO: could this be replaced by `synth_type`? Can `canonicalize` be replaced by it, too?
+/// TODO: This doesn't change `env`, and none of its clients care. It should just return `Ty`.
 pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Clo<Ty> {
     let u_f = underdetermined_form.with(|u_f| { u_f.clone() });
 
@@ -284,6 +285,86 @@ impl WalkMode for Subtype {
     }
 }
 
+// This captures the environment, and produces a function suitable for `heal_splices__with`.
+// `sup` is the general type that needs specializing into `sub`.
+fn match_dotdotdot<'a>(env: &'a Assoc<Name, Ty>)
+        -> impl Fn(&Ast, &Fn() -> Vec<Ast>) -> Option<Vec<Ast>> + 'a {
+    let env = env.clone();
+    move |sup: &Ast, sub_thunk: &Fn() -> Vec<Ast>| -> Option<Vec<Ast>> {
+        let ddd_form = ::core_forms::find("Type", "dotdotdot");
+        let tuple_form = ::core_forms::find("Type", "tuple");
+        let undet_form = underdetermined_form.with(|u_f| { u_f.clone() });
+
+        // Is it a dotdotdot?
+        let ddd_parts = sup.destructure(ddd_form.clone())?;
+
+        let concrete_subs = sub_thunk();
+
+        if concrete_subs.len() == 1 {
+            match concrete_subs[0].destructure(ddd_form.clone()) {
+                None => {} // False alarm; not a dotdotdot!
+                Some(sub_parts) => {
+                    // Uh-oh, maybe we're comparing two dotdotdots?
+                    match sub_parts.get_leaf_or_panic(&n("body")).destructure(ddd_form) {
+                        Some(_) => { panic!("ICE: TODO: count up the stacks of :::[]:::")}
+                        None => { return None; } // :::[]::: is a subtype of :::[]:::
+                    }
+                }
+            }
+        }
+
+        let drivers : Vec<(Name, Ty)> =
+        unification.with(|unif| {
+            ddd_parts.get_rep_leaf_or_panic(n("driver")).iter()
+                .map(|a: &&Ast|
+                    (::core_forms::vr_to_name(*a),
+                     resolve(Clo{it: Ty((*a).clone()), env: env.clone()}, &unif.borrow()).it))
+                .collect()});
+        let expected_len = concrete_subs.len();
+
+        let mut substitution_envs = vec![];
+        substitution_envs.resize_with(expected_len, Assoc::new);
+
+        // Make sure tuples are the right length,
+        // and force underdetermined types to *be* tuples of the right length.
+        for (name, driver) in drivers {
+            if let Some(tuple_parts) = driver.0.destructure(tuple_form.clone()) {
+                let components = tuple_parts.get_rep_leaf_or_panic(n("component"));
+                if components.len() != expected_len {
+                    return None; // should be an error
+                }
+                for i in 0..expected_len {
+                    substitution_envs[i] = substitution_envs[i].set(name, components[i].clone());
+                }
+            } else if let Some(undet_parts) = driver.0.destructure(undet_form.clone()) {
+                unification.with(|unif| {
+                    let mut undet_components = vec![];
+                    undet_components.resize_with(
+                        expected_len, || Subtype::underspecified(n("ddd_bit")).0);
+                    unif.borrow_mut().insert(ast_to_name(undet_parts.get_leaf_or_panic(&n("id"))),
+                        Clo {
+                            it: ty!({"Type" "tuple" :
+                                "component" => (,seq undet_components.clone()) }),
+                            env: env.clone()
+                        });
+                    for i in 0..expected_len {
+                        substitution_envs[i]
+                            = substitution_envs[i].set(name, undet_components[i].clone());
+                    }
+                })
+            } else {
+                return None;
+            }
+        }
+
+        let body = ddd_parts.get_leaf_or_panic(&n("body"));
+
+        // TODO #13: This violates one of our main principles!
+        // We should never modify code (in this case, types) before checking it.
+        // We need to redesign `pre_match` to avoid this (we want to just change the ed)
+        Some(substitution_envs.iter().map(|env| ::alpha::substitute(&body, env)).collect())
+    }
+}
 
 impl ::walk_mode::NegativeWalkMode for Subtype {
     fn qlit_mismatch_error(got: Ty, expd: Ty) -> Self::Err { TyErr::Mismatch(got, expd) }
@@ -292,13 +373,13 @@ impl ::walk_mode::NegativeWalkMode for Subtype {
 
     /// Push through all variable references and underdeterminednesses on both sides,
     ///  returning types that are ready to compare, or `None` if they're definitionally equal
-    fn pre_match(lhs: Ty, rhs: Ty, env: &Assoc<Name, Ty>) -> Option<(Clo<Ty>, Clo<Ty>)> {
+    fn pre_match(lhs_ty: Ty, rhs_ty: Ty, env: &Assoc<Name, Ty>) -> Option<(Clo<Ty>, Clo<Ty>)> {
         let u_f = underdetermined_form.with(|u_f| { u_f.clone() });
 
-        unification.with(|unif| {
+        let (res_lhs, mut res_rhs) = unification.with(|unif| {
             // Capture the environment and resolve:
-            let lhs = resolve(Clo{it: lhs, env: env.clone()}, &unif.borrow()).clone();
-            let rhs = resolve(Clo{it: rhs, env: env.clone()}, &unif.borrow()).clone();
+            let lhs : Clo<Ty> = resolve(Clo{it: lhs_ty, env: env.clone()}, &unif.borrow()).clone();
+            let rhs : Clo<Ty> = resolve(Clo{it: rhs_ty, env: env.clone()}, &unif.borrow()).clone();
 
             let lhs_name = lhs.it.destructure(u_f.clone(), &Trivial).map( // errors get swallowed ↓
                 |p| ast_to_name(p.get_leaf_or_panic(&n("id"))));
@@ -310,14 +391,26 @@ impl ::walk_mode::NegativeWalkMode for Subtype {
 
             match (lhs_name, rhs_name) {
                 // They are the same underdetermined type; nothing to do:
-                (Ok(l), Ok(r)) if l == r => { None }
+                (Ok(l), Ok(r)) if l == r => { return None; }
                 // Make a determination (possibly just merging two underdetermined types):
-                (Ok(l), _) => { unif.borrow_mut().insert(l, rhs.clone()); None }
-                (_, Ok(r)) => { unif.borrow_mut().insert(r, lhs.clone()); None }
-                // They are (potentially) different:
+                (Ok(l), _) => { unif.borrow_mut().insert(l, rhs.clone()); return None; }
+                (_, Ok(r)) => { unif.borrow_mut().insert(r, lhs.clone()); return None; }
+                // They are (potentially) different.
                 _ => { Some((lhs, rhs)) }
             }
-        })
+        })?;
+
+        // Now, resolve `:::[]:::` subtyping
+        match (&res_lhs.it, &mut res_rhs.it) {
+            (&Ty(Node(_, ref lhs_body, _)), &mut Ty(Node(_, ref mut rhs_body, _))) => {
+                    // the LHS should be the subtype (i.e. already specific),
+                    // and the RHS should be made to match
+                    let _ = rhs_body.heal_splices__with(lhs_body, &match_dotdotdot(env));
+                }
+            _ => {}
+        }
+        Some((res_lhs, res_rhs))
+
     }
 
     // TODO: should unbound variable references ever be walked at all? Maybe it should panic?
@@ -642,6 +735,46 @@ fn subtype_different_mus() { // testing the Amber rule:
         Ok(_));
 
     assert_m!(must_subtype(&jane_author, &wuthering_author, mu_env.clone()),
+        Err(_));
+}
+
+#[test]
+fn subtype_dotdotdot() {
+    let threeple = ty!({"Type" "tuple" :
+        "component" => [{"Type" "Int" :}, {"Type" "Float" :}, {"Type" "Nat" :}]
+    });
+    let dddple = ty!({"Type" "tuple" :
+        "component" => [{"Type" "dotdotdot" : "driver" => [(vr "T")], "body" => (vr "T")}]
+    });
+
+    assert_m!(must_subtype(&dddple, &threeple, assoc_n!("T" => Subtype::underspecified(n("-")))),
+        Ok(_));
+
+    // TODO #15: this panics in mbe.rs; it ought to error instead
+    // assert_m!(must_subtype(&threeple, &dddple, assoc_n!("T" => Subtype::underspecified(n("-")))),
+    //     Err(_));
+
+    assert_m!(must_subtype(&dddple, &dddple, assoc_n!("T" => Subtype::underspecified(n("-")))),
+        Ok(_));
+
+    let intdddple = ty!({"Type" "tuple" :
+        "component" => [{"Type" "Int" :},
+                        {"Type" "dotdotdot" : "driver" => [(vr "T")], "body" => (vr "T")}]
+    });
+
+    assert_m!(must_subtype(&intdddple, &threeple, assoc_n!("T" => Subtype::underspecified(n("-")))),
+        Ok(_));
+
+    assert_m!(must_subtype(&intdddple, &intdddple, assoc_n!("T" => Subtype::underspecified(n("-")))),
+        Ok(_));
+
+
+    let floatdddple = ty!({"Type" "tuple" :
+        "component" => [{"Type" "Float" :},
+                        {"Type" "dotdotdot" : "driver" => [(vr "T")], "body" => (vr "T")}]
+    });
+
+    assert_m!(must_subtype(&floatdddple, &threeple, assoc_n!("T" => Subtype::underspecified(n("-")))),
         Err(_));
 }
 

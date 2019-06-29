@@ -1,11 +1,10 @@
 TODO:
   [ ] Repetition typing for syntax types
   [ ] Macros (procedural!)
-  [ ] Traits
   [ ] Fancy bindings
   [ ] Modules
-  [ ] Kinds?
-  [ ] Switchable tokenizer
+  [ ] Kinds
+  [ ] Scanerless parsing
   [ ] Worry about parse error messages
 
 
@@ -23,7 +22,7 @@ This means that the typechecker has to operate on
  user-defined AST nodes,
   which is possible,
    because (I think) one can derive a typechecker for a form
-    from the type of its definition.
+    from its definition.
 The weirdness of this language implementation starts with the AST.
 
 Well, the parser and tokenizer are weird, but they don't have to be.

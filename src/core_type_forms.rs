@@ -268,15 +268,19 @@ pub fn make_core_syn_env_types() -> SynEnv {
 
 
     // This only makes sense inside a concrete syntax type or during typechecking.
-    // For example, the type of the `let` macro is (where `dotdotdot_type` is `...[]...`):
-    // ∀ ...{T}... . ∀ S .
-    //    '[let ...[ ,[ var ⇑ v ], = ,[ expr<[T]< ], ]...
+    // For example, the type of the `let` macro is (where `dotdotdot_type` is `:::[]:::`):
+    // ∀ T . ∀ S .
+    //    '[let :::[ T >> ,[ var ⇑ v ], = ,[ expr<[T]< ], ]:::
     //            in ,[ expr<[S]< ↓ ...{v = T}...], ]'
     //        -> expr<[S]<
     // TODO: add named repeats. Add type-level numbers!
-    // TODO: `...{T}...` is a kind annotation; we'll probably want kinds
+    // TODO: We probably need kinds, to say that `T` is a tuple
+    // TODO: we'll need dotdotdot inside betas, also, huh?
+    // Note that we shouldn't try a custom subtyping implementation here;
+    //  `match_dotdotdot` eliminates this form entirely. (TODO #13)
     let dotdotdot_type = type_defn("dotdotdot",
-        form_pat!((delim "...[", "[", (named "body", (call "Type")))));
+        form_pat!((delim ":::[", "[", [(star (named "driver", varref)), (lit ">>"),
+                                       (named "body", (call "Type"))])  ));
 
     let forall_type_0 = forall_type.clone();
 

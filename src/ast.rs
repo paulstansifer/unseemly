@@ -129,6 +129,22 @@ impl Ast {
         }
     }
 
+    // TODO: use this more
+    pub fn destructure(&self, expd_form: ::std::rc::Rc<::form::Form>)
+            -> Option<::util::mbe::EnvMBE<Ast>> {
+        match self {
+            Node(ref f, ref parts, _) => {
+                if f == &expd_form {
+                    return Some(parts.clone());
+                }
+            }
+            _ => {}
+        }
+        None
+
+    }
+
+
     // TODO: I think we have a lot of places where we ought to use this function:
     pub fn node_parts(&self) -> &EnvMBE<Ast> {
         match *self {

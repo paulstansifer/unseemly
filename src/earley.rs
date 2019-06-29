@@ -700,7 +700,7 @@ impl Item {
             },
             Seq(_) | Star(_) | Plus(_) => {
                 let mut step = self;
-                let mut subtrees = vec![];
+                let mut subtrees : Vec<Ast> = vec![];
                 let mut pos = done_tok;
                 // Walk over "previous incarnations" of `self`
                 // TODO: It seems like I often have had the thought
@@ -708,6 +708,7 @@ impl Item {
                 // Do something about that...
                 loop {
                     log!("Trying to take a step...\n");
+
                     // Special case: we can't start the loop because there are 0 children
                     if let NothingYet = step.local_parse.borrow().clone() { break; }
 
