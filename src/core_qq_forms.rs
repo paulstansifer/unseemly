@@ -326,95 +326,105 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
             [(star [(lit ","), (named "driver", varref), (lit ",")]), (lit ">>"),
              (named "body", (call_by_name nt))]))),
         type_compare: Positive(NotWalked), // this is not a type form
-        synth_type: Positive(
-            cust_rc_box!(| ddd_parts | {
-                let drivers = ddd_parts.get_rep_term(n("driver"));
+        synth_type: Positive(cust_rc_box!(|ddd_parts| {
+            let drivers = ddd_parts.get_rep_term(n("driver"));
 
-                // HACK: work on the environment one level less quoted (seems to be what we want)
-                // Not sure what how OEH interacts with this. Doesn't matter in the positive case.
-                let (_, ddd_parts_uq) = ddd_parts.quote_less();
+            // HACK: work on the environment one level less quoted (seems to be what we want)
+            // Not sure what how OEH interacts with this. Doesn't matter in the positive case.
+            let (_, ddd_parts_uq) = ddd_parts.quote_less();
 
-                let mut walked_env = Assoc::new();
+            let mut walked_env = Assoc::new();
 
-                let repeats = match ddd_parts_uq.env.find(&::core_forms::vr_to_name(&drivers[0])) {
-                    Some(&Ty(::ast::Node(ref form, ref parts, _))) if form.name == n("tuple") => {
-                        parts.get_rep_leaf_or_panic(n("component")).len()
-                    }
-                    Some(other_t) => {
-                        ty_err!(UnableToDestructure(other_t.clone(), n("tuple"))
+            let repeats = match ddd_parts_uq
+                .env
+                .find(&::core_forms::vr_to_name(&drivers[0]))
+            {
+                Some(&Ty(::ast::Node(ref form, ref parts, _))) if form.name == n("tuple") => {
+                    parts.get_rep_leaf_or_panic(n("component")).len()
+                }
+                Some(other_t) => {
+                    ty_err!(UnableToDestructure(other_t.clone(), n("tuple"))
                                 at ddd_parts_uq.this_ast);
-                    }
-                    _ => ty_err!(UnboundName(::core_forms::vr_to_name(&drivers[0]))
-                                 at ddd_parts_uq.this_ast)
-                };
+                }
+                _ => ty_err!(UnboundName(::core_forms::vr_to_name(&drivers[0]))
+                                 at ddd_parts_uq.this_ast),
+            };
 
-                for i in 0..repeats {
-                    for (name, ty) in ddd_parts_uq.env.iter_pairs() {
-                        if drivers.contains(&::ast::VariableReference(*name)) {
-                            walked_env = walked_env.set(
-                                *name,
-                                match ty {
-                                    Ty(::ast::Node(ref form, ref parts, _))
-                                            if form.name == n("tuple") => {
-                                        Ty(parts.get_rep_leaf_or_panic(n("component"))[i].clone())
-                                    }
-                                    t =>
-                                        ty_err!(UnableToDestructure(t.clone(), n("tuple"))
-                                            at t.0)
-                                });
-                        } else {
-                            walked_env = walked_env.set(*name, ty.clone());
-                        }
+            for i in 0..repeats {
+                for (name, ty) in ddd_parts_uq.env.iter_pairs() {
+                    if drivers.contains(&::ast::VariableReference(*name)) {
+                        walked_env = walked_env.set(
+                            *name,
+                            match ty {
+                                Ty(::ast::Node(ref form, ref parts, _))
+                                    if form.name == n("tuple") =>
+                                {
+                                    Ty(parts.get_rep_leaf_or_panic(n("component"))[i].clone())
+                                }
+                                t => ty_err!(UnableToDestructure(t.clone(), n("tuple"))
+                                            at t.0),
+                            },
+                        );
+                    } else {
+                        walked_env = walked_env.set(*name, ty.clone());
                     }
                 }
-                ddd_parts_uq.with_environment(walked_env).quote_more(None).get_res(n("body"))
             }
-        )),
+            ddd_parts_uq
+                .with_environment(walked_env)
+                .quote_more(None)
+                .get_res(n("body"))
+        })),
         // An evaluate-time version of this might be a good idea;
         //  it might be all that's needed to implement variable-number-of-argument functions.
         // It shouldn't be the same form, though. Maybe `...( >> )...` ?
         eval: Positive(NotWalked),
-        quasiquote: Positive(
-            cust_rc_box!(| ddd_parts | {
-                use ::runtime::eval::{Value,Sequence};
-                use walk_mode::WalkElt;
+        quasiquote: Positive(cust_rc_box!(|ddd_parts| {
+            use runtime::eval::{Sequence, Value};
+            use walk_mode::WalkElt;
 
-                let (_, ddd_parts_uq) = ddd_parts.quote_less();
+            let (_, ddd_parts_uq) = ddd_parts.quote_less();
 
-                let drivers = ddd_parts_uq.get_rep_term(n("driver"));
+            let drivers = ddd_parts_uq.get_rep_term(n("driver"));
 
-                // TODO: the typechecker should reject dotdotdotds with no drivers,
-                // or where a driver isn't in scope.
-                let count = match *ddd_parts_uq.env.find_or_panic(
-                        &::core_forms::vr_to_name(&drivers[0])) {
-                    Sequence(ref contents) => { contents.len() }
-                    _ => { panic!("ICE: type error")}
-                };
-                let mut reps = vec![];
+            // TODO: the typechecker should reject dotdotdotds with no drivers,
+            // or where a driver isn't in scope.
+            let count = match *ddd_parts_uq
+                .env
+                .find_or_panic(&::core_forms::vr_to_name(&drivers[0]))
+            {
+                Sequence(ref contents) => contents.len(),
+                _ => panic!("ICE: type error"),
+            };
+            let mut reps = vec![];
 
-                for i in 0..count {
-                    let mut walked_env = Assoc::new();
-                    for (n, val) in ddd_parts_uq.env.iter_pairs() {
-                        let walked_val = if drivers.contains(&::ast::VariableReference(*n)) {
-                            match *val {
-                                Sequence(ref contents) => (*contents[i]).clone(),
-                                _ => panic!("ICE: type error")
-                            }
-                        } else {
-                            val.clone()
-                        };
-                        walked_env = walked_env.set(*n, walked_val);
-                    }
-
-                    ddd_parts_uq.clear_memo();
-                    reps.push(ddd_parts_uq.with_environment(walked_env).quote_more(None)
-                        .get_res(n("body"))?.to_ast());
+            for i in 0..count {
+                let mut walked_env = Assoc::new();
+                for (n, val) in ddd_parts_uq.env.iter_pairs() {
+                    let walked_val = if drivers.contains(&::ast::VariableReference(*n)) {
+                        match *val {
+                            Sequence(ref contents) => (*contents[i]).clone(),
+                            _ => panic!("ICE: type error"),
+                        }
+                    } else {
+                        val.clone()
+                    };
+                    walked_env = walked_env.set(*n, walked_val);
                 }
 
-                // HACK: this signals to `LiteralLike` that it needs to splice the sequence
-                Ok(Value::from_ast(&::ast::Shape(reps)))
+                ddd_parts_uq.clear_memo();
+                reps.push(
+                    ddd_parts_uq
+                        .with_environment(walked_env)
+                        .quote_more(None)
+                        .get_res(n("body"))?
+                        .to_ast(),
+                );
             }
-        ))
+
+            // HACK: this signals to `LiteralLike` that it needs to splice the sequence
+            Ok(Value::from_ast(&::ast::Shape(reps)))
+        })),
     })
 }
 
@@ -613,9 +623,9 @@ fn quote_unquote_eval_basic() {
         Ok(val!(ast (vr "qn")))
     );
 
-
-
-    assert_eq!(eval_two_phased(&ast!({quote(pos) ; "nt" => (vr "Expr"),
+    assert_eq!(
+        eval_two_phased(
+            &ast!({quote(pos) ; "nt" => (vr "Expr"),
         "body" => (++ true {unquote_form(n("Expr"), true, 1) ; "nt" => (vr "Expr"),
             "body" => (-- 1 (vr "en"))})}),
             env.clone(),
@@ -1126,7 +1136,8 @@ fn use_dotdotdot() {
 
     // TODO: it would be much more natural if you could put `...[ ]...` around the whole p-and-arm.
     // '[Expr | match qn { x =>  ...[ns >> ,[Expr | ns],]... }]'
-    assert_eq!(synth_type_two_phased(
+    assert_eq!(
+        synth_type_two_phased(
             &ast!({quote(pos) ; "nt" => (vr "Expr"), "body" => (++ true
                 {"Expr" "match" :
                     "scrutinee" => (vr "qn"),
@@ -1137,10 +1148,13 @@ fn use_dotdotdot() {
                             "body" =>
                                 {unquote_form(n("Expr"), pos, 1) ;
                                  "body" => (-- 1 (vr "ns"))}})]})}),
-            env.clone(), qenv.clone()),
+            env.clone(),
+            qenv.clone()
+        ),
         Ok(ty!({"Type" "type_apply" :
-            "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]})));
-    without_freshening!{
+            "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]}))
+    );
+    without_freshening! {
         assert_eq!(eval_two_phased(
                 &ast!({quote(pos) ; "nt" => (vr "Expr"), "body" => (++ true
                     {"Expr" "match" :
@@ -1183,36 +1197,38 @@ fn use_dotdotdot() {
                      "arg" => [{"Type" "Nat" :}]}]})
     );
 
-
     // Invoke a function on some number of arguments, not necessarily with the same type:
     // '[Expr | (.[ ...[names >> ,[Ident | names],]... : ...[types >> ,[Type | types],]...
     //              . five].
     //           ...[args >> ,[Expr | args],]...)]'
-    assert_eq!(synth_type_two_phased(
+    assert_eq!(
+        synth_type_two_phased(
             &ast!({quote(pos) ; "nt" => (vr "Expr"), "body" => (++ true
-                {"Expr" "apply" :
-                    "rator" => {"Expr" "lambda" :
-                        "param" => [@"p" {dotdotdot_form(n("Ident")) ;
-                            "driver" => [(vr "names")],
-                            "body" => {unquote_form(n("Ident"), pos, 1);
-                                "body" => (-- 1 (vr "names"))}
-                        }],
-                        "p_t" => [@"p" {dotdotdot_form(n("Type")) ;
-                            "driver" => [(vr "types")],
-                            "body" => {unquote_form(n("Type"), pos, 1);
-                                "body" => (-- 1 (vr "types"))}
-                        }],
-                        "body" => (vr "five")
-                    },
-                    "rand" => [{dotdotdot_form(n("Expr")) ;
-                        "driver" => [(vr "args")],
-                        "body" => {unquote_form(n("Expr"), pos, 1);
-                            "body" => (-- 1 (vr "args"))}}]
-                })}),
-            ddd_env.clone(), qenv.clone()),
+            {"Expr" "apply" :
+                "rator" => {"Expr" "lambda" :
+                    "param" => [@"p" {dotdotdot_form(n("Ident")) ;
+                        "driver" => [(vr "names")],
+                        "body" => {unquote_form(n("Ident"), pos, 1);
+                            "body" => (-- 1 (vr "names"))}
+                    }],
+                    "p_t" => [@"p" {dotdotdot_form(n("Type")) ;
+                        "driver" => [(vr "types")],
+                        "body" => {unquote_form(n("Type"), pos, 1);
+                            "body" => (-- 1 (vr "types"))}
+                    }],
+                    "body" => (vr "five")
+                },
+                "rand" => [{dotdotdot_form(n("Expr")) ;
+                    "driver" => [(vr "args")],
+                    "body" => {unquote_form(n("Expr"), pos, 1);
+                        "body" => (-- 1 (vr "args"))}}]
+            })}),
+            ddd_env.clone(),
+            qenv.clone()
+        ),
         Ok(ty!({"Type" "type_apply" :
-            "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Int" :}]})));
-
+            "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Int" :}]}))
+    );
 }
 
 // TODO:

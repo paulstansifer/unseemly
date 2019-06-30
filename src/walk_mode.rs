@@ -132,7 +132,7 @@ pub trait WalkMode: Debug + Copy + Reifiable {
 
 pub trait Dir: Debug + Copy + Clone
 where
-    Self: ::std::marker::Sized,
+    Self: ::std::marker::Sized, /* I don't know why Rust wants this!*/
 {
     type Mode: WalkMode;
 

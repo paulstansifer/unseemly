@@ -708,29 +708,28 @@ fn end_to_end_quotation_advanced() {
             eval_unseemly_program("'[Expr <[Int]< | (.[x : Int . match x {y => five}].  eight)]'"));
     }
 
-/*
-    // We need tuple literals before we can test this:
-    assert_m!(assign_variable("let-multi",
-        "forall T . .[ binder : **[ :::[T >> Ident <[T]< ]::: ]**
-                       type : **[ :::[T >> Type <[T]< ]::: ]**
-                       rhs : **[ :::[T >> Expr <[T]< ]::: ]**
-                       body : Expr <[S]< .
-            '[Expr | (.[ ...[, binder , >> ,[Ident | binder],]...
-                         : ...[, type , >> ,[Type | type], ]... .
-                      ,[Expr | body], ].
-                        ...[, Expr , | ,[Expr | rhs], ]... ) ]'
-                         "),
-         Ok(_));
+    /*
+        // We need tuple literals before we can test this:
+        assert_m!(assign_variable("let-multi",
+            "forall T . .[ binder : **[ :::[T >> Ident <[T]< ]::: ]**
+                           type : **[ :::[T >> Type <[T]< ]::: ]**
+                           rhs : **[ :::[T >> Expr <[T]< ]::: ]**
+                           body : Expr <[S]< .
+                '[Expr | (.[ ...[, binder , >> ,[Ident | binder],]...
+                             : ...[, type , >> ,[Type | type], ]... .
+                          ,[Expr | body], ].
+                            ...[, Expr , | ,[Expr | rhs], ]... ) ]'
+                             "),
+             Ok(_));
 
-    without_freshening! {
-        assert_eq!(
-            eval_unseemly_program(
-                "(let-multi  '[Ident <[Int]< | y]'
-                       '[Type <[Int]< | Int]'
-                       '[Expr <[Int]< | eight]'
-                       '[Expr <[Int]< | five]')"),
-            eval_unseemly_program("'[Expr <[Int]< | (.[x : Int . match x {y => five}].  eight)]'"));
-    }
-*/
-
+        without_freshening! {
+            assert_eq!(
+                eval_unseemly_program(
+                    "(let-multi  '[Ident <[Int]< | y]'
+                           '[Type <[Int]< | Int]'
+                           '[Expr <[Int]< | eight]'
+                           '[Expr <[Int]< | five]')"),
+                eval_unseemly_program("'[Expr <[Int]< | (.[x : Int . match x {y => five}].  eight)]'"));
+        }
+    */
 }
