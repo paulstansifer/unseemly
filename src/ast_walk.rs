@@ -316,9 +316,7 @@ impl<Mode: WalkMode> WalkRule<Mode> {
 // trait bounds on parameters and functions are not yet supported by `Reifiable!`
 impl<Mode: WalkMode + Copy + 'static> reify::Reifiable for WalkRule<Mode> {
     // doesn't need to be parameterized because it will be opaque. I think!?
-    fn ty_name() -> Name {
-        n("walk_rule")
-    }
+    fn ty_name() -> Name { n("walk_rule") }
 
     fn reify(&self) -> eval::Value {
         match *self {
@@ -372,9 +370,7 @@ pub struct LazilyWalkedTerm<Mode: WalkMode> {
 // trait bounds on parameters are not yet supported by `Reifiable!`
 impl<Mode: WalkMode> reify::Reifiable for LazilyWalkedTerm<Mode> {
     // doesn't need to be parameterized because it will be opaque. I think!?
-    fn ty_name() -> Name {
-        n("lazily_walked_term")
-    }
+    fn ty_name() -> Name { n("lazily_walked_term") }
 
     fn reify(&self) -> eval::Value {
         val!(struct "term" => (, self.term.reify()), "res" => (, self.res.reify()))
@@ -413,9 +409,7 @@ impl<Mode: WalkMode> LazilyWalkedTerm<Mode> {
         result
     }
 
-    fn clear_memo(&self) {
-        *self.res.borrow_mut() = None;
-    }
+    fn clear_memo(&self) { *self.res.borrow_mut() = None; }
 }
 
 pub type OutEnvHandle<Mode> = Rc<RefCell<Assoc<Name, <Mode as WalkMode>::Elt>>>;
@@ -462,9 +456,7 @@ pub struct LazyWalkReses<Mode: WalkMode> {
 // trait bounds on parameters are not yet supported by `Reifiable!`
 impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
     // doesn't need to be parameterized because it will be opaque. I think!?
-    fn ty_name() -> Name {
-        n("lazy_walked_reses")
-    }
+    fn ty_name() -> Name { n("lazy_walked_reses") }
 
     fn reify(&self) -> eval::Value {
         val!(struct "parts" => (, self.parts.reify()), "env" => (, self.env.reify()),
@@ -613,9 +605,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
 
     /// Only sensible for negative walks
-    pub fn context_elt(&self) -> &Mode::Elt {
-        self.env.find(&negative_ret_val()).unwrap()
-    }
+    pub fn context_elt(&self) -> &Mode::Elt { self.env.find(&negative_ret_val()).unwrap() }
 
     pub fn maybe__context_elt(&self) -> Option<Mode::Elt> {
         // Kind of a HACK; users might set the context_elt in a positive mode before a mode switch.

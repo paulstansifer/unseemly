@@ -60,7 +60,6 @@
 //  if the syntax transcription supports MBE.
 //  (This corresponds to Scheme's `syntax-rules` and Rust's `macro-rules`.)
 
-
 // Suppose we want to write code that processes MBE environments.
 // Obviously, we can use `march` to pull out all the structure as necessary.
 // But pattern-matching is really nice...
@@ -68,7 +67,6 @@
 //
 // So, if you set a particular index is `ddd`, that will be repeated 0 or more times
 //  in order to match the length of whatever is on the other side.
-
 
 use name::*;
 use std::{fmt, rc::Rc};
@@ -377,9 +375,7 @@ impl<T: Clone> EnvMBE<T> {
     }
 
     /// Get a non-repeated thing in the enviornment
-    pub fn get_leaf(&self, n: Name) -> Option<&T> {
-        self.leaves.find(&n)
-    }
+    pub fn get_leaf(&self, n: Name) -> Option<&T> { self.leaves.find(&n) }
 
     pub fn get_rep_leaf(&self, n: Name) -> Option<Vec<&T>> {
         // FOOTGUN: can't distinguish wrong leaf names from 0-repeated leaves
@@ -405,9 +401,7 @@ impl<T: Clone> EnvMBE<T> {
     }
 
     /// Extend with a non-repeated thing
-    pub fn add_leaf(&mut self, n: Name, v: T) {
-        self.leaves = self.leaves.set(n, v);
-    }
+    pub fn add_leaf(&mut self, n: Name, v: T) { self.leaves = self.leaves.set(n, v); }
 
     pub fn add_named_repeat(&mut self, n: Name, sub: Vec<EnvMBE<T>>, sub_ddd_idx: Option<usize>) {
         if sub.is_empty() {
@@ -1035,9 +1029,7 @@ impl<T: Clone + fmt::Debug> EnvMBE<T> {
         }
     }
 
-    pub fn get_rep_leaf_or_panic(&self, n: Name) -> Vec<&T> {
-        self.get_rep_leaf(n).unwrap()
-    }
+    pub fn get_rep_leaf_or_panic(&self, n: Name) -> Vec<&T> { self.get_rep_leaf(n).unwrap() }
 
     pub fn map_flatten_rep_leaf_or_panic<S>(
         &self,

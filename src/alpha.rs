@@ -43,18 +43,12 @@ impl Ren {
     pub fn q_less(&self, by: u8) -> Ren {
         Ren { env: self.env.clone(), q_lev: self.q_lev - i16::from(by) }
     }
-    pub fn new() -> Ren {
-        Ren { env: Assoc::new(), q_lev: 0 }
-    }
-    pub fn single(n: Name, a: Ast) -> Ren {
-        Ren { env: Assoc::new().set(n, a), q_lev: 0 }
-    }
+    pub fn new() -> Ren { Ren { env: Assoc::new(), q_lev: 0 } }
+    pub fn single(n: Name, a: Ast) -> Ren { Ren { env: Assoc::new().set(n, a), q_lev: 0 } }
 }
 
 impl From<Assoc<Name, Ast>> for Ren {
-    fn from(a: Assoc<Name, Ast>) -> Ren {
-        Ren { env: a, q_lev: 0 }
-    }
+    fn from(a: Assoc<Name, Ast>) -> Ren { Ren { env: a, q_lev: 0 } }
 }
 
 fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Ren) -> Ast {

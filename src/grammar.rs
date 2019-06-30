@@ -155,9 +155,7 @@ impl FormPat {
 }
 
 impl Clone for SyntaxExtension {
-    fn clone(&self) -> SyntaxExtension {
-        SyntaxExtension(self.0.clone())
-    }
+    fn clone(&self) -> SyntaxExtension { SyntaxExtension(self.0.clone()) }
 }
 impl PartialEq for SyntaxExtension {
     /// pointer equality! (for testing)
@@ -169,9 +167,7 @@ impl PartialEq for SyntaxExtension {
 // This kind of struct is theoretically possible to add to the `Reifiable!` macro,
 // but I don't feel like doing it right now
 impl ::runtime::reify::Reifiable for SyntaxExtension {
-    fn ty_name() -> Name {
-        n("syntax_extension")
-    }
+    fn ty_name() -> Name { n("syntax_extension") }
 
     fn reify(&self) -> ::runtime::eval::Value {
         ::runtime::reify::reify_2ary_function(self.0.clone())

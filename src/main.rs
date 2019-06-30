@@ -106,9 +106,7 @@ impl rustyline::completion::Completer for LineHelper {
 }
 
 impl rustyline::hint::Hinter for LineHelper {
-    fn hint(&self, _line: &str, _pos: usize, _ctxt: &rustyline::Context) -> Option<String> {
-        None
-    }
+    fn hint(&self, _line: &str, _pos: usize, _ctxt: &rustyline::Context) -> Option<String> { None }
 }
 
 impl rustyline::highlight::Highlighter for LineHelper {
@@ -616,7 +614,6 @@ fn end_to_end_quotation_advanced() {
             eval_unseemly_program("'[Expr <[Int]< | (.[x : Int . match x {y => five}].  eight)]'"));
     }
 
-    //
     //  // We need tuple literals before we can test this:
     //  assert_m!(assign_variable("let-multi",
     //      "forall T . .[ binder : **[ :::[T >> Ident <[T]< ]::: ]**

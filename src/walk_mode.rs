@@ -13,9 +13,7 @@ pub trait WalkElt: Clone + Debug + Display + Reifiable {
     fn to_ast(&self) -> Ast;
 
     // Is this a hack?
-    fn core_env() -> Assoc<Name, Self> {
-        Assoc::<Name, Self>::new()
-    }
+    fn core_env() -> Assoc<Name, Self> { Assoc::<Name, Self>::new() }
 }
 
 // Abbreviation for Result<…::Out, …>
@@ -81,38 +79,24 @@ pub trait WalkMode: Debug + Copy + Reifiable {
 
     // TODO: these seem like a hack...
     // We need to dynamically do these if it's possible, for `env_from_beta`
-    fn out_as_elt(o: <Self::D as Dir>::Out) -> Self::Elt {
-        Self::D::out_as_elt(o)
-    }
-    fn out_as_env(o: <Self::D as Dir>::Out) -> Assoc<Name, Self::Elt> {
-        Self::D::out_as_env(o)
-    }
-    fn env_as_out(e: Assoc<Name, Self::Elt>) -> <Self::D as Dir>::Out {
-        Self::D::env_as_out(e)
-    }
+    fn out_as_elt(o: <Self::D as Dir>::Out) -> Self::Elt { Self::D::out_as_elt(o) }
+    fn out_as_env(o: <Self::D as Dir>::Out) -> Assoc<Name, Self::Elt> { Self::D::out_as_env(o) }
+    fn env_as_out(e: Assoc<Name, Self::Elt>) -> <Self::D as Dir>::Out { Self::D::env_as_out(e) }
 
-    fn walk_var(n: Name, cnc: &LazyWalkReses<Self>) -> Res<Self> {
-        Self::D::walk_var(n, cnc)
-    }
+    fn walk_var(n: Name, cnc: &LazyWalkReses<Self>) -> Res<Self> { Self::D::walk_var(n, cnc) }
 
-    fn walk_atom(n: Name, cnc: &LazyWalkReses<Self>) -> Res<Self> {
-        Self::D::walk_atom(n, cnc)
-    }
+    fn walk_atom(n: Name, cnc: &LazyWalkReses<Self>) -> Res<Self> { Self::D::walk_atom(n, cnc) }
 
     /// When a DDDed subterm is matched, it matches against multiple `Elt`s.
     /// How should we represent that?
-    fn collapse_repetition(_: Vec<Res<Self>>) -> Res<Self> {
-        panic!("ICE: unexpected repetition")
-    }
+    fn collapse_repetition(_: Vec<Res<Self>>) -> Res<Self> { panic!("ICE: unexpected repetition") }
 
     /// Make up a special `Elt` that is currently "underspecified",
     ///  but which can be "unified" with some other `Elt`.
     /// If that happens, all copies of this `Elt` will act like that other one.
     ///
     /// Side-effects under the covers make this work.
-    fn underspecified(Name) -> Self::Elt {
-        panic!("ICE: no underspecified_elt")
-    }
+    fn underspecified(Name) -> Self::Elt { panic!("ICE: no underspecified_elt") }
 
     fn name() -> &'static str;
 }
@@ -240,9 +224,7 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
         panic!("ICE: Atoms are positively unwalkable");
     }
 
-    fn out_as_elt(o: Self::Out) -> <Self::Mode as WalkMode>::Elt {
-        o
-    }
+    fn out_as_elt(o: Self::Out) -> <Self::Mode as WalkMode>::Elt { o }
     fn out_as_env(_: Self::Out) -> Assoc<Name, <Self::Mode as WalkMode>::Elt> {
         panic!("ICE: out_as_env")
     }
@@ -250,12 +232,8 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
         panic!("ICE: env_as_out")
     }
 
-    fn oeh_if_negative() -> Option<OutEnvHandle<Mode>> {
-        None
-    }
-    fn is_positive() -> bool {
-        true
-    }
+    fn oeh_if_negative() -> Option<OutEnvHandle<Mode>> { None }
+    fn is_positive() -> bool { true }
 }
 
 impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
@@ -328,15 +306,9 @@ impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
         Ok(Assoc::new().set(n, cnc.context_elt().clone()))
     }
 
-    fn out_as_elt(_: Self::Out) -> <Self::Mode as WalkMode>::Elt {
-        panic!("ICE: out_as_elt")
-    }
-    fn out_as_env(o: Self::Out) -> Assoc<Name, <Self::Mode as WalkMode>::Elt> {
-        o
-    }
-    fn env_as_out(e: Assoc<Name, <Self::Mode as WalkMode>::Elt>) -> Self::Out {
-        e
-    }
+    fn out_as_elt(_: Self::Out) -> <Self::Mode as WalkMode>::Elt { panic!("ICE: out_as_elt") }
+    fn out_as_env(o: Self::Out) -> Assoc<Name, <Self::Mode as WalkMode>::Elt> { o }
+    fn env_as_out(e: Assoc<Name, <Self::Mode as WalkMode>::Elt>) -> Self::Out { e }
 
     fn oeh_if_negative() -> Option<OutEnvHandle<Self::Mode>> {
         Some(::std::rc::Rc::new(::std::cell::RefCell::new(Assoc::<
@@ -344,9 +316,7 @@ impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
             <Self::Mode as WalkMode>::Elt,
         >::new())))
     }
-    fn is_positive() -> bool {
-        false
-    }
+    fn is_positive() -> bool { false }
 }
 
 pub trait NegativeWalkMode: WalkMode {

@@ -517,9 +517,7 @@ pub fn add_form_at_the_alt(outer: Rc<FormPat>, inner: &FormPat) -> Option<FormPa
     }
 }
 
-fn find_type(se: &SynEnv, form_name: &str) -> Rc<Form> {
-    find_form(se, "Type", form_name)
-}
+fn find_type(se: &SynEnv, form_name: &str) -> Rc<Form> { find_form(se, "Type", form_name) }
 
 thread_local! {
     pub static core_forms: SynEnv = make_core_syn_env();
@@ -529,18 +527,12 @@ pub fn outermost_form() -> FormPat {
     Call(n("Expr")) // `n` isn't static
 }
 
-pub fn find(nt: &str, name: &str) -> Rc<Form> {
-    core_forms.with(|cf| find_form(cf, nt, name))
-}
+pub fn find(nt: &str, name: &str) -> Rc<Form> { core_forms.with(|cf| find_form(cf, nt, name)) }
 
 // Deprecated; use `::core_forms::find` instead (keep it qualified!)
-pub fn find_core_form(nt: &str, name: &str) -> Rc<Form> {
-    find(nt, name)
-}
+pub fn find_core_form(nt: &str, name: &str) -> Rc<Form> { find(nt, name) }
 
-pub fn get_core_forms() -> SynEnv {
-    core_forms.with(|cf| cf.clone())
-}
+pub fn get_core_forms() -> SynEnv { core_forms.with(|cf| cf.clone()) }
 
 #[test]
 fn form_grammar() {

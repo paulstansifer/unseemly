@@ -76,9 +76,7 @@ impl<Mode: WalkMode> EitherPN<WalkRule<Mode>, WalkRule<Mode::Negated>> {
 
 impl PartialEq for Form {
     /// pointer equality on the underlying structure!
-    fn eq(&self, other: &Form) -> bool {
-        self as *const Form == other as *const Form
-    }
+    fn eq(&self, other: &Form) -> bool { self as *const Form == other as *const Form }
 }
 
 impl Debug for Form {

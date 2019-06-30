@@ -15,9 +15,7 @@ custom_derive! {
 }
 
 impl<K: PartialEq + Clone, V: Clone> Clone for Assoc<K, V> {
-    fn clone(&self) -> Assoc<K, V> {
-        Assoc { n: self.n.clone() }
-    }
+    fn clone(&self) -> Assoc<K, V> { Assoc { n: self.n.clone() } }
 }
 
 impl<K: PartialEq + Clone, V: PartialEq> PartialEq for Assoc<K, V> {
@@ -89,25 +87,17 @@ impl<K: PartialEq, V> Assoc<K, V> {
         }
     }
 
-    pub fn empty(&self) -> bool {
-        self.n.is_none()
-    }
+    pub fn empty(&self) -> bool { self.n.is_none() }
 
     pub fn set(&self, k: K, v: V) -> Assoc<K, V> {
         Assoc { n: Some(Rc::new(AssocNode { k: k, v: v, next: Assoc { n: self.n.clone() } })) }
     }
 
-    pub fn new() -> Assoc<K, V> {
-        Assoc { n: None }
-    }
+    pub fn new() -> Assoc<K, V> { Assoc { n: None } }
 
-    pub fn single(k: K, v: V) -> Assoc<K, V> {
-        Self::new().set(k, v)
-    }
+    pub fn single(k: K, v: V) -> Assoc<K, V> { Self::new().set(k, v) }
 
-    pub fn iter_pairs(&self) -> PairIter<K, V> {
-        PairIter { seen: Assoc::new(), cur: self }
-    }
+    pub fn iter_pairs(&self) -> PairIter<K, V> { PairIter { seen: Assoc::new(), cur: self } }
 
     pub fn reduce<Out>(&self, red: &dyn Fn(&K, &V, Out) -> Out, base: Out) -> Out {
         match self.n {

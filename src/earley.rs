@@ -29,9 +29,7 @@ use read::{
 };
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-pub fn end_of_delim() -> Token {
-    Token::Simple(n("☾end delimiter☽"))
-}
+pub fn end_of_delim() -> Token { Token::Simple(n("☾end delimiter☽")) }
 
 // TODO: This UniqueId stuff is great, but we could make things faster
 //  by storing array indices instead
@@ -60,44 +58,30 @@ fn get_next_id() -> UniqueId {
 pub struct UniqueId(u32);
 
 impl ::std::fmt::Debug for UniqueId {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result { write!(f, "{}", self.0) }
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
 pub struct UniqueIdRef(u32);
 
 impl UniqueId {
-    fn get_ref(&self) -> UniqueIdRef {
-        UniqueIdRef(self.0)
-    }
+    fn get_ref(&self) -> UniqueIdRef { UniqueIdRef(self.0) }
 
-    fn is(&self, other: UniqueIdRef) -> bool {
-        self.0 == other.0
-    }
+    fn is(&self, other: UniqueIdRef) -> bool { self.0 == other.0 }
 }
 
 impl ::std::fmt::Debug for UniqueIdRef {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result { write!(f, "{}", self.0) }
 }
 
 /// Hardcoded `nt` name for the dotdotdot form; it can be used anywhere under a + or *.
 /// TODO: this shouldn't be hardcoded!
-pub fn special_ddd_nt() -> Name {
-    n("dotdotdot")
-}
+pub fn special_ddd_nt() -> Name { n("dotdotdot") }
 
 /// Used as a HACK to mark nodes that should be DDDed when put into an MBE
-fn ddd_ast_marker() -> Name {
-    n("⌜⋯⌟")
-} // TODO: gensym
+fn ddd_ast_marker() -> Name { n("⌜⋯⌟") } // TODO: gensym
 
-fn ddd_wrap(a: Ast) -> Ast {
-    Ast::Shape(vec![a, Ast::Atom(ddd_ast_marker())])
-}
+fn ddd_wrap(a: Ast) -> Ast { Ast::Shape(vec![a, Ast::Atom(ddd_ast_marker())]) }
 
 /// If `a` is a specially-marked DDD node, remove the special marker (and return true)
 fn ddd_unwrap(a: &Ast) -> Option<Ast> {

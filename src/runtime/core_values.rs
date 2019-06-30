@@ -17,12 +17,8 @@ pub struct TypedValue {
     pub val: Value,
 }
 
-pub fn erase_type(tv: &TypedValue) -> Value {
-    tv.val.clone()
-}
-pub fn erase_value(tv: &TypedValue) -> Ty {
-    Ty::new(tv.ty.clone())
-}
+pub fn erase_type(tv: &TypedValue) -> Value { tv.val.clone() }
+pub fn erase_value(tv: &TypedValue) -> Ty { Ty::new(tv.ty.clone()) }
 
 pub fn core_typed_values() -> Assoc<Name, TypedValue> {
     assoc_n!(
@@ -81,9 +77,7 @@ pub fn core_typed_values() -> Assoc<Name, TypedValue> {
     )
 }
 
-pub fn core_values() -> Assoc<Name, Value> {
-    core_typed_values().map(&erase_type)
-}
+pub fn core_values() -> Assoc<Name, Value> { core_typed_values().map(&erase_type) }
 
 pub fn core_types() -> Assoc<Name, Ty> {
     use core_type_forms::get__abstract_parametric_type;

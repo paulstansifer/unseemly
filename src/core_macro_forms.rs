@@ -470,9 +470,7 @@ fn expand_macro(parts: ::ast_walk::LazyWalkReses<ExpandMacros>) -> Result<Ast, (
 }
 
 impl WalkMode for ExpandMacros {
-    fn name() -> &'static str {
-        "MExpand"
-    }
+    fn name() -> &'static str { "MExpand" }
     type Elt = Ast;
     type Negated = UnusedNegativeExpandMacros;
     type Err = (); // TODO: should be the same as runtime errors
@@ -486,25 +484,17 @@ impl WalkMode for ExpandMacros {
             LiteralLike
         }
     }
-    fn automatically_extend_env() -> bool {
-        true
-    }
+    fn automatically_extend_env() -> bool { true }
 }
 impl WalkMode for UnusedNegativeExpandMacros {
-    fn name() -> &'static str {
-        "XXXXX"
-    }
+    fn name() -> &'static str { "XXXXX" }
     type Elt = Ast;
     type Negated = ExpandMacros;
     type Err = ();
     type D = ::walk_mode::Positive<UnusedNegativeExpandMacros>;
     type ExtraInfo = ();
-    fn get_walk_rule(_: &Form) -> ::ast_walk::WalkRule<UnusedNegativeExpandMacros> {
-        panic!("ICE")
-    }
-    fn automatically_extend_env() -> bool {
-        panic!("ICE")
-    }
+    fn get_walk_rule(_: &Form) -> ::ast_walk::WalkRule<UnusedNegativeExpandMacros> { panic!("ICE") }
+    fn automatically_extend_env() -> bool { panic!("ICE") }
 }
 
 pub fn expand(ast: &Ast, env: Assoc<Name, Ast>) -> Result<Ast, ()> {

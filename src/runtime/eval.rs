@@ -35,15 +35,11 @@ pub struct Closure {
 pub struct BIF(pub Rc<(dyn Fn(Vec<Value>) -> Value)>);
 
 impl PartialEq for BIF {
-    fn eq(&self, other: &BIF) -> bool {
-        self as *const BIF == other as *const BIF
-    }
+    fn eq(&self, other: &BIF) -> bool { self as *const BIF == other as *const BIF }
 }
 
 impl Clone for BIF {
-    fn clone(&self) -> BIF {
-        BIF(self.0.clone())
-    }
+    fn clone(&self) -> BIF { BIF(self.0.clone()) }
 }
 
 impl std::fmt::Display for Value {
@@ -84,9 +80,7 @@ impl std::fmt::Debug for BIF {
 }
 
 impl ::walk_mode::WalkElt for Value {
-    fn from_ast(a: &Ast) -> Value {
-        AbstractSyntax(a.clone())
-    }
+    fn from_ast(a: &Ast) -> Value { AbstractSyntax(a.clone()) }
     fn to_ast(&self) -> Ast {
         match *self {
             AbstractSyntax(ref a) => a.clone(),
@@ -94,9 +88,7 @@ impl ::walk_mode::WalkElt for Value {
         }
     }
 
-    fn core_env() -> Assoc<Name, Self> {
-        ::runtime::core_values::core_values()
-    }
+    fn core_env() -> Assoc<Name, Self> { ::runtime::core_values::core_values() }
 }
 
 custom_derive! {
@@ -109,9 +101,7 @@ custom_derive! {
 }
 
 impl WalkMode for Eval {
-    fn name() -> &'static str {
-        "Evalu"
-    }
+    fn name() -> &'static str { "Evalu" }
 
     type Elt = Value;
     type Negated = Destructure;
@@ -119,27 +109,19 @@ impl WalkMode for Eval {
     type D = ::walk_mode::Positive<Eval>;
     type ExtraInfo = ();
 
-    fn get_walk_rule(f: &Form) -> WalkRule<Eval> {
-        f.eval.pos().clone()
-    }
-    fn automatically_extend_env() -> bool {
-        true
-    }
+    fn get_walk_rule(f: &Form) -> WalkRule<Eval> { f.eval.pos().clone() }
+    fn automatically_extend_env() -> bool { true }
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Eval>) -> Result<Value, ()> {
         Ok(cnc.env.find(&n).expect("Undefined var; did you use a type name as a value?").clone())
     }
 
     // TODO: maybe keep this from being called?
-    fn underspecified(_: Name) -> Value {
-        val!(enum "why is this here?", )
-    }
+    fn underspecified(_: Name) -> Value { val!(enum "why is this here?", ) }
 }
 
 impl WalkMode for Destructure {
-    fn name() -> &'static str {
-        "Destr"
-    }
+    fn name() -> &'static str { "Destr" }
 
     type Elt = Value;
     type Negated = Eval;
@@ -150,32 +132,20 @@ impl WalkMode for Destructure {
     /// The whole point of program evaluation is that the enviornment
     ///  isn't generateable from the source tree.
     /// Does that make sense? I suspect it does not.
-    fn get_walk_rule(f: &Form) -> WalkRule<Destructure> {
-        f.eval.neg().clone()
-    }
-    fn automatically_extend_env() -> bool {
-        true
-    } // TODO: think about this
+    fn get_walk_rule(f: &Form) -> WalkRule<Destructure> { f.eval.neg().clone() }
+    fn automatically_extend_env() -> bool { true } // TODO: think about this
 }
 
 impl NegativeWalkMode for Destructure {
-    fn needs_pre_match() -> bool {
-        false
-    } // Values don't have binding (in this mode!)
+    fn needs_pre_match() -> bool { false } // Values don't have binding (in this mode!)
 }
 
 impl ::walk_mode::WalkElt for Ast {
-    fn from_ast(a: &Ast) -> Ast {
-        a.clone()
-    }
-    fn to_ast(&self) -> Ast {
-        self.clone()
-    }
+    fn from_ast(a: &Ast) -> Ast { a.clone() }
+    fn to_ast(&self) -> Ast { self.clone() }
 }
 
-pub fn eval_top(expr: &Ast) -> Result<Value, ()> {
-    eval(expr, Assoc::new())
-}
+pub fn eval_top(expr: &Ast) -> Result<Value, ()> { eval(expr, Assoc::new()) }
 
 pub fn eval(expr: &Ast, env: Assoc<Name, Value>) -> Result<Value, ()> {
     walk::<Eval>(expr, &LazyWalkReses::new_wrapper(env))
@@ -195,9 +165,7 @@ custom_derive! {
 }
 
 impl WalkMode for QQuote {
-    fn name() -> &'static str {
-        "QQuote"
-    }
+    fn name() -> &'static str { "QQuote" }
 
     // Why not `Ast`? Because QQuote and Eval need to share environments.
     type Elt = Value;
@@ -214,18 +182,12 @@ impl WalkMode for QQuote {
         let n_sp = &n.sp();
         Ok(val!(ast n_sp))
     }
-    fn get_walk_rule(f: &Form) -> WalkRule<QQuote> {
-        f.quasiquote.pos().clone()
-    }
-    fn automatically_extend_env() -> bool {
-        false
-    }
+    fn get_walk_rule(f: &Form) -> WalkRule<QQuote> { f.quasiquote.pos().clone() }
+    fn automatically_extend_env() -> bool { false }
 }
 
 impl WalkMode for QQuoteDestr {
-    fn name() -> &'static str {
-        "QQDes"
-    }
+    fn name() -> &'static str { "QQDes" }
 
     type Elt = Value;
     type Negated = QQuote;
@@ -249,18 +211,12 @@ impl WalkMode for QQuoteDestr {
             Err(Self::qlit_mismatch_error(val!(ast (vr n_sp)), cnc.context_elt().clone()))
         }
     }
-    fn get_walk_rule(f: &Form) -> WalkRule<QQuoteDestr> {
-        f.quasiquote.neg().clone()
-    }
-    fn automatically_extend_env() -> bool {
-        false
-    }
+    fn get_walk_rule(f: &Form) -> WalkRule<QQuoteDestr> { f.quasiquote.neg().clone() }
+    fn automatically_extend_env() -> bool { false }
 }
 
 impl NegativeWalkMode for QQuoteDestr {
-    fn needs_pre_match() -> bool {
-        true
-    } // Quoted syntax does have binding!
+    fn needs_pre_match() -> bool { true } // Quoted syntax does have binding!
 }
 
 // `env` is a trap! We want a shifted `LazyWalkReses`!

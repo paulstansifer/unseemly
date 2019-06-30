@@ -27,9 +27,7 @@ impl ::std::fmt::Debug for Ty {
 }
 
 impl Ty {
-    pub fn new(a: Ast) -> Ty {
-        Ty(a)
-    } // TODO: deprecate in favor of `Ty()`
+    pub fn new(a: Ast) -> Ty { Ty(a) } // TODO: deprecate in favor of `Ty()`
     pub fn concrete(&self) -> Ast {
         // TODO: just use `Ty::to_ast()`; this name is obsolete
         self.0.clone()
@@ -51,44 +49,26 @@ impl Ty {
 
 // this kinda belongs in core_forms.rs
 impl ::std::fmt::Display for Ty {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result { write!(f, "{}", self.0) }
 }
 
 impl ::runtime::reify::Reifiable for Ty {
-    fn ty() -> Ast {
-        Ast::ty()
-    }
+    fn ty() -> Ast { Ast::ty() }
 
-    fn ty_name() -> Name {
-        n("Type")
-    }
+    fn ty_name() -> Name { n("Type") }
 
-    fn ty_invocation() -> Ast {
-        Ast::ty_invocation()
-    }
+    fn ty_invocation() -> Ast { Ast::ty_invocation() }
 
-    fn reify(&self) -> ::runtime::eval::Value {
-        self.0.reify()
-    }
+    fn reify(&self) -> ::runtime::eval::Value { self.0.reify() }
 
-    fn reflect(v: &::runtime::eval::Value) -> Self {
-        Ty::new(Ast::reflect(v))
-    }
+    fn reflect(v: &::runtime::eval::Value) -> Self { Ty::new(Ast::reflect(v)) }
 }
 
 impl ::walk_mode::WalkElt for Ty {
-    fn from_ast(a: &Ast) -> Ty {
-        Ty::new(a.clone())
-    }
-    fn to_ast(&self) -> Ast {
-        self.concrete()
-    }
+    fn from_ast(a: &Ast) -> Ty { Ty::new(a.clone()) }
+    fn to_ast(&self) -> Ast { self.concrete() }
 
-    fn core_env() -> Assoc<Name, Ty> {
-        ::runtime::core_values::core_types()
-    }
+    fn core_env() -> Assoc<Name, Ty> { ::runtime::core_values::core_types() }
 }
 
 custom_derive! {
@@ -101,21 +81,15 @@ custom_derive! {
 }
 
 impl WalkMode for SynthTy {
-    fn name() -> &'static str {
-        "SynTy"
-    }
+    fn name() -> &'static str { "SynTy" }
     type Elt = Ty;
     type Negated = UnpackTy;
     type Err = TypeError;
     type D = ::walk_mode::Positive<SynthTy>;
     type ExtraInfo = ();
 
-    fn get_walk_rule(f: &Form) -> WalkRule<SynthTy> {
-        f.synth_type.pos().clone()
-    }
-    fn automatically_extend_env() -> bool {
-        true
-    }
+    fn get_walk_rule(f: &Form) -> WalkRule<SynthTy> { f.synth_type.pos().clone() }
+    fn automatically_extend_env() -> bool { true }
 
     fn walk_var(name: Name, parts: &::ast_walk::LazyWalkReses<SynthTy>) -> Result<Ty, TypeError> {
         match parts.env.find(&name) {
@@ -127,37 +101,25 @@ impl WalkMode for SynthTy {
     }
 
     // Simply protect the name; don't try to unify it.
-    fn underspecified(name: Name) -> Ty {
-        Ty(VariableReference(name))
-    }
+    fn underspecified(name: Name) -> Ty { Ty(VariableReference(name)) }
 }
 
 impl WalkMode for UnpackTy {
-    fn name() -> &'static str {
-        "UnpTy"
-    }
+    fn name() -> &'static str { "UnpTy" }
     type Elt = Ty;
     type Negated = SynthTy;
     type Err = TypeError;
     type D = ::walk_mode::Negative<UnpackTy>;
     type ExtraInfo = ();
 
-    fn get_walk_rule(f: &Form) -> WalkRule<UnpackTy> {
-        f.synth_type.neg().clone()
-    }
-    fn automatically_extend_env() -> bool {
-        true
-    }
+    fn get_walk_rule(f: &Form) -> WalkRule<UnpackTy> { f.synth_type.neg().clone() }
+    fn automatically_extend_env() -> bool { true }
 
-    fn underspecified(name: Name) -> Ty {
-        Ty(VariableReference(name))
-    }
+    fn underspecified(name: Name) -> Ty { Ty(VariableReference(name)) }
 }
 
 impl ::walk_mode::NegativeWalkMode for UnpackTy {
-    fn needs_pre_match() -> bool {
-        true
-    }
+    fn needs_pre_match() -> bool { true }
 }
 
 pub fn synth_type_top(expr: &Ast) -> TypeResult {
@@ -320,9 +282,7 @@ fn basic_type_synth() {
 fn type_specialization() {
     let nat_ty = ty!( { "Type" "Nat" : });
 
-    fn tbn(nm: &'static str) -> Ty {
-        Ty(::ast::Ast::VariableReference(n(nm)))
-    }
+    fn tbn(nm: &'static str) -> Ty { Ty(::ast::Ast::VariableReference(n(nm))) }
 
     let _para_ty_env = assoc_n!(
         "some_int" => ty!( { "Type" "Int" : }),
@@ -336,7 +296,7 @@ fn type_specialization() {
             "body" => (import [* [forall "param"]] { "Type" "fn" :
                 "param" => [ (, tbn("t").concrete() ) ],
                 "ret" => (, tbn("t").concrete() ) })}));
-    
+
     // assert_eq!(synth_type(&ast!({ "Expr" "apply" :
     //             "rator" => (vr "convert_to_nat"),
     //             "rand" => [ (vr "some_int") ]

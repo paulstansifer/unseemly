@@ -7,4 +7,4 @@ max_width = 100
 normalize_comments = true
 use_try_shorthand = true
 overflow_delimited_expr = true
-
+fn_single_line = true

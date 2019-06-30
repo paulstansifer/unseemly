@@ -126,9 +126,7 @@ fn change_mu_opacity(parts: ::ast_walk::LazyWalkReses<MuProtect>) -> Result<Ty, 
 }
 
 impl WalkMode for MuProtect {
-    fn name() -> &'static str {
-        "MProt"
-    }
+    fn name() -> &'static str { "MProt" }
     type Elt = Ty;
     type Negated = UnusedNegativeMuProtect;
     type Err = ();
@@ -142,9 +140,7 @@ impl WalkMode for MuProtect {
             LiteralLike
         }
     }
-    fn automatically_extend_env() -> bool {
-        true
-    }
+    fn automatically_extend_env() -> bool { true }
 
     fn walk_var(name: Name, parts: &::ast_walk::LazyWalkReses<MuProtect>) -> Result<Ty, ()> {
         if parts.extra_info <= 0 {
@@ -159,20 +155,14 @@ impl WalkMode for MuProtect {
     }
 }
 impl WalkMode for UnusedNegativeMuProtect {
-    fn name() -> &'static str {
-        "XXXXX"
-    }
+    fn name() -> &'static str { "XXXXX" }
     type Elt = Ty;
     type Negated = MuProtect;
     type Err = ();
     type D = ::walk_mode::Positive<UnusedNegativeMuProtect>;
     type ExtraInfo = i32;
-    fn get_walk_rule(_: &Form) -> ::ast_walk::WalkRule<UnusedNegativeMuProtect> {
-        panic!("ICE")
-    }
-    fn automatically_extend_env() -> bool {
-        panic!("ICE")
-    }
+    fn get_walk_rule(_: &Form) -> ::ast_walk::WalkRule<UnusedNegativeMuProtect> { panic!("ICE") }
+    fn automatically_extend_env() -> bool { panic!("ICE") }
 }
 
 // Technically, we could have the parser decide whether `unquote` is allowed.

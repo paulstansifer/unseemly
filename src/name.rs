@@ -34,9 +34,7 @@ thread_local! {
 }
 
 impl ::runtime::reify::Reifiable for Name {
-    fn ty_name() -> Name {
-        n("Name")
-    }
+    fn ty_name() -> Name { n("Name") }
 
     fn reify(&self) -> ::runtime::eval::Value {
         ::runtime::eval::Value::AbstractSyntax(::ast::Ast::Atom(*self))
@@ -62,12 +60,8 @@ pub fn enable_fake_freshness(ff: bool) {
 // impl !Send for Name {}
 
 impl Name {
-    pub fn sp(self) -> String {
-        spellings.with(|us| us.borrow()[self.id].unique.clone())
-    }
-    pub fn orig_sp(self) -> String {
-        spellings.with(|us| us.borrow()[self.id].orig.clone())
-    }
+    pub fn sp(self) -> String { spellings.with(|us| us.borrow()[self.id].unique.clone()) }
+    pub fn orig_sp(self) -> String { spellings.with(|us| us.borrow()[self.id].orig.clone()) }
 
     // Printable names are unique, like `unique_spelling`s, but are assigned during printing.
     // This way if the compiler freshens some name a bunch of times, producing a tomato-filled mess,
@@ -91,15 +85,9 @@ impl Name {
         })
     }
 
-    pub fn global(s: &str) -> Name {
-        Name::new(s, false)
-    }
-    pub fn gensym(s: &str) -> Name {
-        Name::new(s, true)
-    }
-    pub fn freshen(self) -> Name {
-        Name::new(&self.orig_sp(), true)
-    }
+    pub fn global(s: &str) -> Name { Name::new(s, false) }
+    pub fn gensym(s: &str) -> Name { Name::new(s, true) }
+    pub fn freshen(self) -> Name { Name::new(&self.orig_sp(), true) }
 
     fn new(orig_spelling: &str, freshen: bool) -> Name {
         use std::borrow::{Borrow, BorrowMut};
@@ -139,37 +127,25 @@ impl Name {
             Name { id: id }
         })
     }
-    pub fn is(self, s: &str) -> bool {
-        self.sp() == s
-    }
+    pub fn is(self, s: &str) -> bool { self.sp() == s }
 
-    pub fn is_name(self, n: Name) -> bool {
-        self.sp() == n.sp()
-    }
+    pub fn is_name(self, n: Name) -> bool { self.sp() == n.sp() }
 }
 
 // TODO: move to `ast_walk`
 // TODO: using `lazy_static!` (with or without gensym) makes some tests fail. Why?
 /// Special name for negative `ast_walk`ing
-pub fn negative_ret_val() -> Name {
-    Name::global("⋄")
-}
+pub fn negative_ret_val() -> Name { Name::global("⋄") }
 
 impl fmt::Debug for Name {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "«{}»", self.sp())
-    }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "«{}»", self.sp()) }
 }
 
 impl fmt::Display for Name {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.print())
-    }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{}", self.print()) }
 }
 
-pub fn n(s: &str) -> Name {
-    Name::global(s)
-}
+pub fn n(s: &str) -> Name { Name::global(s) }
 
 #[test]
 fn name_interning() {

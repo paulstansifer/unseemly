@@ -238,9 +238,7 @@ custom_derive! {
 }
 
 impl WalkMode for Canonicalize {
-    fn name() -> &'static str {
-        "Canon"
-    }
+    fn name() -> &'static str { "Canon" }
 
     type Elt = Ty;
     type Negated = Subtype;
@@ -249,12 +247,8 @@ impl WalkMode for Canonicalize {
     type ExtraInfo = ();
 
     // Actually, always `LiteralLike`, but need to get the lifetime as long as `f`'s
-    fn get_walk_rule(f: &Form) -> WalkRule<Canonicalize> {
-        f.type_compare.pos().clone()
-    }
-    fn automatically_extend_env() -> bool {
-        true
-    }
+    fn get_walk_rule(f: &Form) -> WalkRule<Canonicalize> { f.type_compare.pos().clone() }
+    fn automatically_extend_env() -> bool { true }
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Canonicalize>) -> Result<Ty, TyErr> {
         match cnc.env.find(&n) {
@@ -267,9 +261,7 @@ impl WalkMode for Canonicalize {
 }
 
 impl WalkMode for Subtype {
-    fn name() -> &'static str {
-        "SubTy"
-    }
+    fn name() -> &'static str { "SubTy" }
 
     type Elt = Ty;
     type Negated = Canonicalize;
@@ -277,12 +269,8 @@ impl WalkMode for Subtype {
     type D = ::walk_mode::Negative<Subtype>;
     type ExtraInfo = ();
 
-    fn get_walk_rule(f: &Form) -> WalkRule<Subtype> {
-        f.type_compare.neg().clone()
-    }
-    fn automatically_extend_env() -> bool {
-        true
-    }
+    fn get_walk_rule(f: &Form) -> WalkRule<Subtype> { f.type_compare.neg().clone() }
+    fn automatically_extend_env() -> bool { true }
 
     fn underspecified(name: Name) -> Ty {
         ::ty_compare::next_id.with(|id| {
@@ -403,13 +391,9 @@ fn match_dotdotdot<'a>(
 }
 
 impl ::walk_mode::NegativeWalkMode for Subtype {
-    fn qlit_mismatch_error(got: Ty, expd: Ty) -> Self::Err {
-        TyErr::Mismatch(got, expd)
-    }
+    fn qlit_mismatch_error(got: Ty, expd: Ty) -> Self::Err { TyErr::Mismatch(got, expd) }
 
-    fn needs_pre_match() -> bool {
-        true
-    }
+    fn needs_pre_match() -> bool { true }
 
     /// Push through all variable references and underdeterminednesses on both sides,
     ///  returning types that are ready to compare, or `None` if they're definitionally equal

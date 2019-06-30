@@ -55,9 +55,7 @@ pub trait Reifiable {
     /// e.g. `Annotated_with_int<[nat]<`
     /// (Types using this type will use this, rather than `ty`)
     /// This must be customized if `ty` is, I think...
-    fn ty_invocation() -> Ast {
-        Ast::VariableReference(Self::ty_name())
-    }
+    fn ty_invocation() -> Ast { Ast::VariableReference(Self::ty_name()) }
 
     /// The Unseemly value that corresponds to a value.
     fn reify(&self) -> Value;
@@ -87,9 +85,7 @@ macro_rules! basic_reifiability {
 basic_reifiability!(BigInt, "Int", Int);
 
 impl Reifiable for bool {
-    fn ty_name() -> Name {
-        n("Bool")
-    }
+    fn ty_name() -> Name { n("Bool") }
 
     fn reify(&self) -> Value {
         ::runtime::eval::Value::Enum(n(if *self { "True" } else { "False" }), vec![])
@@ -102,13 +98,9 @@ impl Reifiable for bool {
 
 // note: operations for these shouldn't have BigInt semantics!
 impl Reifiable for usize {
-    fn ty_name() -> Name {
-        n("Rust_usize")
-    }
+    fn ty_name() -> Name { n("Rust_usize") }
 
-    fn reify(&self) -> Value {
-        Value::Int(BigInt::from(*self))
-    }
+    fn reify(&self) -> Value { Value::Int(BigInt::from(*self)) }
 
     fn reflect(v: &Value) -> Self {
         use num::ToPrimitive;
@@ -116,13 +108,9 @@ impl Reifiable for usize {
     }
 }
 impl Reifiable for i32 {
-    fn ty_name() -> Name {
-        n("Rust_i32")
-    }
+    fn ty_name() -> Name { n("Rust_i32") }
 
-    fn reify(&self) -> Value {
-        Value::Int(BigInt::from(*self))
-    }
+    fn reify(&self) -> Value { Value::Int(BigInt::from(*self)) }
 
     fn reflect(v: &Value) -> Self {
         use num::ToPrimitive;
@@ -130,13 +118,9 @@ impl Reifiable for i32 {
     }
 }
 impl Reifiable for u8 {
-    fn ty_name() -> Name {
-        n("Rust_u8")
-    }
+    fn ty_name() -> Name { n("Rust_u8") }
 
-    fn reify(&self) -> Value {
-        Value::Int(BigInt::from(*self))
-    }
+    fn reify(&self) -> Value { Value::Int(BigInt::from(*self)) }
 
     fn reflect(v: &Value) -> Self {
         use num::ToPrimitive;
@@ -144,32 +128,20 @@ impl Reifiable for u8 {
     }
 }
 impl Reifiable for () {
-    fn ty_name() -> Name {
-        n("unit")
-    }
+    fn ty_name() -> Name { n("unit") }
 
-    fn reify(&self) -> Value {
-        Value::Int(BigInt::from(0))
-    }
+    fn reify(&self) -> Value { Value::Int(BigInt::from(0)) }
 
-    fn reflect(_: &Value) -> Self {
-        ()
-    }
+    fn reflect(_: &Value) -> Self { () }
 }
 
 // This is right, right?
 impl Reifiable for Value {
-    fn ty_name() -> Name {
-        n("any")
-    }
+    fn ty_name() -> Name { n("any") }
 
-    fn reify(&self) -> Value {
-        self.clone()
-    }
+    fn reify(&self) -> Value { self.clone() }
 
-    fn reflect(v: &Value) -> Self {
-        v.clone()
-    }
+    fn reflect(v: &Value) -> Self { v.clone() }
 }
 
 // TODO: when returning traits works, just make functions `Reifiable`
@@ -244,15 +216,9 @@ macro_rules! reify_types {
 macro_rules! fake_reifiability {
     ( $underlying_type:ty ) => {
         impl Reifiable for $underlying_type {
-            fn ty_name() -> Name {
-                n(stringify!($underlying_type))
-            }
-            fn reify(&self) -> Value {
-                panic!()
-            }
-            fn reflect(_: &Value) -> Self {
-                panic!()
-            }
+            fn ty_name() -> Name { n(stringify!($underlying_type)) }
+            fn reify(&self) -> Value { panic!() }
+            fn reflect(_: &Value) -> Self { panic!() }
         }
     };
 }
@@ -267,9 +233,7 @@ fake_reifiability!(K);
 struct V {}
 fake_reifiability!(V);
 
-pub fn make_reified_ty_env() -> Assoc<Name, ::ty::Ty> {
-    reify_types!(Ast, Assoc<K, V>)
-}
+pub fn make_reified_ty_env() -> Assoc<Name, ::ty::Ty> { reify_types!(Ast, Assoc<K, V>) }
 
 // impl<A: Reifiable, R: Reifiable> Reifiable for Box<Fn(A) -> R> {
 //     fn ty() -> Ast { panic!("") }
@@ -284,25 +248,15 @@ pub fn make_reified_ty_env() -> Assoc<Name, ::ty::Ty> {
 // This feels a little awkward, just dropping the `Rc`ness on the floor.
 // But I think `Value` has enouch `Rc` inside that nothing can go wrong... right?
 impl<T: Reifiable> Reifiable for ::std::rc::Rc<T> {
-    fn ty() -> Ast {
-        T::ty()
-    }
+    fn ty() -> Ast { T::ty() }
 
-    fn ty_name() -> Name {
-        T::ty_name()
-    }
+    fn ty_name() -> Name { T::ty_name() }
 
-    fn ty_invocation() -> Ast {
-        T::ty_invocation()
-    }
+    fn ty_invocation() -> Ast { T::ty_invocation() }
 
-    fn reify(&self) -> Value {
-        (**self).reify()
-    }
+    fn reify(&self) -> Value { (**self).reify() }
 
-    fn reflect(v: &Value) -> Self {
-        ::std::rc::Rc::new(T::reflect(v))
-    }
+    fn reflect(v: &Value) -> Self { ::std::rc::Rc::new(T::reflect(v)) }
 }
 
 // for when we have a `Ty`, rather than a Rust type.
@@ -326,9 +280,7 @@ impl<T: Reifiable> Reifiable for Vec<T> {
             "arg" => [(, T::ty() )]})
     }
 
-    fn ty_name() -> Name {
-        n(&format!("Sequence_of_{}", T::ty_name()))
-    }
+    fn ty_name() -> Name { n(&format!("Sequence_of_{}", T::ty_name())) }
 
     fn ty_invocation() -> Ast {
         ast!({ "Type" "type_apply" :
@@ -349,54 +301,32 @@ impl<T: Reifiable> Reifiable for Vec<T> {
 }
 
 impl<T: Reifiable> Reifiable for ::std::boxed::Box<T> {
-    fn ty() -> Ast {
-        T::ty()
-    }
+    fn ty() -> Ast { T::ty() }
 
-    fn ty_name() -> Name {
-        T::ty_name()
-    }
+    fn ty_name() -> Name { T::ty_name() }
 
-    fn ty_invocation() -> Ast {
-        T::ty_invocation()
-    }
+    fn ty_invocation() -> Ast { T::ty_invocation() }
 
-    fn reify(&self) -> Value {
-        (**self).reify()
-    }
+    fn reify(&self) -> Value { (**self).reify() }
 
-    fn reflect(v: &Value) -> Self {
-        ::std::boxed::Box::new(T::reflect(v))
-    }
+    fn reflect(v: &Value) -> Self { ::std::boxed::Box::new(T::reflect(v)) }
 }
 
 // The roundtrip will de-alias the cell, sadly.
 impl<T: Reifiable> Reifiable for ::std::cell::RefCell<T> {
-    fn ty_name() -> Name {
-        n("Rust_RefCell")
-    }
+    fn ty_name() -> Name { n("Rust_RefCell") }
 
-    fn reify(&self) -> Value {
-        self.borrow().reify()
-    }
+    fn reify(&self) -> Value { self.borrow().reify() }
 
-    fn reflect(v: &Value) -> Self {
-        ::std::cell::RefCell::<T>::new(T::reflect(v))
-    }
+    fn reflect(v: &Value) -> Self { ::std::cell::RefCell::<T>::new(T::reflect(v)) }
 }
 
 impl<T> Reifiable for ::std::marker::PhantomData<T> {
-    fn ty_name() -> Name {
-        n("PhantomData")
-    } // Do we need to distinguish different ones?
+    fn ty_name() -> Name { n("PhantomData") } // Do we need to distinguish different ones?
 
-    fn reify(&self) -> Value {
-        Value::Int(BigInt::from(0))
-    }
+    fn reify(&self) -> Value { Value::Int(BigInt::from(0)) }
 
-    fn reflect(_: &Value) -> Self {
-        ::std::marker::PhantomData
-    }
+    fn reflect(_: &Value) -> Self { ::std::marker::PhantomData }
 }
 
 // Hey, I know how to generate the implementation for this...
@@ -440,17 +370,11 @@ fn new_oldname<'t>(nm: Name) -> OldName<'t> {
 }
 
 impl<'t> Reifiable for OldName<'t> {
-    fn ty_name() -> Name {
-        n("OldName")
-    }
+    fn ty_name() -> Name { n("OldName") }
 
-    fn reify(&self) -> Value {
-        self.actual.reify()
-    }
+    fn reify(&self) -> Value { self.actual.reify() }
 
-    fn reflect(v: &Value) -> Self {
-        new_oldname(Name::reflect(v))
-    }
+    fn reflect(v: &Value) -> Self { new_oldname(Name::reflect(v)) }
 }
 
 custom_derive! {
