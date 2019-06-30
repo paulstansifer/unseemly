@@ -350,6 +350,9 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
                 ddd_parts_uq.with_environment(walked_env).quote_more(None).get_res(n("body"))
             }
         )),
+        // An evaluate-time version of this might be a good idea;
+        //  it might be all that's needed to implement variable-number-of-argument functions.
+        // It shouldn't be the same form, though. Maybe `...( >> )...` ?
         eval: Positive(NotWalked),
         quasiquote: Positive(
             cust_rc_box!(| ddd_parts | {
@@ -400,7 +403,8 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
 //  and we walk it just like we walk normal AST; just with a shifted environment.
 // This is why we sometimes need type annotations.
 
-// During evaluation, quoted terms are inactive. Everything (except `unquote`!) is LiteralLike.
+// During evaluation, quoted terms are inactive.
+// Everything (except `unquote` and `dotdotdot`!) is LiteralLike.
 // Furthermore, the direction of the walk is determined by the direction of the original quotation.
 
 pub fn quote(pos: bool) -> Rc<Form> {
