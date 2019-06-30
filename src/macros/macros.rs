@@ -4,13 +4,15 @@
 macro_rules! log {
     ($($e:expr),*) => {
         // print!( $($e),* );
-    }
+    };
 }
 
 /* Assoc */
 
 macro_rules! expr_ify {
-    ($e:expr) => {$e};
+    ($e:expr) => {
+        $e
+    };
 }
 
 macro_rules! assoc_n {
@@ -23,14 +25,15 @@ macro_rules! assoc_n {
     };
 }
 
-
-
-
 /* Beta */
 
 macro_rules! beta_connector {
-    ( : ) => { ::beta::Basic };
-    ( = ) => { ::beta::SameAs }
+    ( : ) => {
+        ::beta::Basic
+    };
+    ( = ) => {
+        ::beta::SameAs
+    };
 }
 
 macro_rules! beta {
@@ -74,7 +77,6 @@ macro_rules! ebeta {
     };
 }
 
-
 /* Read */
 
 macro_rules! tokens {
@@ -93,8 +95,6 @@ macro_rules! t_elt {
     };
     ($e:expr) => { Simple(::name::n($e)) }
 }
-
-
 
 /* Ast */
 
@@ -191,7 +191,7 @@ macro_rules! ty_err_p { // type error pattern
 /* EnvMBE */
 
 /* These macros generate `EnvMBE<Ast>`s, not arbitrary `EnvMBE`s,
-    which is a little un-abstract, but is the main usage. */
+which is a little un-abstract, but is the main usage. */
 
 /*
  * Wait a second, I'm writing in Rust right now! I'll use an MBE macro to implement an MBE literal!
@@ -276,7 +276,6 @@ macro_rules! mbe_one_name {
     }
 }
 
-
 // Eventually, this ought to support more complex structures
 macro_rules! mbe {
     ( $( $lhs:tt => $rhs:tt ),* ) => {{
@@ -288,8 +287,6 @@ macro_rules! mbe {
         res
     }}
 }
-
-
 
 /* FormPat */
 
@@ -337,15 +334,13 @@ macro_rules! form_pat {
         ::grammar::FormPat::Seq(vec![ $( ::std::rc::Rc::new(form_pat!($body)) ),* ])}
 }
 
-
-
 /* utility, for core_forms and core_type_forms */
 // This has to be a macro for type reasons involving sizedness I don't understand.
 macro_rules! cust_rc_box {
-    ($contents:expr) => { Custom(::std::rc::Rc::new(Box::new($contents))) }
+    ($contents:expr) => {
+        Custom(::std::rc::Rc::new(Box::new($contents)))
+    };
 }
-
-
 
 /* Form */
 
@@ -356,11 +351,13 @@ macro_rules! basic_typed_form {
             grammar: Rc::new(form_pat!($p)),
             type_compare: ::form::Positive(::ast_walk::WalkRule::NotWalked),
             synth_type: ::form::Positive($gen_type),
-            quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike,
-                                     ::ast_walk::WalkRule::LiteralLike),
-            eval: ::form::Positive($eval)
+            quasiquote: ::form::Both(
+                ::ast_walk::WalkRule::LiteralLike,
+                ::ast_walk::WalkRule::LiteralLike,
+            ),
+            eval: ::form::Positive($eval),
         })
-    }
+    };
 }
 
 macro_rules! typed_form {
@@ -370,11 +367,13 @@ macro_rules! typed_form {
             grammar: Rc::new(form_pat!($p)),
             type_compare: ::form::Positive(::ast_walk::WalkRule::NotWalked),
             synth_type: ::form::Positive($gen_type),
-            quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike,
-                                     ::ast_walk::WalkRule::LiteralLike),
-            eval: ::form::Positive($eval)
+            quasiquote: ::form::Both(
+                ::ast_walk::WalkRule::LiteralLike,
+                ::ast_walk::WalkRule::LiteralLike,
+            ),
+            eval: ::form::Positive($eval),
         })
-    }
+    };
 }
 
 macro_rules! negative_typed_form {
@@ -384,14 +383,14 @@ macro_rules! negative_typed_form {
             grammar: Rc::new(form_pat!($p)),
             type_compare: ::form::Positive(::ast_walk::WalkRule::NotWalked),
             synth_type: ::form::Negative($gen_type),
-            quasiquote: ::form::Both(::ast_walk::WalkRule::LiteralLike,
-                                     ::ast_walk::WalkRule::LiteralLike),
-            eval: ::form::Negative($eval)
+            quasiquote: ::form::Both(
+                ::ast_walk::WalkRule::LiteralLike,
+                ::ast_walk::WalkRule::LiteralLike,
+            ),
+            eval: ::form::Negative($eval),
         })
-    }
+    };
 }
-
-
 
 /* Value */
 
@@ -422,8 +421,6 @@ macro_rules! val {
     };
     (, $interpolate:expr) => { $interpolate }
 }
-
-
 
 /* core_values stuff */
 
@@ -485,7 +482,6 @@ macro_rules! core_fn {
     }
 }
 
-
 /* Alpha */
 macro_rules! without_freshening {
     ($( $body:tt )*) => {{
@@ -501,36 +497,38 @@ macro_rules! without_freshening {
     }}
 }
 
-
 /* for core_forms */
 
 /* Unpacking `Ast`s into environments is a pain, so here's a macro for it*/
 macro_rules! expect_node {
-    ( ($node:expr ; $form:expr) $env:ident ; $body:expr ) => (
+    ( ($node:expr ; $form:expr) $env:ident ; $body:expr ) => {
         // This is tied to the signature of `Custom`
         if let Node(ref f, ref $env, _) = $node {
             if *f == $form {
                 $body
             } else {
                 // TODO: make it possible to specify which one
-                panic!("ICE or type error: Expected a {:#?} node, got {:#?}, which is {:#?}.",
-                       $form, $node, *f)
+                panic!(
+                    "ICE or type error: Expected a {:#?} node, got {:#?}, which is {:#?}.",
+                    $form, $node, *f
+                )
             }
         } else {
-            panic!("ICE or type error: Expected a {:#?} node, got {:#?}, which isn't a node.",
-                   $form, $node)
+            panic!(
+                "ICE or type error: Expected a {:#?} node, got {:#?}, which isn't a node.",
+                $form, $node
+            )
         }
-    )
+    };
 }
 
 macro_rules! expect_ty_node {
-    ( ($node:expr ; $form:expr ; $loc:expr) $env:ident ; $body:expr ) => ({
+    ( ($node:expr ; $form:expr ; $loc:expr) $env:ident ; $body:expr ) => {{
         // This is tied to the signature of `Custom`
         let $env = $node.destructure($form, $loc)?;
         $body
-    })
+    }};
 }
-
 
 // TODO: this ought to have some MBE support
 macro_rules! destructure_node {
@@ -554,7 +552,6 @@ macro_rules! forms_to_form_pat_export {
     }
 }
 
-
 /* panicking destructor (when the type system should offer protection) */
 
 macro_rules! extract {
@@ -565,7 +562,6 @@ macro_rules! extract {
         }
     }
 }
-
 
 /* Reification helper (doesn't work on parameterized types...) */
 
@@ -590,13 +586,18 @@ macro_rules! assert_m {
     ($got:expr, $expected:pat, $body:expr) => {{
         let got = $got;
         match got.clone() {
-            $expected => { assert!($body) }
-            _ => { assert!(false, "{:#?} does not match {:#?}", got, quote!($expected).as_str()) }
+            $expected => assert!($body),
+            _ => assert!(
+                false,
+                "{:#?} does not match {:#?}",
+                got,
+                quote!($expected).as_str()
+            ),
         }
     }};
     ($got:expr, $expected:pat) => {
         assert_m!($got, $expected, true)
-    }
+    };
 }
 
 macro_rules! layer_watch {

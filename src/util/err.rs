@@ -1,4 +1,4 @@
-use std::fmt::{Display, Debug, Result, Formatter};
+use std::fmt::{Debug, Display, Formatter, Result};
 
 custom_derive! {
     #[derive(Reifiable, Clone, PartialEq)]

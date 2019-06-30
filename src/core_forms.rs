@@ -1,18 +1,17 @@
 // This virtual machine kills cyber-fascists.
 
-
-use name::*;
-use grammar::{SynEnv, FormPat};
-use grammar::FormPat::*;
-use form::Form;
-use util::assoc::Assoc;
 use ast::*;
+use ast_walk::WalkRule::*;
+use core_type_forms::*;
+use form::Form;
+use grammar::FormPat::*;
+use grammar::{FormPat, SynEnv};
+use name::*;
+use num::bigint::ToBigInt;
+use runtime::eval::*;
 use std::rc::Rc;
 use ty::*;
-use runtime::eval::*;
-use ast_walk::WalkRule::*;
-use num::bigint::ToBigInt;
-use core_type_forms::*; // type forms are kinda bulky
+use util::assoc::Assoc; // type forms are kinda bulky
 
 // Core forms!
 //
@@ -20,19 +19,27 @@ use core_type_forms::*; // type forms are kinda bulky
 //
 // Unseemly programs have expressions and types (and probably kinds, too).
 
-
 pub fn ast_to_name(ast: &Ast) -> Name {
-    match *ast { Atom(n) => n, _ => { panic!("ICE: {:#?} is not an atom", ast) } }
+    match *ast {
+        Atom(n) => n,
+        _ => panic!("ICE: {:#?} is not an atom", ast),
+    }
 }
 pub fn vr_to_name(ast: &Ast) -> Name {
-    match *ast { VariableReference(n) => n, _ => { panic!("ICE: {:#?} is not a vr", ast) } }
+    match *ast {
+        VariableReference(n) => n,
+        _ => panic!("ICE: {:#?} is not a vr", ast),
+    }
 }
 
 /// Remove an `ExtendEnv` without respecting its binding behavior.
 /// This is safe if directly inside a `Node` that was just freshened.
 /// (TODO: think about what "just" means here. It's super-subtle!)
 pub fn strip_ee(a: &Ast) -> &Ast {
-    match *a { ExtendEnv(ref body, _) => (&**body), _ => panic!("ICE: malformed thing") }
+    match *a {
+        ExtendEnv(ref body, _) => (&**body),
+        _ => panic!("ICE: malformed thing"),
+    }
 }
 
 /// This is the Unseemly language.
@@ -54,80 +61,79 @@ pub fn make_core_syn_env() -> SynEnv {
     // Unseemly expressions
     let main_expr_forms = forms_to_form_pat![
         typed_form!("lambda",
-            /* syntax */ /* TODO: add comma separators to the syntax! */
-            (delim ".[", "[", [
-                               (star [(named "param", aat), (lit ":"),
-                                      (named "p_t", (call "Type"))]), (lit "."),
-                (named "body",
-                    (import [* ["param" : "p_t"]], (call "Expr")))]),
-            /* type */
-            cust_rc_box!( move | part_types | {
-                let lambda_type : Ty =
-                    ty!({ find_type(&ctf_0, "fn") ;
-                         "param" => [* part_types =>("param") part_types :
-                                       (, part_types.get_res(n("p_t"))?.concrete() )],
-                         "ret" => (, part_types.get_res(n("body"))?.concrete() )});
-                Ok(lambda_type)}),
-            /* evaluation */
-            cust_rc_box!( move | part_values | {
-                Ok(Function(Rc::new(Closure {
-                    body: strip_ee(part_values.get_term_ref(n("body"))).clone(),
-                    params:
-                        part_values.get_rep_term(n("param")).iter().map(ast_to_name).collect(),
-                    env: part_values.env
-                })))
-            })),
-
+        /* syntax */ /* TODO: add comma separators to the syntax! */
+        (delim ".[", "[", [
+                           (star [(named "param", aat), (lit ":"),
+                                  (named "p_t", (call "Type"))]), (lit "."),
+            (named "body",
+                (import [* ["param" : "p_t"]], (call "Expr")))]),
+        /* type */
+        cust_rc_box!( move | part_types | {
+            let lambda_type : Ty =
+                ty!({ find_type(&ctf_0, "fn") ;
+                     "param" => [* part_types =>("param") part_types :
+                                   (, part_types.get_res(n("p_t"))?.concrete() )],
+                     "ret" => (, part_types.get_res(n("body"))?.concrete() )});
+            Ok(lambda_type)}),
+        /* evaluation */
+        cust_rc_box!( move | part_values | {
+            Ok(Function(Rc::new(Closure {
+                body: strip_ee(part_values.get_term_ref(n("body"))).clone(),
+                params:
+                    part_values.get_rep_term(n("param")).iter().map(ast_to_name).collect(),
+                env: part_values.env
+            })))
+        })),
         typed_form!("apply", /* function application*/
-            (delim "(", "(", [(named "rator", (call "Expr")),
-             (star (named "rand", (call "Expr")))]),
-            cust_rc_box!(move | part_types | {
-                use walk_mode::WalkMode;
-                let return_type = ::ty_compare::Subtype::underspecified(n("<return_type>"));
+        (delim "(", "(", [(named "rator", (call "Expr")),
+         (star (named "rand", (call "Expr")))]),
+        cust_rc_box!(move | part_types | {
+            use walk_mode::WalkMode;
+            let return_type = ::ty_compare::Subtype::underspecified(n("<return_type>"));
 
-                // The `rator` must be a function that takes the `rand`s as arguments:
-                let _ = ::ty_compare::must_subtype(
-                    &ty!({ "Type" "fn" :
-                        "param" => (,seq part_types.get_rep_res(n("rand"))?
-                             .iter().map(|t| t.concrete()).collect::<Vec<_>>() ),
-                        "ret" => (, return_type.concrete() )}),
-                    &part_types.get_res(n("rator"))?,
-                    part_types.env.clone())
-                        .map_err(|e| ::util::err::sp(e, part_types.this_ast.clone()))?;
+            // The `rator` must be a function that takes the `rand`s as arguments:
+            let _ = ::ty_compare::must_subtype(
+                &ty!({ "Type" "fn" :
+                    "param" => (,seq part_types.get_rep_res(n("rand"))?
+                         .iter().map(|t| t.concrete()).collect::<Vec<_>>() ),
+                    "ret" => (, return_type.concrete() )}),
+                &part_types.get_res(n("rator"))?,
+                part_types.env.clone())
+                    .map_err(|e| ::util::err::sp(e, part_types.this_ast.clone()))?;
 
 
-                // TODO: write a test that exercises this (it's used in the prelude)
-                // What return type made that work?
-                ::ty_compare::unification.with(|unif| {
-                    let res = ::ty_compare::resolve(
-                        ::ast_walk::Clo{ it: return_type, env: part_types.env.clone()},
-                        &unif.borrow());
+            // TODO: write a test that exercises this (it's used in the prelude)
+            // What return type made that work?
+            ::ty_compare::unification.with(|unif| {
+                let res = ::ty_compare::resolve(
+                    ::ast_walk::Clo{ it: return_type, env: part_types.env.clone()},
+                    &unif.borrow());
 
-                    // Canonicalize the type in its environment:
-                    let res = ::ty_compare::canonicalize(&res.it, res.env);
-                    res.map_err(|e| ::util::err::sp(e, part_types.this_ast.clone()))
-                })
-            }),
-            cust_rc_box!( move | part_values | {
-                match part_values.get_res(n("rator"))? {
-                    Function(clos) => {
-                        let mut new_env = clos.env.clone();
-                        for (p, v) in clos.params.iter().zip(
-                                part_values.get_rep_res(n("rand"))?) {
-                            new_env = new_env.set(*p, v);
-                        }
-
-                        ::runtime::eval::eval(&clos.body, new_env)
-                    },
-                    BuiltInFunction(::runtime::eval::BIF(f)) => {
-                        Ok(f(part_values.get_rep_res(n("rand"))?))
+                // Canonicalize the type in its environment:
+                let res = ::ty_compare::canonicalize(&res.it, res.env);
+                res.map_err(|e| ::util::err::sp(e, part_types.this_ast.clone()))
+            })
+        }),
+        cust_rc_box!( move | part_values | {
+            match part_values.get_res(n("rator"))? {
+                Function(clos) => {
+                    let mut new_env = clos.env.clone();
+                    for (p, v) in clos.params.iter().zip(
+                            part_values.get_rep_res(n("rand"))?) {
+                        new_env = new_env.set(*p, v);
                     }
-                    other => {
-                        panic!("Type soundness bug: attempted to invoke {:#?}
-                        as if it were a function", other)
-                    }
+
+                    ::runtime::eval::eval(&clos.body, new_env)
+                },
+                BuiltInFunction(::runtime::eval::BIF(f)) => {
+                    Ok(f(part_values.get_rep_res(n("rand"))?))
                 }
-            })),
+                other => {
+                    panic!("Type soundness bug: attempted to invoke {:#?}
+                    as if it were a function", other)
+                }
+            }
+        })),
         typed_form!("match",
             [(lit "match"), (named "scrutinee", (call "Expr")),
              (delim "{", "{",
@@ -172,70 +178,69 @@ pub fn make_core_syn_env() -> SynEnv {
             })
         ),
         /* Note that we inconveniently require the user to specify the type.
-           "real" languages infer the type from the (required-to-be-unique)
-           component name. */
+        "real" languages infer the type from the (required-to-be-unique)
+        component name. */
         typed_form!("enum_expr",
-             [(delim "+[", "[", [(named "name", aat),
-                                 (star (named "component", (call "Expr")))]),
-              (lit ":"), (named "t", (call "Type"))],
-            /* Typesynth: */
-            cust_rc_box!( move | part_types | {
-                let res : Ty = part_types.get_res(n("t"))?;
-                expect_ty_node!( (res ; find_type(&ctf_2, "enum") ; &part_types.this_ast)
-                    enum_type_parts;
-                    {
-                        for enum_type_part in enum_type_parts.march_all(&[n("name")]) {
-                            if &part_types.get_term(n("name"))
-                                    != enum_type_part.get_leaf_or_panic(&n("name")) {
-                                continue; // not the right arm
-                            }
-
-                            let component_types : Vec<Ty> =
-                                enum_type_part.get_rep_leaf_or_panic(n("component"))
-                                    .iter().map(|a| Ty::new((*a).clone())).collect();
-
-                            // TODO: check that they're the same length!
-
-                            for (t, expected_t) in part_types.get_rep_res(n("component"))?
-                                    .iter().zip(component_types) {
-                                ty_exp!(t, &expected_t, part_types.this_ast);
-                            }
-                        return Ok(res.clone());
+         [(delim "+[", "[", [(named "name", aat),
+                             (star (named "component", (call "Expr")))]),
+          (lit ":"), (named "t", (call "Type"))],
+        /* Typesynth: */
+        cust_rc_box!( move | part_types | {
+            let res : Ty = part_types.get_res(n("t"))?;
+            expect_ty_node!( (res ; find_type(&ctf_2, "enum") ; &part_types.this_ast)
+                enum_type_parts;
+                {
+                    for enum_type_part in enum_type_parts.march_all(&[n("name")]) {
+                        if &part_types.get_term(n("name"))
+                                != enum_type_part.get_leaf_or_panic(&n("name")) {
+                            continue; // not the right arm
                         }
 
-                        ty_err!(NonexistentEnumArm
-                                    (ast_to_name(&part_types.get_term(n("name"))), res)
-                                at part_types.this_ast);
+                        let component_types : Vec<Ty> =
+                            enum_type_part.get_rep_leaf_or_panic(n("component"))
+                                .iter().map(|a| Ty::new((*a).clone())).collect();
+
+                        // TODO: check that they're the same length!
+
+                        for (t, expected_t) in part_types.get_rep_res(n("component"))?
+                                .iter().zip(component_types) {
+                            ty_exp!(t, &expected_t, part_types.this_ast);
+                        }
+                    return Ok(res.clone());
                     }
-                )
-            }),
-            /* Evaluate: */
-            cust_rc_box!( move | part_values | {
-                Ok(Enum(ast_to_name(&part_values.get_term(n("name"))),
-                    part_values.get_rep_res(n("component"))?))
-            })),
-        typed_form!("struct_expr",
-            (delim "*[", "[",
-                (star [(named "component_name", aat), (lit ":"),
-                       (named "component", (call "Expr"))])),
-            cust_rc_box!( move | part_types | {
-                Ok(ty!({ find_type(&ctf_3, "struct") ;
-                    "component_name" => (@"c" ,seq part_types.get_rep_term(n("component_name"))),
-                    "component" => (@"c" ,seq part_types.get_rep_res(n("component"))?
-                        .into_iter().map(|c : Ty| c.concrete()))
-                }))
-            }),
-            cust_rc_box!( move | part_values | {
-                let mut res = Assoc::new();
 
-                for component_parts in part_values.march_parts(&[n("component")]) {
-                    res = res.set(ast_to_name(&component_parts.get_term(n("component_name"))),
-                                  component_parts.get_res(n("component"))?);
+                    ty_err!(NonexistentEnumArm
+                                (ast_to_name(&part_types.get_term(n("name"))), res)
+                            at part_types.this_ast);
                 }
+            )
+        }),
+        /* Evaluate: */
+        cust_rc_box!( move | part_values | {
+            Ok(Enum(ast_to_name(&part_values.get_term(n("name"))),
+                part_values.get_rep_res(n("component"))?))
+        })),
+        typed_form!("struct_expr",
+        (delim "*[", "[",
+            (star [(named "component_name", aat), (lit ":"),
+                   (named "component", (call "Expr"))])),
+        cust_rc_box!( move | part_types | {
+            Ok(ty!({ find_type(&ctf_3, "struct") ;
+                "component_name" => (@"c" ,seq part_types.get_rep_term(n("component_name"))),
+                "component" => (@"c" ,seq part_types.get_rep_res(n("component"))?
+                    .into_iter().map(|c : Ty| c.concrete()))
+            }))
+        }),
+        cust_rc_box!( move | part_values | {
+            let mut res = Assoc::new();
 
-                Ok(Struct(res))
-            })),
+            for component_parts in part_values.march_parts(&[n("component")]) {
+                res = res.set(ast_to_name(&component_parts.get_term(n("component_name"))),
+                              component_parts.get_res(n("component"))?);
+            }
 
+            Ok(Struct(res))
+        })),
         /* e.g.
          * let_type
          *   pair = mu lhs rhs. {l: lhs, r: rhs}
@@ -243,20 +248,19 @@ pub fn make_core_syn_env() -> SynEnv {
          * in ...
          */
         typed_form!("let_type",
-            [(lit "let_type"),
-             (named "type_kind_stx", (anyways "*")),
-             (star [(named "type_name", aat),
-                    (lit "="),
-                    (named "type_def", (import [* ["type_name" = "type_def"]], (call "Type")))]),
-             (lit "in"),
-             (named "body", (import [* ["type_name" = "type_def"]], (call "Expr")))],
-            Body(n("body")),
-            // HACK: like `Body(n("body"))`, but ignoring the binding, since it's type-level.
-            // This feels like it ought to be better-handled by `beta`, or maybe a kind system.
-            cust_rc_box!( move | let_type_parts | {
-                eval(strip_ee(&let_type_parts.get_term(n("body"))), let_type_parts.env)
-            })),
-
+        [(lit "let_type"),
+         (named "type_kind_stx", (anyways "*")),
+         (star [(named "type_name", aat),
+                (lit "="),
+                (named "type_def", (import [* ["type_name" = "type_def"]], (call "Type")))]),
+         (lit "in"),
+         (named "body", (import [* ["type_name" = "type_def"]], (call "Expr")))],
+        Body(n("body")),
+        // HACK: like `Body(n("body"))`, but ignoring the binding, since it's type-level.
+        // This feels like it ought to be better-handled by `beta`, or maybe a kind system.
+        cust_rc_box!( move | let_type_parts | {
+            eval(strip_ee(&let_type_parts.get_term(n("body"))), let_type_parts.env)
+        })),
         /* e.g. where List = ∀ X. μ List. enum { Nil(), Cons(X, List<[X]<) }
          * .[x : List <[X]<  . match (unfold x) ... ].
          * (unfold is needed because `match` wants an `enum`, not a `μ`)
@@ -283,7 +287,6 @@ pub fn make_core_syn_env() -> SynEnv {
                     })
             }),
             Body(n("body"))),
-
         /* e.g. where List = ∀ X. μ List. enum { Nil (), Cons (X, List<[X]<) }
          * (.[x : List <[X]< . ...]. (fold +[Nil]+) ) : List<[X]<
          */
@@ -308,7 +311,6 @@ pub fn make_core_syn_env() -> SynEnv {
                 Ok(goal_type)
             }),
             Body(n("body"))),
-
         typed_form!("forall_expr",
             [(lit "forall"), (star (named "param", aat)), (lit "."),
              (named "body", (import [* [forall "param"]], (call "Expr")))],
@@ -320,10 +322,8 @@ pub fn make_core_syn_env() -> SynEnv {
                 }))
             }),
             Body(n("body"))),
-
-        ::core_qq_forms::quote(/*positive=*/true)
+        ::core_qq_forms::quote(/*positive=*/ true)
     ];
-
 
     let main_pat_forms = forms_to_form_pat_export![
         negative_typed_form!("enum_pat",
@@ -446,8 +446,9 @@ pub fn make_core_syn_env() -> SynEnv {
         "Pat" => Rc::new(Biased(Rc::new(main_pat_forms), Rc::new(AnyAtomicToken))),
         "Expr" => Rc::new(Biased(Rc::new(main_expr_forms), Rc::new(VarRef))),
         "Ident" => Rc::new(AnyAtomicToken)
-    ).set_assoc(&ctf).set_assoc(&cmf) /* throw in the types and macros! */
-
+    )
+    .set_assoc(&ctf)
+    .set_assoc(&cmf) /* throw in the types and macros! */
 }
 
 /**
@@ -455,7 +456,6 @@ pub fn make_core_syn_env() -> SynEnv {
  * In the "real world", programmers look up forms by syntax, using a parser.
  */
 pub fn find_form(se: &SynEnv, nt: &str, form_name: &str) -> Rc<Form> {
-
     fn find_form_rec(f: &FormPat, form_name: &str) -> Option<Rc<Form>> {
         match *f {
             Scope(ref f, _) => {
@@ -468,13 +468,19 @@ pub fn find_form(se: &SynEnv, nt: &str, form_name: &str) -> Rc<Form> {
             Alt(ref vf) => {
                 for f in vf {
                     let res = find_form_rec(f, form_name);
-                    if res.is_some() { return res; }
+                    if res.is_some() {
+                        return res;
+                    }
                 }
                 None
             }
             Biased(ref lhs, ref rhs) => {
                 let l_res = find_form_rec(lhs, form_name);
-                if l_res.is_some() { l_res } else { find_form_rec(rhs, form_name) }
+                if l_res.is_some() {
+                    l_res
+                } else {
+                    find_form_rec(rhs, form_name)
+                }
             }
             _ => None,
         }
@@ -484,7 +490,6 @@ pub fn find_form(se: &SynEnv, nt: &str, form_name: &str) -> Rc<Form> {
     find_form_rec(pat, form_name)
         .unwrap_or_else(|| panic!(format!("{:#?} not found in {:#?}", form_name, pat)))
 }
-
 
 // Inserts a new form into a grammar in the "sensible" place
 //  (underneath any number of `Biased`s, as a new arm of an `Alt`).
@@ -509,9 +514,9 @@ pub fn add_form_at_the_alt(outer: Rc<FormPat>, inner: &FormPat) -> Option<FormPa
         Alt(ref subs) => {
             let mut my_subs: Vec<Rc<FormPat>> = subs.clone();
             my_subs.push(Rc::new(inner.clone()));
-            return Some(Alt(my_subs))
+            return Some(Alt(my_subs));
         }
-        _ => None
+        _ => None,
     }
 }
 
@@ -532,40 +537,43 @@ pub fn find(nt: &str, name: &str) -> Rc<Form> {
 }
 
 // Deprecated; use `::core_forms::find` instead (keep it qualified!)
-pub fn find_core_form(nt: &str, name: &str) -> Rc<Form> { find(nt, name) }
+pub fn find_core_form(nt: &str, name: &str) -> Rc<Form> {
+    find(nt, name)
+}
 
 pub fn get_core_forms() -> SynEnv {
     core_forms.with(|cf| cf.clone())
 }
 
-
-
 #[test]
 fn form_grammar() {
     let cse = make_core_syn_env();
-    use read::*;
     use read::DelimChar::*;
+    use read::*;
 
-    assert_eq!(::grammar::parse(&form_pat!((call "Type")),
-                              &cse.clone(),
-                              &tokens!([""; "Ident" "->" "Ident"])),
-               Ok(ast!({ find_form(&cse, "Type", "fn");
+    assert_eq!(
+        ::grammar::parse(
+            &form_pat!((call "Type")),
+            &cse.clone(),
+            &tokens!([""; "Ident" "->" "Ident"])
+        ),
+        Ok(ast!({ find_form(&cse, "Type", "fn");
                    ["ret" => {find_form(&cse, "Type", "Ident") ; []},
-                    "param" => [{find_form(&cse, "Type", "Ident") ; []}]]})));
+                    "param" => [{find_form(&cse, "Type", "Ident") ; []}]]}))
+    );
 }
-
 
 #[test]
 fn form_expect_node() {
     let ast = ast!({ find_core_form("Expr", "apply");
         ["rand" => [(vr "f")], "rator" => (vr "x")]});
     let _: Result<(), ()> = expect_node!(
-        ( ast ; find_core_form("Expr", "apply")) env; //expect_f = "rand", expect_x = "rator";
-        {
-            assert_eq!(env.get_rep_leaf_or_panic(n("rand")), vec![&ast!((vr "f"))]);
-            assert_eq!(env.get_leaf_or_panic(&n("rator")), &ast!((vr "x")));
-            Ok(())
-        });
+    ( ast ; find_core_form("Expr", "apply")) env; //expect_f = "rand", expect_x = "rator";
+    {
+        assert_eq!(env.get_rep_leaf_or_panic(n("rand")), vec![&ast!((vr "f"))]);
+        assert_eq!(env.get_leaf_or_panic(&n("rator")), &ast!((vr "x")));
+        Ok(())
+    });
 }
 
 #[test]
@@ -577,23 +585,31 @@ fn form_type() {
     let lam = find_core_form("Expr", "lambda");
     let fun = find_core_form("Type", "fn");
 
+    assert_eq!(
+        synth_type(&ast!( (vr "X") ), simple_ty_env.clone()),
+        Ok(ty!({
+            find_core_form("Type", "Int");
+        }))
+    );
 
-    assert_eq!(synth_type(&ast!( (vr "X") ), simple_ty_env.clone()),
-               Ok(ty!( { find_core_form("Type", "Int") ; })));
-
-    assert_eq!(synth_type(&ast!(
+    assert_eq!(
+        synth_type(
+            &ast!(
         { lam.clone() ;
             "param" => [@"p" "y"],
             "p_t" => [@"p" { find_core_form("Type", "Nat") ; }],
             "body" => (import [* [ "param" : "p_t" ]] (vr "X"))}),
-        simple_ty_env.clone()),
+            simple_ty_env.clone()
+        ),
         Ok(ty!({ fun.clone() ;
             "param" => [{ find_core_form("Type", "Nat") ; }],
-            "ret" => { find_core_form("Type", "Int") ; }})));
+            "ret" => { find_core_form("Type", "Int") ; }}))
+    );
 }
 
 #[test]
-fn type_apply_with_subtype() { // Application can perform subtyping
+fn type_apply_with_subtype() {
+    // Application can perform subtyping
 
     let nat_ty = ty!({ "Type" "Nat" : });
 
@@ -609,16 +625,23 @@ fn type_apply_with_subtype() { // Application can perform subtyping
                     "param" => [ (vr "T") ],
                     "ret" => (vr "T") })}));
 
-    assert_eq!(synth_type(&ast!(
+    assert_eq!(
+        synth_type(
+            &ast!(
             { "Expr" "apply" : "rator" => (vr "nat_to_nat") , "rand" => [ (vr "N") ]}),
-            ty_env.clone()),
-        Ok(nat_ty.clone()));
+            ty_env.clone()
+        ),
+        Ok(nat_ty.clone())
+    );
 
-    assert_eq!(synth_type(&ast!(
+    assert_eq!(
+        synth_type(
+            &ast!(
             { "Expr" "apply" : "rator" => (vr "∀t_t_to_t") , "rand" => [ (vr "N") ]}),
-            ty_env.clone()),
-        Ok(nat_ty.clone()));
-
+            ty_env.clone()
+        ),
+        Ok(nat_ty.clone())
+    );
 }
 
 #[test]
@@ -627,35 +650,44 @@ fn form_eval() {
                               "w" => val!(i 99),
                               "b" => val!(b false));
 
-    assert_eq!(eval(&ast!((vr "x")), simple_env.clone()),
-               Ok(Int(18.to_bigint().unwrap())));
+    assert_eq!(
+        eval(&ast!((vr "x")), simple_env.clone()),
+        Ok(Int(18.to_bigint().unwrap()))
+    );
 
     // (λy.w) x
-    assert_eq!(eval(&ast!(
-        { "Expr" "apply" :
-             "rator" =>
-                { "Expr" "lambda" :
-                    "param" => [@"p" "y"],
-                    "p_t" => [@"p" "Int"],
-                    "body" => (import [* [ "param" : "p_t" ]]  (vr "w"))},
-             "rand" => [(vr "x")]
-            }),
-        simple_env.clone()),
-        Ok(Int(99.to_bigint().unwrap())));
+    assert_eq!(
+        eval(
+            &ast!(
+            { "Expr" "apply" :
+                 "rator" =>
+                    { "Expr" "lambda" :
+                        "param" => [@"p" "y"],
+                        "p_t" => [@"p" "Int"],
+                        "body" => (import [* [ "param" : "p_t" ]]  (vr "w"))},
+                 "rand" => [(vr "x")]
+                }),
+            simple_env.clone()
+        ),
+        Ok(Int(99.to_bigint().unwrap()))
+    );
 
     // (λy.y) x
-    assert_eq!(eval(&ast!(
-        { "Expr" "apply" :
-             "rator" =>
-                { "Expr" "lambda" :
-                    "param" => [@"p" "y"],
-                    "p_t" => [@"p" "Int"],
-                    "body" => (import [* [ "param" : "p_t" ]]  (vr "y"))},
-             "rand" => [(vr "x")]
-            }),
-        simple_env.clone()),
-        Ok(Int(18.to_bigint().unwrap())));
-
+    assert_eq!(
+        eval(
+            &ast!(
+            { "Expr" "apply" :
+                 "rator" =>
+                    { "Expr" "lambda" :
+                        "param" => [@"p" "y"],
+                        "p_t" => [@"p" "Int"],
+                        "body" => (import [* [ "param" : "p_t" ]]  (vr "y"))},
+                 "rand" => [(vr "x")]
+                }),
+            simple_env.clone()
+        ),
+        Ok(Int(18.to_bigint().unwrap()))
+    );
 }
 
 #[test]
@@ -672,24 +704,33 @@ fn alg_type() {
     });
 
     // Typecheck enum pattern
-    assert_eq!(neg_synth_type(&ast!(
-        { "Pat" "enum_pat" :
-            "name" => "Jefferson",
-            "component" => ["abc", "def"]
-        }),
-        mt_ty_env.set(negative_ret_val(), my_enum.clone())),
-        Ok(Assoc::new().set(n("abc"), ty!({"Type" "Int":})).set(n("def"), ty!({"Type" "Nat":}))));
+    assert_eq!(
+        neg_synth_type(
+            &ast!(
+            { "Pat" "enum_pat" :
+                "name" => "Jefferson",
+                "component" => ["abc", "def"]
+            }),
+            mt_ty_env.set(negative_ret_val(), my_enum.clone())
+        ),
+        Ok(Assoc::new()
+            .set(n("abc"), ty!({"Type" "Int":}))
+            .set(n("def"), ty!({"Type" "Nat":})))
+    );
 
     // Typecheck enum expression
-    assert_eq!(synth_type(&ast!(
-        { "Expr" "enum_expr" :
-            "name" => "Jefferson",
-            "component" => [(vr "x"), (vr "n")],
-            "t" => (, my_enum.concrete() )
-        }),
-        simple_ty_env.clone()),
-        Ok(my_enum.clone()));
-
+    assert_eq!(
+        synth_type(
+            &ast!(
+            { "Expr" "enum_expr" :
+                "name" => "Jefferson",
+                "component" => [(vr "x"), (vr "n")],
+                "t" => (, my_enum.concrete() )
+            }),
+            simple_ty_env.clone()
+        ),
+        Ok(my_enum.clone())
+    );
 
     let my_struct = ty!({ "Type" "struct" :
         "component_name" => [@"c" "x", "y"],
@@ -697,76 +738,98 @@ fn alg_type() {
     });
 
     // Typecheck struct pattern
-    assert_eq!(neg_synth_type(&ast!(
+    assert_eq!(
+        neg_synth_type(
+            &ast!(
             { "Pat" "struct_pat" :
                 "component_name" => [@"c" "y", "x"],
                 "component" => [@"c" "yy", "xx"]
             }),
-            mt_ty_env.set(negative_ret_val(), my_struct.clone())),
-        Ok(assoc_n!("yy" => ty!({"Type" "Float" :}), "xx" => ty!({"Type" "Int":}))));
+            mt_ty_env.set(negative_ret_val(), my_struct.clone())
+        ),
+        Ok(assoc_n!("yy" => ty!({"Type" "Float" :}), "xx" => ty!({"Type" "Int":})))
+    );
 
     // Typecheck struct expression
 
     // TODO: currently {x: integer, y: float} ≠ {y: float, x: integer}
     // Implement proper type equality!
-    assert_eq!(synth_type(&ast!(
+    assert_eq!(
+        synth_type(
+            &ast!(
             { "Expr" "struct_expr" :
                 "component_name" => [@"c" "x", "y"],
                 "component" => [@"c" (vr "x"), (vr "f")]
             }),
-            simple_ty_env.clone()),
-        Ok(my_struct));
+            simple_ty_env.clone()
+        ),
+        Ok(my_struct)
+    );
 
     // Simple match...
 
-    assert_eq!(synth_type(&ast!({ "Expr" "match" :
+    assert_eq!(
+        synth_type(
+            &ast!({ "Expr" "match" :
                 "scrutinee" => (vr "f"),
                 "p" => [@"arm" "my_new_name", "unreachable"],
                 "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")),
                                  (import ["p" = "scrutinee"] (vr "f"))]
             }),
-            simple_ty_env.clone()),
-        Ok(ty!({"Type" "Float" :})));
-
-    assert_m!(synth_type(&ast!({ "Expr" "match" :
-            "scrutinee" => (vr "n"),
-            "p" => [@"arm" "my_new_name", "unreachable"],
-            "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")),
-                             (import ["p" = "scrutinee"] (vr "f"))]
-        }),
-        simple_ty_env.clone()),
-        ty_err_p!(Mismatch(_,_)));
-
-    assert_m!(synth_type(&ast!({ "Expr" "match" :
-                "scrutinee" => (vr "my_enum"),
-                "p" => [@"arm" { "Pat" "enum_pat" :
-                    "name" => "Hamilton", "component" => ["ii"] // Never gonna be president...
-                }],
-                "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "ii"))]
-        }),
-        simple_ty_env.set(n("my_enum"), my_enum.clone())),
-        ty_err_p!(NonexistentEnumArm(_,_))
+            simple_ty_env.clone()
+        ),
+        Ok(ty!({"Type" "Float" :}))
     );
 
+    assert_m!(
+        synth_type(
+            &ast!({ "Expr" "match" :
+                "scrutinee" => (vr "n"),
+                "p" => [@"arm" "my_new_name", "unreachable"],
+                "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")),
+                                 (import ["p" = "scrutinee"] (vr "f"))]
+            }),
+            simple_ty_env.clone()
+        ),
+        ty_err_p!(Mismatch(_, _))
+    );
 
-    assert_eq!(synth_type(&ast!({ "Expr" "match" :
-                "scrutinee" => (vr "my_enum"),
-                "p" => [@"arm"
-                { "Pat" "enum_pat" => [* ["component"]] :
-                    "name" => "Adams", "component" => ["ii"]
-                },
-                { "Pat" "enum_pat" => [* ["component"]] :
-                    "name" => "Jefferson", "component" => ["ii", "bb"]
-                },
-                { "Pat" "enum_pat" => [* ["component"]] :
-                    "name" => "Burr", "component" => ["xx", "yy"]
-                }],
-                "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "ii")),
-                                 (import ["p" = "scrutinee"] (vr "ii")),
-                                 (import ["p" = "scrutinee"] (vr "x"))]
-        }),
-        simple_ty_env.set(n("my_enum"), my_enum.clone())),
-        Ok(ty!({"Type" "Int":})));
+    assert_m!(
+        synth_type(
+            &ast!({ "Expr" "match" :
+                    "scrutinee" => (vr "my_enum"),
+                    "p" => [@"arm" { "Pat" "enum_pat" :
+                        "name" => "Hamilton", "component" => ["ii"] // Never gonna be president...
+                    }],
+                    "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "ii"))]
+            }),
+            simple_ty_env.set(n("my_enum"), my_enum.clone())
+        ),
+        ty_err_p!(NonexistentEnumArm(_, _))
+    );
+
+    assert_eq!(
+        synth_type(
+            &ast!({ "Expr" "match" :
+                    "scrutinee" => (vr "my_enum"),
+                    "p" => [@"arm"
+                    { "Pat" "enum_pat" => [* ["component"]] :
+                        "name" => "Adams", "component" => ["ii"]
+                    },
+                    { "Pat" "enum_pat" => [* ["component"]] :
+                        "name" => "Jefferson", "component" => ["ii", "bb"]
+                    },
+                    { "Pat" "enum_pat" => [* ["component"]] :
+                        "name" => "Burr", "component" => ["xx", "yy"]
+                    }],
+                    "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "ii")),
+                                     (import ["p" = "scrutinee"] (vr "ii")),
+                                     (import ["p" = "scrutinee"] (vr "x"))]
+            }),
+            simple_ty_env.set(n("my_enum"), my_enum.clone())
+        ),
+        Ok(ty!({"Type" "Int":}))
+    );
 }
 
 #[test]
@@ -777,21 +840,29 @@ fn alg_eval() {
     let simple_env = assoc_n!("x" => val!(i 18), "w" => val!(i 99), "b" => val!(b false));
 
     // Evaluate enum pattern
-    assert_eq!(neg_eval(&ast!(
-        { "Pat" "enum_pat" => [* ["component"]] :
-            "name" => "choice1",
-            "component" => ["abc", "def"]
-        }),
-        mt_env.set(negative_ret_val(), val!(enum "choice1", (i 9006), (b true)))),
-        Ok(assoc_n!("abc" => val!(i 9006), "def" => val!(b true))));
+    assert_eq!(
+        neg_eval(
+            &ast!(
+            { "Pat" "enum_pat" => [* ["component"]] :
+                "name" => "choice1",
+                "component" => ["abc", "def"]
+            }),
+            mt_env.set(negative_ret_val(), val!(enum "choice1", (i 9006), (b true)))
+        ),
+        Ok(assoc_n!("abc" => val!(i 9006), "def" => val!(b true)))
+    );
 
-    assert_eq!(neg_eval(&ast!(
-        { "Pat" "enum_pat" => [* ["component"]] :
-            "name" => "choice1",
-            "component" => ["abc", "def"]
-        }),
-        mt_env.set(negative_ret_val(), val!(enum "choice0", (i 12321)))),
-        Err(()));
+    assert_eq!(
+        neg_eval(
+            &ast!(
+            { "Pat" "enum_pat" => [* ["component"]] :
+                "name" => "choice1",
+                "component" => ["abc", "def"]
+            }),
+            mt_env.set(negative_ret_val(), val!(enum "choice0", (i 12321)))
+        ),
+        Err(())
+    );
 
     // Evaluate enum expression
 
@@ -805,62 +876,76 @@ fn alg_eval() {
     let enum_e = find_form(&cse, "Expr", "enum_expr");
 
     let choice1_e = ast!(
-        { enum_e.clone() ;
-            "name" => "choice1",
-            "component" => [(vr "x"), (vr "b")],
-            "t" => (, my_enum_t.clone())
-        });
+    { enum_e.clone() ;
+        "name" => "choice1",
+        "component" => [(vr "x"), (vr "b")],
+        "t" => (, my_enum_t.clone())
+    });
 
-    assert_eq!(eval(&choice1_e, simple_env.clone()),
-        Ok(val!(enum "choice1", (i 18), (b false))));
+    assert_eq!(
+        eval(&choice1_e, simple_env.clone()),
+        Ok(val!(enum "choice1", (i 18), (b false)))
+    );
 
     // Evaluate struct pattern
 
-    assert_eq!(neg_eval(&ast!(
-        {  "Pat" "struct_pat" => [* ["component"]] :
-            "component_name" => [@"c" "x", "y"],
-            "component" => [@"c" "xx", "yy"]
-        }),
-        mt_env.set(negative_ret_val(),
-                   Struct(assoc_n!("x" => val!(i 0), "y" => val!(b true))))),
-        Ok(assoc_n!("xx" => val!(i 0), "yy" => val!(b true))));
+    assert_eq!(
+        neg_eval(
+            &ast!(
+            {  "Pat" "struct_pat" => [* ["component"]] :
+                "component_name" => [@"c" "x", "y"],
+                "component" => [@"c" "xx", "yy"]
+            }),
+            mt_env.set(
+                negative_ret_val(),
+                Struct(assoc_n!("x" => val!(i 0), "y" => val!(b true)))
+            )
+        ),
+        Ok(assoc_n!("xx" => val!(i 0), "yy" => val!(b true)))
+    );
 
     // Evaluate match
 
-    assert_eq!(eval(&ast!({ "Expr" "match" :
-                "scrutinee" => (vr "x"),
-                "p" => [@"arm" "my_new_name", "unreachable"],
-                "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")),
-                                 (import ["p" = "scrutinee"] (vr "x"))]
-        }),
-        simple_env.clone()),
-        Ok(val!(i 18)));
+    assert_eq!(
+        eval(
+            &ast!({ "Expr" "match" :
+                    "scrutinee" => (vr "x"),
+                    "p" => [@"arm" "my_new_name", "unreachable"],
+                    "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")),
+                                     (import ["p" = "scrutinee"] (vr "x"))]
+            }),
+            simple_env.clone()
+        ),
+        Ok(val!(i 18))
+    );
 
-    assert_eq!(eval(&ast!({ "Expr" "match" :
-                "scrutinee" => (, choice1_e),
-                "p" => [@"arm"
-                { "Pat" "enum_pat" => [* ["component"]] :
-                    "name" => "choice2", "component" => ["xx", "yy"]
-                },
-                { "Pat" "enum_pat" => [* ["component"]] :
-                    "name" => "choice1", "component" => ["ii", "bb"]
-                },
-                { "Pat" "enum_pat" => [* ["component"]] :
-                    "name" => "choice0", "component" => ["ii"]
-                }],
-                "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "yy")),
-                                 (import ["p" = "scrutinee"] (vr "bb")),
-                                 (import ["p" = "scrutinee"] (vr "ii"))]
-        }),
-        simple_env.clone()),
-        Ok(val!(b false)));
+    assert_eq!(
+        eval(
+            &ast!({ "Expr" "match" :
+                    "scrutinee" => (, choice1_e),
+                    "p" => [@"arm"
+                    { "Pat" "enum_pat" => [* ["component"]] :
+                        "name" => "choice2", "component" => ["xx", "yy"]
+                    },
+                    { "Pat" "enum_pat" => [* ["component"]] :
+                        "name" => "choice1", "component" => ["ii", "bb"]
+                    },
+                    { "Pat" "enum_pat" => [* ["component"]] :
+                        "name" => "choice0", "component" => ["ii"]
+                    }],
+                    "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "yy")),
+                                     (import ["p" = "scrutinee"] (vr "bb")),
+                                     (import ["p" = "scrutinee"] (vr "ii"))]
+            }),
+            simple_env.clone()
+        ),
+        Ok(val!(b false))
+    );
 }
-
 
 #[test]
 fn recursive_types() {
-    let int_list_ty =
-        ty!( { "Type" "mu_type" :
+    let int_list_ty = ty!( { "Type" "mu_type" :
             "param" => [(import [prot "param"] (vr "IntList"))],
             "body" => (import [* [prot "param"]] { "Type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
@@ -877,10 +962,13 @@ fn recursive_types() {
     );
 
     // `IntList` shouldn't substitute
-    assert_eq!(synth_type(&ast!((vr "il_direct")), ty_env.clone()), Ok(int_list_ty.clone()));
+    assert_eq!(
+        synth_type(&ast!((vr "il_direct")), ty_env.clone()),
+        Ok(int_list_ty.clone())
+    );
 
     // I don't want these tests to depend on alpha-equivalence, so just disable freshening here.
-    without_freshening!{
+    without_freshening! {
     // Test that unfolding a type produces one that's "twice as large", minus the outer mu
     assert_eq!(synth_type(
         &ast!({"Expr" "unfold" : "body" => (vr "il_direct")}), ty_env.clone()),
@@ -928,18 +1016,20 @@ fn recursive_types() {
     };
 
     // Test that missing an unfold fails
-    assert_m!(synth_type(
+    assert_m!(
+        synth_type(
             &ast!( { "Expr" "match" :
-                "scrutinee" =>  (vr "il_direct") ,
-                "p" => [@"arm" { "Pat" "enum_pat" => [* ["component"]] :
-                "name" => "Cons",
-                "component" => ["car", "cdr"],
-                "t" => (vr "IntList")
-            }],
-            "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "car"))]
-        }),
-        ty_env.clone()),
-        ty_err_p!(UnableToDestructure(_,name_enum)),
+                    "scrutinee" =>  (vr "il_direct") ,
+                    "p" => [@"arm" { "Pat" "enum_pat" => [* ["component"]] :
+                    "name" => "Cons",
+                    "component" => ["car", "cdr"],
+                    "t" => (vr "IntList")
+                }],
+                "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "car"))]
+            }),
+            ty_env.clone()
+        ),
+        ty_err_p!(UnableToDestructure(_, name_enum)),
         name_enum == n("enum")
     );
 }
@@ -947,23 +1037,28 @@ fn recursive_types() {
 #[test]
 fn use__let_type() {
     // Basic usage:
-    assert_eq!(synth_type(&ast!( { "Expr" "let_type" :
-            "type_name" => [@"t" "T"],
-            "type_def" => [@"t"  { "Type" "Nat" :}],
-            "body" => (import [* ["type_name" = "type_def"]] { "Expr" "lambda" :
-                "param" => [@"p" "x"],
-                "p_t" => [@"p" (vr "T")],
-                "body" => (import [* ["param" : "p_t"]] (vr "x"))
-            })
-        }), Assoc::new()),
-    Ok(ty!( { "Type" "fn" : "param" => [ {"Type" "Nat" :}], "ret" => {"Type" "Nat" :}})));
+    assert_eq!(
+        synth_type(
+            &ast!( { "Expr" "let_type" :
+                "type_name" => [@"t" "T"],
+                "type_def" => [@"t"  { "Type" "Nat" :}],
+                "body" => (import [* ["type_name" = "type_def"]] { "Expr" "lambda" :
+                    "param" => [@"p" "x"],
+                    "p_t" => [@"p" (vr "T")],
+                    "body" => (import [* ["param" : "p_t"]] (vr "x"))
+                })
+            }),
+            Assoc::new()
+        ),
+        Ok(ty!( { "Type" "fn" : "param" => [ {"Type" "Nat" :}], "ret" => {"Type" "Nat" :}}))
+    );
 
     // useless type, but self-referential:
-    let trivial_mu_type =
-        ty!( { "Type" "mu_type" : "param" => [(import [prot "param"] (vr "T"))],
-                                  "body" => (import [* [prot "param"]] (vr "T")) }).concrete();
+    let trivial_mu_type = ty!( { "Type" "mu_type" : "param" => [(import [prot "param"] (vr "T"))],
+                                  "body" => (import [* [prot "param"]] (vr "T")) })
+    .concrete();
 
-    without_freshening!{
+    without_freshening! {
     // Recursive usage:
     assert_eq!(synth_type(&ast!( { "Expr" "let_type" :
             "type_name" => [@"t" "T"],
@@ -980,16 +1075,21 @@ fn use__let_type() {
     }
 
     // Basic usage, evaluated:
-    assert_m!(eval(&ast!( { "Expr" "let_type" :
-            "type_name" => [@"t" "T"],
-            "type_def" => [@"t" { "Type" "Nat" :}],
-            "body" => (import [* ["type_name" = "type_def"]] { "Expr" "lambda" :
-                "param" => [@"p" "x"],
-                "p_t" => [@"p" (vr "T")],
-                "body" => (import [* ["param" : "p_t"]] (vr "x"))
-            })
-        }), Assoc::new()),
-    Ok(_));
+    assert_m!(
+        eval(
+            &ast!( { "Expr" "let_type" :
+                "type_name" => [@"t" "T"],
+                "type_def" => [@"t" { "Type" "Nat" :}],
+                "body" => (import [* ["type_name" = "type_def"]] { "Expr" "lambda" :
+                    "param" => [@"p" "x"],
+                    "p_t" => [@"p" (vr "T")],
+                    "body" => (import [* ["param" : "p_t"]] (vr "x"))
+                })
+            }),
+            Assoc::new()
+        ),
+        Ok(_)
+    );
 }
 
 #[test]
@@ -1003,5 +1103,6 @@ fn use_insert_form_pat() {
         assoc_n!("Pat" => Rc::new(form_pat!((impossible))),
                  "Expr" => Rc::new(form_pat!(
                      (biased (biased aat, aat),
-                             (biased (alt (lit "a"), (lit "b"), (lit "c")), aat))))));
+                             (biased (alt (lit "a"), (lit "b"), (lit "c")), aat)))))
+    );
 }
