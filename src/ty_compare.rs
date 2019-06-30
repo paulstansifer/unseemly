@@ -1,106 +1,104 @@
 use ast::*;
-use ast_walk::WalkRule::*;
-use ast_walk::{walk, Clo, LazyWalkReses, WalkRule};
+use ast_walk::{
+    walk, Clo, LazyWalkReses,
+    WalkRule::{self, *},
+};
 use core_forms::{ast_to_name, find_core_form};
 use form::Form;
 use name::*;
-use std::cell::RefCell;
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap};
 use ty::{Ty, TyErr};
 use util::assoc::Assoc;
 use walk_mode::WalkMode;
 
-/* Let me write down an example subtyping hierarchy, to stop myself from getting confused.
-    ⊤ (any type/dynamic type/"dunno"/∀X.X)
-   ╱              |                       |          ╲
- Num          ∀X Y.(X⇒Y)               Nat⇒Int     ∀X Y.(X,Y)
-  |           ╱         ╲              ╱     ╲         ╲
- Int     ∀Y.(Bool⇒Y)  ∀X.(X⇒Bool)  Int⇒Int  Nat⇒Nat  ∀X.(X, Bool)
-  |           ╲         ╱              ╲     ╱           |
- Nat           Bool⇒Bool               Int⇒Nat      (Nat,Bool)
-   ╲               |                      |            ╱
-    ⊥ (uninhabited type/panic/"can't happen"/enum{})
+// Let me write down an example subtyping hierarchy, to stop myself from getting confused.
+// ⊤ (any type/dynamic type/"dunno"/∀X.X)
+// ╱              |                       |          ╲
+// Num          ∀X Y.(X⇒Y)               Nat⇒Int     ∀X Y.(X,Y)
+// |           ╱         ╲              ╱     ╲         ╲
+// Int     ∀Y.(Bool⇒Y)  ∀X.(X⇒Bool)  Int⇒Int  Nat⇒Nat  ∀X.(X, Bool)
+// |           ╲         ╱              ╲     ╱           |
+// Nat           Bool⇒Bool               Int⇒Nat      (Nat,Bool)
+// ╲               |                      |            ╱
+// ⊥ (uninhabited type/panic/"can't happen"/enum{})
+//
+// How do we see if S is a subtype of T?
+// First, we positively walk S, turning `∀X.(X⇒X)` into `(G23⇒G23)`
+// (where `G23` is a generated type name),
+// producing SArbitrary
+// Then, we negatively walk T, with SArbitrary as context, similarly eliminating `∀`.
+// We use side-effects to see if generated type names in T can be consistently assigned
+// to make everything match.
+//
+// Is (Int, Nat) <: ∀X. (X, X)?
+// If so, we could instantiate every type variable at ⊤, eliminating all constraints!
+// Eliminating ⊤ doesn't prevent (Bool⇒Bool, String⇒String) <: ∀X. (X X), via X=∀Y. Y⇒Y.
+// I think that this means we need to constrain ∀-originated variables to being equal,
+// not subtypes.
+//
+// Okay, we know that negative positions have the opposite subtyping relationship...
+//
+// <digression about something not currently implemented>
+//
+// ...weirdly, this kinda suggests that there's an alternative formulation of `∀`
+// that's more concise, and might play better with our system,
+// and (for better or worse) can't express certain "exotic" types.
+// In this forumlation, instead of writing `∀X. …`,
+// we paste `∀` in front of a negative-position variable:
+// id: ∀X ⇒ X
+// map: List<[∀X]< (X ⇒ ∀Y) ⇒ List<[Y]<   (need `letrec`-style binding!)
+// boring_map: List<[Int]< (Int ⇒ ∀Y) ⇒ List<[Y]<    (need `∀` to distinguish binders and refs!)
+// boring_map2: List<[∀X]< List<[X]< (X X ⇒ ∀Y) ⇒ List<[Y]<
+// let_macro: "[let :::[ ;[var ⇑ v]; = ;[ expr<[∀T]< ]; ]::: in ;[expr<[∀S]< ↓ ...{v = T}...]; ]"
+// -> expr<[S]<
+//
+// Okay, let's walk through this. Let's suppose that we have some type variables in scope:
+// is `(A ⇒ B) ⇒ ((∀A ⇒ F) ⇒ D)` a subtype of `(∀EE ⇒ BB) ⇒ (CC ⇒ EE)`?
+//
+// It starts as a negative walk of the purported supertype. Destructuring succeeds.
+// Add ∀ed type variables to an environment. Now `∀X` might as well be `X`.
+// - is [A]`((A ⇒ F) ⇒ D)` a subtype of [EE]`(CC ⇒ EE)`? Destructuring succeeds.
+// - is [A]`D` a subtype of [EE]`EE`? Set EE := `D`.
+// - is [EE]`CC` a subtype of [A]`(A ⇒ F)`? Depends on `CC`.
+// Assuming CC is `CC_arg ⇒ CC_ret`, we set A := CC_arg.
+// - is [EE]`(EE ⇒ BB)` a subtype of [A]`(A ⇒ B)`? Destructuring succeeds.
+// - is [EE]`BB` a subtype of [A]`B`? Depends on the environment.
+// - is [A]`A` a subtype of [EE]`EE`? Both have already been set, so:
+// - does `CC_arg` equal `D`? Depends on the environment.
+//
+// What if we re-order the side-effects?
+// ⋮
+// - is [A]`A` a subtype of [EE]`EE`? Set A := `A_and_EE` and EE := `A_and_EE`.
+// (What happens when names escape the scope that defined them??)
+// ⋮
+// - is [A]`D` a subtype of [EE]`EE`? EE is set to `A_and_EE`, so set A_and_EE := `D`
+// - is [EE]`CC` a subtype of [A]`(A ⇒ F)`? Depends on `CC`.
+// Assuming CC is `CC_arg ⇒ CC_ret`, does `D` equal `CC_arg`?.
+//
+// Note that, if we allowed ∀ed type variables to participate in subtyping,
+// these two orders would demand opposite relationships between `D` and `CC_arg`.
+//
+//
+//
+// So, we have this negative/positive distinction. Consider:
+// Nat (Int => String) => (∀X ⇒ X)
+// If you count how many negations each type is under,
+// you get a picture of the inputs and outputs of the type at a high level.
+// So, the type needs a `Nat` and a `String` and an `X`, and provides an `Int` and an `X`
+// (The `Int` is doubly-negated; the function promises to provide it to the function it is passed.).
+//
+// What about `Nat (∀X => Nat) => X`, assuming that we have access to `transmogrify`?
+// When we typecheck an invocation of it, we expect to know the exact type of its arguments,
+// but that exact type might well still be `∀X ⇒ Nat`,
+// meaning we have no idea what type we'll return, and no `∀`s left to explain the lack of knowledge.
+//
+// </digression>
+//
+// But let's not do that weird thing just yet.
+//
 
-How do we see if S is a subtype of T?
-First, we positively walk S, turning `∀X.(X⇒X)` into `(G23⇒G23)`
- (where `G23` is a generated type name),
- producing SArbitrary
-Then, we negatively walk T, with SArbitrary as context, similarly eliminating `∀`.
-We use side-effects to see if generated type names in T can be consistently assigned
- to make everything match.
-
-Is (Int, Nat) <: ∀X. (X, X)?
-If so, we could instantiate every type variable at ⊤, eliminating all constraints!
-Eliminating ⊤ doesn't prevent (Bool⇒Bool, String⇒String) <: ∀X. (X X), via X=∀Y. Y⇒Y.
-I think that this means we need to constrain ∀-originated variables to being equal,
- not subtypes.
-
-Okay, we know that negative positions have the opposite subtyping relationship...
-
-<digression about something not currently implemented>
-
-...weirdly, this kinda suggests that there's an alternative formulation of `∀`
- that's more concise, and might play better with our system,
-  and (for better or worse) can't express certain "exotic" types.
- In this forumlation, instead of writing `∀X. …`,
-  we paste `∀` in front of a negative-position variable:
-id: ∀X ⇒ X
-map: List<[∀X]< (X ⇒ ∀Y) ⇒ List<[Y]<   (need `letrec`-style binding!)
-boring_map: List<[Int]< (Int ⇒ ∀Y) ⇒ List<[Y]<    (need `∀` to distinguish binders and refs!)
-boring_map2: List<[∀X]< List<[X]< (X X ⇒ ∀Y) ⇒ List<[Y]<
-let_macro: "[let :::[ ;[var ⇑ v]; = ;[ expr<[∀T]< ]; ]::: in ;[expr<[∀S]< ↓ ...{v = T}...]; ]"
-              -> expr<[S]<
-
-Okay, let's walk through this. Let's suppose that we have some type variables in scope:
- is `(A ⇒ B) ⇒ ((∀A ⇒ F) ⇒ D)` a subtype of `(∀EE ⇒ BB) ⇒ (CC ⇒ EE)`?
-
-It starts as a negative walk of the purported supertype. Destructuring succeeds.
-Add ∀ed type variables to an environment. Now `∀X` might as well be `X`.
- - is [A]`((A ⇒ F) ⇒ D)` a subtype of [EE]`(CC ⇒ EE)`? Destructuring succeeds.
-   - is [A]`D` a subtype of [EE]`EE`? Set EE := `D`.
-   - is [EE]`CC` a subtype of [A]`(A ⇒ F)`? Depends on `CC`.
-       Assuming CC is `CC_arg ⇒ CC_ret`, we set A := CC_arg.
- - is [EE]`(EE ⇒ BB)` a subtype of [A]`(A ⇒ B)`? Destructuring succeeds.
-   - is [EE]`BB` a subtype of [A]`B`? Depends on the environment.
-   - is [A]`A` a subtype of [EE]`EE`? Both have already been set, so:
-     - does `CC_arg` equal `D`? Depends on the environment.
-
-What if we re-order the side-effects?
-    ⋮
-   - is [A]`A` a subtype of [EE]`EE`? Set A := `A_and_EE` and EE := `A_and_EE`.
-       (What happens when names escape the scope that defined them??)
-    ⋮
-   - is [A]`D` a subtype of [EE]`EE`? EE is set to `A_and_EE`, so set A_and_EE := `D`
-   - is [EE]`CC` a subtype of [A]`(A ⇒ F)`? Depends on `CC`.
-       Assuming CC is `CC_arg ⇒ CC_ret`, does `D` equal `CC_arg`?.
-
-Note that, if we allowed ∀ed type variables to participate in subtyping,
- these two orders would demand opposite relationships between `D` and `CC_arg`.
-
-
-
-So, we have this negative/positive distinction. Consider:
-  Nat (Int => String) => (∀X ⇒ X)
-If you count how many negations each type is under,
- you get a picture of the inputs and outputs of the type at a high level.
-So, the type needs a `Nat` and a `String` and an `X`, and provides an `Int` and an `X`
- (The `Int` is doubly-negated; the function promises to provide it to the function it is passed.).
-
-What about `Nat (∀X => Nat) => X`, assuming that we have access to `transmogrify`?
-When we typecheck an invocation of it, we expect to know the exact type of its arguments,
- but that exact type might well still be `∀X ⇒ Nat`,
- meaning we have no idea what type we'll return, and no `∀`s left to explain the lack of knowledge.
-
-</digression>
-
-But let's not do that weird thing just yet.
-
-*/
-
-/*
-The other thing that subtyping has to deal with is `...[T >> T]...`.
-
-*/
+// The other thing that subtyping has to deal with is `...[T >> T]...`.
+//
 
 /// Follow variable references in `env` and underdeterminednesses in `unif`
 ///  until we hit something that can't move further.
@@ -114,10 +112,7 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
             match env.find(&vr).cloned() {
                 // HACK: leave mu-protected variables alone, instead of recurring forever
                 Some(Ty(VariableReference(new_vr))) if vr == new_vr => None,
-                Some(different) => Some(Clo {
-                    it: different,
-                    env: env.clone(),
-                }),
+                Some(different) => Some(Clo { it: different, env: env.clone() }),
                 None => None,
             }
         }
@@ -128,18 +123,12 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
             let arg_terms = parts.get_rep_leaf_or_panic(n("arg"));
 
             let resolved = resolve(
-                Clo {
-                    it: Ty(parts.get_leaf_or_panic(&n("type_rator")).clone()),
-                    env: env.clone(),
-                },
+                Clo { it: Ty(parts.get_leaf_or_panic(&n("type_rator")).clone()), env: env.clone() },
                 unif,
             );
 
             match resolved {
-                Clo {
-                    it: Ty(VariableReference(rator_vr)),
-                    env,
-                } => {
+                Clo { it: Ty(VariableReference(rator_vr)), env } => {
                     // e.g. `X<[int, Y]<` underneath `mu X. ...`
 
                     // Rebuild a type_apply, but evaulate its arguments
@@ -165,18 +154,12 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
                     ));
 
                     if res != t {
-                        Some(Clo {
-                            it: res,
-                            env: env.clone(),
-                        })
+                        Some(Clo { it: res, env: env.clone() })
                     } else {
                         None
                     }
                 }
-                Clo {
-                    it: defined_type,
-                    env,
-                } => {
+                Clo { it: defined_type, env } => {
                     match defined_type.destructure(find_core_form("Type", "forall_type"), &t.0) {
                         Err(_) => None, // Broken "type_apply", but let it fail elsewhere
                         Ok(ref got_forall) => {
@@ -210,15 +193,12 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
         }
         Ty(Node(ref form, ref parts, _)) if form == &u_f => {
             // underdetermined
-            unif.get(&ast_to_name(parts.get_leaf_or_panic(&n("id"))))
-                .cloned()
+            unif.get(&ast_to_name(parts.get_leaf_or_panic(&n("id")))).cloned()
         }
         _ => None,
     };
 
-    resolved
-        .map(|clo| resolve(clo, unif))
-        .unwrap_or(Clo { it: t, env: env })
+    resolved.map(|clo| resolve(clo, unif)).unwrap_or(Clo { it: t, env: env })
 }
 
 thread_local! {
@@ -281,7 +261,7 @@ impl WalkMode for Canonicalize {
             // If it's protected, stop:
             Some(t) if &Ty(VariableReference(n)) == t => Ok(t.clone()),
             Some(t) => canonicalize(t, cnc.env.clone()),
-            None => Ok(Ty(VariableReference(n))), //TODO why can this happen?
+            None => Ok(Ty(VariableReference(n))), // TODO why can this happen?
         }
     }
 }
@@ -352,10 +332,7 @@ fn match_dotdotdot<'a>(
                 None => {} // False alarm; not a dotdotdot!
                 Some(sub_parts) => {
                     // Uh-oh, maybe we're comparing two dotdotdots?
-                    match sub_parts
-                        .get_leaf_or_panic(&n("body"))
-                        .destructure(ddd_form)
-                    {
+                    match sub_parts.get_leaf_or_panic(&n("body")).destructure(ddd_form) {
                         Some(_) => panic!("ICE: TODO: count up the stacks of :::[]:::"),
                         None => {
                             return None;
@@ -372,14 +349,7 @@ fn match_dotdotdot<'a>(
                 .map(|a: &&Ast| {
                     (
                         ::core_forms::vr_to_name(*a),
-                        resolve(
-                            Clo {
-                                it: Ty((*a).clone()),
-                                env: env.clone(),
-                            },
-                            &unif.borrow(),
-                        )
-                        .it,
+                        resolve(Clo { it: Ty((*a).clone()), env: env.clone() }, &unif.borrow()).it,
                     )
                 })
                 .collect()
@@ -428,12 +398,7 @@ fn match_dotdotdot<'a>(
         // TODO #13: This violates one of our main principles!
         // We should never modify code (in this case, types) before checking it.
         // We need to redesign `pre_match` to avoid this (we want to just change the ed)
-        Some(
-            substitution_envs
-                .iter()
-                .map(|env| ::alpha::substitute(&body, env))
-                .collect(),
-        )
+        Some(substitution_envs.iter().map(|env| ::alpha::substitute(&body, env)).collect())
     }
 }
 
@@ -453,22 +418,10 @@ impl ::walk_mode::NegativeWalkMode for Subtype {
 
         let (res_lhs, mut res_rhs) = unification.with(|unif| {
             // Capture the environment and resolve:
-            let lhs: Clo<Ty> = resolve(
-                Clo {
-                    it: lhs_ty,
-                    env: env.clone(),
-                },
-                &unif.borrow(),
-            )
-            .clone();
-            let rhs: Clo<Ty> = resolve(
-                Clo {
-                    it: rhs_ty,
-                    env: env.clone(),
-                },
-                &unif.borrow(),
-            )
-            .clone();
+            let lhs: Clo<Ty> =
+                resolve(Clo { it: lhs_ty, env: env.clone() }, &unif.borrow()).clone();
+            let rhs: Clo<Ty> =
+                resolve(Clo { it: rhs_ty, env: env.clone() }, &unif.borrow()).clone();
 
             let lhs_name = lhs.it.destructure(u_f.clone(), &Trivial).map(
                 // errors get swallowed ↓
@@ -517,10 +470,7 @@ impl ::walk_mode::NegativeWalkMode for Subtype {
 }
 
 pub fn canonicalize(t: &Ty, env: Assoc<Name, Ty>) -> Result<Ty, TyErr> {
-    walk::<Canonicalize>(
-        &t.concrete(),
-        &LazyWalkReses::<Canonicalize>::new_wrapper(env),
-    )
+    walk::<Canonicalize>(&t.concrete(), &LazyWalkReses::<Canonicalize>::new_wrapper(env))
 }
 
 pub fn must_subtype(sub: &Ty, sup: &Ty, env: Assoc<Name, Ty>) -> Result<Assoc<Name, Ty>, TyErr> {
@@ -569,24 +519,15 @@ fn basic_subtyping() {
          "param" => [(, int_ty.concrete())],
          "ret" => (, int_ty.concrete())});
 
-    assert_m!(
-        must_subtype(&int_to_int_fn_ty, &int_to_int_fn_ty, mt_ty_env.clone()),
-        Ok(_)
-    );
+    assert_m!(must_subtype(&int_to_int_fn_ty, &int_to_int_fn_ty, mt_ty_env.clone()), Ok(_));
 
     assert_m!(must_subtype(&id_fn_ty, &id_fn_ty, mt_ty_env.clone()), Ok(_));
 
     // actually subtype interestingly!
-    assert_m!(
-        must_subtype(&int_to_int_fn_ty, &id_fn_ty, mt_ty_env.clone()),
-        Ok(_)
-    );
+    assert_m!(must_subtype(&int_to_int_fn_ty, &id_fn_ty, mt_ty_env.clone()), Ok(_));
 
     // TODO: this error spits out generated names to the user without context ) :
-    assert_m!(
-        must_subtype(&id_fn_ty, &int_to_int_fn_ty, mt_ty_env.clone()),
-        Err(Mismatch(_, _))
-    );
+    assert_m!(must_subtype(&id_fn_ty, &int_to_int_fn_ty, mt_ty_env.clone()), Err(Mismatch(_, _)));
 
     let parametric_ty_env = assoc_n!(
         "some_int" => ty!( { "Type" "Int" : }),
@@ -600,20 +541,12 @@ fn basic_subtyping() {
         "int_to_int" => int_to_int_fn_ty.clone());
 
     assert_m!(
-        must_subtype(
-            &ty!((vr "int_to_int")),
-            &ty!((vr "identity")),
-            parametric_ty_env.clone()
-        ),
+        must_subtype(&ty!((vr "int_to_int")), &ty!((vr "identity")), parametric_ty_env.clone()),
         Ok(_)
     );
 
     assert_m!(
-        must_subtype(
-            &ty!((vr "identity")),
-            &ty!((vr "int_to_int")),
-            parametric_ty_env.clone()
-        ),
+        must_subtype(&ty!((vr "identity")), &ty!((vr "int_to_int")), parametric_ty_env.clone()),
         Err(Mismatch(_, _))
     );
 
@@ -624,15 +557,9 @@ fn basic_subtyping() {
             "ret" => (, Subtype::underspecified(n("<return_type>")).concrete() )})
     }
 
-    assert_m!(
-        must_subtype(&incomplete_fn_ty(), &int_to_int_fn_ty, mt_ty_env.clone()),
-        Ok(_)
-    );
+    assert_m!(must_subtype(&incomplete_fn_ty(), &int_to_int_fn_ty, mt_ty_env.clone()), Ok(_));
 
-    assert_m!(
-        must_subtype(&incomplete_fn_ty(), &id_fn_ty, mt_ty_env.clone()),
-        Ok(_)
-    );
+    assert_m!(must_subtype(&incomplete_fn_ty(), &id_fn_ty, mt_ty_env.clone()), Ok(_));
 
     assert_eq!(
         ::ty::synth_type(
@@ -677,23 +604,14 @@ fn misc_subtyping_problems() {
     );
 
     // μ also has binding:
-    assert_m!(
-        must_subtype(&int_list_ty, &int_list_ty, ty_env.clone()),
-        Ok(_)
-    );
-    assert_m!(
-        must_subtype(&int_list_ty, &bool_list_ty, ty_env.clone()),
-        Err(_)
-    );
+    assert_m!(must_subtype(&int_list_ty, &int_list_ty, ty_env.clone()), Ok(_));
+    assert_m!(must_subtype(&int_list_ty, &bool_list_ty, ty_env.clone()), Err(_));
 
     // Don't walk `Atom`s!
     let basic_enum = ty!({"Type" "enum" :
         "name" => [@"arm" "Aa", "Bb"],
         "component" => [@"arm" [{"Type" "Int" :}], []]});
-    assert_m!(
-        must_subtype(&basic_enum, &basic_enum, ::util::assoc::Assoc::new()),
-        Ok(_)
-    );
+    assert_m!(must_subtype(&basic_enum, &basic_enum, ::util::assoc::Assoc::new()), Ok(_));
 
     let basic_mu = ty!({"Type" "mu_type" :
         "param" => [(import [prot "param"] (vr "X"))],
@@ -748,10 +666,7 @@ fn misc_subtyping_problems() {
 
     // Some things that involve mu
 
-    assert_m!(
-        must_subtype(&ty!((vr "List")), &ty!((vr "List")), ty_env.clone()),
-        Ok(_)
-    );
+    assert_m!(must_subtype(&ty!((vr "List")), &ty!((vr "List")), ty_env.clone()), Ok(_));
 
     assert_m!(
         must_subtype(
@@ -880,20 +795,11 @@ fn subtype_different_mus() {
         "CharlotteBrontë" => jane_author.clone(),
         "CurrerBell" => jane_psuedonym.clone(),
         "EmilyBrontë" => wuthering_author.clone());
-    assert_m!(
-        must_subtype(&jane_author, &jane_author, mu_env.clone()),
-        Ok(_)
-    );
+    assert_m!(must_subtype(&jane_author, &jane_author, mu_env.clone()), Ok(_));
 
-    assert_m!(
-        must_subtype(&jane_author, &jane_psuedonym, mu_env.clone()),
-        Ok(_)
-    );
+    assert_m!(must_subtype(&jane_author, &jane_psuedonym, mu_env.clone()), Ok(_));
 
-    assert_m!(
-        must_subtype(&jane_author, &wuthering_author, mu_env.clone()),
-        Err(_)
-    );
+    assert_m!(must_subtype(&jane_author, &wuthering_author, mu_env.clone()), Err(_));
 }
 
 #[test]
@@ -906,11 +812,7 @@ fn subtype_dotdotdot() {
     });
 
     assert_m!(
-        must_subtype(
-            &dddple,
-            &threeple,
-            assoc_n!("T" => Subtype::underspecified(n("-")))
-        ),
+        must_subtype(&dddple, &threeple, assoc_n!("T" => Subtype::underspecified(n("-")))),
         Ok(_)
     );
 
@@ -919,11 +821,7 @@ fn subtype_dotdotdot() {
     //     Err(_));
 
     assert_m!(
-        must_subtype(
-            &dddple,
-            &dddple,
-            assoc_n!("T" => Subtype::underspecified(n("-")))
-        ),
+        must_subtype(&dddple, &dddple, assoc_n!("T" => Subtype::underspecified(n("-")))),
         Ok(_)
     );
 
@@ -933,20 +831,12 @@ fn subtype_dotdotdot() {
     });
 
     assert_m!(
-        must_subtype(
-            &intdddple,
-            &threeple,
-            assoc_n!("T" => Subtype::underspecified(n("-")))
-        ),
+        must_subtype(&intdddple, &threeple, assoc_n!("T" => Subtype::underspecified(n("-")))),
         Ok(_)
     );
 
     assert_m!(
-        must_subtype(
-            &intdddple,
-            &intdddple,
-            assoc_n!("T" => Subtype::underspecified(n("-")))
-        ),
+        must_subtype(&intdddple, &intdddple, assoc_n!("T" => Subtype::underspecified(n("-")))),
         Ok(_)
     );
 
@@ -956,11 +846,7 @@ fn subtype_dotdotdot() {
     });
 
     assert_m!(
-        must_subtype(
-            &floatdddple,
-            &threeple,
-            assoc_n!("T" => Subtype::underspecified(n("-")))
-        ),
+        must_subtype(&floatdddple, &threeple, assoc_n!("T" => Subtype::underspecified(n("-")))),
         Err(_)
     );
 }
@@ -985,14 +871,7 @@ fn basic_resolve() {
     let unif = HashMap::<Name, Clo<Ty>>::new();
 
     assert_eq!(
-        resolve(
-            Clo {
-                it: ty!({"Type" "Int" :}),
-                env: t_env.clone()
-            },
-            &unif
-        )
-        .it,
+        resolve(Clo { it: ty!({"Type" "Int" :}), env: t_env.clone() }, &unif).it,
         ty!({"Type" "Int" :})
     );
 

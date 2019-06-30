@@ -1,16 +1,16 @@
-/*
-Type synthesis is a recursive traversal of an abstract syntax tree.
-It is compositional,
- except for binding, which is indicated by ExtendTypeEnv nodes.
-These nodes may depend on
- the result of type-synthesizing sibling AST nodes
- or the actual value of AST nodes corresponding to types
-  (i.e., type annotations).
-*/
+// Type synthesis is a recursive traversal of an abstract syntax tree.
+// It is compositional,
+//  except for binding, which is indicated by ExtendTypeEnv nodes.
+// These nodes may depend on
+//  the result of type-synthesizing sibling AST nodes
+//  or the actual value of AST nodes corresponding to types
+//   (i.e., type annotations).
 
 use ast::*;
-use ast_walk::WalkRule::*;
-use ast_walk::{walk, LazyWalkReses, WalkRule};
+use ast_walk::{
+    walk, LazyWalkReses,
+    WalkRule::{self, *},
+};
 use form::Form;
 use name::*;
 use std::rc::Rc;
@@ -41,7 +41,8 @@ impl Ty {
         &self,
         expd_form: Rc<Form>,
         loc: &Ast,
-    ) -> Result<::util::mbe::EnvMBE<Ast>, TypeError> {
+    ) -> Result<::util::mbe::EnvMBE<Ast>, TypeError>
+    {
         self.0
             .destructure(expd_form.clone())
             .ok_or(ty_err_val!(UnableToDestructure(self.clone(), expd_form.name) at loc /*TODO*/))
@@ -118,10 +119,7 @@ impl WalkMode for SynthTy {
 
     fn walk_var(name: Name, parts: &::ast_walk::LazyWalkReses<SynthTy>) -> Result<Ty, TypeError> {
         match parts.env.find(&name) {
-            None => Err(::util::err::sp(
-                TyErr::UnboundName(name),
-                parts.this_ast.clone(),
-            )),
+            None => Err(::util::err::sp(TyErr::UnboundName(name), parts.this_ast.clone())),
             // If name is protected, stop:
             Some(ty) if &Ty(VariableReference(name)) == ty => Ok(ty.clone()),
             Some(ty) => synth_type(&ty.concrete(), parts.env.clone()),
@@ -192,11 +190,9 @@ impl ::std::fmt::Display for TyErr {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         use self::TyErr::*;
         match *self {
-            Mismatch(ref got, ref exp) => write!(
-                f,
-                "[Mismatch] got:\n  `{:#?}`\n   expected:\n  `{:#?}`\n",
-                got, exp
-            ),
+            Mismatch(ref got, ref exp) => {
+                write!(f, "[Mismatch] got:\n  `{:#?}`\n   expected:\n  `{:#?}`\n", got, exp)
+            }
             LengthMismatch(ref got, exp_len) => {
                 write!(f, "[LengthMismatch] got:\n  ")?;
                 for g in got {
@@ -206,8 +202,7 @@ impl ::std::fmt::Display for TyErr {
             }
             NtInterpMismatch(got, exp) => write!(
                 f,
-                "[NtInterpMismatch] expected the nonterminal `{:#?}`, \
-                 but `{:#?}` was interpolated",
+                "[NtInterpMismatch] expected the nonterminal `{:#?}`, but `{:#?}` was interpolated",
                 exp, got
             ),
             NonexistentEnumArm(got_name, ref ty) => write!(
@@ -217,18 +212,15 @@ impl ::std::fmt::Display for TyErr {
             ),
             NonexistentStructField(got_name, ref ty) => write!(
                 f,
-                "[NonexistentStructField] the struct `{}` doesn't have a \
-                 field named `{:#?}`",
+                "[NonexistentStructField] the struct `{}` doesn't have a field named `{:#?}`",
                 ty, got_name
             ),
             NonExhaustiveMatch(ref ty) => {
                 write!(f, "[NonExhaustiveMatch] non-exhaustive match of `{}`", ty)
             }
-            UnableToDestructure(ref ty, expected_name) => write!(
-                f,
-                "[UnableToDestructure] expected a `{}` type, got `{}`",
-                expected_name, ty
-            ),
+            UnableToDestructure(ref ty, expected_name) => {
+                write!(f, "[UnableToDestructure] expected a `{}` type, got `{}`", expected_name, ty)
+            }
             UnboundName(name) => write!(f, "[UnboundName] `{}` is not defined", name),
         }
     }
@@ -241,14 +233,12 @@ impl ::std::fmt::Debug for TyErr {
     }
 }
 
-/*
 // TODO: I hope I don't need this
-impl From<()> for TyErr {
-    fn from(_: ()) -> TyErr {
-        panic!("Tried to discard a type error");
-    }
-}
-*/
+// impl From<()> for TyErr {
+//     fn from(_: ()) -> TyErr {
+//         panic!("Tried to discard a type error");
+//     }
+// }
 
 pub type TypeError = ::util::err::Spanned<TyErr>;
 
@@ -280,10 +270,7 @@ fn basic_type_synth() {
     let body = basic_typed_form!(aat, Body(n("body")), NotWalked);
     let untypeable = basic_typed_form!(aat, NotWalked, NotWalked);
 
-    assert_eq!(
-        synth_type(&ast!((vr "x")), simple_ty_env.clone()),
-        Ok(int_ty.clone())
-    );
+    assert_eq!(synth_type(&ast!((vr "x")), simple_ty_env.clone()), Ok(int_ty.clone()));
 
     assert_eq!(
         synth_type(
@@ -326,10 +313,7 @@ fn basic_type_synth() {
     let chained_ty_env =
         assoc_n!("a" => ty!((vr "B")), "B" => ty!((vr "C")), "C" => ty!({"Type" "Int":}));
 
-    assert_eq!(
-        synth_type(&ast!((vr "a")), chained_ty_env),
-        Ok(ty!({"Type" "Int":}))
-    );
+    assert_eq!(synth_type(&ast!((vr "a")), chained_ty_env), Ok(ty!({"Type" "Int":})));
 }
 
 #[test]
@@ -352,19 +336,18 @@ fn type_specialization() {
             "body" => (import [* [forall "param"]] { "Type" "fn" :
                 "param" => [ (, tbn("t").concrete() ) ],
                 "ret" => (, tbn("t").concrete() ) })}));
-    /*
-    assert_eq!(synth_type(&ast!({ "Expr" "apply" :
-                "rator" => (vr "convert_to_nat"),
-                "rand" => [ (vr "some_int") ]
-            }), para_ty_env.clone()),
-        Ok(ty!( { "Type" "Nat" : })));
+    
+    // assert_eq!(synth_type(&ast!({ "Expr" "apply" :
+    //             "rator" => (vr "convert_to_nat"),
+    //             "rand" => [ (vr "some_int") ]
+    //         }), para_ty_env.clone()),
+    //     Ok(ty!( { "Type" "Nat" : })));
 
-    assert_eq!(synth_type(&ast!({ "Expr" "apply" :
-                "rator" => (vr "identity"),
-                "rand" => [ (vr "some_int") ]
-            }), para_ty_env.clone()),
-        Ok(ty!( { "Type" "Int" : })));
-    */
+    // assert_eq!(synth_type(&ast!({ "Expr" "apply" :
+    //             "rator" => (vr "identity"),
+    //             "rand" => [ (vr "some_int") ]
+    //         }), para_ty_env.clone()),
+    //     Ok(ty!( { "Type" "Int" : })));
     // TODO: test that ∀ X. ∀ Y. [ X → Y ] is a (sortof) sensible type (for transmogrify)
     //        and that ∀ X. [ X → ∀ Y . Y ] is ridiculously permissive
 }

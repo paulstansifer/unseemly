@@ -1,14 +1,11 @@
 #![macro_use]
 
-use ast::Ast;
-use ast::Ast::*;
+use ast::Ast::{self, *};
 use beta::{Beta, ExportBeta};
 use form::{simple_form, Form};
 use name::*;
 use read::{DelimChar, Group, Simple, Token, TokenTree};
-use std::boxed::Box;
-use std::clone::Clone;
-use std::rc::Rc;
+use std::{boxed::Box, clone::Clone, rc::Rc};
 use util::assoc::Assoc;
 
 impl Token {
@@ -95,11 +92,9 @@ impl FormPat {
                 res
             }
             Scope(_, _) => vec![], // No more bindings in this scope
-            Star(ref body) | Plus(ref body) => body
-                .binders()
-                .into_iter()
-                .map(|(n, depth)| (n, depth + 1))
-                .collect(),
+            Star(ref body) | Plus(ref body) => {
+                body.binders().into_iter().map(|(n, depth)| (n, depth + 1)).collect()
+            }
             Delimited(_, _, ref body)
             | ComputeSyntax(_, ref body)
             | SynImport(ref body, _, _)
@@ -152,9 +147,9 @@ impl FormPat {
                 }
                 None
             }
-            Biased(ref body_a, ref body_b) => body_a
-                .find_named_call(n)
-                .or_else(|| body_b.find_named_call(n)),
+            Biased(ref body_a, ref body_b) => {
+                body_a.find_named_call(n).or_else(|| body_b.find_named_call(n))
+            }
         }
     }
 }
@@ -206,10 +201,7 @@ pub fn plug_hole(outer: &Rc<FormPat>, hole: Name, inner: &Rc<FormPat>) -> Rc<For
             }
         }
         Anyways(_) | Impossible | Literal(_) | AnyToken | AnyAtomicToken | VarRef => outer.clone(),
-        Seq(ref subs) => Rc::new(Seq(subs
-            .iter()
-            .map(|sub| plug_hole(sub, hole, inner))
-            .collect())),
+        Seq(ref subs) => Rc::new(Seq(subs.iter().map(|sub| plug_hole(sub, hole, inner)).collect())),
         Delimited(n, ch, ref body) => Rc::new(Delimited(n, ch, plug_hole(&body, hole, inner))),
         _ => panic!("What are you doing? What do you even think will happen?"),
     }
@@ -217,12 +209,13 @@ pub fn plug_hole(outer: &Rc<FormPat>, hole: Name, inner: &Rc<FormPat>) -> Rc<For
 
 pub use earley::parse;
 
-/** Parse `tt` with the grammar `f` in an empty syntactic environment.
-`Call` patterns are errors. */
+/// Parse `tt` with the grammar `f` in an empty syntactic environment.
+/// `Call` patterns are errors.
 pub fn parse_top<'fun>(
     f: &'fun FormPat,
     tt: &'fun TokenTree,
-) -> Result<Ast, /*ParseError<SliceStream<'fun, Token>>*/ ::earley::ParseError> {
+) -> Result<Ast, /* ParseError<SliceStream<'fun, Token>> */ ::earley::ParseError>
+{
     parse(f, &Assoc::new(), tt)
 }
 
@@ -237,11 +230,7 @@ fn basic_parsing() {
 
     assert_eq!(
         parse_top(
-            &Seq(vec![
-                Rc::new(AnyToken),
-                Rc::new(Literal(n("fork"))),
-                Rc::new(AnyToken)
-            ]),
+            &Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
             &tokens!("asdf" "fork" "asdf")
         )
         .unwrap(),
@@ -250,11 +239,7 @@ fn basic_parsing() {
 
     assert_eq!(
         parse_top(
-            &Seq(vec![
-                Rc::new(AnyToken),
-                Rc::new(Literal(n("fork"))),
-                Rc::new(AnyToken)
-            ]),
+            &Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
             &tokens!("asdf" "fork" "asdf")
         )
         .unwrap(),
@@ -262,11 +247,7 @@ fn basic_parsing() {
     );
 
     parse_top(
-        &Seq(vec![
-            Rc::new(AnyToken),
-            Rc::new(Literal(n("fork"))),
-            Rc::new(AnyToken),
-        ]),
+        &Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
         &tokens!("asdf" "knife" "asdf"),
     )
     .unwrap_err();
@@ -286,14 +267,8 @@ fn basic_parsing() {
 
 #[test]
 fn alternation() {
-    assert_eq!(
-        parse_top(&form_pat!((alt (lit "A"), (lit "B"))), &tokens!("A")),
-        Ok(ast!("A"))
-    );
-    assert_eq!(
-        parse_top(&form_pat!((alt (lit "A"), (lit "B"))), &tokens!("B")),
-        Ok(ast!("B"))
-    );
+    assert_eq!(parse_top(&form_pat!((alt (lit "A"), (lit "B"))), &tokens!("A")), Ok(ast!("A")));
+    assert_eq!(parse_top(&form_pat!((alt (lit "A"), (lit "B"))), &tokens!("B")), Ok(ast!("B")));
 
     assert_eq!(
         parse_top(
@@ -343,14 +318,8 @@ fn advanced_parsing() {
         ast!({ - "c" => ["ttt", "ttt", "igi", "ttt", "ttt", "igi", "ttt"]})
     );
 
-    let ttt = simple_form(
-        "tictactoe",
-        form_pat!( [(named "c", (alt (lit "X"), (lit "O")))]),
-    );
-    let igi = simple_form(
-        "igetit",
-        form_pat!( [(named "c", (alt (lit "O"), (lit "H")))]),
-    );
+    let ttt = simple_form("tictactoe", form_pat!( [(named "c", (alt (lit "X"), (lit "O")))]));
+    let igi = simple_form("igetit", form_pat!( [(named "c", (alt (lit "O"), (lit "H")))]));
 
     assert_eq!(
         parse_top(
@@ -436,12 +405,7 @@ fn extensible_parsing() {
     );
 
     assert_eq!(
-        parse(
-            &form_pat!((call "o")),
-            &orig,
-            &tokens!("O" "O" "Extend" "O" "." "O")
-        )
-        .is_err(),
+        parse(&form_pat!((call "o")), &orig, &tokens!("O" "O" "Extend" "O" "." "O")).is_err(),
         true
     );
 
@@ -486,10 +450,9 @@ fn extensible_parsing() {
     );
 }
 
-/*
-#[test]
-fn test_syn_env_parsing() as{
-    let mut se = Assoc::new();
-    se = se.set(n("xes"), Box::new(Form { grammar: form_pat!((star (lit "X")),
-                                          relative_phase)}))
-}*/
+// #[test]
+// fn test_syn_env_parsing() as{
+// let mut se = Assoc::new();
+// se = se.set(n("xes"), Box::new(Form { grammar: form_pat!((star (lit "X")),
+// relative_phase)}))
+// }

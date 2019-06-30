@@ -1,58 +1,58 @@
-/*
- * The type theory for Unseemly
- *  is largely swiped from the "Types and Programming Languages" by Pierce.
- * I've agressively copied the formally-elegant but non-ergonomic theory
- *  whenever I think that the ergonomic way of doing things is just syntax sugar over it.
- * After all, syntax sugar is the point of Unseemly!
- *
- * However, I expect that the core types of a typed macro language will are
- *  part of the user interface (for example, they'd appear in generated module documentation).
- * Therefore, I used `enum` and `struct` instead of × and +.
- */
+// The type theory for Unseemly
+//  is largely swiped from the "Types and Programming Languages" by Pierce.
+// I've agressively copied the formally-elegant but non-ergonomic theory
+//  whenever I think that the ergonomic way of doing things is just syntax sugar over it.
+// After all, syntax sugar is the point of Unseemly!
+//
+// However, I expect that the core types of a typed macro language will are
+//  part of the user interface (for example, they'd appear in generated module documentation).
+// Therefore, I used `enum` and `struct` instead of × and +.
 
-/*
-There are two similar things we should distinguish!
-(1) syntax for types, as written by the user in an `Ast`
-(2) types themselves, the result of type synthesis, often stored in `Ty`
-     (which is just a thin wrapper around `Ast`).
-
-These things are almost identical,
- which is why postive synth_type is usually implemented with `LiteralLike`.
-Performing `SynthTy` translates from (1) to (2). Mainly, it resolves type variable references.
-
-We should also distinguish
-(3) ___, (normally also called "types"). The ___ of an expression is a type,
-     and the ___ of a type is a kind.
-
-
-It is at this point that I am reminded of a passage:
-
- Now in set theory, which deals with abstractions that we don't use all the time, a
- stratification like the theory of types seems acceptable, even if a little strange-but when it
- comes to language, an all-pervading part of life, such stratification appears absurd. We
- don't think of ourselves as jumping up and down a hierarchy of languages when we speak
- about various things. A rather matter-of-fact sentence such as, "In this book, I criticize
- the theory of types" would be doubly forbidden in the system we are discussing. Firstly, it
- mentions "this book", which should only be mentionable in a metabook-and secondly, it mentions
- me-a person whom I should not be allowed to speak of at all! This example points out how silly
- the theory of types seems, when you import it into a familiar context. The remedy it adopts for
- paradoxes-total banishment of self-reference in any form-is a real case of overkill, branding
- many perfectly good constructions as meaningless. The adjective "meaningless", by the way,
- would have to apply to all discussions of the theory of linguistic types (such as that of this
- very paragraph) for they clearly could not occur on any of the levels-neither object language,
- nor metalanguage, nor metametalanguage, etc. So the very act of discussing the theory
- would be the most blatant possible violation of it!
-
-   — Douglas Hofstadter, Gödel, Escher, Bach: an Eternal Golden Braid
-*/
+// There are two similar things we should distinguish!
+// (1) syntax for types, as written by the user in an `Ast`
+// (2) types themselves, the result of type synthesis, often stored in `Ty`
+//      (which is just a thin wrapper around `Ast`).
+//
+// These things are almost identical,
+//  which is why postive synth_type is usually implemented with `LiteralLike`.
+// Performing `SynthTy` translates from (1) to (2). Mainly, it resolves type variable references.
+//
+// We should also distinguish
+// (3) ___, (normally also called "types"). The ___ of an expression is a type,
+//      and the ___ of a type is a kind.
+//
+//
+// It is at this point that I am reminded of a passage:
+//
+// Now in set theory, which deals with abstractions that we don't use all the time, a
+// stratification like the theory of types seems acceptable, even if a little strange-but when it
+// comes to language, an all-pervading part of life, such stratification appears absurd. We
+// don't think of ourselves as jumping up and down a hierarchy of languages when we speak
+// about various things. A rather matter-of-fact sentence such as, "In this book, I criticize
+// the theory of types" would be doubly forbidden in the system we are discussing. Firstly, it
+// mentions "this book", which should only be mentionable in a metabook-and secondly, it mentions
+// me-a person whom I should not be allowed to speak of at all! This example points out how silly
+// the theory of types seems, when you import it into a familiar context. The remedy it adopts for
+// paradoxes-total banishment of self-reference in any form-is a real case of overkill, branding
+// many perfectly good constructions as meaningless. The adjective "meaningless", by the way,
+// would have to apply to all discussions of the theory of linguistic types (such as that of this
+// very paragraph) for they clearly could not occur on any of the levels-neither object language,
+// nor metalanguage, nor metametalanguage, etc. So the very act of discussing the theory
+// would be the most blatant possible violation of it!
+//
+// — Douglas Hofstadter, Gödel, Escher, Bach: an Eternal Golden Braid
 
 use ast::*;
-use ast_walk::WalkRule::*;
-use ast_walk::{walk, WalkRule};
+use ast_walk::{
+    walk,
+    WalkRule::{self, *},
+};
 use core_forms::{ast_to_name, vr_to_name};
 use form::{simple_form, BiDiWR, Both, Form, Positive};
-use grammar::FormPat::*;
-use grammar::{FormPat, SynEnv};
+use grammar::{
+    FormPat::{self, *},
+    SynEnv,
+};
 use name::*;
 use std::rc::Rc;
 use ty::{synth_type, SynthTy, Ty, TyErr};
@@ -60,7 +60,7 @@ use ty_compare::{Canonicalize, Subtype};
 use util::assoc::Assoc;
 use walk_mode::{NegativeWalkMode, WalkMode};
 
-//TODO #3: I think we need to extend `Form` with `synth_kind`...
+// TODO #3: I think we need to extend `Form` with `synth_kind`...
 pub fn type_defn(form_name: &str, p: FormPat) -> Rc<Form> {
     Rc::new(Form {
         name: n(form_name),
@@ -77,7 +77,8 @@ fn type_defn_complex(
     p: FormPat,
     sy: WalkRule<SynthTy>,
     tc: BiDiWR<Canonicalize, Subtype>,
-) -> Rc<Form> {
+) -> Rc<Form>
+{
     Rc::new(Form {
         name: n(form_name),
         grammar: Rc::new(p),
@@ -106,10 +107,10 @@ pub fn get__abstract_parametric_type() -> Rc<Form> {
 }
 
 pub fn make_core_syn_env_types() -> SynEnv {
-    /* Regarding the value/type/kind hierarchy, Benjamin Pierce generously assures us that
-    "For programming languages ... three levels have proved sufficient." */
+    // Regarding the value/type/kind hierarchy, Benjamin Pierce generously assures us that
+    // "For programming languages ... three levels have proved sufficient."
 
-    /* kinds */
+    // kinds
     let _type_kind = simple_form("Type", form_pat!((lit "*")));
     let _higher_kind = simple_form(
         "higher",
@@ -118,7 +119,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
             [ (star (named "param", (call "kind"))), (lit "->"), (named "res", (call "kind"))])),
     );
 
-    /* types */
+    // types
     let fn_type = type_defn_complex(
         "fn",
         form_pat!((delim "[", "[",
@@ -251,12 +252,11 @@ pub fn make_core_syn_env_types() -> SynEnv {
         ),
     );
 
-    /* This behaves slightly differently than the `mu` from Pierce's book,
-     *  because we need to support mutual recursion.
-     * In particular, it relies on having a binding for `param` in the environment!
-     * The only thing that `mu` actually does is suppress substitution,
-     *  to prevent the attempted generation of an infinite type.
-     */
+    // This behaves slightly differently than the `mu` from Pierce's book,
+    //  because we need to support mutual recursion.
+    // In particular, it relies on having a binding for `param` in the environment!
+    // The only thing that `mu` actually does is suppress substitution,
+    //  to prevent the attempted generation of an infinite type.
     let mu_type = type_defn_complex(
         "mu_type",
         form_pat!([(lit "mu_type"), (star (named "param", (import [prot "param"], varref))),
@@ -328,15 +328,14 @@ pub fn make_core_syn_env_types() -> SynEnv {
 
     let forall_type_0 = forall_type.clone();
 
-    /* [Type theory alert!]
-     * Pierce's notion of type application is an expression, not a type;
-     *  you just take an expression whose type is a `forall`, and then give it some arguments.
-     * Instead, we will just make the type system unify `forall` types with more specific types.
-     * But sometimes the user wants to write a more specific type, and they use this.
-     *
-     * This is, at the type level, like function application.
-     * We restrict the LHS to being a name, because that's "normal". Should we?
-     */
+    // [Type theory alert!]
+    // Pierce's notion of type application is an expression, not a type;
+    //  you just take an expression whose type is a `forall`, and then give it some arguments.
+    // Instead, we will just make the type system unify `forall` types with more specific types.
+    // But sometimes the user wants to write a more specific type, and they use this.
+    //
+    // This is, at the type level, like function application.
+    // We restrict the LHS to being a name, because that's "normal". Should we?
     let type_apply = type_defn_complex(
         "type_apply",
         // The technical term for `<[...]<` is "fish X-ray"
@@ -367,11 +366,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     new__tapp_parts.add_anon_repeat(args, None);
 
                     if let Node(ref f, _, ref exp) = tapp_parts.this_ast {
-                        Ok(Ty::new(Node(
-                            /*forall*/ f.clone(),
-                            new__tapp_parts,
-                            exp.clone(),
-                        )))
+                        Ok(Ty::new(Node(/* forall */ f.clone(), new__tapp_parts, exp.clone())))
                     } else {
                         panic!("ICE")
                     }
@@ -392,11 +387,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     new__tapp_parts.add_anon_repeat(args, None);
 
                     if let Node(ref f, _, ref exp) = tapp_parts.this_ast {
-                        Ok(Ty::new(Node(
-                            /*forall*/ f.clone(),
-                            new__tapp_parts,
-                            exp.clone(),
-                        )))
+                        Ok(Ty::new(Node(/* forall */ f.clone(), new__tapp_parts, exp.clone())))
                     } else {
                         panic!("ICE")
                     }

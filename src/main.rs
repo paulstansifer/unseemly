@@ -2,13 +2,7 @@
 // You shouldn't write code in Unseemly.
 // Instead, you should implement your programming language as Unseemly macros.
 
-#![allow(
-    dead_code,
-    unused_macros,
-    non_snake_case,
-    unused_imports,
-    non_upper_case_globals
-)]
+#![allow(dead_code, unused_macros, non_snake_case, unused_imports, non_upper_case_globals)]
 // dead_code and unused_macros are hopefully temporary allowances
 // non_snake_case is stylistic, unused_imports is inaccurate for `cargo check`
 // non_upper_case_globals is stylistic; I like my thread_local!s lowercase.
@@ -32,9 +26,7 @@ extern crate regex;
 extern crate rustyline;
 extern crate tap;
 
-use std::fs::File;
-use std::io::Read;
-use std::path::Path;
+use std::{fs::File, io::Read, path::Path};
 
 mod macros;
 
@@ -66,11 +58,11 @@ mod core_qq_forms;
 mod core_type_forms;
 
 use name::{n, Name};
-use runtime::core_values;
-use runtime::eval::{eval, Value};
-use std::borrow::Cow;
-use std::cell::RefCell;
-use std::io::BufRead;
+use runtime::{
+    core_values,
+    eval::{eval, Value},
+};
+use std::{borrow::Cow, cell::RefCell, io::BufRead};
 use ty::Ty;
 use util::assoc::Assoc;
 
@@ -85,9 +77,7 @@ struct LineHelper {
 
 impl LineHelper {
     fn new() -> LineHelper {
-        LineHelper {
-            highlighter: rustyline::highlight::MatchingBracketHighlighter::new(),
-        }
+        LineHelper { highlighter: rustyline::highlight::MatchingBracketHighlighter::new() }
     }
 }
 
@@ -99,7 +89,8 @@ impl rustyline::completion::Completer for LineHelper {
         line: &str,
         pos: usize,
         _ctxt: &rustyline::Context,
-    ) -> Result<(usize, Vec<String>), rustyline::error::ReadlineError> {
+    ) -> Result<(usize, Vec<String>), rustyline::error::ReadlineError>
+    {
         let mut res = vec![];
         let (start, word_so_far) = rustyline::completion::extract_word(line, pos, None, b"[({ })]");
         val_env.with(|vals| {
@@ -134,7 +125,8 @@ impl rustyline::highlight::Highlighter for LineHelper {
         &self,
         candidate: &'c str,
         completion: rustyline::config::CompletionType,
-    ) -> Cow<'c, str> {
+    ) -> Cow<'c, str>
+    {
         self.highlighter.highlight_candidate(candidate, completion)
     }
     fn highlight_char(&self, line: &str, pos: usize) -> bool {
@@ -183,7 +175,7 @@ fn main() {
             for line in prelude.lines() {
                 let line = line.unwrap();
                 if comment.captures(&line).is_some() {
-                    /*comment*/
+                    // comment
                 } else if let Some(caps) = assign_value.captures(&line) {
                     if let Err(e) = assign_variable(&caps[1], &caps[2]) {
                         println!("    Error in prelude line: {}\n    {}", line, e);
@@ -288,14 +280,11 @@ fn assign_variable(name: &str, expr: &str) -> Result<Value, String> {
 }
 
 fn assign_t_var(name: &str, t: &str) -> Result<ty::Ty, String> {
-    let tokens = try!(read::read_tokens(t));
+    let tokens = read::read_tokens(t)?;
 
-    let ast = try!(grammar::parse(
-        &grammar::FormPat::Call(n("Type")),
-        &core_forms::get_core_forms(),
-        &tokens
-    )
-    .map_err(|e| e.msg));
+    let ast =
+        grammar::parse(&grammar::FormPat::Call(n("Type")), &core_forms::get_core_forms(), &tokens)
+            .map_err(|e| e.msg)?;
 
     let res = ty_env
         .with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e)));
@@ -311,70 +300,52 @@ fn assign_t_var(name: &str, t: &str) -> Result<ty::Ty, String> {
 }
 
 fn canonicalize_type(t: &str) -> Result<ty::Ty, String> {
-    let tokens = try!(read::read_tokens(t));
+    let tokens = read::read_tokens(t)?;
 
-    let ast = try!(grammar::parse(
-        &grammar::FormPat::Call(n("Type")),
-        &core_forms::get_core_forms(),
-        &tokens
-    )
-    .map_err(|e| e.msg));
+    let ast =
+        grammar::parse(&grammar::FormPat::Call(n("Type")), &core_forms::get_core_forms(), &tokens)
+            .map_err(|e| e.msg)?;
 
     ty_env.with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e)))
 }
 
 fn parse_unseemly_program(program: &str) -> Result<String, String> {
-    let tokens = try!(read::read_tokens(program));
+    let tokens = read::read_tokens(program)?;
 
-    let ast = try!(grammar::parse(
-        &core_forms::outermost_form(),
-        &core_forms::get_core_forms(),
-        &tokens
-    )
-    .map_err(|e| e.msg));
+    let ast = grammar::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
+        .map_err(|e| e.msg)?;
 
     Ok(format!("▵ {:#?}\n∴ {}\n", ast, ast))
 }
 
 fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
-    let tokens = try!(read::read_tokens(program));
+    let tokens = read::read_tokens(program)?;
 
-    let ast = try!(grammar::parse(
-        &core_forms::outermost_form(),
-        &core_forms::get_core_forms(),
-        &tokens
-    )
-    .map_err(|e| e.msg));
+    let ast = grammar::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
+        .map_err(|e| e.msg)?;
 
     ty_env.with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e)))
 }
 
 fn eval_unseemly_program_without_typechecking(program: &str) -> Result<Value, String> {
-    let tokens = try!(read::read_tokens(program));
+    let tokens = read::read_tokens(program)?;
 
-    let ast: ::ast::Ast = try!(grammar::parse(
-        &core_forms::outermost_form(),
-        &core_forms::get_core_forms(),
-        &tokens
-    )
-    .map_err(|e| e.msg));
+    let ast: ::ast::Ast =
+        grammar::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
+            .map_err(|e| e.msg)?;
 
     val_env.with(|vals| eval(&ast, vals.borrow().clone()).map_err(|_| "???".to_string()))
 }
 
 fn eval_unseemly_program(program: &str) -> Result<Value, String> {
-    let tokens = try!(read::read_tokens(program));
+    let tokens = read::read_tokens(program)?;
 
-    let ast: ::ast::Ast = try!(grammar::parse(
-        &core_forms::outermost_form(),
-        &core_forms::get_core_forms(),
-        &tokens
-    )
-    .map_err(|e| e.msg));
+    let ast: ::ast::Ast =
+        grammar::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
+            .map_err(|e| e.msg)?;
 
-    let _type = try!(ty_env.with(|tys| {
-        ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e))
-    }));
+    let _type = ty_env
+        .with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e)))?;
 
     val_env.with(|vals| eval(&ast, vals.borrow().clone()).map_err(|_| "???".to_string()))
 }
@@ -385,10 +356,7 @@ fn simple_end_to_end_eval() {
 
     assert_eq!(eval_unseemly_program("(plus one one)"), Ok(val!(i 2)));
 
-    assert_eq!(
-        eval_unseemly_program("(.[x : Int  y : Int . (plus x y)]. one one)"),
-        Ok(val!(i 2))
-    );
+    assert_eq!(eval_unseemly_program("(.[x : Int  y : Int . (plus x y)]. one one)"), Ok(val!(i 2)));
 
     assert_eq!(
         eval_unseemly_program(
@@ -405,47 +373,29 @@ fn simple_end_to_end_eval() {
 #[test]
 fn end_to_end_int_list_tools() {
     assert_m!(
-        assign_t_var(
-            "IntList",
-            "mu_type IntList . enum { Nil () Cons (Int IntList) }"
-        ),
+        assign_t_var("IntList", "mu_type IntList . enum { Nil () Cons (Int IntList) }"),
+        Ok(_)
+    );
+
+    assert_m!(assign_t_var("IntListUF", "enum { Nil () Cons (Int IntList) }"), Ok(_));
+
+    assert_m!(
+        assign_variable("mt_ilist", "fold +[Nil]+ : enum { Nil () Cons (Int IntList) } : IntList"),
         Ok(_)
     );
 
     assert_m!(
-        assign_t_var("IntListUF", "enum { Nil () Cons (Int IntList) }"),
+        assign_variable("3_ilist", "fold +[Cons three mt_ilist]+ : IntListUF : IntList"),
         Ok(_)
     );
 
     assert_m!(
-        assign_variable(
-            "mt_ilist",
-            "fold +[Nil]+ : enum { Nil () Cons (Int IntList) } : IntList"
-        ),
+        assign_variable("23_ilist", "fold +[Cons two 3_ilist]+ : IntListUF : IntList"),
         Ok(_)
     );
 
     assert_m!(
-        assign_variable(
-            "3_ilist",
-            "fold +[Cons three mt_ilist]+ : IntListUF : IntList"
-        ),
-        Ok(_)
-    );
-
-    assert_m!(
-        assign_variable(
-            "23_ilist",
-            "fold +[Cons two 3_ilist]+ : IntListUF : IntList"
-        ),
-        Ok(_)
-    );
-
-    assert_m!(
-        assign_variable(
-            "123_ilist",
-            "fold +[Cons one 23_ilist]+ : IntListUF : IntList"
-        ),
+        assign_variable("123_ilist", "fold +[Cons one 23_ilist]+ : IntListUF : IntList"),
         Ok(_)
     );
 
@@ -460,10 +410,7 @@ fn end_to_end_int_list_tools() {
         Ok(_)
     );
 
-    assert_eq!(
-        eval_unseemly_program("(sum_int_list 123_ilist)"),
-        Ok(val!(i 6))
-    );
+    assert_eq!(eval_unseemly_program("(sum_int_list 123_ilist)"), Ok(val!(i 6)));
 
     assert_m!(
         assign_variable(
@@ -476,26 +423,17 @@ fn end_to_end_int_list_tools() {
         Ok(_)
     );
 
-    assert_eq!(
-        eval_unseemly_program("(int_list_len 123_ilist)"),
-        Ok(val!(i 3))
-    );
+    assert_eq!(eval_unseemly_program("(int_list_len 123_ilist)"), Ok(val!(i 3)));
 }
 
 #[test]
 fn end_to_end_list_tools() {
     assert_m!(
-        assign_t_var(
-            "List",
-            "forall T . mu_type List . enum { Nil () Cons (T List <[T]<) }"
-        ),
+        assign_t_var("List", "forall T . mu_type List . enum { Nil () Cons (T List <[T]<) }"),
         Ok(_)
     );
 
-    assert_m!(
-        assign_t_var("ListUF", "forall T . enum { Nil () Cons (T List <[T]<) }"),
-        Ok(_)
-    );
+    assert_m!(assign_t_var("ListUF", "forall T . enum { Nil () Cons (T List <[T]<) }"), Ok(_));
 
     assert_m!(
         assign_variable(
@@ -506,26 +444,17 @@ fn end_to_end_list_tools() {
     );
 
     assert_m!(
-        assign_variable(
-            "3_list",
-            "fold +[Cons three mt_list]+ : ListUF <[Int]< : List <[Int]<"
-        ),
+        assign_variable("3_list", "fold +[Cons three mt_list]+ : ListUF <[Int]< : List <[Int]<"),
         Ok(_)
     );
 
     assert_m!(
-        assign_variable(
-            "23_list",
-            "fold +[Cons two 3_list]+ : ListUF <[Int]< : List <[Int]<"
-        ),
+        assign_variable("23_list", "fold +[Cons two 3_list]+ : ListUF <[Int]< : List <[Int]<"),
         Ok(_)
     );
 
     assert_m!(
-        assign_variable(
-            "123_list",
-            "fold +[Cons one 23_list]+ : ListUF <[Int]< : List <[Int]<"
-        ),
+        assign_variable("123_list", "fold +[Cons one 23_list]+ : ListUF <[Int]< : List <[Int]<"),
         Ok(_)
     );
 
@@ -559,30 +488,18 @@ fn end_to_end_list_tools() {
     // It should probably be an error to have a value typed with an underdetermined type.
 
     // TODO: it's way too much of a pain to define each different expected result list.
-    assert_m!(
-        eval_unseemly_program("(map 123_list .[x : Int . (plus x one)]. )"),
-        Ok(_)
-    );
+    assert_m!(eval_unseemly_program("(map 123_list .[x : Int . (plus x one)]. )"), Ok(_));
 
-    assert_m!(
-        eval_unseemly_program("(map 123_list .[x : Int . (equal? x two)]. )"),
-        Ok(_)
-    );
+    assert_m!(eval_unseemly_program("(map 123_list .[x : Int . (equal? x two)]. )"), Ok(_));
 }
 
 #[test]
 fn end_to_end_quotation_basic() {
-    assert_m!(
-        eval_unseemly_program("'[Expr | .[ x : Int . x ]. ]'"),
-        Ok(_)
-    );
+    assert_m!(eval_unseemly_program("'[Expr | .[ x : Int . x ]. ]'"), Ok(_));
 
     assert_m!(eval_unseemly_program("'[Expr | (plus five five) ]'"), Ok(_));
 
-    assert_m!(
-        eval_unseemly_program("'[Expr | '[Expr | (plus five five) ]' ]'"),
-        Ok(_)
-    );
+    assert_m!(eval_unseemly_program("'[Expr | '[Expr | (plus five five) ]' ]'"), Ok(_));
 
     //≫ .[s : Expr <[Int]< . '[Expr | ( ,[Expr | s], '[Expr | ,[Expr | s], ]')]' ].
 }
@@ -590,22 +507,13 @@ fn end_to_end_quotation_basic() {
 fn subtyping_direction() {
     // Let's check to make sure that "supertype" and "subtype" never got mixed up:
 
-    assert_m!(
-        assign_variable("ident", "forall T . .[ a : T . a ]."),
-        Ok(_)
-    );
+    assert_m!(assign_variable("ident", "forall T . .[ a : T . a ]."), Ok(_));
 
     assert_eq!(eval_unseemly_program("(ident five)"), Ok(val!(i 5)));
 
-    assert_m!(
-        eval_unseemly_program("( .[ a : [Int -> Int] . a]. ident)"),
-        Ok(_)
-    );
+    assert_m!(eval_unseemly_program("( .[ a : [Int -> Int] . a]. ident)"), Ok(_));
 
-    assert_m!(
-        eval_unseemly_program("( .[ a : forall T . [T -> T] . a]. .[a : Int . a].)"),
-        Err(_)
-    );
+    assert_m!(eval_unseemly_program("( .[ a : forall T . [T -> T] . a]. .[a : Int . a].)"), Err(_));
 
     assert_m!(eval_unseemly_program(".[ a : struct {} . a]."), Ok(_));
 
@@ -708,28 +616,27 @@ fn end_to_end_quotation_advanced() {
             eval_unseemly_program("'[Expr <[Int]< | (.[x : Int . match x {y => five}].  eight)]'"));
     }
 
-    /*
-        // We need tuple literals before we can test this:
-        assert_m!(assign_variable("let-multi",
-            "forall T . .[ binder : **[ :::[T >> Ident <[T]< ]::: ]**
-                           type : **[ :::[T >> Type <[T]< ]::: ]**
-                           rhs : **[ :::[T >> Expr <[T]< ]::: ]**
-                           body : Expr <[S]< .
-                '[Expr | (.[ ...[, binder , >> ,[Ident | binder],]...
-                             : ...[, type , >> ,[Type | type], ]... .
-                          ,[Expr | body], ].
-                            ...[, Expr , | ,[Expr | rhs], ]... ) ]'
-                             "),
-             Ok(_));
+    //
+    //  // We need tuple literals before we can test this:
+    //  assert_m!(assign_variable("let-multi",
+    //      "forall T . .[ binder : **[ :::[T >> Ident <[T]< ]::: ]**
+    //                     type : **[ :::[T >> Type <[T]< ]::: ]**
+    //                     rhs : **[ :::[T >> Expr <[T]< ]::: ]**
+    //                     body : Expr <[S]< .
+    //          '[Expr | (.[ ...[, binder , >> ,[Ident | binder],]...
+    //                       : ...[, type , >> ,[Type | type], ]... .
+    //                    ,[Expr | body], ].
+    //                      ...[, Expr , | ,[Expr | rhs], ]... ) ]'
+    //                       "),
+    //       Ok(_));
 
-        without_freshening! {
-            assert_eq!(
-                eval_unseemly_program(
-                    "(let-multi  '[Ident <[Int]< | y]'
-                           '[Type <[Int]< | Int]'
-                           '[Expr <[Int]< | eight]'
-                           '[Expr <[Int]< | five]')"),
-                eval_unseemly_program("'[Expr <[Int]< | (.[x : Int . match x {y => five}].  eight)]'"));
-        }
-    */
+    //  without_freshening! {
+    //      assert_eq!(
+    //          eval_unseemly_program(
+    //              "(let-multi  '[Ident <[Int]< | y]'
+    //                     '[Type <[Int]< | Int]'
+    //                     '[Expr <[Int]< | eight]'
+    //                     '[Expr <[Int]< | five]')"),
+    //          eval_unseemly_program("'[Expr <[Int]< | (.[x : Int . match x {y => five}].  eight)]'"));
+    //  }
 }

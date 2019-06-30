@@ -5,14 +5,11 @@ use ast_walk::{walk, LazyWalkReses, WalkRule};
 use form::Form;
 use name::*;
 use num::bigint::BigInt;
-use std;
-use std::rc::Rc;
+use std::{self, rc::Rc};
 use util::assoc::Assoc;
 use walk_mode::{NegativeWalkMode, WalkMode};
 
-/**
- * Values in Unseemly.
- */
+/// Values in Unseemly.
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -55,7 +52,7 @@ impl std::fmt::Display for Value {
             Int(ref bi) => write!(f, "{}", bi),
             Sequence(ref seq) => {
                 for elt in seq {
-                    try!(write!(f, "{}", &*elt));
+                    write!(f, "{}", &*elt)?;
                 }
                 Ok(())
             }
@@ -63,16 +60,16 @@ impl std::fmt::Display for Value {
             BuiltInFunction(_) => write!(f, "[built-in function]"),
             AbstractSyntax(ref ast) => write!(f, "'[{}]'", ast),
             Struct(ref parts) => {
-                try!(write!(f, "*["));
+                write!(f, "*[")?;
                 for (k, v) in parts.iter_pairs() {
-                    try!(write!(f, "{}: {} ", k, v));
+                    write!(f, "{}: {} ", k, v)?;
                 }
                 write!(f, "]*")
             }
             Enum(n, ref parts) => {
-                try!(write!(f, "+[{}", n));
+                write!(f, "+[{}", n)?;
                 for p in parts.iter() {
-                    try!(write!(f, " {}", p));
+                    write!(f, " {}", p)?;
                 }
                 write!(f, "]+")
             }
@@ -130,11 +127,7 @@ impl WalkMode for Eval {
     }
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Eval>) -> Result<Value, ()> {
-        Ok(cnc
-            .env
-            .find(&n)
-            .expect("Undefined var; did you use a type name as a value?")
-            .clone())
+        Ok(cnc.env.find(&n).expect("Undefined var; did you use a type name as a value?").clone())
     }
 
     // TODO: maybe keep this from being called?
@@ -245,10 +238,7 @@ impl WalkMode for QQuoteDestr {
         if cnc.context_elt() == &val!(ast (vr n_sp)) {
             Ok(Assoc::<Name, Value>::new())
         } else {
-            Err(Self::qlit_mismatch_error(
-                val!(ast (vr n_sp)),
-                cnc.context_elt().clone(),
-            ))
+            Err(Self::qlit_mismatch_error(val!(ast (vr n_sp)), cnc.context_elt().clone()))
         }
     }
     fn walk_atom(n: Name, cnc: &LazyWalkReses<Self>) -> Result<Assoc<Name, Value>, ()> {
@@ -256,10 +246,7 @@ impl WalkMode for QQuoteDestr {
         if cnc.context_elt() == &val!(ast n_sp) {
             Ok(Assoc::<Name, Value>::new())
         } else {
-            Err(Self::qlit_mismatch_error(
-                val!(ast (vr n_sp)),
-                cnc.context_elt().clone(),
-            ))
+            Err(Self::qlit_mismatch_error(val!(ast (vr n_sp)), cnc.context_elt().clone()))
         }
     }
     fn get_walk_rule(f: &Form) -> WalkRule<QQuoteDestr> {
@@ -277,13 +264,11 @@ impl NegativeWalkMode for QQuoteDestr {
 }
 
 // `env` is a trap! We want a shifted `LazyWalkReses`!
-/*
-pub fn qquote(expr: &Ast, env: Assoc<Name, Value>) -> Result<Value, ()> {
-    walk::<QQuote>(expr, &LazyWalkReses::new_wrapper(env))
-}
-
-pub fn qquote_destr(pat: &Ast, env: Assoc<Name, Value>)
-        -> Result<Assoc<Name, Value>,()> {
-    walk::<QQuoteDestr>(pat, &LazyWalkReses::new_wrapper(env))
-}
-*/
+// pub fn qquote(expr: &Ast, env: Assoc<Name, Value>) -> Result<Value, ()> {
+//     walk::<QQuote>(expr, &LazyWalkReses::new_wrapper(env))
+// }
+//
+// pub fn qquote_destr(pat: &Ast, env: Assoc<Name, Value>)
+//         -> Result<Assoc<Name, Value>,()> {
+//     walk::<QQuoteDestr>(pat, &LazyWalkReses::new_wrapper(env))
+// }

@@ -1,79 +1,77 @@
 #![macro_use]
-/*
-March By Example: a user-friendly way to handle named subterms under Kleene stars,
- expressed through a special kind of environment.
-This is intended to organize the subterms of an `Ast` node.
-Using this as the evaluation environment of a program is probably interesting,
- but not necessarily in a good way.
+
+// March By Example: a user-friendly way to handle named subterms under Kleene stars,
+//  expressed through a special kind of environment.
+// This is intended to organize the subterms of an `Ast` node.
+// Using this as the evaluation environment of a program is probably interesting,
+//  but not necessarily in a good way.
+//
+//
+// The principle, when applied to pattern-based macro definitions, is as follows:
+//  Kleene stars in a macro grammar
+//    (e.g. `(f=Identifier (arg=Identifier ":" arg_t=Type)*)` )
+//   correspond to lists in an AST.
+//  The original syntactic structure is irrelevant.
+//   but there's only one name (e.g. `arg_t`) for the entire list of matched syntax.
+//
+//  But that's okay:
+//   We will let the user put Kleene stars inside syntax quotation (macro transcription).
+//   The named pieces of syntax under the Kleene star control the number of repetitions:
+//    if each identifier either repeats `n` times or wasn't matched under a `*` at all,
+//     the star repeats `n` times, with the repeated syntax "marching in lockstep",
+//     and the non-`*`ed syntax duplicated
+//
+// This whole thing nicely generalizes to nesting: we use variable-arity trees instead of lists.
+//
+// This also generalizes outside the context of transcription:
+//  we will store an environment mapping names to variable-arity trees,
+//   and provide an operation ("march") that, given a set of names
+//     ("driving names", presumably the names "under the `*`")
+//    produces `n` environments, in which each of those names has a tree
+//     that is shorter by one level.
+//
+// One problem: what if two of the "driving names" repeat a different numbers of times?
+// Traditionally, this is a runtime error,
+//  but we'd like it to be a parser error:
+//   after all, it's the author of the syntax
+//    who has control over how many repetions there are of each thing.
+// So, we will let grammars specify when different Kleene stars
+//  must repeat the same number of times.
+// Violations of this rule are a parse error,
+//  and it's only legal to "march" with driving names
+//   that were matched (at the current level)
+//    (a) under the same `*`, or
+//    (b) under `*`s that must repeat the same number of times.
+// On the other hand, if the user wants "cross product" behavior,
+//  there's no reason that they can't get it.
+// We may add a facility to take syntax matched `a`, `b`, `c`... times,
+//  and produce `a × b × c` different environments.
+//
+//
+// This is based on Macro By Example, but this implementation isn't strictly about macros,
+//  which is why I changed the name!
+// The original MBE paper is
+//  "Macro-by-example: Deriving syntactic transformations from their specifications"
+//   by Kohlbecker and Wand
+//   ftp://www.cs.indiana.edu/pub/techreports/TR206.pdf
+//
+// Many interesting macros can be defined simply
+//  by specifying a grammar and a piece of quoted syntax,
+//  if the syntax transcription supports MBE.
+//  (This corresponds to Scheme's `syntax-rules` and Rust's `macro-rules`.)
 
 
-The principle, when applied to pattern-based macro definitions, is as follows:
- Kleene stars in a macro grammar
-   (e.g. `(f=Identifier (arg=Identifier ":" arg_t=Type)*)` )
-  correspond to lists in an AST.
- The original syntactic structure is irrelevant.
-  but there's only one name (e.g. `arg_t`) for the entire list of matched syntax.
+// Suppose we want to write code that processes MBE environments.
+// Obviously, we can use `march` to pull out all the structure as necessary.
+// But pattern-matching is really nice...
+//  and sometimes it's nice to abstract over the number of repetitions of something.
+//
+// So, if you set a particular index is `ddd`, that will be repeated 0 or more times
+//  in order to match the length of whatever is on the other side.
 
- But that's okay:
-  We will let the user put Kleene stars inside syntax quotation (macro transcription).
-  The named pieces of syntax under the Kleene star control the number of repetitions:
-   if each identifier either repeats `n` times or wasn't matched under a `*` at all,
-    the star repeats `n` times, with the repeated syntax "marching in lockstep",
-    and the non-`*`ed syntax duplicated
-
-This whole thing nicely generalizes to nesting: we use variable-arity trees instead of lists.
-
-This also generalizes outside the context of transcription:
- we will store an environment mapping names to variable-arity trees,
-  and provide an operation ("march") that, given a set of names
-    ("driving names", presumably the names "under the `*`")
-   produces `n` environments, in which each of those names has a tree
-    that is shorter by one level.
-
-One problem: what if two of the "driving names" repeat a different numbers of times?
-Traditionally, this is a runtime error,
- but we'd like it to be a parser error:
-  after all, it's the author of the syntax
-   who has control over how many repetions there are of each thing.
-So, we will let grammars specify when different Kleene stars
- must repeat the same number of times.
-Violations of this rule are a parse error,
- and it's only legal to "march" with driving names
-  that were matched (at the current level)
-   (a) under the same `*`, or
-   (b) under `*`s that must repeat the same number of times.
-On the other hand, if the user wants "cross product" behavior,
- there's no reason that they can't get it.
-We may add a facility to take syntax matched `a`, `b`, `c`... times,
- and produce `a × b × c` different environments.
-
-
-This is based on Macro By Example, but this implementation isn't strictly about macros,
- which is why I changed the name!
-The original MBE paper is
- "Macro-by-example: Deriving syntactic transformations from their specifications"
-  by Kohlbecker and Wand
-  ftp://www.cs.indiana.edu/pub/techreports/TR206.pdf
-
-Many interesting macros can be defined simply
- by specifying a grammar and a piece of quoted syntax,
- if the syntax transcription supports MBE.
- (This corresponds to Scheme's `syntax-rules` and Rust's `macro-rules`.)
-*/
-
-/*
-Suppose we want to write code that processes MBE environments.
-Obviously, we can use `march` to pull out all the structure as necessary.
-But pattern-matching is really nice...
- and sometimes it's nice to abstract over the number of repetitions of something.
-
-So, if you set a particular index is `ddd`, that will be repeated 0 or more times
- in order to match the length of whatever is on the other side.
-*/
 
 use name::*;
-use std::fmt;
-use std::rc::Rc;
+use std::{fmt, rc::Rc};
 use util::assoc::Assoc;
 
 // How on earth can one data structure need so many variations on `map`?
@@ -125,7 +123,8 @@ impl<T: PartialEq> PartialEq for EnvMBE<T> {
         fn assoc_eq_modulo_none<K: PartialEq + Clone, V: PartialEq>(
             lhs: &Assoc<K, Option<V>>,
             rhs: &Assoc<K, Option<V>>,
-        ) -> bool {
+        ) -> bool
+        {
             for (k, v_maybe) in lhs.iter_pairs() {
                 if let Some(ref v) = *v_maybe {
                     if let Some(&Some(ref other_v)) = rhs.find(k) {
@@ -170,11 +169,11 @@ impl<T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
         if self.leaves.empty() && self.repeats.is_empty() {
             write!(f, "mbe∅")
         } else {
-            try!(write!(f, "{{ 🍂 {:#?}, ✶", self.leaves));
+            write!(f, "{{ 🍂 {:#?}, ✶", self.leaves)?;
             let mut first = true;
             for (i, rep) in self.repeats.iter().enumerate() {
                 if !first {
-                    try!(write!(f, ", "));
+                    write!(f, ", ")?;
                 }
                 first = false;
 
@@ -182,11 +181,11 @@ impl<T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
                 for (name, idx_maybe) in self.named_repeats.iter_pairs() {
                     if let Some(idx) = *idx_maybe {
                         if idx == i {
-                            try!(write!(f, "⋯({:#?})⋯ ", name));
+                            write!(f, "⋯({:#?})⋯ ", name)?;
                         }
                     }
                 }
-                try!(write!(f, "{:#?}", rep));
+                write!(f, "{:#?}", rep)?;
             }
             write!(f, "}}")
         }
@@ -291,12 +290,10 @@ impl<T: Clone> EnvMBE<T> {
             repeats: new_repeats,
             ddd_rep_idxes: new__ddd_rep_idxes,
             leaf_locations: self.leaf_locations.set_assoc(
-                &rhs.leaf_locations
-                    .map(|idx_opt| idx_opt.map(|idx| idx + adjust_rhs_by)),
+                &rhs.leaf_locations.map(|idx_opt| idx_opt.map(|idx| idx + adjust_rhs_by)),
             ),
             named_repeats: self.named_repeats.set_assoc(
-                &rhs.named_repeats
-                    .map(|idx_opt| idx_opt.map(|idx| idx + adjust_rhs_by)),
+                &rhs.named_repeats.map(|idx_opt| idx_opt.map(|idx| idx + adjust_rhs_by)),
             ),
         }
     }
@@ -351,8 +348,11 @@ impl<T: Clone> EnvMBE<T> {
                 (None, &Some(loc)) => march_loc = Some((loc, n)),
                 (Some((old_loc, old_name)), &Some(new_loc)) => {
                     if old_loc != new_loc {
-                        panic!("{:#?} and {:#?} cannot march together; they weren't matched to have the same number of repeats",
-                                old_name, n);
+                        panic!(
+                            "{:#?} and {:#?} cannot march together; they weren't matched to have \
+                             the same number of repeats",
+                            old_name, n
+                        );
                     }
                 }
             }
@@ -425,8 +425,13 @@ impl<T: Clone> EnvMBE<T> {
             }
             Some(idx) => {
                 if self.repeats[idx].len() != sub.len() {
-                    panic!("Named repetition {:#?} is repeated {:#?} times in one place, {:#?} times in another.",
-                        n, self.repeats[idx].len(), sub.len())
+                    panic!(
+                        "Named repetition {:#?} is repeated {:#?} times in one place, {:#?} times \
+                         in another.",
+                        n,
+                        self.repeats[idx].len(),
+                        sub.len()
+                    )
                 }
 
                 self.update_leaf_locs(idx, &sub);
@@ -465,9 +470,7 @@ impl<T: Clone> EnvMBE<T> {
     }
 
     pub fn map<NewT, F>(&self, f: &mut F) -> EnvMBE<NewT>
-    where
-        F: FnMut(&T) -> NewT,
-    {
+    where F: FnMut(&T) -> NewT {
         self.named_map(&mut |_n, elt| f(elt))
     }
 
@@ -512,21 +515,14 @@ impl<T: Clone> EnvMBE<T> {
     }
 
     pub fn named_map<NewT, F>(&self, f: &mut F) -> EnvMBE<NewT>
-    where
-        F: FnMut(&Name, &T) -> NewT,
-    {
+    where F: FnMut(&Name, &T) -> NewT {
         EnvMBE {
             leaves: self.leaves.keyed_map_borrow_f(f),
             repeats: self
                 .repeats
                 .iter()
                 .map(|rc_vec_mbe: &Rc<Vec<EnvMBE<T>>>| {
-                    Rc::new(
-                        rc_vec_mbe
-                            .iter()
-                            .map(|mbe: &EnvMBE<T>| mbe.named_map(f))
-                            .collect(),
-                    )
+                    Rc::new(rc_vec_mbe.iter().map(|mbe: &EnvMBE<T>| mbe.named_map(f)).collect())
                 })
                 .collect(),
             ddd_rep_idxes: self.ddd_rep_idxes.clone(),
@@ -540,36 +536,28 @@ impl<T: Clone> EnvMBE<T> {
         f: &dyn Fn(&T) -> NewT,
         red: &dyn Fn(&NewT, &NewT) -> NewT,
         base: NewT,
-    ) -> NewT {
+    ) -> NewT
+    {
         let reduced: NewT = self.leaves.map(f).reduce(&|_k, v, res| red(v, &res), base);
 
-        self.repeats
-            .iter()
-            .fold(reduced, |base: NewT, rc_vec_mbe: &Rc<Vec<EnvMBE<T>>>| {
-                rc_vec_mbe.iter().fold(base, |base: NewT, mbe: &EnvMBE<T>| {
-                    mbe.map_reduce(f, red, base)
-                })
-            })
+        self.repeats.iter().fold(reduced, |base: NewT, rc_vec_mbe: &Rc<Vec<EnvMBE<T>>>| {
+            rc_vec_mbe.iter().fold(base, |base: NewT, mbe: &EnvMBE<T>| mbe.map_reduce(f, red, base))
+        })
     }
 
     /// Provide the map map function with the name of the current leaf,
     /// and the appropriately-marched context element
     pub fn marched_map<NewT, F>(&self, f: &mut F) -> EnvMBE<NewT>
-    where
-        F: FnMut(Name, &EnvMBE<T>, &T) -> NewT,
-    {
+    where F: FnMut(Name, &EnvMBE<T>, &T) -> NewT {
         self.marched_map_rec(self, f)
     }
 
     fn marched_map_rec<NewT, F>(&self, outer: &EnvMBE<T>, f: &mut F) -> EnvMBE<NewT>
-    where
-        F: FnMut(Name, &EnvMBE<T>, &T) -> NewT,
-    {
+    where F: FnMut(Name, &EnvMBE<T>, &T) -> NewT {
         let local_mbe = outer.combine_overriding(self);
 
-        let new_leaves = self
-            .leaves
-            .keyed_map_borrow_f(&mut |n: &Name, elt: &T| f(*n, &local_mbe, elt));
+        let new_leaves =
+            self.leaves.keyed_map_borrow_f(&mut |n: &Name, elt: &T| f(*n, &local_mbe, elt));
         EnvMBE {
             leaves: new_leaves,
             repeats: self
@@ -598,7 +586,8 @@ impl<T: Clone> EnvMBE<T> {
         lhs_ddd: &'a Option<usize>,
         rhs: &'a Rc<Vec<EnvMBE<T>>>,
         rhs_ddd: &'a Option<usize>,
-    ) -> Vec<(&'a EnvMBE<T>, &'a EnvMBE<T>)> {
+    ) -> Vec<(&'a EnvMBE<T>, &'a EnvMBE<T>)>
+    {
         let len_diff = lhs.len() as i32 - (rhs.len() as i32);
 
         let matched: Vec<(&EnvMBE<T>, &EnvMBE<T>)> = match (lhs_ddd, rhs_ddd) {
@@ -620,9 +609,7 @@ impl<T: Clone> EnvMBE<T> {
                 if len_diff + 1 < 0 {
                     panic!("abstract MBE RHS too long")
                 }
-                lhs.iter()
-                    .zip(DddIter::new(rhs.iter(), ddd_idx, (len_diff + 1) as usize))
-                    .collect()
+                lhs.iter().zip(DddIter::new(rhs.iter(), ddd_idx, (len_diff + 1) as usize)).collect()
             }
             (&Some(_), &Some(_)) => panic!("repetition on both sides"),
         };
@@ -642,7 +629,8 @@ impl<T: Clone> EnvMBE<T> {
         col: &dyn Fn(Vec<NewT>) -> NewT,
         red: &dyn Fn(NewT, NewT) -> NewT,
         base: NewT,
-    ) -> NewT {
+    ) -> NewT
+    {
         let len_diff = lhs.len() as i32 - (rhs.len() as i32);
 
         // The RHS can have a DDD if it's exactly the same (subtyping only goes the one way)
@@ -753,7 +741,8 @@ impl<T: Clone> EnvMBE<T> {
         &self,
         o: &EnvMBE<T>,
         f: &dyn Fn(&Name, &T, &T) -> NewT,
-    ) -> EnvMBE<NewT> {
+    ) -> EnvMBE<NewT>
+    {
         EnvMBE {
             leaves: self.leaves.keyed_map_with(&o.leaves, f),
 
@@ -790,12 +779,11 @@ impl<T: Clone> EnvMBE<T> {
         f: &dyn Fn(&T, &T) -> NewT,
         red: &dyn Fn(&NewT, &NewT) -> NewT,
         base: NewT,
-    ) -> NewT {
+    ) -> NewT
+    {
         // TODO #15: this panics all over the place if anything goes wrong
-        let mut reduced: NewT = self
-            .leaves
-            .map_with(&other.leaves, f)
-            .reduce(&|_k, v, res| red(v, &res), base);
+        let mut reduced: NewT =
+            self.leaves.map_with(&other.leaves, f).reduce(&|_k, v, res| red(v, &res), base);
 
         let mut already_processed: Vec<bool> = self.repeats.iter().map(|_| false).collect();
 
@@ -836,12 +824,11 @@ impl<T: Clone> EnvMBE<T> {
         col: &dyn Fn(Vec<NewT>) -> NewT,
         red: &dyn Fn(NewT, NewT) -> NewT,
         base: NewT,
-    ) -> NewT {
+    ) -> NewT
+    {
         // TODO #15: this panics all over the place if anything goes wrong
-        let mut reduced: NewT = self
-            .leaves
-            .map_with(&other.leaves, f)
-            .reduce(&|_k, v, res| red(v.clone(), res), base);
+        let mut reduced: NewT =
+            self.leaves.map_with(&other.leaves, f).reduce(&|_k, v, res| red(v.clone(), res), base);
 
         let mut already_processed: Vec<bool> = self.repeats.iter().map(|_| false).collect();
 
@@ -879,11 +866,7 @@ impl<T: Clone> EnvMBE<T> {
         let mut already_placed_repeats = ::std::collections::HashSet::<Name>::new();
 
         for sub_mbe in sub {
-            for leaf_name in sub_mbe
-                .leaf_locations
-                .iter_keys()
-                .chain(sub_mbe.leaves.iter_keys())
-            {
+            for leaf_name in sub_mbe.leaf_locations.iter_keys().chain(sub_mbe.leaves.iter_keys()) {
                 if !already_placed_leaves.contains(&leaf_name) {
                     self.leaf_locations = self.leaf_locations.set(leaf_name, Some(idx));
                     already_placed_leaves.insert(leaf_name);
@@ -951,11 +934,8 @@ impl<T: Clone> EnvMBE<T> {
             for (name, _) in self.leaf_locations.iter_pairs() {
                 names_needed.push(name);
             }
-            let other__rep_loc = other
-                .leaf_locations
-                .find(names_needed[0])
-                .unwrap_or(&None)
-                .ok_or(())?;
+            let other__rep_loc =
+                other.leaf_locations.find(names_needed[0]).unwrap_or(&None).ok_or(())?;
             // TODO: error out if we don't get the same result for all `names_needed[n]`
 
             let other__cur_repeat: &Vec<EnvMBE<T>> = &*other.repeats[other__rep_loc];
@@ -963,9 +943,8 @@ impl<T: Clone> EnvMBE<T> {
 
             // If an item splices, how wide does the other side need to be
             //  in order to make everything line up?
-            let splice_length = (other__cur_repeat.len() + 1)
-                .checked_sub(cur_repeat.len())
-                .ok_or(())?;
+            let splice_length =
+                (other__cur_repeat.len() + 1).checked_sub(cur_repeat.len()).ok_or(())?;
 
             let mut i = 0;
             let mut other_i = 0;
@@ -1025,14 +1004,14 @@ impl<T: Clone, E: Clone> EnvMBE<Result<T, E>> {
         // There's probably a nice and elegant way to do this with Result::from_iter, but not today
         let mut leaves: Assoc<Name, T> = Assoc::new();
         for (k, v) in self.leaves.iter_pairs() {
-            leaves = leaves.set(*k, try!((*v).clone()));
+            leaves = leaves.set(*k, (*v).clone()?);
         }
 
         let mut repeats = vec![];
         for rep in &self.repeats {
             let mut items = vec![];
             for item in &**rep {
-                items.push(try!(item.lift_result()));
+                items.push(item.lift_result()?);
             }
             repeats.push(Rc::new(items));
         }
@@ -1052,10 +1031,7 @@ impl<T: Clone + fmt::Debug> EnvMBE<T> {
     pub fn get_leaf_or_panic(&self, n: &Name) -> &T {
         match self.leaves.find(n) {
             Some(v) => v,
-            None => panic!(
-                " {:#?} not found in {:#?} (perhaps it is still repeated?)",
-                n, self
-            ),
+            None => panic!(" {:#?} not found in {:#?} (perhaps it is still repeated?)", n, self),
         }
     }
 
@@ -1069,7 +1045,8 @@ impl<T: Clone + fmt::Debug> EnvMBE<T> {
         depth: u8,
         m: &dyn Fn(&T) -> S,
         f: &dyn Fn(Vec<S>) -> S,
-    ) -> S {
+    ) -> S
+    {
         if depth == 0 {
             return m(self.get_leaf_or_panic(&n));
         }
@@ -1109,20 +1086,14 @@ fn basic_mbe() {
 
     mbe.add_anon_repeat(big_mbe, None);
 
-    for (sub_mbe, teen) in mbe
-        .march_all(&vec![n("t"), n("eight")])
-        .iter()
-        .zip(vec![11, 12, 13])
-    {
+    for (sub_mbe, teen) in mbe.march_all(&vec![n("t"), n("eight")]).iter().zip(vec![11, 12, 13]) {
         assert_eq!(sub_mbe.get_leaf(n("eight")), Some(&8));
         assert_eq!(sub_mbe.get_leaf(n("nine")), Some(&9));
         assert_eq!(sub_mbe.get_leaf(n("t")), Some(&teen));
         assert_eq!(sub_mbe.get_leaf(n("y")), None);
 
-        for (sub_sub_mbe, big) in sub_mbe
-            .march_all(&vec![n("y"), n("eight")])
-            .iter()
-            .zip(vec![9001, 9002])
+        for (sub_sub_mbe, big) in
+            sub_mbe.march_all(&vec![n("y"), n("eight")]).iter().zip(vec![9001, 9002])
         {
             assert_eq!(sub_sub_mbe.get_leaf(n("eight")), Some(&8));
             assert_eq!(sub_sub_mbe.get_leaf(n("nine")), Some(&9));
@@ -1139,20 +1110,16 @@ fn basic_mbe() {
 
     mbe.add_named_repeat(n("low_two_digits"), neg_teens_mbe, None);
 
-    for (sub_mbe, teen) in mbe
-        .march_all(&vec![n("t"), n("nt"), n("eight")])
-        .iter()
-        .zip(vec![11, 12, 13])
+    for (sub_mbe, teen) in
+        mbe.march_all(&vec![n("t"), n("nt"), n("eight")]).iter().zip(vec![11, 12, 13])
     {
         assert_eq!(sub_mbe.get_leaf(n("eight")), Some(&8));
         assert_eq!(sub_mbe.get_leaf(n("nine")), Some(&9));
         assert_eq!(sub_mbe.get_leaf(n("t")), Some(&teen));
         assert_eq!(sub_mbe.get_leaf(n("nt")), Some(&-teen));
 
-        for (sub_sub_mbe, big) in sub_mbe
-            .march_all(&vec![n("y"), n("eight")])
-            .iter()
-            .zip(vec![9001, 9002])
+        for (sub_sub_mbe, big) in
+            sub_mbe.march_all(&vec![n("y"), n("eight")]).iter().zip(vec![9001, 9002])
         {
             assert_eq!(sub_sub_mbe.get_leaf(n("eight")), Some(&8));
             assert_eq!(sub_sub_mbe.get_leaf(n("nine")), Some(&9));
@@ -1169,10 +1136,8 @@ fn basic_mbe() {
         assert_eq!(sub_mbe.get_leaf(n("t")), Some(&0));
         assert_eq!(sub_mbe.get_leaf(n("nt")), Some(&0));
 
-        for (sub_sub_mbe, _) in sub_mbe
-            .march_all(&vec![n("y"), n("eight")])
-            .iter()
-            .zip(vec![9001, 9002])
+        for (sub_sub_mbe, _) in
+            sub_mbe.march_all(&vec![n("y"), n("eight")]).iter().zip(vec![9001, 9002])
         {
             assert_eq!(sub_sub_mbe.get_leaf(n("eight")), Some(&0));
             assert_eq!(sub_sub_mbe.get_leaf(n("nine")), Some(&0));
@@ -1203,15 +1168,11 @@ fn basic_mbe() {
 
     assert_eq!(
         Err(()),
-        mbe.clone()
-            .map(&mut |x: &i32| if *x == 12 { Err(()) } else { Ok(*x) })
-            .lift_result()
+        mbe.clone().map(&mut |x: &i32| if *x == 12 { Err(()) } else { Ok(*x) }).lift_result()
     );
     assert_eq!(
         Ok(mbe.clone()),
-        mbe.clone()
-            .map(&mut |x: &i32| if *x == 121212 { Err(()) } else { Ok(*x) })
-            .lift_result()
+        mbe.clone().map(&mut |x: &i32| if *x == 121212 { Err(()) } else { Ok(*x) }).lift_result()
     );
 
     let mapped_mbe = mbe.map(&mut |x: &i32| (*x, *x - 9000));
@@ -1241,14 +1202,7 @@ fn basic_mbe() {
             ));
         }
     }
-    assert_eq!(
-        output,
-        vec![
-            (Some(0), Some(11)),
-            (Some(0), Some(12)),
-            (Some(0), Some(13))
-        ]
-    );
+    assert_eq!(output, vec![(Some(0), Some(11)), (Some(0), Some(12)), (Some(0), Some(13))]);
 }
 
 #[test]
@@ -1289,24 +1243,15 @@ fn splice_healing() {
         "rator" => (vr "---"), "rand" => [(vr "1"), (vr "2"), (vr "3")]);
 
     let mut with_short = orig.clone();
-    assert_eq!(
-        with_short.heal_splices__with(&other_short, &steal_from_other),
-        Ok(())
-    );
-    assert_eq!(
-        with_short,
-        mbe!("rator" => (vr "add"), "rand" => [(vr "a"), (vr "b"), (vr "d")])
-    );
+    assert_eq!(with_short.heal_splices__with(&other_short, &steal_from_other), Ok(()));
+    assert_eq!(with_short, mbe!("rator" => (vr "add"), "rand" => [(vr "a"), (vr "b"), (vr "d")]));
 
     let other_long = mbe!(
         "rator" => (vr "---"),
         "rand" => [(vr "1"), (vr "2"), (vr "3"), (vr "4"), (vr "5"), (vr "6")]);
 
     let mut with_long = orig.clone();
-    assert_eq!(
-        with_long.heal_splices__with(&other_long, &steal_from_other),
-        Ok(())
-    );
+    assert_eq!(with_long.heal_splices__with(&other_long, &steal_from_other), Ok(()));
     assert_eq!(
         with_long,
         mbe!("rator" => (vr "add"),
@@ -1318,37 +1263,19 @@ fn splice_healing() {
         "rand" => [(vr "1"), (vr "2")]);
 
     let mut with__too_short = orig.clone();
-    assert_eq!(
-        with__too_short.heal_splices__with(&other__too_short, &steal_from_other),
-        Err(())
-    );
+    assert_eq!(with__too_short.heal_splices__with(&other__too_short, &steal_from_other), Err(()));
 
     // TODO: test this more!
 }
 
 #[test]
 fn ddd_iter() {
-    assert_eq!(
-        DddIter::new([0, 1, 2].iter(), 0, 0).collect::<Vec<_>>(),
-        [&1, &2]
-    );
-    assert_eq!(
-        DddIter::new([0, 1, 2].iter(), 1, 0).collect::<Vec<_>>(),
-        [&0, &2]
-    );
-    assert_eq!(
-        DddIter::new([0, 1, 2].iter(), 2, 0).collect::<Vec<_>>(),
-        [&0, &1]
-    );
+    assert_eq!(DddIter::new([0, 1, 2].iter(), 0, 0).collect::<Vec<_>>(), [&1, &2]);
+    assert_eq!(DddIter::new([0, 1, 2].iter(), 1, 0).collect::<Vec<_>>(), [&0, &2]);
+    assert_eq!(DddIter::new([0, 1, 2].iter(), 2, 0).collect::<Vec<_>>(), [&0, &1]);
 
-    assert_eq!(
-        DddIter::new([0, 1, 2].iter(), 1, 1).collect::<Vec<_>>(),
-        [&0, &1, &2]
-    );
-    assert_eq!(
-        DddIter::new([0, 1, 2].iter(), 1, 3).collect::<Vec<_>>(),
-        [&0, &1, &1, &1, &2]
-    );
+    assert_eq!(DddIter::new([0, 1, 2].iter(), 1, 1).collect::<Vec<_>>(), [&0, &1, &2]);
+    assert_eq!(DddIter::new([0, 1, 2].iter(), 1, 3).collect::<Vec<_>>(), [&0, &1, &1, &1, &2]);
 }
 
 #[test]
@@ -1365,19 +1292,10 @@ fn mbe_ddd_map_with() {
         }
     }
 
-    assert_eq!(
-        lhs.map_with(&rhs, &concat),
-        mbe!( "a" => ["00", "11", "21", "31", "44"] )
-    );
-    assert_eq!(
-        rhs.map_with(&lhs, &concat),
-        mbe!( "a" => ["00", "11", "12", "13", "44"] )
-    );
+    assert_eq!(lhs.map_with(&rhs, &concat), mbe!( "a" => ["00", "11", "21", "31", "44"] ));
+    assert_eq!(rhs.map_with(&lhs, &concat), mbe!( "a" => ["00", "11", "12", "13", "44"] ));
 
-    assert_eq!(
-        lhs.map_reduce_with(&rhs, &concat, &concat, ast!("")),
-        ast!("4431211100")
-    ); // N.B. order is arbitrary
+    assert_eq!(lhs.map_reduce_with(&rhs, &concat, &concat, ast!("")), ast!("4431211100")); // N.B. order is arbitrary
 
     {
         let lhs = mbe!( "a" => [["a", "b"], ["c", "d"], ["c", "d"]]);

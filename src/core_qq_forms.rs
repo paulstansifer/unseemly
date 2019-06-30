@@ -1,6 +1,5 @@
 use ast::Ast;
-use ast_walk::squirrel_away;
-use ast_walk::WalkRule::*;
+use ast_walk::{squirrel_away, WalkRule::*};
 use core_forms::vr_to_name;
 use core_type_forms::{less_quoted_ty, more_quoted_ty, nt_is_positive, nt_to_type};
 use form::{Both, Form, Negative, Positive};
@@ -185,11 +184,7 @@ impl WalkMode for UnusedNegativeMuProtect {
 pub fn unquote(nt: Name, pos_quot: bool) -> Rc<FormPat> {
     Rc::new(FormPat::Scope(
         unquote_form(nt, pos_quot, 1),
-        if pos_quot {
-            ::beta::ExportBeta::Nothing
-        } else {
-            ::beta::ExportBeta::Use(n("body"))
-        },
+        if pos_quot { ::beta::ExportBeta::Nothing } else { ::beta::ExportBeta::Use(n("body")) },
     ))
 }
 
@@ -313,10 +308,7 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
 // Macro By Example transcription. TODO: currently positive-only
 
 pub fn dotdotdot(nt: Name) -> Rc<FormPat> {
-    Rc::new(FormPat::Scope(
-        dotdotdot_form(nt),
-        ::beta::ExportBeta::Nothing,
-    ))
+    Rc::new(FormPat::Scope(dotdotdot_form(nt), ::beta::ExportBeta::Nothing))
 }
 
 pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
@@ -335,10 +327,7 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
 
             let mut walked_env = Assoc::new();
 
-            let repeats = match ddd_parts_uq
-                .env
-                .find(&::core_forms::vr_to_name(&drivers[0]))
-            {
+            let repeats = match ddd_parts_uq.env.find(&::core_forms::vr_to_name(&drivers[0])) {
                 Some(&Ty(::ast::Node(ref form, ref parts, _))) if form.name == n("tuple") => {
                     parts.get_rep_leaf_or_panic(n("component")).len()
                 }
@@ -353,27 +342,19 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
             for i in 0..repeats {
                 for (name, ty) in ddd_parts_uq.env.iter_pairs() {
                     if drivers.contains(&::ast::VariableReference(*name)) {
-                        walked_env = walked_env.set(
-                            *name,
-                            match ty {
-                                Ty(::ast::Node(ref form, ref parts, _))
-                                    if form.name == n("tuple") =>
-                                {
-                                    Ty(parts.get_rep_leaf_or_panic(n("component"))[i].clone())
-                                }
-                                t => ty_err!(UnableToDestructure(t.clone(), n("tuple"))
+                        walked_env = walked_env.set(*name, match ty {
+                            Ty(::ast::Node(ref form, ref parts, _)) if form.name == n("tuple") => {
+                                Ty(parts.get_rep_leaf_or_panic(n("component"))[i].clone())
+                            }
+                            t => ty_err!(UnableToDestructure(t.clone(), n("tuple"))
                                             at t.0),
-                            },
-                        );
+                        });
                     } else {
                         walked_env = walked_env.set(*name, ty.clone());
                     }
                 }
             }
-            ddd_parts_uq
-                .with_environment(walked_env)
-                .quote_more(None)
-                .get_res(n("body"))
+            ddd_parts_uq.with_environment(walked_env).quote_more(None).get_res(n("body"))
         })),
         // An evaluate-time version of this might be a good idea;
         //  it might be all that's needed to implement variable-number-of-argument functions.
@@ -389,13 +370,11 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
 
             // TODO: the typechecker should reject dotdotdotds with no drivers,
             // or where a driver isn't in scope.
-            let count = match *ddd_parts_uq
-                .env
-                .find_or_panic(&::core_forms::vr_to_name(&drivers[0]))
-            {
-                Sequence(ref contents) => contents.len(),
-                _ => panic!("ICE: type error"),
-            };
+            let count =
+                match *ddd_parts_uq.env.find_or_panic(&::core_forms::vr_to_name(&drivers[0])) {
+                    Sequence(ref contents) => contents.len(),
+                    _ => panic!("ICE: type error"),
+                };
             let mut reps = vec![];
 
             for i in 0..count {
@@ -438,8 +417,7 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
 // Furthermore, the direction of the walk is determined by the direction of the original quotation.
 
 pub fn quote(pos: bool) -> Rc<Form> {
-    use grammar::FormPat;
-    use grammar::FormPat::*;
+    use grammar::FormPat::{self, *};
     let perform_quotation = move |se: SynEnv, starter_info: Ast| -> SynEnv {
         let starter_nt = match starter_info {
             ::ast::IncompleteNode(ref parts) => vr_to_name(&parts.get_leaf_or_panic(&n("nt"))),
@@ -466,10 +444,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
                 nt_def.clone()
             } else {
                 // TODO: maybe we should only insert `dotdotdot` in repetition positions?
-                Rc::new(Biased(
-                    unquote(*nt, pos),
-                    Rc::new(Biased(dotdotdot(*nt), nt_def.clone())),
-                ))
+                Rc::new(Biased(unquote(*nt, pos), Rc::new(Biased(dotdotdot(*nt), nt_def.clone()))))
             }
         })
         .set(
@@ -518,9 +493,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
                     // There's a longer argument in the form of code to this effect elsewhere,
                     //  but it boils down to this: environments can always be managed directly,
                     //   by introducing and referencing bindings.
-                    let _ = &quote_parts
-                        .with_context(prot_expected_type)
-                        .get_res(n("body"));
+                    let _ = &quote_parts.with_context(prot_expected_type).get_res(n("body"));
 
                     Ok(ty!({"Type" "type_apply" :
                             "type_rator" =>
@@ -557,10 +530,8 @@ pub fn quote(pos: bool) -> Rc<Form> {
             Negative(cust_rc_box!(|quote_parts| {
                 let context = quote_parts.context_elt().clone();
 
-                let mq_parts = quote_parts
-                    .switch_mode::<QQuoteDestr>()
-                    .quote_more(None)
-                    .with_context(context);
+                let mq_parts =
+                    quote_parts.switch_mode::<QQuoteDestr>().quote_more(None).with_context(context);
                 match mq_parts.get_term_ref(n("body")) {
                     // Strip the `QuoteMore`:
                     ::ast::QuoteMore(ref body, _) => {
@@ -594,11 +565,9 @@ fn quote_unquote_eval_basic() {
         expr: &Ast,
         env: Assoc<Name, Value>,
         qenv: Assoc<Name, Value>,
-    ) -> Result<Value, ()> {
-        ::ast_walk::walk::<Eval>(
-            expr,
-            &::ast_walk::LazyWalkReses::new_mq_wrapper(env, vec![qenv]),
-        )
+    ) -> Result<Value, ()>
+    {
+        ::ast_walk::walk::<Eval>(expr, &::ast_walk::LazyWalkReses::new_mq_wrapper(env, vec![qenv]))
     }
 
     fn destr_two_phased(
@@ -606,7 +575,8 @@ fn quote_unquote_eval_basic() {
         env: Assoc<Name, Value>,
         qenv: Assoc<Name, Value>,
         ctxt: Value,
-    ) -> Result<Assoc<Name, Value>, ()> {
+    ) -> Result<Assoc<Name, Value>, ()>
+    {
         ::ast_walk::walk::<Destructure>(
             pat,
             &::ast_walk::LazyWalkReses::new_mq_wrapper(env, vec![qenv]).with_context(ctxt),
@@ -679,7 +649,8 @@ fn quote_type_basic() {
         expr: &Ast,
         env: Assoc<Name, Ty>,
         qenv: Assoc<Name, Ty>,
-    ) -> ::ty::TypeResult {
+    ) -> ::ty::TypeResult
+    {
         ::ast_walk::walk::<::ty::SynthTy>(
             expr,
             &::ast_walk::LazyWalkReses::new_mq_wrapper(env, vec![qenv]),
@@ -774,7 +745,8 @@ fn quote_type_basic() {
         env: Assoc<Name, Ty>,
         qenv: Assoc<Name, Ty>,
         ctxt: Ty,
-    ) -> Result<Assoc<Name, Ty>, ::ty::TypeError> {
+    ) -> Result<Assoc<Name, Ty>, ::ty::TypeError>
+    {
         ::ast_walk::walk::<::ty::UnpackTy>(
             pat,
             &::ast_walk::LazyWalkReses::new_mq_wrapper(env, vec![qenv]).with_context(ctxt),
@@ -857,10 +829,8 @@ fn quote_unquote_type_basic() {
                       "body" => (++ false "x")}),
             Assoc::new()
         ),
-        Ok(
-            ty!({"Type" "type_apply" : "type_rator" => (,pat_type.clone()),
-            "arg" => [{"Type" "Nat" :}]})
-        )
+        Ok(ty!({"Type" "type_apply" : "type_rator" => (,pat_type.clone()),
+            "arg" => [{"Type" "Nat" :}]}))
     );
 
     let env = assoc_n!(
@@ -891,7 +861,8 @@ fn quote_unquote_type_basic() {
         expr: &Ast,
         env: Assoc<Name, Ty>,
         qenv: Assoc<Name, Ty>,
-    ) -> ::ty::TypeResult {
+    ) -> ::ty::TypeResult
+    {
         ::ast_walk::walk::<::ty::SynthTy>(
             expr,
             &::ast_walk::LazyWalkReses::new_mq_wrapper(env, vec![qenv]),
@@ -916,12 +887,10 @@ fn quote_unquote_type_basic() {
             env.clone(),
             qenv.clone()
         ),
-        Ok(
-            ty!({"Type" "type_apply" : "type_rator" => (,expr_type.clone()),
+        Ok(ty!({"Type" "type_apply" : "type_rator" => (,expr_type.clone()),
             "arg" => [{"Type" "struct":
                 "component_name" => [@"c" "x", "y", "z"],
-                "component" => [@"c" {"Type" "Nat" :}, {"Type" "Float" :}, {"Type" "Nat" :}]}]})
-        )
+                "component" => [@"c" {"Type" "Nat" :}, {"Type" "Float" :}, {"Type" "Nat" :}]}]}))
     );
 
     // '[Expr | (,[Expr | eT_to_T],  ,[Expr | eT],) ]'
@@ -937,10 +906,8 @@ fn quote_unquote_type_basic() {
             env.clone(),
             qenv.clone()
         ),
-        Ok(
-            ty!({"Type" "type_apply" : "type_rator" => (,expr_type.clone()),
-            "arg" => [(vr "T")]})
-        )
+        Ok(ty!({"Type" "type_apply" : "type_rator" => (,expr_type.clone()),
+            "arg" => [(vr "T")]}))
     );
 
     fn unpack_type_two_phased(
@@ -948,7 +915,8 @@ fn quote_unquote_type_basic() {
         env: Assoc<Name, Ty>,
         qenv: Assoc<Name, Ty>,
         ctxt: Ty,
-    ) -> Result<Assoc<Name, Ty>, ::ty::TypeError> {
+    ) -> Result<Assoc<Name, Ty>, ::ty::TypeError>
+    {
         ::ast_walk::walk::<::ty::UnpackTy>(
             pat,
             &::ast_walk::LazyWalkReses::new_mq_wrapper(env, vec![qenv]).with_context(ctxt),
@@ -1057,7 +1025,8 @@ fn unquote_type_basic() {
         expr: &Ast,
         env: Assoc<Name, Ty>,
         qenv: Assoc<Name, Ty>,
-    ) -> ::ty::TypeResult {
+    ) -> ::ty::TypeResult
+    {
         let parts = LazyWalkReses::new_wrapper(env);
         let qparts = parts.quote_more(None).with_environment(qenv);
 
@@ -1116,7 +1085,8 @@ fn use_dotdotdot() {
         expr: &Ast,
         env: Assoc<Name, Ty>,
         qenv: Assoc<Name, Ty>,
-    ) -> ::ty::TypeResult {
+    ) -> ::ty::TypeResult
+    {
         ::ast_walk::walk::<::ty::SynthTy>(
             expr,
             &::ast_walk::LazyWalkReses::new_mq_wrapper(env, vec![qenv]),
@@ -1127,7 +1097,8 @@ fn use_dotdotdot() {
         expr: &Ast,
         eval_env: Assoc<Name, Value>,
         eval_qenv: Assoc<Name, Value>,
-    ) -> Result<Value, ()> {
+    ) -> Result<Value, ()>
+    {
         ::ast_walk::walk::<Eval>(
             expr,
             &::ast_walk::LazyWalkReses::new_mq_wrapper(eval_env, vec![eval_qenv]),

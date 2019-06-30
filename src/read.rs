@@ -1,9 +1,7 @@
-/*
-The tokenizer ("reader", in Scheme parlance) for Unseemly.
-
-TODO: Make tokenization lazy...
-TODO #6: ...so that it's possible to switch tokenizers mid-file.
-*/
+// The tokenizer ("reader", in Scheme parlance) for Unseemly.
+//
+// TODO: Make tokenization lazy...
+// TODO #6: ...so that it's possible to switch tokenizers mid-file.
 
 extern crate regex;
 

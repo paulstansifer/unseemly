@@ -4,11 +4,9 @@
 // `freshen` gets a value ready for destructuring.
 // `freshen_rec` gets a value and its pattern ready for destructuring.
 
-use ast::Ast;
-use ast::Ast::*;
+use ast::Ast::{self, *};
 use name::*;
-use util::assoc::Assoc;
-use util::mbe::EnvMBE;
+use util::{assoc::Assoc, mbe::EnvMBE};
 
 // A renaming that only affects names at the "current" quotation level
 #[derive(Clone, Debug, PartialEq)]
@@ -27,47 +25,29 @@ impl Ren {
     }
     pub fn unset(self, n: Name) -> Ren {
         if self.q_lev == 0 {
-            Ren {
-                env: self.env.unset(&n),
-                q_lev: self.q_lev,
-            }
+            Ren { env: self.env.unset(&n), q_lev: self.q_lev }
         } else {
             self
         }
     }
     pub fn set_assoc(self, other: &Ren) -> Ren {
         if self.q_lev == other.q_lev {
-            Ren {
-                env: self.env.set_assoc(&other.env),
-                q_lev: self.q_lev,
-            }
+            Ren { env: self.env.set_assoc(&other.env), q_lev: self.q_lev }
         } else {
             self
         }
     }
     pub fn q_more(&self, by: u8) -> Ren {
-        Ren {
-            env: self.env.clone(),
-            q_lev: self.q_lev + i16::from(by),
-        }
+        Ren { env: self.env.clone(), q_lev: self.q_lev + i16::from(by) }
     }
     pub fn q_less(&self, by: u8) -> Ren {
-        Ren {
-            env: self.env.clone(),
-            q_lev: self.q_lev - i16::from(by),
-        }
+        Ren { env: self.env.clone(), q_lev: self.q_lev - i16::from(by) }
     }
     pub fn new() -> Ren {
-        Ren {
-            env: Assoc::new(),
-            q_lev: 0,
-        }
+        Ren { env: Assoc::new(), q_lev: 0 }
     }
     pub fn single(n: Name, a: Ast) -> Ren {
-        Ren {
-            env: Assoc::new().set(n, a),
-            q_lev: 0,
-        }
+        Ren { env: Assoc::new().set(n, a), q_lev: 0 }
     }
 }
 
@@ -80,7 +60,7 @@ impl From<Assoc<Name, Ast>> for Ren {
 fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Ren) -> Ast {
     match *node {
         Node(ref f, ref new_parts, ref export) => {
-            //let new_cnc = parts.clone();
+            // let new_cnc = parts.clone();
             Node(
                 f.clone(),
                 new_parts.marched_map(&mut |_, marched_parts: &EnvMBE<Ast>, part: &Ast| {
@@ -96,19 +76,14 @@ fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Ren) -> Ast
                 new_env = new_env.unset(bound_name);
             }
 
-            ExtendEnv(
-                Box::new(substitute_rec(body, cur_node_contents, &new_env)),
-                beta.clone(),
-            )
+            ExtendEnv(Box::new(substitute_rec(body, cur_node_contents, &new_env)), beta.clone())
         }
-        QuoteMore(ref body, pos) => QuoteMore(
-            Box::new(substitute_rec(body, cur_node_contents, &env.q_more(1))),
-            pos,
-        ),
-        QuoteLess(ref body, depth) => QuoteLess(
-            Box::new(substitute_rec(body, cur_node_contents, &env.q_less(depth))),
-            depth,
-        ),
+        QuoteMore(ref body, pos) => {
+            QuoteMore(Box::new(substitute_rec(body, cur_node_contents, &env.q_more(1))), pos)
+        }
+        QuoteLess(ref body, depth) => {
+            QuoteLess(Box::new(substitute_rec(body, cur_node_contents, &env.q_less(depth))), depth)
+        }
         _ => node.clone(),
     }
 }
@@ -154,18 +129,14 @@ fn freshen_rec(node: &Ast, renamings: &EnvMBE<(Ast, Ren)>, env: Ren) -> Ast {
         ExtendEnv(ref body, ref beta) => {
             let new_env = env.set_assoc(&beta.extract_from_mbe(renamings, &|x: &(_, Ren)| &x.1));
 
-            ExtendEnv(
-                Box::new(freshen_rec(body, renamings, new_env)),
-                beta.clone(),
-            )
+            ExtendEnv(Box::new(freshen_rec(body, renamings, new_env)), beta.clone())
         }
         QuoteMore(ref body, pos) => {
             QuoteMore(Box::new(freshen_rec(body, renamings, env.q_more(1))), pos)
         }
-        QuoteLess(ref body, depth) => QuoteLess(
-            Box::new(freshen_rec(body, renamings, env.q_less(depth))),
-            depth,
-        ),
+        QuoteLess(ref body, depth) => {
+            QuoteLess(Box::new(freshen_rec(body, renamings, env.q_less(depth))), depth)
+        }
         Atom(_) | Trivial | IncompleteNode(_) | Shape(_) => node.clone(),
     }
 }
@@ -265,7 +236,8 @@ pub fn freshen_binders_inside_node_with(
     p_lhs: &EnvMBE<Ast>,
     p_rhs: &EnvMBE<Ast>,
     men: &[Name],
-) -> Option<EnvMBE<(Ast, Ren, Ast, Ren)>> {
+) -> Option<EnvMBE<(Ast, Ren, Ast, Ren)>>
+{
     if !p_lhs.can_map_with(p_rhs) {
         return None;
     }
@@ -288,10 +260,7 @@ pub fn freshen_binders(a: &Ast) -> (Ast, Ren) {
         Trivial | VariableReference(_) => (a.clone(), Ren::new()),
         Atom(old_name) => {
             let new_name = old_name.freshen();
-            (
-                Atom(new_name),
-                Ren::single(old_name, VariableReference(new_name)),
-            )
+            (Atom(new_name), Ren::single(old_name, VariableReference(new_name)))
         }
         Node(ref f, ref parts, ref export) => {
             if export == &::beta::ExportBeta::Nothing {
@@ -454,17 +423,11 @@ fn basic_substitution() {
 fn basic_binder_freshening() {
     ::name::enable_fake_freshness(true);
 
-    assert_eq!(
-        freshen_binders(&ast!((vr "a"))),
-        (ast!((vr "a")), Ren::new())
-    );
+    assert_eq!(freshen_binders(&ast!((vr "a"))), (ast!((vr "a")), Ren::new()));
 
     assert_eq!(
         freshen_binders(&ast!("a")),
-        (
-            ast!("a🍅"),
-            Ren::from(assoc_n!("a" => ast!((vr "a🍅"))))
-        )
+        (ast!("a🍅"), Ren::from(assoc_n!("a" => ast!((vr "a🍅")))))
     );
 
     assert_eq!(
@@ -526,7 +489,7 @@ fn basic_freshening() {
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "a🍅"))]})
     );
 
-    //TODO: test more!
+    // TODO: test more!
 }
 
 #[test]

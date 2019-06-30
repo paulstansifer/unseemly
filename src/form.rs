@@ -3,8 +3,10 @@
 use ast_walk::WalkRule;
 use grammar::FormPat;
 use name::*;
-use std::fmt::{Debug, Error, Formatter};
-use std::rc::Rc;
+use std::{
+    fmt::{Debug, Error, Formatter},
+    rc::Rc,
+};
 use util::assoc::Assoc;
 use walk_mode::WalkMode;
 

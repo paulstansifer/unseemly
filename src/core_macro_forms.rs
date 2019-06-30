@@ -1,16 +1,17 @@
 use ast::{Ast, Atom, Node};
-use ast_walk::LazyWalkReses;
-use ast_walk::WalkRule::{Custom, LiteralLike, NotWalked};
+use ast_walk::{
+    LazyWalkReses,
+    WalkRule::{Custom, LiteralLike, NotWalked},
+};
 use core_forms::ast_to_name;
 use core_type_forms::{less_quoted_ty, more_quoted_ty};
-use form::EitherPN::Both;
-use form::Form;
-use grammar::FormPat;
-use grammar::FormPat::*;
-use grammar::SynEnv;
+use form::{EitherPN::Both, Form};
+use grammar::{
+    FormPat::{self, *},
+    SynEnv,
+};
 use name::*;
-use runtime::eval::Closure;
-use runtime::reify::Reifiable;
+use runtime::{eval::Closure, reify::Reifiable};
 use std::rc::Rc;
 use ty::{SynthTy, Ty};
 use util::assoc::Assoc;
@@ -134,7 +135,8 @@ fn type_macro_invocation(
     parts: &LazyWalkReses<::ty::SynthTy>,
     expected_return: Ty,
     grammar: &FormPat,
-) -> Result<Assoc<Name, Ty>, ::ty::TypeError> {
+) -> Result<Assoc<Name, Ty>, ::ty::TypeError>
+{
     // Typecheck the subterms, and then quote them:
     let mut q_arguments = Assoc::new();
 
@@ -189,10 +191,7 @@ fn macro_invocation(grammar: FormPat, macro_name: Name, export_names: Vec<Name>)
                 // What return type made that work?
                 let q_result = ::ty_compare::unification.with(|unif| {
                     let resolved = ::ty_compare::resolve(
-                        ::ast_walk::Clo {
-                            it: return_type,
-                            env: parts.env.clone(),
-                        },
+                        ::ast_walk::Clo { it: return_type, env: parts.env.clone() },
                         &unif.borrow(),
                     );
 
@@ -222,10 +221,7 @@ fn macro_invocation(grammar: FormPat, macro_name: Name, export_names: Vec<Name>)
                     for binder in &export_names {
                         let ty = arguments.find_or_panic(binder);
                         let binder_clo = ::ty_compare::resolve(
-                            ::ast_walk::Clo {
-                                it: ty.clone(),
-                                env: parts.env.clone(),
-                            },
+                            ::ast_walk::Clo { it: ty.clone(), env: parts.env.clone() },
                             &unif.borrow(),
                         );
                         let binder_ty = ::ty_compare::canonicalize(&binder_clo.it, binder_clo.env)
@@ -464,10 +460,7 @@ fn expand_macro(parts: ::ast_walk::LazyWalkReses<ExpandMacros>) -> Result<Ast, (
     // Turn the subterms into values
     for (binder, _depth) in macro_form.grammar.binders() {
         if let Some(_nt) = macro_form.grammar.find_named_call(binder).unwrap() {
-            env = env.set(
-                binder,
-                ::runtime::eval::Value::from_ast(&parts.get_term(binder)),
-            );
+            env = env.set(binder, ::runtime::eval::Value::from_ast(&parts.get_term(binder)));
         } // Otherwise, it's not a call (presumably a binder)
     }
 
@@ -536,11 +529,9 @@ fn formpat_reflection() {
 
     assert_eq!(
         FormPat::reflect(
-            &eval_top(
-                &ast!({find_form(&macro_forms, "Syntax", "literal"); "body" =>
-                   {"Expr" "quote_expr" : "nt" => "Expr", "body" => (++ true "<--->")}
-                })
-            )
+            &eval_top(&ast!({find_form(&macro_forms, "Syntax", "literal"); "body" =>
+               {"Expr" "quote_expr" : "nt" => "Expr", "body" => (++ true "<--->")}
+            }))
             .unwrap()
         ),
         Literal(n("<--->"))
@@ -626,11 +617,7 @@ fn macro_types() {
         "type_rator" => (,expr_type.clone()), "arg" => [(vr "T")]
     });
     assert_eq!(
-        macro_type(
-            &vec![],
-            assoc_n!("a" => int_expr_type.clone()),
-            int_expr_type.clone()
-        ),
+        macro_type(&vec![], assoc_n!("a" => int_expr_type.clone()), int_expr_type.clone()),
         ty!({"Type" "fn" :
                     "param" => [{"Type" "struct" :
                         "component" => [@"c" (, int_expr_type.concrete())],
@@ -639,11 +626,7 @@ fn macro_types() {
                     "ret" => (, int_expr_type.concrete() )})
     );
     assert_eq!(
-        macro_type(
-            &vec![n("T")],
-            assoc_n!("a" => t_expr_type.clone()),
-            t_expr_type.clone()
-        ),
+        macro_type(&vec![n("T")], assoc_n!("a" => t_expr_type.clone()), t_expr_type.clone()),
         ty!({"Type" "forall_type" :
                 "param" => ["T"],
                 "body" => (import [* [forall "param"]] {"Type" "fn" :

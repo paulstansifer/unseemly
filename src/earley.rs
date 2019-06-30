@@ -17,15 +17,17 @@
 // Also, it turns out that implementing an Earley parser goes pretty smoothly. Yay!
 
 use ast::Ast;
-use grammar::plug_hole;
-use grammar::FormPat::*;
-use grammar::{FormPat, SynEnv};
+use grammar::{
+    plug_hole,
+    FormPat::{self, *},
+    SynEnv,
+};
 use name::*;
-use read::Token::*;
-use read::{Token, TokenTree};
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
+use read::{
+    Token::{self, *},
+    TokenTree,
+};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 pub fn end_of_delim() -> Token {
     Token::Simple(n("☾end delimiter☽"))
@@ -250,9 +252,7 @@ fn recognize(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> bool {
     let (start_but_startier, chart) = create_chart(Rc::new(rule.clone()), grammar.clone(), tt);
 
     chart[chart.len() - 1].iter().any(|item| {
-        (*item.wanted_by.borrow())
-            .iter()
-            .any(|idr| start_but_startier.is(*idr))
+        (*item.wanted_by.borrow()).iter().any(|idr| start_but_startier.is(*idr))
             && *item.done.borrow()
     })
 }
@@ -260,7 +260,7 @@ fn recognize(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> bool {
 fn walk_tt(chart: &mut Vec<Vec<Item>>, t: &Token, cur_tok: &mut usize) {
     chart.push(vec![]);
     examine_state_set(chart, Some(t), *cur_tok);
-    //log!("\n  {:#?}\n->{:#?}\n", chart[*cur_tok], chart[*cur_tok + 1]);
+    // log!("\n  {:#?}\n->{:#?}\n", chart[*cur_tok], chart[*cur_tok + 1]);
     *cur_tok += 1;
     match *t {
         Simple(_) => {}
@@ -289,7 +289,8 @@ fn new_items_from_state_set(
     chart: &mut Vec<Vec<Item>>,
     tok: Option<&Token>,
     cur_tok: usize,
-) -> bool {
+) -> bool
+{
     let mut effect = false;
     for idx in 0..chart[cur_tok].len() {
         for (new_item, next) in chart[cur_tok][idx].examine(tok, cur_tok, chart) {
@@ -305,7 +306,7 @@ fn merge_into_state_set(item: Item, items: &mut Vec<Item>) -> bool {
     for i in items.iter() {
         if i.similar(&item) {
             if i.as_good_as(&item) {
-                return false; /* no new information */
+                return false; // no new information
             }
             log!("improved item: {:#?} vs. {:#?}\n", item, i);
             i.merge(&item);
@@ -364,10 +365,7 @@ impl Item {
         }
 
         use std::cmp::Ordering::*;
-        let comparison = other
-            .local_parse
-            .borrow()
-            .partial_cmp(&*self.local_parse.borrow());
+        let comparison = other.local_parse.borrow().partial_cmp(&*self.local_parse.borrow());
         log!(
             "\n(For {}) Merging {:#?} and {:#?}... ",
             self.id.0,
@@ -410,13 +408,7 @@ impl Item {
 
     fn advance(&self, consume_tok: bool) -> Vec<(Item, bool)> {
         log!("[adv ({})]", self.id.0);
-        vec![(
-            Item {
-                pos: self.pos + 1,
-                ..self.clone()
-            },
-            consume_tok,
-        )]
+        vec![(Item { pos: self.pos + 1, ..self.clone() }, consume_tok)]
     }
 
     fn finish_with(&self, lp: LocalParse, consume_tok: bool) -> Vec<(Item, bool)> {
@@ -501,20 +493,16 @@ impl Item {
         cur: Option<&Token>,
         cur_idx: usize,
         chart: &[Vec<Item>],
-    ) -> Vec<(Item, bool)> {
+    ) -> Vec<(Item, bool)>
+    {
         let mut res = if *self.done.borrow() {
             let mut waiting_satisfied = vec![];
 
-            log!(
-                "({:#?}) done; {} items want it\n",
-                self,
-                (*self.wanted_by.borrow()).len()
-            );
+            log!("({:#?}) done; {} items want it\n", self, (*self.wanted_by.borrow()).len());
 
             for &waiting_item_id in self.wanted_by.borrow().iter() {
-                if let Some(waiting_item) = chart[self.start_idx]
-                    .iter()
-                    .find(|i| i.id.is(waiting_item_id))
+                if let Some(waiting_item) =
+                    chart[self.start_idx].iter().find(|i| i.id.is(waiting_item_id))
                 {
                     // It's `None` if it's the startier item
 
@@ -615,7 +603,8 @@ impl Item {
         cur: Option<&Token>,
         cur_idx: usize,
         chart: &[Vec<Item>],
-    ) -> Vec<(Item, bool)> {
+    ) -> Vec<(Item, bool)>
+    {
         // Try to shift (bump `pos`, or set `done`) or predict (`start` a new item)
         match (self.pos, &*(self.rule.clone())) {
             // TODO: is there a better way to match in `Rc`?
@@ -636,7 +625,7 @@ impl Item {
                     Some(&Simple(n)) if !reserved(n) => {
                         self.finish_with(ParsedAtom(::ast::Atom(n)), true)
                     }
-                    Some(&Group(_, _, _)) => self.finish_with(ParsedAtom(::ast::Trivial), true), // TODO
+                    Some(&Group(_, _, _)) => self.finish_with(ParsedAtom(::ast::Trivial), true), /* TODO */
                     _ => vec![],
                 }
             }
@@ -682,13 +671,7 @@ impl Item {
                     self.start(&subs[pos as usize], cur_idx, false)
                 } else if pos == subs.len() {
                     // a little like `.finish`, but without advancing
-                    vec![(
-                        Item {
-                            done: RefCell::new(true),
-                            ..self.clone()
-                        },
-                        false,
-                    )]
+                    vec![(Item { done: RefCell::new(true), ..self.clone() }, false)]
                 } else {
                     vec![]
                 }
@@ -697,13 +680,7 @@ impl Item {
                 // Special case: the elegant thing would be to create `Star` pre-`done`
                 let mut res = if self.pos == 0 {
                     // Like `.finish`, but without advancing
-                    vec![(
-                        Item {
-                            done: RefCell::new(true),
-                            ..self.clone()
-                        },
-                        false,
-                    )]
+                    vec![(Item { done: RefCell::new(true), ..self.clone() }, false)]
                 } else {
                     vec![]
                 };
@@ -833,8 +810,7 @@ impl Item {
             }
             Delimited(_, _, _) => {
                 // HACK: the wanted item is misaligned by a token because of the close delimiter
-                self.find_wanted(chart, done_tok - 1)
-                    .c_parse(chart, done_tok - 1)
+                self.find_wanted(chart, done_tok - 1).c_parse(chart, done_tok - 1)
             }
             Alt(_) | Biased(_, _) | Call(_) | SynImport(_, _, _) => {
                 self.find_wanted(chart, done_tok).c_parse(chart, done_tok)
@@ -896,12 +872,12 @@ impl Item {
 
                 match *self.rule {
                     Seq(_) => Ok(Ast::Shape(subtrees)),
-                    Star(_) | Plus(_) => Ok(Ast::IncompleteNode(
-                        ::util::mbe::EnvMBE::new_from_anon_repeat_ddd(
+                    Star(_) | Plus(_) => {
+                        Ok(Ast::IncompleteNode(::util::mbe::EnvMBE::new_from_anon_repeat_ddd(
                             subtrees.into_iter().map(|a| a.flatten()).collect(),
                             ddd_pos,
-                        ),
-                    )),
+                        )))
+                    }
                     _ => panic!("ICE: seriously, this can't happen"),
                 }
             }
@@ -915,11 +891,7 @@ impl Item {
             Scope(ref form, ref export) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
                 // TODO #14: We should add zero-length repeats of missing `Named`s,
-                Ok(Ast::Node(
-                    form.clone(),
-                    sub_parsed.flatten(),
-                    export.clone(),
-                ))
+                Ok(Ast::Node(form.clone(), sub_parsed.flatten(), export.clone()))
             }
             NameImport(_, ref beta) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
@@ -954,9 +926,7 @@ pub struct ParseError {
 pub fn parse(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> ParseResult {
     let (start_but_startier, chart) = create_chart(Rc::new(rule.clone()), grammar.clone(), tt);
     let final_item = chart[chart.len() - 1].iter().find(|item| {
-        (*item.wanted_by.borrow())
-            .iter()
-            .any(|idr| start_but_startier.is(*idr))
+        (*item.wanted_by.borrow()).iter().any(|idr| start_but_startier.is(*idr))
             && *item.done.borrow()
     });
     log!("-------\n");
@@ -965,10 +935,7 @@ pub fn parse(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> ParseResult {
         None => best_token.with(|bt| {
             let (idx, tok, ref grammar, pos) = *bt.borrow();
             Err(ParseError {
-                msg: format!(
-                    "Could not parse past token {} ({}) {:#?} {}",
-                    idx, tok, grammar, pos
-                ),
+                msg: format!("Could not parse past token {} ({}) {:#?} {}", idx, tok, grammar, pos),
             })
         }),
     }
@@ -998,17 +965,11 @@ fn earley_merging() {
         wanted_by: Rc::new(RefCell::new(vec![])),
     };
 
-    assert_eq!(
-        merge_into_state_set(basic_item.clone(), &mut state_set),
-        true
-    );
+    assert_eq!(merge_into_state_set(basic_item.clone(), &mut state_set), true);
     assert_eq!(state_set.len(), 1);
 
     // exactly the same (except a different ID)
-    assert_eq!(
-        merge_into_state_set(basic_item.clone(), &mut state_set),
-        false
-    );
+    assert_eq!(merge_into_state_set(basic_item.clone(), &mut state_set), false);
     assert_eq!(state_set.len(), 1);
 
     // (not done yet)
@@ -1017,10 +978,7 @@ fn earley_merging() {
     // improvement in doneness, mergable
     assert_eq!(
         merge_into_state_set(
-            Item {
-                done: RefCell::new(true),
-                ..basic_item.clone()
-            },
+            Item { done: RefCell::new(true), ..basic_item.clone() },
             &mut state_set
         ),
         true
@@ -1032,10 +990,7 @@ fn earley_merging() {
     // not an improvement this time!
     assert_eq!(
         merge_into_state_set(
-            Item {
-                done: RefCell::new(true),
-                ..basic_item.clone()
-            },
+            Item { done: RefCell::new(true), ..basic_item.clone() },
             &mut state_set
         ),
         false
@@ -1045,10 +1000,7 @@ fn earley_merging() {
     // not as good as
     assert_eq!(
         merge_into_state_set(
-            Item {
-                done: RefCell::new(false),
-                ..basic_item.clone()
-            },
+            Item { done: RefCell::new(false), ..basic_item.clone() },
             &mut state_set
         ),
         false
@@ -1060,10 +1012,7 @@ fn earley_merging() {
     // different rule
     assert_eq!(
         merge_into_state_set(
-            Item {
-                rule: Rc::new(another_rule),
-                ..basic_item.clone()
-            },
+            Item { rule: Rc::new(another_rule), ..basic_item.clone() },
             &mut state_set
         ),
         true
@@ -1073,10 +1022,7 @@ fn earley_merging() {
     // different grammar (pointer-wise!)
     assert_eq!(
         merge_into_state_set(
-            Item {
-                grammar: another_grammar.clone(),
-                ..basic_item.clone()
-            },
+            Item { grammar: another_grammar.clone(), ..basic_item.clone() },
             &mut state_set
         ),
         true
@@ -1086,64 +1032,39 @@ fn earley_merging() {
     let id1 = get_next_id().get_ref();
     let id2 = get_next_id().get_ref();
     let id3 = get_next_id().get_ref();
-    /*
-        log!("AGA {:#?},{:#?},{:#?},{:#?}\n",
-        (*self.done.borrow() == *other.done.borrow() || !*other.done.borrow())
-        , *self.local_parse.borrow() == *other.local_parse.borrow()
-            , *(other.local_parse).borrow() == LocalParse::NothingYet
-        , (other.wanted_by.borrow().len() == 0
-            || (other.wanted_by.borrow().iter().all(
-                   |w| self.wanted_by.borrow().iter().find(|s_w| w == *s_w).is_some())))
-
-    );
-        log!("  {:#?}=?{:#?}\n", *self.local_parse.borrow(), *other.local_parse.borrow());*/
-    let wanted_item = |ids| Item {
-        wanted_by: Rc::new(RefCell::new(ids)),
-        ..basic_item.clone()
-    };
+    // log!("AGA {:#?},{:#?},{:#?},{:#?}\n",
+    // (*self.done.borrow() == *other.done.borrow() || !*other.done.borrow())
+    // , *self.local_parse.borrow() == *other.local_parse.borrow()
+    // , *(other.local_parse).borrow() == LocalParse::NothingYet
+    // , (other.wanted_by.borrow().len() == 0
+    // || (other.wanted_by.borrow().iter().all(
+    // |w| self.wanted_by.borrow().iter().find(|s_w| w == *s_w).is_some())))
+    //
+    // );
+    // log!("  {:#?}=?{:#?}\n", *self.local_parse.borrow(), *other.local_parse.borrow());
+    let wanted_item = |ids| Item { wanted_by: Rc::new(RefCell::new(ids)), ..basic_item.clone() };
 
     // test self-check (this shouldn't be interesting)
-    assert_eq!(
-        merge_into_state_set(wanted_item(vec![]), &mut state_set),
-        false
-    );
+    assert_eq!(merge_into_state_set(wanted_item(vec![]), &mut state_set), false);
     assert_eq!(state_set.len(), 3);
 
-    assert_eq!(
-        merge_into_state_set(wanted_item(vec![id1]), &mut state_set),
-        true
-    );
+    assert_eq!(merge_into_state_set(wanted_item(vec![id1]), &mut state_set), true);
     assert_eq!(state_set.len(), 3);
 
     // but another one doesn't have any effect
-    assert_eq!(
-        merge_into_state_set(wanted_item(vec![id1]), &mut state_set),
-        false
-    );
+    assert_eq!(merge_into_state_set(wanted_item(vec![id1]), &mut state_set), false);
     assert_eq!(state_set.len(), 3);
 
-    assert_eq!(
-        merge_into_state_set(wanted_item(vec![id2]), &mut state_set),
-        true
-    );
+    assert_eq!(merge_into_state_set(wanted_item(vec![id2]), &mut state_set), true);
     assert_eq!(state_set.len(), 3);
 
-    assert_eq!(
-        merge_into_state_set(wanted_item(vec![id1, id2]), &mut state_set),
-        false
-    );
+    assert_eq!(merge_into_state_set(wanted_item(vec![id1, id2]), &mut state_set), false);
     assert_eq!(state_set.len(), 3);
 
-    assert_eq!(
-        merge_into_state_set(wanted_item(vec![id2, id1]), &mut state_set),
-        false
-    );
+    assert_eq!(merge_into_state_set(wanted_item(vec![id2, id1]), &mut state_set), false);
     assert_eq!(state_set.len(), 3);
 
-    assert_eq!(
-        merge_into_state_set(wanted_item(vec![id2, id3]), &mut state_set),
-        true
-    );
+    assert_eq!(merge_into_state_set(wanted_item(vec![id2, id3]), &mut state_set), true);
     assert_eq!(state_set.len(), 3);
 
     // TODO: we ought to test the NothingYet - JustifiedByItem() / ParsedAtom() - Ambiguous lattice
@@ -1157,79 +1078,35 @@ fn earley_simple_recognition() {
 
     assert_eq!(recognize(&AnyAtomicToken, &main_grammar, &tokens!()), false);
 
-    assert_eq!(
-        recognize(&Anyways(::ast::Trivial), &main_grammar, &tokens!()),
-        true
-    );
+    assert_eq!(recognize(&Anyways(::ast::Trivial), &main_grammar, &tokens!()), true);
 
     assert_eq!(recognize(&Seq(vec![]), &main_grammar, &tokens!()), true);
 
-    assert_eq!(
-        recognize(
-            &Seq(vec![Rc::new(AnyAtomicToken)]),
-            &main_grammar,
-            &tokens!()
-        ),
-        false
-    );
+    assert_eq!(recognize(&Seq(vec![Rc::new(AnyAtomicToken)]), &main_grammar, &tokens!()), false);
 
-    assert_eq!(
-        recognize(&Star(Rc::new(Impossible)), &main_grammar, &tokens!()),
-        true
-    );
+    assert_eq!(recognize(&Star(Rc::new(Impossible)), &main_grammar, &tokens!()), true);
 
-    assert_eq!(
-        recognize(&Star(Rc::new(AnyAtomicToken)), &main_grammar, &tokens!()),
-        true
-    );
+    assert_eq!(recognize(&Star(Rc::new(AnyAtomicToken)), &main_grammar, &tokens!()), true);
 
     // 1-length strings
 
-    assert_eq!(
-        recognize(&AnyAtomicToken, &main_grammar, &tokens!("Pierre Menard")),
-        true
-    );
+    assert_eq!(recognize(&AnyAtomicToken, &main_grammar, &tokens!("Pierre Menard")), true);
+
+    assert_eq!(recognize(&Impossible, &main_grammar, &tokens!("Pierre Menard")), false);
 
     assert_eq!(
-        recognize(&Impossible, &main_grammar, &tokens!("Pierre Menard")),
+        recognize(&Literal(n("Cervantes")), &main_grammar, &tokens!("Pierre Menard")),
         false
     );
 
-    assert_eq!(
-        recognize(
-            &Literal(n("Cervantes")),
-            &main_grammar,
-            &tokens!("Pierre Menard")
-        ),
-        false
-    );
+    assert_eq!(recognize(&Literal(n("Cervantes")), &main_grammar, &tokens!("Cervantes")), true);
 
     assert_eq!(
-        recognize(
-            &Literal(n("Cervantes")),
-            &main_grammar,
-            &tokens!("Cervantes")
-        ),
+        recognize(&Seq(vec![Rc::new(AnyAtomicToken)]), &main_grammar, &tokens!("P.M.")),
         true
     );
 
-    assert_eq!(
-        recognize(
-            &Seq(vec![Rc::new(AnyAtomicToken)]),
-            &main_grammar,
-            &tokens!("P.M.")
-        ),
-        true
-    );
-
-    assert_eq!(
-        recognize(
-            &Star(Rc::new(AnyAtomicToken)),
-            &main_grammar,
-            &tokens!("PM")
-        ),
-        true
-    );
+    assert_eq!(recognize(&Star(Rc::new(AnyAtomicToken)), &main_grammar, &tokens!("PM")), true);
 
     assert_eq!(
         recognize(
@@ -1271,9 +1148,7 @@ fn earley_simple_recognition() {
 
     assert_eq!(
         recognize(
-            &Seq(vec![Rc::new(Seq(vec![Rc::new(Seq(vec![Rc::new(
-                AnyAtomicToken
-            )]))]))]),
+            &Seq(vec![Rc::new(Seq(vec![Rc::new(Seq(vec![Rc::new(AnyAtomicToken)]))]))]),
             &main_grammar,
             &tokens!("Frustrated Novelist No Good At Describing Hands")
         ),
@@ -1282,9 +1157,7 @@ fn earley_simple_recognition() {
 
     assert_eq!(
         recognize(
-            &Alt(vec![Rc::new(Alt(vec![Rc::new(Alt(vec![Rc::new(
-                AnyAtomicToken
-            )]))]))]),
+            &Alt(vec![Rc::new(Alt(vec![Rc::new(Alt(vec![Rc::new(AnyAtomicToken)]))]))]),
             &main_grammar,
             &tokens!("(no pun intended, by the way)")
         ),
@@ -1304,11 +1177,7 @@ fn earley_simple_recognition() {
 
     assert_eq!(
         recognize(
-            &Seq(vec![
-                Rc::new(AnyAtomicToken),
-                Rc::new(AnyAtomicToken),
-                Rc::new(AnyAtomicToken)
-            ]),
+            &Seq(vec![Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken)]),
             &main_grammar,
             &tokens!("Author" "of the" "Quixote")
         ),
@@ -1317,11 +1186,7 @@ fn earley_simple_recognition() {
 
     assert_eq!(
         recognize(
-            &Seq(vec![
-                Rc::new(AnyAtomicToken),
-                Rc::new(AnyAtomicToken),
-                Rc::new(AnyAtomicToken)
-            ]),
+            &Seq(vec![Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken)]),
             &main_grammar,
             &tokens!("Author" "of" "the" "Quixote")
         ),
@@ -1330,11 +1195,7 @@ fn earley_simple_recognition() {
 
     assert_eq!(
         recognize(
-            &Seq(vec![
-                Rc::new(AnyAtomicToken),
-                Rc::new(AnyAtomicToken),
-                Rc::new(AnyAtomicToken)
-            ]),
+            &Seq(vec![Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken)]),
             &main_grammar,
             &tokens!("Author of" "the Quixote")
         ),
@@ -1386,82 +1247,37 @@ fn earley_env_recognition() {
     assert_eq!(recognize(&Literal(n("a")), &env, &tokens!("b")), false);
 
     assert_eq!(recognize(&Call(n("empty")), &env, &tokens!()), true);
-    assert_eq!(
-        recognize(&Call(n("empty")), &env, &tokens!("not empty!")),
-        false
-    );
+    assert_eq!(recognize(&Call(n("empty")), &env, &tokens!("not empty!")), false);
 
-    assert_eq!(
-        recognize(&Call(n("empty_indirect")), &env, &tokens!()),
-        true
-    );
-    assert_eq!(
-        recognize(&Call(n("empty_indirect")), &env, &tokens!("not empty!")),
-        false
-    );
+    assert_eq!(recognize(&Call(n("empty_indirect")), &env, &tokens!()), true);
+    assert_eq!(recognize(&Call(n("empty_indirect")), &env, &tokens!("not empty!")), false);
 
     assert_eq!(recognize(&Call(n("aaa")), &env, &tokens!()), true);
     assert_eq!(recognize(&Call(n("aaa")), &env, &tokens!("a")), true);
     assert_eq!(recognize(&Call(n("aaa")), &env, &tokens!("a" "a")), true);
-    assert_eq!(
-        recognize(&Call(n("aaa")), &env, &tokens!("a" "a" "a")),
-        true
-    );
-    assert_eq!(
-        recognize(&Call(n("aaa")), &env, &tokens!("a" "x" "a")),
-        false
-    );
+    assert_eq!(recognize(&Call(n("aaa")), &env, &tokens!("a" "a" "a")), true);
+    assert_eq!(recognize(&Call(n("aaa")), &env, &tokens!("a" "x" "a")), false);
 
     assert_eq!(recognize(&Call(n("aaaa")), &env, &tokens!()), false);
     assert_eq!(recognize(&Call(n("aaaa")), &env, &tokens!("a")), true);
     assert_eq!(recognize(&Call(n("aaaa")), &env, &tokens!("a" "a")), true);
-    assert_eq!(
-        recognize(&Call(n("aaaa")), &env, &tokens!("a" "a" "a")),
-        true
-    );
-    assert_eq!(
-        recognize(&Call(n("aaaa")), &env, &tokens!("a" "x" "a")),
-        false
-    );
+    assert_eq!(recognize(&Call(n("aaaa")), &env, &tokens!("a" "a" "a")), true);
+    assert_eq!(recognize(&Call(n("aaaa")), &env, &tokens!("a" "x" "a")), false);
 
     assert_eq!(recognize(&Call(n("aaa_indirect")), &env, &tokens!()), true);
-    assert_eq!(
-        recognize(&Call(n("aaa_indirect")), &env, &tokens!("a")),
-        true
-    );
-    assert_eq!(
-        recognize(&Call(n("aaa_indirect")), &env, &tokens!("a" "a")),
-        true
-    );
-    assert_eq!(
-        recognize(&Call(n("aaa_indirect")), &env, &tokens!("a" "a" "a")),
-        true
-    );
-    assert_eq!(
-        recognize(&Call(n("aaa_indirect")), &env, &tokens!("a" "x" "a")),
-        false
-    );
+    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, &tokens!("a")), true);
+    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, &tokens!("a" "a")), true);
+    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, &tokens!("a" "a" "a")), true);
+    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, &tokens!("a" "x" "a")), false);
 
     for l_rec in vec!["l_rec_axxx", "l_rec_axxx_hard"] {
         assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a")), true);
         assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a" "x")), true);
-        assert_eq!(
-            recognize(&Call(n(l_rec)), &env, &tokens!("a" "x" "x")),
-            true
-        );
-        assert_eq!(
-            recognize(&Call(n(l_rec)), &env, &tokens!("a" "x" "x" "x")),
-            true
-        );
-        assert_eq!(
-            recognize(&Call(n(l_rec)), &env, &tokens!("a" "a" "x" "x")),
-            false
-        );
+        assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a" "x" "x")), true);
+        assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a" "x" "x" "x")), true);
+        assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a" "a" "x" "x")), false);
         assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!()), false);
-        assert_eq!(
-            recognize(&Call(n(l_rec)), &env, &tokens!("a" "x" "a" "x")),
-            false
-        );
+        assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a" "x" "a" "x")), false);
     }
 }
 
@@ -1469,16 +1285,10 @@ fn earley_env_recognition() {
 fn basic_parsing_e() {
     assert_eq!(parse_top(&AnyToken, &tokens!("asdf")), Ok(ast!("asdf")));
 
-    assert_eq!(
-        parse_top(&Anyways(ast!("asdf")), &tokens!()),
-        Ok(ast!("asdf"))
-    );
+    assert_eq!(parse_top(&Anyways(ast!("asdf")), &tokens!()), Ok(ast!("asdf")));
 
     assert_eq!(
-        parse_top(
-            &Biased(Rc::new(Anyways(ast!("A"))), Rc::new(Anyways(ast!("B")))),
-            &tokens!()
-        ),
+        parse_top(&Biased(Rc::new(Anyways(ast!("A"))), Rc::new(Anyways(ast!("B")))), &tokens!()),
         Ok(ast!("A"))
     );
 
@@ -1487,18 +1297,11 @@ fn basic_parsing_e() {
         Ok(ast!({- "c" => "asdf"}))
     );
 
-    assert_eq!(
-        parse_top(&Seq(vec![Rc::new(AnyToken)]), &tokens!("asdf")),
-        Ok(ast_shape!("asdf"))
-    );
+    assert_eq!(parse_top(&Seq(vec![Rc::new(AnyToken)]), &tokens!("asdf")), Ok(ast_shape!("asdf")));
 
     assert_eq!(
         parse_top(
-            &Seq(vec![
-                Rc::new(AnyToken),
-                Rc::new(Literal(n("fork"))),
-                Rc::new(AnyToken)
-            ]),
+            &Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
             &tokens!("asdf" "fork" "asdf")
         ),
         Ok(ast_shape!("asdf" "fork" "asdf"))
@@ -1507,14 +1310,8 @@ fn basic_parsing_e() {
     assert_eq!(
         parse_top(
             &Seq(vec![
-                Rc::new(Seq(vec![
-                    Rc::new(Literal(n("aa"))),
-                    Rc::new(Literal(n("ab")))
-                ])),
-                Rc::new(Seq(vec![
-                    Rc::new(Literal(n("ba"))),
-                    Rc::new(Literal(n("bb")))
-                ]))
+                Rc::new(Seq(vec![Rc::new(Literal(n("aa"))), Rc::new(Literal(n("ab")))])),
+                Rc::new(Seq(vec![Rc::new(Literal(n("ba"))), Rc::new(Literal(n("bb")))]))
             ]),
             &tokens!("aa" "ab" "ba" "bb")
         ),
@@ -1522,11 +1319,7 @@ fn basic_parsing_e() {
     );
 
     parse_top(
-        &Seq(vec![
-            Rc::new(AnyToken),
-            Rc::new(Literal(n("fork"))),
-            Rc::new(AnyToken),
-        ]),
+        &Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
         &tokens!("asdf" "knife" "asdf"),
     )
     .unwrap_err();
@@ -1584,11 +1377,7 @@ fn parse_ddd() {
     );
 
     assert_eq!(
-        parse(
-            &form_pat!([(delim "...(", "(", (named "p", aat))]),
-            &env,
-            &tokens!(("..." ; "b"))
-        ),
+        parse(&form_pat!([(delim "...(", "(", (named "p", aat))]), &env, &tokens!(("..." ; "b"))),
         Ok(ast!(({- "p" => "b"})))
     );
 
@@ -1598,11 +1387,7 @@ fn parse_ddd() {
     );
 
     assert_eq!(
-        parse(
-            &Call(n("some_toks")),
-            &env,
-            &tokens!("a" ("..." ; "b" ) "c")
-        ),
+        parse(&Call(n("some_toks")), &env, &tokens!("a" ("..." ; "b" ) "c")),
         Ok(ast!({- "p" => ["a" ...("b")..., "c"]}))
     );
 }

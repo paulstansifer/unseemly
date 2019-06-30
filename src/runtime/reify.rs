@@ -7,15 +7,14 @@ use num::bigint::BigInt;
 use std::rc::Rc;
 use util::assoc::Assoc;
 
-/** This is for parts of this compiler that need to be represented as object-level values.
- * Almost all of it, turns out!
- *
- * Since this language is extensible, we need to connect the Rust code in the compiler
- *  with the Unseemly code that actually gets evaluated.
- * This is where the magic happens.
- *
- * This is also where ICEs can happen, so make sure that ::ty() is consistent with ::reify().
- */
+/// This is for parts of this compiler that need to be represented as object-level values.
+/// Almost all of it, turns out!
+///
+/// Since this language is extensible, we need to connect the Rust code in the compiler
+///  with the Unseemly code that actually gets evaluated.
+/// This is where the magic happens.
+///
+/// This is also where ICEs can happen, so make sure that ::ty() is consistent with ::reify().
 
 pub trait Reifiable {
     /// TODO: I think that `ty`/`ty_name`/`ty_invocation` doesn't make sense.
@@ -67,7 +66,7 @@ pub trait Reifiable {
     fn reflect(&Value) -> Self;
 }
 
-/* Core values */
+// Core values
 
 macro_rules! basic_reifiability {
     ( $underlying_type:ty, $ty_name:tt, $value_name:ident ) => {
@@ -258,12 +257,10 @@ macro_rules! fake_reifiability {
     };
 }
 
-/*
- * This is unhygienic as heck, but the only way I've found to make `ty` make sense.
- * The problem is that, in Rust, there's no such thing as associated methods on
- *  `Assoc`, just `Assoc<K, V>` (not that would make sense anyways)
- * The other problem is that ihavenoideawhatimdoing.jpg
- */
+// This is unhygienic as heck, but the only way I've found to make `ty` make sense.
+// The problem is that, in Rust, there's no such thing as associated methods on
+//  `Assoc`, just `Assoc<K, V>` (not that would make sense anyways)
+// The other problem is that ihavenoideawhatimdoing.jpg
 
 struct K {}
 fake_reifiability!(K);
@@ -274,15 +271,13 @@ pub fn make_reified_ty_env() -> Assoc<Name, ::ty::Ty> {
     reify_types!(Ast, Assoc<K, V>)
 }
 
-/*
-impl<A: Reifiable, R: Reifiable> Reifiable for Box<Fn(A) -> R> {
-    fn ty() -> Ast { panic!("") }
-
-    fn reify(&self) -> Value { panic!("") }
-
-    fn reflect(v: &Value) -> Self { panic!("") }
-}
-*/
+// impl<A: Reifiable, R: Reifiable> Reifiable for Box<Fn(A) -> R> {
+//     fn ty() -> Ast { panic!("") }
+//
+//     fn reify(&self) -> Value { panic!("") }
+//
+//     fn reflect(v: &Value) -> Self { panic!("") }
+// }
 
 // We can't add derive() to existing types, but we can `impl` these ourselves directly
 
@@ -418,7 +413,7 @@ Reifiable! {
     }
 }
 
-/* for testing */
+// for testing
 
 custom_derive! {
     #[derive(Debug, PartialEq, Eq, Reifiable, Clone)]
@@ -441,10 +436,7 @@ struct OldName<'t> {
     pd: ::std::marker::PhantomData<&'t u32>,
 }
 fn new_oldname<'t>(nm: Name) -> OldName<'t> {
-    OldName {
-        actual: nm,
-        pd: ::std::marker::PhantomData,
-    }
+    OldName { actual: nm, pd: ::std::marker::PhantomData }
 }
 
 impl<'t> Reifiable for OldName<'t> {
@@ -500,10 +492,7 @@ fn basic_reflection() {
 fn basic_r_and_r_roundtrip() {
     assert_eq!(BigInt::from(90), BigInt::reflect(&BigInt::from(90).reify()));
 
-    let bsv = BasicStruct {
-        a: BigInt::from(4),
-        b: BigInt::from(5),
-    };
+    let bsv = BasicStruct { a: BigInt::from(4), b: BigInt::from(5) };
 
     assert_eq!(bsv, BasicStruct::reflect(&bsv.reify()));
 
@@ -517,15 +506,9 @@ fn basic_r_and_r_roundtrip() {
     assert_eq!(bev0, BasicEnum::reflect(&bev0.reify()));
     assert_eq!(bev1, BasicEnum::reflect(&bev1.reify()));
 
-    //assert_eq!(None, Option::reflect(&None.reify()));
-    assert_eq!(
-        Some(BigInt::from(5)),
-        Option::reflect(&Some(BigInt::from(5)).reify())
-    );
-    assert_eq!(
-        Some(bev1.clone()),
-        Option::reflect(&Some(bev1.clone()).reify())
-    );
+    // assert_eq!(None, Option::reflect(&None.reify()));
+    assert_eq!(Some(BigInt::from(5)), Option::reflect(&Some(BigInt::from(5)).reify()));
+    assert_eq!(Some(bev1.clone()), Option::reflect(&Some(bev1.clone()).reify()));
 
     assert_eq!(
         ::std::rc::Rc::new(bev0.clone()),
@@ -547,10 +530,7 @@ fn basic_r_and_r_roundtrip() {
         c: new_oldname(n("DuelCommandments")),
     };
 
-    assert_eq!(
-        pls,
-        ParameterizedLifetimeStruct::<BigInt, bool>::reflect(&pls.reify())
-    );
+    assert_eq!(pls, ParameterizedLifetimeStruct::<BigInt, bool>::reflect(&pls.reify()));
 }
 
 #[test]

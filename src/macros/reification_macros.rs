@@ -1,25 +1,23 @@
 #![macro_use]
 
-/*
-This isn't as bad as it looks.
-I mean, it's pretty bad, don't get me wrong...
-
-The purpose is to generate `Reifiable` `impl`s
- for any `enum` or `struct`.
-
-Basically, `reify` pattern-matches to destructure the actual Rust value,
- and then constructs a `Value` of the corresponding shape.
-
-And `reflect` does the opposite.
-
-But, in the process, I have to work around
- what feels like every single limitation of `macro_rules!` in Rust,
-  as if I were aiming for them.
-
-Who wrote that piece of junk, anyway?
-
-This should be rewritten, now that user-defined derives are stable.
-*/
+// This isn't as bad as it looks.
+// I mean, it's pretty bad, don't get me wrong...
+//
+// The purpose is to generate `Reifiable` `impl`s
+//  for any `enum` or `struct`.
+//
+// Basically, `reify` pattern-matches to destructure the actual Rust value,
+//  and then constructs a `Value` of the corresponding shape.
+//
+// And `reflect` does the opposite.
+//
+// But, in the process, I have to work around
+//   what feels like every single limitation of `macro_rules!` in Rust,
+//    as if I were aiming for them.
+//
+// Who wrote that piece of junk, anyway?
+//
+// This should be rewritten, now that user-defined derives are stable.
 
 macro_rules! Reifiable {
     // HACK: everything is parameterized over 't...
@@ -248,8 +246,8 @@ macro_rules! Reifiable {
     }
 }
 
-/* makes a pattern matching an enum with _n_ components, using the first _n_
-of the input names (be sure to supply enough names!) */
+// makes a pattern matching an enum with _n_ components, using the first _n_
+// of the input names (be sure to supply enough names!)
 macro_rules! choice_pat {
     ( ($t_car:ty $(, $t_cdr:ty)* ) ($i_car:ident $($i_cdr:ident)*)
       $choice:path; ($($accum:ident),*)) => {

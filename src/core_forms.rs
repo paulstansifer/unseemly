@@ -4,8 +4,10 @@ use ast::*;
 use ast_walk::WalkRule::*;
 use core_type_forms::*;
 use form::Form;
-use grammar::FormPat::*;
-use grammar::{FormPat, SynEnv};
+use grammar::{
+    FormPat::{self, *},
+    SynEnv,
+};
 use name::*;
 use num::bigint::ToBigInt;
 use runtime::eval::*;
@@ -177,9 +179,9 @@ pub fn make_core_syn_env() -> SynEnv {
                 panic!("No arms matched! This ought to be a type error, but isn't.");
             })
         ),
-        /* Note that we inconveniently require the user to specify the type.
-        "real" languages infer the type from the (required-to-be-unique)
-        component name. */
+        // Note that we inconveniently require the user to specify the type.
+        // "real" languages infer the type from the (required-to-be-unique)
+        // component name.
         typed_form!("enum_expr",
          [(delim "+[", "[", [(named "name", aat),
                              (star (named "component", (call "Expr")))]),
@@ -241,12 +243,11 @@ pub fn make_core_syn_env() -> SynEnv {
 
             Ok(Struct(res))
         })),
-        /* e.g.
-         * let_type
-         *   pair = mu lhs rhs. {l: lhs, r: rhs}
-         *   point = pair <[int, int]<
-         * in ...
-         */
+        // e.g.
+        // let_type
+        //   pair = mu lhs rhs. {l: lhs, r: rhs}
+        //   point = pair <[int, int]<
+        // in ...
         typed_form!("let_type",
         [(lit "let_type"),
          (named "type_kind_stx", (anyways "*")),
@@ -261,11 +262,10 @@ pub fn make_core_syn_env() -> SynEnv {
         cust_rc_box!( move | let_type_parts | {
             eval(strip_ee(&let_type_parts.get_term(n("body"))), let_type_parts.env)
         })),
-        /* e.g. where List = ∀ X. μ List. enum { Nil(), Cons(X, List<[X]<) }
-         * .[x : List <[X]<  . match (unfold x) ... ].
-         * (unfold is needed because `match` wants an `enum`, not a `μ`)
-         * Exposes the inside of a μ type by performing one level of substitution.
-         */
+        // e.g. where List = ∀ X. μ List. enum { Nil(), Cons(X, List<[X]<) }
+        // .[x : List <[X]<  . match (unfold x) ... ].
+        // (unfold is needed because `match` wants an `enum`, not a `μ`)
+        // Exposes the inside of a μ type by performing one level of substitution.
         typed_form!("unfold",
             [(lit "unfold"), (named "body", (call "Expr"))],
             cust_rc_box!( move |unfold_parts| {
@@ -287,9 +287,8 @@ pub fn make_core_syn_env() -> SynEnv {
                     })
             }),
             Body(n("body"))),
-        /* e.g. where List = ∀ X. μ List. enum { Nil (), Cons (X, List<[X]<) }
-         * (.[x : List <[X]< . ...]. (fold +[Nil]+) ) : List<[X]<
-         */
+        // e.g. where List = ∀ X. μ List. enum { Nil (), Cons (X, List<[X]<) }
+        // (.[x : List <[X]< . ...]. (fold +[Nil]+) ) : List<[X]<
         typed_form!("fold",
             [(lit "fold"), (named "body", (call "Expr")), (lit ":"), (named "t", (call "Type"))],
             cust_rc_box!( move |fold_parts| {
@@ -322,7 +321,7 @@ pub fn make_core_syn_env() -> SynEnv {
                 }))
             }),
             Body(n("body"))),
-        ::core_qq_forms::quote(/*positive=*/ true)
+        ::core_qq_forms::quote(/* positive= */ true)
     ];
 
     let main_pat_forms = forms_to_form_pat_export![
@@ -448,13 +447,11 @@ pub fn make_core_syn_env() -> SynEnv {
         "Ident" => Rc::new(AnyAtomicToken)
     )
     .set_assoc(&ctf)
-    .set_assoc(&cmf) /* throw in the types and macros! */
+    .set_assoc(&cmf) // throw in the types and macros!
 }
 
-/**
- * Mostly for testing purposes, this looks up forms by name.
- * In the "real world", programmers look up forms by syntax, using a parser.
- */
+/// Mostly for testing purposes, this looks up forms by name.
+/// In the "real world", programmers look up forms by syntax, using a parser.
 pub fn find_form(se: &SynEnv, nt: &str, form_name: &str) -> Rc<Form> {
     fn find_form_rec(f: &FormPat, form_name: &str) -> Option<Rc<Form>> {
         match *f {
@@ -548,8 +545,7 @@ pub fn get_core_forms() -> SynEnv {
 #[test]
 fn form_grammar() {
     let cse = make_core_syn_env();
-    use read::DelimChar::*;
-    use read::*;
+    use read::{DelimChar::*, *};
 
     assert_eq!(
         ::grammar::parse(
@@ -650,10 +646,7 @@ fn form_eval() {
                               "w" => val!(i 99),
                               "b" => val!(b false));
 
-    assert_eq!(
-        eval(&ast!((vr "x")), simple_env.clone()),
-        Ok(Int(18.to_bigint().unwrap()))
-    );
+    assert_eq!(eval(&ast!((vr "x")), simple_env.clone()), Ok(Int(18.to_bigint().unwrap())));
 
     // (λy.w) x
     assert_eq!(
@@ -713,9 +706,7 @@ fn alg_type() {
             }),
             mt_ty_env.set(negative_ret_val(), my_enum.clone())
         ),
-        Ok(Assoc::new()
-            .set(n("abc"), ty!({"Type" "Int":}))
-            .set(n("def"), ty!({"Type" "Nat":})))
+        Ok(Assoc::new().set(n("abc"), ty!({"Type" "Int":})).set(n("def"), ty!({"Type" "Nat":})))
     );
 
     // Typecheck enum expression
@@ -882,10 +873,7 @@ fn alg_eval() {
         "t" => (, my_enum_t.clone())
     });
 
-    assert_eq!(
-        eval(&choice1_e, simple_env.clone()),
-        Ok(val!(enum "choice1", (i 18), (b false)))
-    );
+    assert_eq!(eval(&choice1_e, simple_env.clone()), Ok(val!(enum "choice1", (i 18), (b false))));
 
     // Evaluate struct pattern
 
@@ -896,10 +884,7 @@ fn alg_eval() {
                 "component_name" => [@"c" "x", "y"],
                 "component" => [@"c" "xx", "yy"]
             }),
-            mt_env.set(
-                negative_ret_val(),
-                Struct(assoc_n!("x" => val!(i 0), "y" => val!(b true)))
-            )
+            mt_env.set(negative_ret_val(), Struct(assoc_n!("x" => val!(i 0), "y" => val!(b true))))
         ),
         Ok(assoc_n!("xx" => val!(i 0), "yy" => val!(b true)))
     );
@@ -962,10 +947,7 @@ fn recursive_types() {
     );
 
     // `IntList` shouldn't substitute
-    assert_eq!(
-        synth_type(&ast!((vr "il_direct")), ty_env.clone()),
-        Ok(int_list_ty.clone())
-    );
+    assert_eq!(synth_type(&ast!((vr "il_direct")), ty_env.clone()), Ok(int_list_ty.clone()));
 
     // I don't want these tests to depend on alpha-equivalence, so just disable freshening here.
     without_freshening! {

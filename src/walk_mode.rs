@@ -1,17 +1,13 @@
 use alpha::{freshen, freshen_with};
-use ast::Ast;
-use ast::Ast::*;
+use ast::Ast::{self, *};
 use ast_walk::{walk, Clo, LazyWalkReses, OutEnvHandle, WalkRule};
 use form::Form;
 use name::*;
 use runtime::reify::Reifiable;
 use std::fmt::{Debug, Display};
-use util::assoc::Assoc;
-use util::mbe::EnvMBE;
+use util::{assoc::Assoc, mbe::EnvMBE};
 
-/**
- * This trait makes a type producable by positive and negative walks.
- */
+/// This trait makes a type producable by positive and negative walks.
 pub trait WalkElt: Clone + Debug + Display + Reifiable {
     fn from_ast(a: &Ast) -> Self;
     fn to_ast(&self) -> Ast;
@@ -25,21 +21,19 @@ pub trait WalkElt: Clone + Debug + Display + Reifiable {
 // Abbreviation for Result<…::Out, …>
 type Res<Mode> = Result<<<Mode as WalkMode>::D as Dir>::Out, <Mode as WalkMode>::Err>;
 
-/**
- * This trait exists to walk over `Ast`s in different ways.
- * `get_walk_rule` connects `Form`s to actual walk operations.
- *
- * There are two kinds of walks over `Ast`s:
- *  * Positive walks produce an element (a value or type, say) from an environment.
- *    They are for expression-like terms.
- *  * Negative walks produce an environment from an element.
- *    They are for pattern-like terms.
- *
- * Now, the whole environment is actually present in both cases,
- *  and negative walks can actually use it
- *   -- the special value they traverse is stored in the environment with a special name --
- *  but they conceptually are mostly relying on the special value.
- */
+/// This trait exists to walk over `Ast`s in different ways.
+/// `get_walk_rule` connects `Form`s to actual walk operations.
+///
+/// There are two kinds of walks over `Ast`s:
+///  * Positive walks produce an element (a value or type, say) from an environment.
+///    They are for expression-like terms.
+///  * Negative walks produce an environment from an element.
+///    They are for pattern-like terms.
+///
+/// Now, the whole environment is actually present in both cases,
+///  and negative walks can actually use it
+///   -- the special value they traverse is stored in the environment with a special name --
+///  but they conceptually are mostly relying on the special value.
 pub trait WalkMode: Debug + Copy + Reifiable {
     /// The object type for the environment to walk in.
     type Elt: Clone + Debug + Reifiable + WalkElt;
@@ -60,32 +54,27 @@ pub trait WalkMode: Debug + Copy + Reifiable {
     type ExtraInfo: ::std::default::Default + Reifiable + Clone + Debug;
 
     fn get_walk_rule(&Form) -> WalkRule<Self>
-    where
-        Self: Sized;
+    where Self: Sized;
 
-    /**
-    Should the walker extend the environment based on imports?
-
-    While `Beta`s are great for typechecking,
-     evaluation sometimes extends environments
-      in ways that they can't handle.
-    (In particular, λ causes the `Ast` containing the `ExtendEnv`
-      to be moved to a context where its `Beta`s are meaningless!
-    If `!automatically_extend_env()`, the `Custom` implementation
-     must extend the environment properly to be safe.
-    */
+    /// Should the walker extend the environment based on imports?
+    ///
+    /// While `Beta`s are great for typechecking,
+    ///  evaluation sometimes extends environments
+    ///   in ways that they can't handle.
+    /// (In particular, λ causes the `Ast` containing the `ExtendEnv`
+    ///   to be moved to a context where its `Beta`s are meaningless!
+    /// If `!automatically_extend_env()`, the `Custom` implementation
+    ///  must extend the environment properly to be safe.
     fn automatically_extend_env() -> bool;
 
-    /**
-    Walk over the structure of a node, not its meaning.
-    This could be because we're inside a syntax-quote,
-     or it could be that we are a form (like written-out types or a literal)
-      that acts like a literal.
-    Children are not necessarily walked quasiliterally
-     -- maybe they're an interpolation of some kind --
-      instead, the mode (=quotation depth) and form together decide what to do.
-    If the walk is negative, the result might be MatchFailure
-    */
+    /// Walk over the structure of a node, not its meaning.
+    /// This could be because we're inside a syntax-quote,
+    ///  or it could be that we are a form (like written-out types or a literal)
+    ///   that acts like a literal.
+    /// Children are not necessarily walked quasiliterally
+    ///  -- maybe they're an interpolation of some kind --
+    ///   instead, the mode (=quotation depth) and form together decide what to do.
+    /// If the walk is negative, the result might be MatchFailure
     fn walk_quasi_literally(expected: Ast, cnc: &LazyWalkReses<Self>) -> Res<Self> {
         Self::D::walk_quasi_literally(expected, cnc)
     }
@@ -116,13 +105,11 @@ pub trait WalkMode: Debug + Copy + Reifiable {
         panic!("ICE: unexpected repetition")
     }
 
-    /**
-    Make up a special `Elt` that is currently "underspecified",
-     but which can be "unified" with some other `Elt`.
-    If that happens, all copies of this `Elt` will act like that other one.
-
-    Side-effects under the covers make this work.
-    */
+    /// Make up a special `Elt` that is currently "underspecified",
+    ///  but which can be "unified" with some other `Elt`.
+    /// If that happens, all copies of this `Elt` will act like that other one.
+    ///
+    /// Side-effects under the covers make this work.
     fn underspecified(Name) -> Self::Elt {
         panic!("ICE: no underspecified_elt")
     }
@@ -131,15 +118,13 @@ pub trait WalkMode: Debug + Copy + Reifiable {
 }
 
 pub trait Dir: Debug + Copy + Clone
-where
-    Self: ::std::marker::Sized, /* I don't know why Rust wants this!*/
+where Self: ::std::marker::Sized
 {
     type Mode: WalkMode;
 
-    /** The output of the walking process.
-     *
-     * Negated walks produce an environment of Self::Elt, positive walks produce Self::Elt.
-     */
+    /// The output of the walking process.
+    ///
+    /// Negated walks produce an environment of Self::Elt, positive walks produce Self::Elt.
     type Out: Clone + Debug + Reifiable;
 
     /// Get ready to destructure a node.
@@ -208,9 +193,7 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
                     _ => None,
                 });
 
-                Ok(<Self::Mode as WalkMode>::Elt::from_ast(&Node(
-                    f, walked, exports,
-                )))
+                Ok(<Self::Mode as WalkMode>::Elt::from_ast(&Node(f, walked, exports)))
             }
             orig => {
                 // All this mess is to push `Shape` down past a wrapper (i.e. `ExtendEnv`),
@@ -311,7 +294,7 @@ impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
     fn walk_quasi_literally(expected: Ast, cnc: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode> {
         let got = <Mode::Elt as WalkElt>::to_ast(&cnc.context_elt().clone());
 
-        let parts_actual = try!(Mode::context_match(&expected, &got, cnc.env.clone()));
+        let parts_actual = Mode::context_match(&expected, &got, cnc.env.clone())?;
 
         let its_a_trivial_ast = EnvMBE::new(); // No more walking to do
         let expd_parts = match expected {
@@ -325,14 +308,13 @@ impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
         expd_parts.map_collapse_reduce_with(
             &parts_actual,
             &|model: &Ast, actual: &Ast| match *model {
-                Node(_, _, _) | VariableReference(_) | ExtendEnv(_, _) => walk(
-                    model,
-                    &cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(actual)),
-                ),
+                Node(_, _, _) | VariableReference(_) | ExtendEnv(_, _) => {
+                    walk(model, &cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(actual)))
+                }
                 _ => Ok(Assoc::new()),
             },
             &Mode::collapse_repetition,
-            &|result, next| Ok(try!(result.clone()).set_assoc(&try!(next.clone()))),
+            &|result, next| Ok(result.clone()?.set_assoc(&next.clone()?)),
             Ok(Assoc::new()),
         )
     }
@@ -360,8 +342,7 @@ impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
         Some(::std::rc::Rc::new(::std::cell::RefCell::new(Assoc::<
             Name,
             <Self::Mode as WalkMode>::Elt,
-        >::new(
-        ))))
+        >::new())))
     }
     fn is_positive() -> bool {
         false
@@ -387,17 +368,9 @@ pub trait NegativeWalkMode: WalkMode {
         expected: Self::Elt,
         got: Self::Elt,
         env: &Assoc<Name, Self::Elt>,
-    ) -> Option<(Clo<Self::Elt>, Clo<Self::Elt>)> {
-        Some((
-            Clo {
-                it: expected,
-                env: env.clone(),
-            },
-            Clo {
-                it: got,
-                env: env.clone(),
-            },
-        ))
+    ) -> Option<(Clo<Self::Elt>, Clo<Self::Elt>)>
+    {
+        Some((Clo { it: expected, env: env.clone() }, Clo { it: got, env: env.clone() }))
     }
 
     /// Match the context element against the current node.
@@ -408,17 +381,18 @@ pub trait NegativeWalkMode: WalkMode {
         expected: &Ast,
         got: &Ast,
         _env: Assoc<Name, Self::Elt>,
-    ) -> Result<EnvMBE<Ast>, <Self as WalkMode>::Err> {
+    ) -> Result<EnvMBE<Ast>, <Self as WalkMode>::Err>
+    {
         // break apart the node, and walk it element-wise
         match (expected, got) {
             // `pre_walk` has already freshened for us
             (&Node(ref f, _, _), &Node(ref f_actual, ref parts_actual, _)) if *f == *f_actual => {
                 Ok(parts_actual.clone())
             }
-            /* // Why did we need this? Do we still need this?
-            (VariableReference(n_lhs), VariableReference(n_rhs)) if n_lhs == n_rhs => {
-                Ok(EnvMBE::new()) // Nothing left to match. Is this a hack?
-            }*/
+            // // Why did we need this? Do we still need this?
+            // (VariableReference(n_lhs), VariableReference(n_rhs)) if n_lhs == n_rhs => {
+            //     Ok(EnvMBE::new()) // Nothing left to match. Is this a hack?
+            // }
             _ => {
                 // TODO: wouldn't it be nice to have match failures that
                 //  contained useful `diff`-like information for debugging,
@@ -433,18 +407,17 @@ pub trait NegativeWalkMode: WalkMode {
     }
 }
 
-/** `var_to_out`, for positive walks where `Out` == `Elt` */
+/// `var_to_out`, for positive walks where `Out` == `Elt`
 pub fn var_lookup<Elt: Debug + Clone>(n: Name, env: &Assoc<Name, Elt>) -> Result<Elt, ()> {
-    Ok((*env
-        .find(&n)
-        .unwrap_or_else(|| panic!(format!("Name {:#?} unbound in {:#?}", n, env))))
-    .clone())
+    Ok((*env.find(&n).unwrap_or_else(|| panic!(format!("Name {:#?} unbound in {:#?}", n, env))))
+        .clone())
 }
 
-/** `var_to_out`, for negative walks where `Out` == `Assoc<Name, Elt>`` */
+/// `var_to_out`, for negative walks where `Out` == `Assoc<Name, Elt>``
 pub fn var_bind<Elt: Debug + Clone>(
     n: Name,
     env: &Assoc<Name, Elt>,
-) -> Result<Assoc<Name, Elt>, ()> {
+) -> Result<Assoc<Name, Elt>, ()>
+{
     Ok(Assoc::new().set(n, env.find(&negative_ret_val()).unwrap().clone()))
 }

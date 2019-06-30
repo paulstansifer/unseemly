@@ -1,78 +1,69 @@
-/*
-We often need to walk an `Ast` while maintaining an environment.
-This seems to be true at typecheck time and at runtime.
+// We often need to walk an `Ast` while maintaining an environment.
+// This seems to be true at typecheck time and at runtime.
+//
+// Our `Ast`s have information about
+//  what should happen environment-wise baked-in,
+//   so `walk` processes `ExtendEnv` and `VariableReference` on its own.
+// When it reaches a `Node`, the user has to specify
+//  (through the definition of the respective form)
+//   what to do, using a `WalkRule`.
+// The most interesting `WalkRule`, `Custom`,
+//  specifies an arbitrary function on the results of walking its subterms.
+// Subterms are walked lazily, since not all of them are even evaluable/typeable,
+//  and they might need to be walked in a specific order.
+//
+// I may have committed some light type sorcery to make this happen.
 
-Our `Ast`s have information about
- what should happen environment-wise baked-in,
-  so `walk` processes `ExtendEnv` and `VariableReference` on its own.
-When it reaches a `Node`, the user has to specify
- (through the definition of the respective form)
-  what to do, using a `WalkRule`.
-The most interesting `WalkRule`, `Custom`,
- specifies an arbitrary function on the results of walking its subterms.
-Subterms are walked lazily, since not all of them are even evaluable/typeable,
- and they might need to be walked in a specific order.
+// There are different kinds of walks. Here are the ones Unseemly needs so far:
+//
+// Evaluation produces a `Value` or an error.
+// During evaluation, each `lambda` form may be processed many times,
+//  with different values for its parameters.
+//
+// Typechecking produces `Ty` or an error.
+// During typechecking, each `lambda` form is processed once,
+//  using its parameters' declared types.
+//
+// Subtyping produces `Ty` (irrelevant) or an error.
+// It only walks type Asts, so `lambda` is not walked,
+//  but ∀ is a binding form that acts sort of like type-level lambda,
+//   except we use unification instead of explicit "function" calls.
+//
+// Quasiquotation, typically a part of evaluation, produces a `Value::AbstractSyntax`.
+// Typically, it is triggered by a specific quotative form,
+//  and it's very simple to implement; it just reifies syntax.
+// Unseemly is special in that `lambda` even binds under quasiquotation,
+//  despite the fact that it doesn't do anything until the reified syntax is evaluated.
 
-I may have committed some light type sorcery to make this happen.
- */
+// When we walk an `Ast`, we encounter many different forms.
+//
+// Some forms are positive, and some are negative.
+//
+// Positive forms (e.g. expressions and variable references)
+//  are walked in an environment, and produce a "result" value.
+//
+// Negative forms (e.g. patterns and variable bindings)
+//  still can access their environment,
+//   but primarily they look at one special "result" in it, and when they are walked,
+//    they produce an environment from that special result.
+//
+// For example, suppose that `five` has type `nat` and `hello` has type `string`:
+//   - the expression `struct{a: five, b: hello}` produces the type `struct{a: nat, b: string}`
+//   - the pattern `struct{a: aa, b: bb}` produces
+//      the envirnonment where `aa` is `nat` and `bb` is `string`.
+//
+// At runtime, something similar happens with values and value environments.
+//
+// Some forms are "ambidextrous".
+// Everything should be ambidextrous under quasiquotation,
+//  because all syntax should be constructable and matchable.
 
-/*
-There are different kinds of walks. Here are the ones Unseemly needs so far:
-
-Evaluation produces a `Value` or an error.
-During evaluation, each `lambda` form may be processed many times,
- with different values for its parameters.
-
-Typechecking produces `Ty` or an error.
-During typechecking, each `lambda` form is processed once,
- using its parameters' declared types.
-
-Subtyping produces `Ty` (irrelevant) or an error.
-It only walks type Asts, so `lambda` is not walked,
- but ∀ is a binding form that acts sort of like type-level lambda,
-  except we use unification instead of explicit "function" calls.
-
-Quasiquotation, typically a part of evaluation, produces a `Value::AbstractSyntax`.
-Typically, it is triggered by a specific quotative form,
- and it's very simple to implement; it just reifies syntax.
-Unseemly is special in that `lambda` even binds under quasiquotation,
- despite the fact that it doesn't do anything until the reified syntax is evaluated.
-*/
-
-/*
-When we walk an `Ast`, we encounter many different forms.
-
-Some forms are positive, and some are negative.
-
-Positive forms (e.g. expressions and variable references)
- are walked in an environment, and produce a "result" value.
-
-Negative forms (e.g. patterns and variable bindings)
- still can access their environment,
-  but primarily they look at one special "result" in it, and when they are walked,
-   they produce an environment from that special result.
-
-For example, suppose that `five` has type `nat` and `hello` has type `string`:
-  - the expression `struct{a: five, b: hello}` produces the type `struct{a: nat, b: string}`
-  - the pattern `struct{a: aa, b: bb}` produces
-     the envirnonment where `aa` is `nat` and `bb` is `string`.
-
-At runtime, something similar happens with values and value environments.
-
-Some forms are "ambidextrous".
-Everything should be ambidextrous under quasiquotation,
- because all syntax should be constructable and matchable.
-*/
-
-use ast::Ast;
-use ast::Ast::*;
+use ast::Ast::{self, *};
 use beta::*;
 use name::*;
 use runtime::{eval, reify};
-use std::cell::RefCell;
-use std::rc::Rc;
-use util::assoc::Assoc;
-use util::mbe::EnvMBE;
+use std::{cell::RefCell, rc::Rc};
+use util::{assoc::Assoc, mbe::EnvMBE};
 use walk_mode::{Dir, WalkElt, WalkMode};
 
 /// A closed `Elt`; an `Elt` paired with an environment with which to interpret its free names.
@@ -113,15 +104,14 @@ thread_local! {
     pub static ast_walk_layer: RefCell<u32> = RefCell::new(0);
 }
 
-/**
- * Make a `<Mode::D as Dir>::Out` by walking `node` in the environment from `walk_ctxt`.
- * `walk_ctxt` is used as an environment,
- *  and by betas to access other parts of the current node.
- */
+/// Make a `<Mode::D as Dir>::Out` by walking `node` in the environment from `walk_ctxt`.
+/// `walk_ctxt` is used as an environment,
+///  and by betas to access other parts of the current node.
 pub fn walk<Mode: WalkMode>(
     a: &Ast,
     walk_ctxt: &LazyWalkReses<Mode>,
-) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
+) -> Result<<Mode::D as Dir>::Out, Mode::Err>
+{
     layer_watch! { ast_walk_layer :
         // TODO: can we get rid of the & in front of our arguments and save the cloning?
         // TODO: this has a lot of direction-specific runtime hackery.
@@ -282,7 +272,8 @@ fn maybe_literally__walk<Mode: WalkMode>(
     walk_ctxt: LazyWalkReses<Mode>,
     ctxt_elt: Option<Mode::Elt>,
     literally: Option<bool>,
-) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
+) -> Result<<Mode::D as Dir>::Out, Mode::Err>
+{
     let walk_ctxt = match ctxt_elt {
         Some(e) => walk_ctxt.with_context(e),
         None => walk_ctxt,
@@ -368,7 +359,7 @@ impl<Mode: WalkMode> ::std::fmt::Debug for WalkRule<Mode> {
 
 pub use self::WalkRule::*;
 
-/** An environment of walked things. */
+/// An environment of walked things.
 pub type ResEnv<Elt> = Assoc<Name, Elt>;
 
 /// A term where the results of walking subterms is memoized.
@@ -400,24 +391,23 @@ impl<Mode: WalkMode> reify::Reifiable for LazilyWalkedTerm<Mode> {
 // We only implement this because lazy-rust is unstable
 impl<Mode: WalkMode> LazilyWalkedTerm<Mode> {
     pub fn new(t: &Ast) -> Rc<LazilyWalkedTerm<Mode>> {
-        Rc::new(LazilyWalkedTerm {
-            term: t.clone(),
-            res: RefCell::new(None),
-        })
+        Rc::new(LazilyWalkedTerm { term: t.clone(), res: RefCell::new(None) })
     }
 
-    /** Get the result of walking this term (memoized) */
+    /// Get the result of walking this term (memoized)
     fn get_res(
         &self,
         cur_node_contents: &LazyWalkReses<Mode>,
-    ) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
+    ) -> Result<<Mode::D as Dir>::Out, Mode::Err>
+    {
         self.memoized(&|| walk::<Mode>(&self.term, cur_node_contents))
     }
 
     fn memoized(
         &self,
         f: &dyn Fn() -> Result<<Mode::D as Dir>::Out, Mode::Err>,
-    ) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
+    ) -> Result<<Mode::D as Dir>::Out, Mode::Err>
+    {
         let result = self.res.borrow_mut().take().unwrap_or_else(f);
         *self.res.borrow_mut() = Some(result.clone());
         result
@@ -434,20 +424,19 @@ pub type OutEnvHandle<Mode> = Rc<RefCell<Assoc<Name, <Mode as WalkMode>::Elt>>>;
 pub fn squirrel_away<Mode: WalkMode>(
     opt_oeh: Option<OutEnvHandle<Mode>>,
     more_env: <Mode::D as Dir>::Out,
-) {
+)
+{
     if let Some(oeh) = opt_oeh {
         let new_env = oeh.borrow().set_assoc(&Mode::out_as_env(more_env));
         *oeh.borrow_mut() = new_env;
     }
 }
 
-/**
- * Package containing enough information to walk the subforms of some form on-demand.
- *
- * It is safe to have unwalkable subforms, as long as nothing ever refers to them.
- *
- * Contents probably shouldn't be `pub`...
- */
+/// Package containing enough information to walk the subforms of some form on-demand.
+///
+/// It is safe to have unwalkable subforms, as long as nothing ever refers to them.
+///
+/// Contents probably shouldn't be `pub`...
 #[derive(Debug, Clone)]
 pub struct LazyWalkReses<Mode: WalkMode> {
     /// Things that we have walked and that we might walk
@@ -510,7 +499,8 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         env: ResEnv<Mode::Elt>, // TODO: we could get rid of the middle argument
         parts_unwalked: &EnvMBE<Ast>,
         this_ast: Ast,
-    ) -> LazyWalkReses<Mode> {
+    ) -> LazyWalkReses<Mode>
+    {
         LazyWalkReses {
             env: env,
             more_quoted_env: vec![],
@@ -522,7 +512,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         }
     }
 
-    /** Slight hack: this is just to get a recursion started with some environment. */
+    /// Slight hack: this is just to get a recursion started with some environment.
     pub fn new_wrapper(env: ResEnv<Mode::Elt>) -> LazyWalkReses<Mode> {
         LazyWalkReses {
             env: env,
@@ -538,7 +528,8 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     pub fn new_mq_wrapper(
         env: ResEnv<Mode::Elt>,
         mqe: Vec<ResEnv<Mode::Elt>>,
-    ) -> LazyWalkReses<Mode> {
+    ) -> LazyWalkReses<Mode>
+    {
         LazyWalkReses {
             env: env,
             more_quoted_env: mqe,
@@ -551,11 +542,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
 
     pub fn switch_ast(self, parts: &EnvMBE<Ast>, this_ast: Ast) -> LazyWalkReses<Mode> {
-        LazyWalkReses {
-            parts: parts.map(&mut LazilyWalkedTerm::new),
-            this_ast: this_ast,
-            ..self
-        }
+        LazyWalkReses { parts: parts.map(&mut LazilyWalkedTerm::new), this_ast: this_ast, ..self }
     }
 
     pub fn this_form(&self) -> Rc<::form::Form> {
@@ -572,11 +559,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
 
     /// Like `get_res`, but for subforms that are repeated at depth 1. Sort of a hack.
     pub fn get_rep_res(&self, part_name: Name) -> Result<Vec<<Mode::D as Dir>::Out>, Mode::Err> {
-        self.parts
-            .get_rep_leaf_or_panic(part_name)
-            .iter()
-            .map(|&lwt| lwt.get_res(self))
-            .collect()
+        self.parts.get_rep_leaf_or_panic(part_name).iter().map(|&lwt| lwt.get_res(self)).collect()
     }
 
     /// Like `get_res`, but with `depth` levels of repetition, and calling `f` to flatten the result
@@ -585,7 +568,8 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         part_name: Name,
         depth: u8,
         f: &dyn Fn(Vec<<Mode::D as Dir>::Out>) -> <Mode::D as Dir>::Out,
-    ) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
+    ) -> Result<<Mode::D as Dir>::Out, Mode::Err>
+    {
         self.parts.map_flatten_rep_leaf_or_panic(
             part_name,
             depth,
@@ -602,13 +586,13 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         )
     }
 
-    /*/** Like `get_rep_res`, but doesn't panic if the name is absent. */
-    pub fn maybe_get_rep_res(&self, part_name: &Name) -> Option<Result<Vec<<Mode::D as Dir>::Out>, Mode::Err>> {
-        self.parts.get_rep_leaf(part_name).map(|parts|
-            parts.iter().map( |&lwt| lwt.get_res(self)).collect())
-    }*/
+    // /** Like `get_rep_res`, but doesn't panic if the name is absent. */
+    // pub fn maybe_get_rep_res(&self, part_name: &Name) -> Option<Result<Vec<<Mode::D as Dir>::Out>, Mode::Err>> {
+    //     self.parts.get_rep_leaf(part_name).map(|parts|
+    //         parts.iter().map( |&lwt| lwt.get_res(self)).collect())
+    // }
 
-    /** The subform named `part_name`, without any processing. */
+    /// The subform named `part_name`, without any processing.
     pub fn get_term(&self, part_name: Name) -> Ast {
         self.parts.get_leaf_or_panic(&part_name).term.clone()
     }
@@ -625,14 +609,10 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
 
     pub fn get_rep_term(&self, part_name: Name) -> Vec<Ast> {
-        self.parts
-            .get_rep_leaf_or_panic(part_name)
-            .iter()
-            .map(|&lwt| lwt.term.clone())
-            .collect()
+        self.parts.get_rep_leaf_or_panic(part_name).iter().map(|&lwt| lwt.term.clone()).collect()
     }
 
-    /** Only sensible for negative walks */
+    /// Only sensible for negative walks
     pub fn context_elt(&self) -> &Mode::Elt {
         self.env.find(&negative_ret_val()).unwrap()
     }
@@ -645,25 +625,18 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     /// Change the context (by editing the environment). Only sensible for negative walks.
     /// Don't do `.with_context(…).with_environment(…)`
     pub fn with_context(&self, e: Mode::Elt) -> LazyWalkReses<Mode> {
-        LazyWalkReses {
-            env: self.env.set(negative_ret_val(), e),
-            ..(*self).clone()
-        }
+        LazyWalkReses { env: self.env.set(negative_ret_val(), e), ..(*self).clone() }
     }
 
     /// Change the whole environment
     pub fn with_environment(&self, env: ResEnv<Mode::Elt>) -> LazyWalkReses<Mode> {
-        LazyWalkReses {
-            env: env,
-            ..(*self).clone()
-        }
+        LazyWalkReses { env: env, ..(*self).clone() }
     }
 
     /// Clear the memo table; important if you're re-evaluating the same term,
     /// but have changed the environment
     pub fn clear_memo(&self) {
-        self.parts
-            .map(&mut |lwt: &Rc<LazilyWalkedTerm<Mode>>| lwt.clear_memo());
+        self.parts.map(&mut |lwt: &Rc<LazilyWalkedTerm<Mode>>| lwt.clear_memo());
     }
 
     /// Switch to a different mode with the same `Elt` type.
@@ -686,10 +659,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
 
     pub fn quote_more(mut self, oeh: Option<OutEnvHandle<Mode>>) -> LazyWalkReses<Mode> {
-        let env = self
-            .more_quoted_env
-            .pop()
-            .unwrap_or_else(Mode::Elt::core_env);
+        let env = self.more_quoted_env.pop().unwrap_or_else(Mode::Elt::core_env);
         let more_quoted_env = self.more_quoted_env;
         self.less_quoted_env.push(self.env);
         let less_quoted_env = self.less_quoted_env;
@@ -697,21 +667,12 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         self.less_quoted_out_env.push(oeh);
         let less_quoted_out_env = self.less_quoted_out_env;
 
-        LazyWalkReses {
-            env,
-            more_quoted_env,
-            less_quoted_env,
-            less_quoted_out_env,
-            ..self
-        }
+        LazyWalkReses { env, more_quoted_env, less_quoted_env, less_quoted_out_env, ..self }
     }
 
     /// Shift to a less-quoted level. If the OEH is non-`None`, you need to call `squirrel_away`.
     pub fn quote_less(mut self) -> (Option<OutEnvHandle<Mode>>, LazyWalkReses<Mode>) {
-        let env = self
-            .less_quoted_env
-            .pop()
-            .unwrap_or_else(Mode::Elt::core_env);
+        let env = self.less_quoted_env.pop().unwrap_or_else(Mode::Elt::core_env);
         let less_quoted_env = self.less_quoted_env;
 
         let out_env: Option<OutEnvHandle<Mode>> = self.less_quoted_out_env.pop().unwrap();
@@ -720,49 +681,38 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         self.more_quoted_env.push(self.env);
         let more_quoted_env = self.more_quoted_env;
 
-        let res = LazyWalkReses {
-            env,
-            less_quoted_env,
-            more_quoted_env,
-            less_quoted_out_env,
-            ..self
-        };
+        let res =
+            LazyWalkReses { env, less_quoted_env, more_quoted_env, less_quoted_out_env, ..self };
 
         (out_env, res)
     }
 
-    /** March by example, turning a repeated set of part names into one LWR per repetition.
-     * Keeps the same environment.
-     */
+    /// March by example, turning a repeated set of part names into one LWR per repetition.
+    /// Keeps the same environment.
     pub fn march_parts(&self, driving_names: &[Name]) -> Vec<LazyWalkReses<Mode>> {
         let marched = self.parts.march_all(driving_names);
         let mut res = vec![];
         for marched_parts in marched {
-            res.push(LazyWalkReses {
-                parts: marched_parts,
-                ..self.clone()
-            });
+            res.push(LazyWalkReses { parts: marched_parts, ..self.clone() });
         }
         res
     }
 
-    /**
-     * HACK: For the sake of `mbe_one_name`, we want to treat `LazyWalkReses` and `EnvMBE`
-     * the same way. But I don't like having the same interface for them in general; I find it
-     * confusing. So don't use this ):
-     */
+    /// HACK: For the sake of `mbe_one_name`, we want to treat `LazyWalkReses` and `EnvMBE`
+    /// the same way. But I don't like having the same interface for them in general; I find it
+    /// confusing. So don't use this ):
     pub fn march_all(&self, driving_names: &[Name]) -> Vec<LazyWalkReses<Mode>> {
         self.march_parts(driving_names)
     }
 
-    /** Combines `march_parts` and `with_context`. `new_contexts` should have the same length
-     * as the repetition marched.
-     */
+    /// Combines `march_parts` and `with_context`. `new_contexts` should have the same length
+    /// as the repetition marched.
     pub fn march_parts_with(
         &self,
         driving_names: &[Name],
         new_contexts: Vec<Mode::Elt>,
-    ) -> Option<Vec<LazyWalkReses<Mode>>> {
+    ) -> Option<Vec<LazyWalkReses<Mode>>>
+    {
         let marched = self.parts.march_all(driving_names);
         if marched.len() != new_contexts.len() {
             return None;
@@ -779,9 +729,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
 
     pub fn map_terms<F, E: Clone>(self, f: &mut F) -> Result<LazyWalkReses<Mode>, E>
-    where
-        F: FnMut(Name, &Ast) -> Result<Ast, E>,
-    {
+    where F: FnMut(Name, &Ast) -> Result<Ast, E> {
         use std::clone::Clone;
         Ok(LazyWalkReses {
             parts: self
@@ -794,14 +742,15 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         })
     }
 
-    /** Like `get_rep_res`, but with a different context for each repetition */
+    /// Like `get_rep_res`, but with a different context for each repetition
     pub fn get_rep_res_with(
         &self,
         n: Name,
         new_contexts: Vec<Mode::Elt>,
-    ) -> Result<Vec<<Mode::D as Dir>::Out>, Mode::Err> {
+    ) -> Result<Vec<<Mode::D as Dir>::Out>, Mode::Err>
+    {
         if let Some(sub_parts) = self.march_parts_with(&[n], new_contexts) {
-            //Some(sub_parts.iter().map(|sp| sp.get_res(n)).collect())
+            // Some(sub_parts.iter().map(|sp| sp.get_res(n)).collect())
             let mut res = vec![];
             for sub_part in sub_parts {
                 res.push(sub_part.get_res(n)?);
@@ -809,7 +758,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             Ok(res)
         } else {
             panic!("Type error: Length mismatch")
-            //Err(()) // TODO: Generate a mode-appropriate error
+            // Err(()) // TODO: Generate a mode-appropriate error
         }
     }
 }
@@ -843,8 +792,5 @@ fn quote_more_and_less() {
     squirrel_away::<::ty::UnpackTy>(squirreler, res);
 
     // check that we successfully squirreled it away:
-    assert_eq!(
-        *interpolation_accumulator.borrow(),
-        assoc_n!("bind_me" => ty!({"Type" "Int" :}))
-    );
+    assert_eq!(*interpolation_accumulator.borrow(), assoc_n!("bind_me" => ty!({"Type" "Int" :})));
 }

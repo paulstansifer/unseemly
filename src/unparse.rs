@@ -1,7 +1,8 @@
-use ast::Ast;
-use ast::Ast::*;
-use grammar::FormPat::*;
-use grammar::{FormPat, SynEnv};
+use ast::Ast::{self, *};
+use grammar::{
+    FormPat::{self, *},
+    SynEnv,
+};
 use name::*;
 use util::mbe::EnvMBE;
 
@@ -44,7 +45,7 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
 }
 
 pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv) -> String {
-    //HACK: handle underdetermined forms
+    // HACK: handle underdetermined forms
     let undet = ::ty_compare::underdetermined_form.with(|u| u.clone());
     match *actl {
         Node(ref form, ref body, _) if form == &undet => {
@@ -54,7 +55,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
                 match looked_up {
                     // Apparently the environment is recursive; `{}`ing it stack-overflows
                     Some(ref clo) => {
-                        format!("{} in some environment", clo.it /*, {:#?} clo.env*/)
+                        format!("{} in some environment", clo.it /* , {:#?} clo.env */)
                     }
                     None => format!("¿{}?", var),
                 }
@@ -65,12 +66,9 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
 
     // TODO: this really ought to notice when `actl` is ill-formed for `pat`.
     match (pat, actl) {
-        (&Named(name, ref body), _) => unparse_mbe(
-            &*body,
-            context.get_leaf(name).unwrap_or(&Atom(n("<->"))),
-            context,
-            s,
-        ),
+        (&Named(name, ref body), _) => {
+            unparse_mbe(&*body, context.get_leaf(name).unwrap_or(&Atom(n("<->"))), context, s)
+        }
         //=> unparse_mbe(&*body, context.get_leaf(name).unwrap_or(&Atom(n("<MISSING>"))), context, s),
         (&Call(sub_form), _) => unparse_mbe(s.find_or_panic(&sub_form), actl, context, s),
         (&Anyways(_), _) | (&Impossible, _) => "".to_string(),
@@ -131,11 +129,9 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
 
             return "".to_string(); // Not sure if it's an error, or really just empty
         }
-        (&Biased(ref lhs, ref rhs), _) => format!(
-            "{}{}",
-            unparse_mbe(lhs, actl, context, s),
-            unparse_mbe(rhs, actl, context, s)
-        ),
+        (&Biased(ref lhs, ref rhs), _) => {
+            format!("{}{}", unparse_mbe(lhs, actl, context, s), unparse_mbe(rhs, actl, context, s))
+        }
         (&Star(ref sub_pat), _) | (&Plus(ref sub_pat), _) => {
             let mut first = true;
             let mut res = String::new();
@@ -171,14 +167,14 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
         (&QuoteEscape(_, _), _) => format!("[Missing ql]{:#?}", actl),
         (&SynImport(ref _fp, ref _n, ref _se), &Node(_, ref _body, _)) => {
             // TODO: I think we need to store the LHS in the AST somehow for this to work.
-            /*            (*se.0)(se, )
-            format!("{} {}",
-                unparse_mbe(fp, ????, context, s))
-                unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)*/
+            //            (*se.0)(se, )
+            // format!("{} {}",
+            // unparse_mbe(fp, ????, context, s))
+            // unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
             format!("?synax import? {:#?} ?si?", actl)
         }
         (&SynImport(_, _, _), _) => "".to_string(),
     }
 }
 
-//pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv) -> String {
+// pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv) -> String {

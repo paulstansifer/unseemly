@@ -1,15 +1,12 @@
-/*!
- * This abstract syntax tree is *really* abstract.
- * By necessity, it's not tied to any specific language.
- * "Normal" language forms all correspond to `Node`, and their meaning comes from their `Form`.
- */
+//! This abstract syntax tree is *really* abstract.
+//! By necessity, it's not tied to any specific language.
+//! "Normal" language forms all correspond to `Node`, and their meaning comes from their `Form`.
 
 #![macro_use]
 
 use beta::{Beta, ExportBeta};
 use name::*;
-use std::fmt;
-use std::iter;
+use std::{fmt, iter};
 use util::mbe::EnvMBE;
 
 // TODO: This really ought to be an `Rc` around an `enum`
@@ -132,7 +129,8 @@ impl Ast {
     pub fn destructure(
         &self,
         expd_form: ::std::rc::Rc<::form::Form>,
-    ) -> Option<::util::mbe::EnvMBE<Ast>> {
+    ) -> Option<::util::mbe::EnvMBE<Ast>>
+    {
         match self {
             Node(ref f, ref parts, _) => {
                 if f == &expd_form {
@@ -162,21 +160,17 @@ impl Ast {
 // This is used by combine::many, which is used by the Star parser
 impl iter::FromIterator<Ast> for Ast {
     fn from_iter<I: IntoIterator<Item = Ast>>(i: I) -> Self {
-        IncompleteNode(EnvMBE::new_from_anon_repeat(
-            i.into_iter().map(|a| a.flatten()).collect(),
-        ))
+        IncompleteNode(EnvMBE::new_from_anon_repeat(i.into_iter().map(|a| a.flatten()).collect()))
     }
 }
 
-/*
- * This is also sort of a test of MBE, since we need `Ast`s to make them with the macros
- *
- * Suppose we have the following series of `Ast`s:
- * [b = 8] [a = [1 2], b = 8] [a = [3 4 5], b = 8]
- *
- * We should turn them into the following `Ast`
- * [a = [[] [1 2] [3 4 5]], b = [8 8 8]]
- */
+// This is also sort of a test of MBE, since we need `Ast`s to make them with the macros
+//
+// Suppose we have the following series of `Ast`s:
+// [b = 8] [a = [1 2], b = 8] [a = [3 4 5], b = 8]
+//
+// We should turn them into the following `Ast`
+// [a = [[] [1 2] [3 4 5]], b = [8 8 8]]
 #[test]
 fn combine_from_kleene_star() {
     use std::iter::FromIterator;

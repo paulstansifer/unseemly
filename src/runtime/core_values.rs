@@ -1,7 +1,10 @@
 use ast::Ast;
 use name::*;
-use runtime::eval::Value::*;
-use runtime::eval::{eval, Value, BIF};
+use runtime::eval::{
+    eval,
+    Value::{self, *},
+    BIF,
+};
 use std::rc::Rc;
 use ty::Ty;
 use util::assoc::Assoc;

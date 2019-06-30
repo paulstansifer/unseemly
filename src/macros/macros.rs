@@ -7,7 +7,7 @@ macro_rules! log {
     };
 }
 
-/* Assoc */
+// Assoc
 
 macro_rules! expr_ify {
     ($e:expr) => {
@@ -25,7 +25,7 @@ macro_rules! assoc_n {
     };
 }
 
-/* Beta */
+// Beta
 
 macro_rules! beta_connector {
     ( : ) => {
@@ -77,7 +77,7 @@ macro_rules! ebeta {
     };
 }
 
-/* Read */
+// Read
 
 macro_rules! tokens {
     ($($contents:tt)*) => { TokenTree{t: vec![ $(  t_elt!($contents) ),* ] }}
@@ -96,7 +96,7 @@ macro_rules! t_elt {
     ($e:expr) => { Simple(::name::n($e)) }
 }
 
-/* Ast */
+// Ast
 
 macro_rules! ast_shape {
     ($($contents:tt)*) => { ::ast::Shape(vec![ $(  ast!($contents) ),* ] )};
@@ -152,7 +152,7 @@ macro_rules! ast {
     ($e:expr) => { ::ast::Atom(::name::n($e))}
 }
 
-/* Ty */
+// Ty
 
 // Note that interpolations into this have to be `Ast`, not `Ty`.
 // This isn't ideal, but the macrology involved in fixing that is a bridge too far for me
@@ -188,14 +188,12 @@ macro_rules! ty_err_p { // type error pattern
     }
 }
 
-/* EnvMBE */
+// EnvMBE
 
-/* These macros generate `EnvMBE<Ast>`s, not arbitrary `EnvMBE`s,
-which is a little un-abstract, but is the main usage. */
+// These macros generate `EnvMBE<Ast>`s, not arbitrary `EnvMBE`s,
+//  which is a little un-abstract, but is the main usage.
 
-/*
- * Wait a second, I'm writing in Rust right now! I'll use an MBE macro to implement an MBE literal!
- */
+// Wait a second, I'm writing in Rust right now! I'll use an MBE macro to implement an MBE literal!
 macro_rules! mbe_one_name {
     // `elt` ought to have an interpolation that references `new_env`
     // TODO: maybe this (and the parser!) ought to add 0-times-repeated leaves to `leaf_locations`
@@ -288,7 +286,7 @@ macro_rules! mbe {
     }}
 }
 
-/* FormPat */
+// FormPat
 
 // TODO #8: `ast!` and `form_pat!` are inconsistent with each other.
 macro_rules! form_pat {
@@ -334,7 +332,7 @@ macro_rules! form_pat {
         ::grammar::FormPat::Seq(vec![ $( ::std::rc::Rc::new(form_pat!($body)) ),* ])}
 }
 
-/* utility, for core_forms and core_type_forms */
+// utility, for core_forms and core_type_forms
 // This has to be a macro for type reasons involving sizedness I don't understand.
 macro_rules! cust_rc_box {
     ($contents:expr) => {
@@ -342,7 +340,7 @@ macro_rules! cust_rc_box {
     };
 }
 
-/* Form */
+// Form
 
 macro_rules! basic_typed_form {
     ( $p:tt, $gen_type:expr, $eval:expr ) => {
@@ -392,7 +390,7 @@ macro_rules! negative_typed_form {
     };
 }
 
-/* Value */
+// Value
 
 macro_rules! val {
     (i $i:expr) => { ::runtime::eval::Value::Int(::num::bigint::BigInt::from($i)) };
@@ -422,7 +420,7 @@ macro_rules! val {
     (, $interpolate:expr) => { $interpolate }
 }
 
-/* core_values stuff */
+// core_values stuff
 
 macro_rules! mk_type { // TODO: maybe now use find_core_form and un-thread $se?
     ( [ ( $( $param:tt ),* )  -> $ret_t:tt ] ) => {
@@ -434,7 +432,7 @@ macro_rules! mk_type { // TODO: maybe now use find_core_form and un-thread $se?
     ( $n:tt ) => { ast!({ "Type" $n : }) }; // atomic type
 }
 
-/* Define a typed function */
+// Define a typed function
 macro_rules! tf {
     (  [ ( $($param_t:tt),* ) -> $ret_t:tt ] ,
        ( $($param_p:pat),* ) => $body:expr) => {
@@ -451,7 +449,7 @@ macro_rules! tf {
     }
 }
 
-/* Like `tf!`, but actually uses `ast!`, which is more flexible than `mk_type!` */
+// Like `tf!`, but actually uses `ast!`, which is more flexible than `mk_type!`
 macro_rules! tyf {
     ( $t:tt, ( $($param_p:pat),* ) => $body:expr ) => {
         TypedValue { ty: ast!($t), val: core_fn!($($param_p),* => $body) }
@@ -482,7 +480,7 @@ macro_rules! core_fn {
     }
 }
 
-/* Alpha */
+// Alpha
 macro_rules! without_freshening {
     ($( $body:tt )*) => {{
         let mut orig: bool = false;
@@ -497,9 +495,9 @@ macro_rules! without_freshening {
     }}
 }
 
-/* for core_forms */
+// for core_forms
 
-/* Unpacking `Ast`s into environments is a pain, so here's a macro for it*/
+// Unpacking `Ast`s into environments is a pain, so here's a macro for it
 macro_rules! expect_node {
     ( ($node:expr ; $form:expr) $env:ident ; $body:expr ) => {
         // This is tied to the signature of `Custom`
@@ -552,7 +550,7 @@ macro_rules! forms_to_form_pat_export {
     }
 }
 
-/* panicking destructor (when the type system should offer protection) */
+// panicking destructor (when the type system should offer protection)
 
 macro_rules! extract {
     (($v:expr) $( $expected:path = ( $( $sub:pat ),* ) => $body:expr);* ) => {
@@ -563,7 +561,7 @@ macro_rules! extract {
     }
 }
 
-/* Reification helper (doesn't work on parameterized types...) */
+// Reification helper (doesn't work on parameterized types...)
 
 macro_rules! cop_out_reifiability {
     ( $underlying_type:ty, $ty_name:tt ) => {
@@ -580,19 +578,14 @@ macro_rules! cop_out_reifiability {
     }
 }
 
-/* Testing */
+// Testing
 
 macro_rules! assert_m {
     ($got:expr, $expected:pat, $body:expr) => {{
         let got = $got;
         match got.clone() {
             $expected => assert!($body),
-            _ => assert!(
-                false,
-                "{:#?} does not match {:#?}",
-                got,
-                quote!($expected).as_str()
-            ),
+            _ => assert!(false, "{:#?} does not match {:#?}", got, quote!($expected).as_str()),
         }
     }};
     ($got:expr, $expected:pat) => {

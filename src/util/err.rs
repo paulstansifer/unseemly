@@ -24,10 +24,8 @@ impl<T: Debug> Debug for Spanned<T> {
     }
 }
 
-/*
-impl<T: From<()>> From<()> for Spanned<T> {
-    fn from(_: ()) -> Spanned<T> {
-        Spanned { loc: ::ast::Ast::Trivial, body: T::from(()) }
-    }
-}
-*/
+// impl<T: From<()>> From<()> for Spanned<T> {
+//     fn from(_: ()) -> Spanned<T> {
+//         Spanned { loc: ::ast::Ast::Trivial, body: T::from(()) }
+//     }
+// }

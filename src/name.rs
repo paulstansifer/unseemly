@@ -1,9 +1,11 @@
 #![macro_use]
 
-use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
-use std::fmt;
-use std::string::String;
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    fmt,
+    string::String,
+};
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Name {
@@ -131,10 +133,7 @@ impl Name {
             let id = if freshen && !fake_freshness_ {
                 claim_id() // ...don't put it in the table
             } else {
-                *id_map_
-                    .borrow_mut()
-                    .entry(unique_spelling.clone())
-                    .or_insert_with(claim_id)
+                *id_map_.borrow_mut().entry(unique_spelling.clone()).or_insert_with(claim_id)
             };
 
             Name { id: id }

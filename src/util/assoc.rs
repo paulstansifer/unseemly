@@ -1,7 +1,5 @@
 use runtime::reify::Reifiable;
-use std::clone::Clone;
-use std::fmt;
-use std::rc::Rc;
+use std::{clone::Clone, fmt, rc::Rc};
 
 // Potential optimization: replace a run of ten nodes with a `HashMap`.
 // Recursively replace runs of those, too...
@@ -62,11 +60,7 @@ custom_derive! {
 // This would rather be `#[derive(Clone)]`, but that would require `K: PartialEq`
 impl<K: PartialEq + Clone, V: Clone> Clone for AssocNode<K, V> {
     fn clone(&self) -> AssocNode<K, V> {
-        AssocNode::<K, V> {
-            k: self.k.clone(),
-            v: self.v.clone(),
-            next: self.next.clone(),
-        }
+        AssocNode::<K, V> { k: self.k.clone(), v: self.v.clone(), next: self.next.clone() }
     }
 }
 
@@ -100,13 +94,7 @@ impl<K: PartialEq, V> Assoc<K, V> {
     }
 
     pub fn set(&self, k: K, v: V) -> Assoc<K, V> {
-        Assoc {
-            n: Some(Rc::new(AssocNode {
-                k: k,
-                v: v,
-                next: Assoc { n: self.n.clone() },
-            })),
-        }
+        Assoc { n: Some(Rc::new(AssocNode { k: k, v: v, next: Assoc { n: self.n.clone() } })) }
     }
 
     pub fn new() -> Assoc<K, V> {
@@ -118,10 +106,7 @@ impl<K: PartialEq, V> Assoc<K, V> {
     }
 
     pub fn iter_pairs(&self) -> PairIter<K, V> {
-        PairIter {
-            seen: Assoc::new(),
-            cur: self,
-        }
+        PairIter { seen: Assoc::new(), cur: self }
     }
 
     pub fn reduce<Out>(&self, red: &dyn Fn(&K, &V, Out) -> Out, base: Out) -> Out {
@@ -144,16 +129,12 @@ impl<K: PartialEq + Clone, V: Clone> Assoc<K, V> {
     }
 
     pub fn map<NewV, F>(&self, mut f: F) -> Assoc<K, NewV>
-    where
-        F: FnMut(&V) -> NewV,
-    {
+    where F: FnMut(&V) -> NewV {
         self.map_borrow_f(&mut f)
     }
 
     pub fn map_borrow_f<NewV, F>(&self, f: &mut F) -> Assoc<K, NewV>
-    where
-        F: FnMut(&V) -> NewV,
-    {
+    where F: FnMut(&V) -> NewV {
         match self.n {
             None => Assoc { n: None },
             Some(ref node) => Assoc {
@@ -167,9 +148,7 @@ impl<K: PartialEq + Clone, V: Clone> Assoc<K, V> {
     }
 
     pub fn keyed_map_borrow_f<NewV, F>(&self, f: &mut F) -> Assoc<K, NewV>
-    where
-        F: FnMut(&K, &V) -> NewV,
-    {
+    where F: FnMut(&K, &V) -> NewV {
         match self.n {
             None => Assoc { n: None },
             Some(ref node) => Assoc {
@@ -187,7 +166,8 @@ impl<K: PartialEq + Clone, V: Clone> Assoc<K, V> {
         &self,
         other: &Assoc<K, V>,
         f: &dyn Fn(&V, &V) -> NewV,
-    ) -> Assoc<K, NewV> {
+    ) -> Assoc<K, NewV>
+    {
         match self.n {
             None => Assoc { n: None },
             Some(ref node) => {
@@ -207,7 +187,8 @@ impl<K: PartialEq + Clone, V: Clone> Assoc<K, V> {
         &self,
         other: &Assoc<K, V>,
         f: &dyn Fn(&K, &V, &V) -> NewV,
-    ) -> Assoc<K, NewV> {
+    ) -> Assoc<K, NewV>
+    {
         match self.n {
             None => Assoc { n: None },
             Some(ref node) => {
@@ -250,13 +231,13 @@ impl<K: PartialEq + fmt::Debug + Clone, V: fmt::Debug + Clone> Assoc<K, V> {
 
 impl<K: PartialEq + Clone + fmt::Debug, V: fmt::Debug> fmt::Debug for Assoc<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(write!(f, "⟦"));
+        write!(f, "⟦")?;
         let mut first = true;
         for (k, v) in self.iter_pairs() {
             if !first {
-                try!(write!(f, ", "));
+                write!(f, ", ")?;
             }
-            try!(write!(f, "{:#?} ⇒ {:#?}", k, v));
+            write!(f, "{:#?} ⇒ {:#?}", k, v)?;
             first = false;
         }
         write!(f, "⟧")
@@ -265,13 +246,13 @@ impl<K: PartialEq + Clone + fmt::Debug, V: fmt::Debug> fmt::Debug for Assoc<K, V
 
 impl<K: PartialEq + Clone + fmt::Display, V: fmt::Display> fmt::Display for Assoc<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(write!(f, "⟦"));
+        write!(f, "⟦")?;
         let mut first = true;
         for (k, v) in self.iter_pairs() {
             if !first {
-                try!(write!(f, ", "));
+                write!(f, ", ")?;
             }
-            try!(write!(f, "{} ⇒ {}", k, v));
+            write!(f, "{} ⇒ {}", k, v)?;
             first = false;
         }
         write!(f, "⟧")
@@ -282,9 +263,7 @@ impl<K: PartialEq + Clone, V: Clone> Assoc<K, V> {
     pub fn set_assoc(&self, other: &Assoc<K, V>) -> Assoc<K, V> {
         match other.n {
             None => (*self).clone(),
-            Some(ref node) => self
-                .set_assoc(&node.next)
-                .set(node.k.clone(), node.v.clone()),
+            Some(ref node) => self.set_assoc(&node.next).set(node.k.clone(), node.v.clone()),
         }
     }
 
@@ -298,9 +277,7 @@ impl<K: PartialEq + Clone, V: Clone> Assoc<K, V> {
                         return Assoc::new(); // we found the common suffix
                     }
                 }
-                node.next
-                    .cut_common(other)
-                    .set(node.k.clone(), node.v.clone())
+                node.next.cut_common(other).set(node.k.clone(), node.v.clone())
             }
         }
     }
@@ -324,25 +301,25 @@ impl<K: PartialEq + Clone, V: Clone> Assoc<K, V> {
             }
         }
     }
-    /* This isn't right without deduplication before hand...
-    pub fn filter(&self, f: &Fn(&V) -> bool) -> Assoc<K, V> {
-        match self.n {
-            None => Assoc{ n: None },
-            Some(ref node) => {
-                let v = node.v.clone();
-                if f(&v) {
-                    Assoc{
-                        n: Some(Rc::new(AssocNode {
-                            k: node.k.clone(), v: v,
-                            next: node.next.filter(f)
-                        }))
-                    }
-                } else {
-                    node.next.filter(f)
-                }
-            }
-        }
-    }*/
+    // This isn't right without deduplication before hand...
+    // pub fn filter(&self, f: &Fn(&V) -> bool) -> Assoc<K, V> {
+    //     match self.n {
+    //         None => Assoc{ n: None },
+    //         Some(ref node) => {
+    //             let v = node.v.clone();
+    //             if f(&v) {
+    //                 Assoc{
+    //                     n: Some(Rc::new(AssocNode {
+    //                         k: node.k.clone(), v: v,
+    //                         next: node.next.filter(f)
+    //                     }))
+    //                 }
+    //             } else {
+    //                 node.next.filter(f)
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 pub struct KeyIter<'assoc, K: PartialEq + 'assoc, V: 'assoc> {
@@ -485,10 +462,7 @@ fn assoc_map() {
     assert_eq!(a1.map(|a| a + 1), assoc_n!("x" => 2, "y" => 3, "z" => 4));
 
     let a2 = assoc_n!("y" => -2, "z" => -3, "x" => -1);
-    assert_eq!(
-        a1.map_with(&a2, &|a, b| a + b),
-        assoc_n!("x" => 0, "y" => 0, "z" => 0)
-    );
+    assert_eq!(a1.map_with(&a2, &|a, b| a + b), assoc_n!("x" => 0, "y" => 0, "z" => 0));
 }
 
 #[test]
@@ -497,8 +471,5 @@ fn assoc_reduce() {
     assert_eq!(a1.reduce(&|_key, a, b| a + b, 0), 6);
 
     let a1 = assoc_n!("x" => 1, "y" => 2, "z" => 3);
-    assert_eq!(
-        a1.reduce(&|key, a, b| if key.is("y") { b } else { a + b }, 0),
-        4
-    );
+    assert_eq!(a1.reduce(&|key, a, b| if key.is("y") { b } else { a + b }, 0), 4);
 }

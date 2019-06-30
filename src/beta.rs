@@ -5,8 +5,7 @@ use ast::{Ast, Atom, ExtendEnv, VariableReference};
 use ast_walk::{LazilyWalkedTerm, LazyWalkReses};
 use name::*;
 use std::fmt;
-use util::assoc::Assoc;
-use util::mbe::EnvMBE;
+use util::{assoc::Assoc, mbe::EnvMBE};
 use walk_mode::Dir;
 
 custom_derive! {
@@ -114,12 +113,13 @@ impl Beta {
         &self,
         parts: &EnvMBE<T>,
         f: &dyn Fn(&T) -> &Ren,
-    ) -> Ren {
+    ) -> Ren
+    {
         match *self {
             Nothing => Ren::new(),
-            Shadow(ref lhs, ref rhs) => lhs
-                .extract_from_mbe(parts, f)
-                .set_assoc(&rhs.extract_from_mbe(parts, f)),
+            Shadow(ref lhs, ref rhs) => {
+                lhs.extract_from_mbe(parts, f).set_assoc(&rhs.extract_from_mbe(parts, f))
+            }
             ShadowAll(ref sub_beta, ref drivers) => {
                 let mut res = Ren::new();
                 for parts in parts.march_all(drivers) {
@@ -141,9 +141,10 @@ impl Beta {
 pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(
     b: &Beta,
     parts: &LazyWalkReses<Mode>,
-) -> Result<Assoc<Name, Mode::Elt>, Mode::Err> {
+) -> Result<Assoc<Name, Mode::Elt>, Mode::Err>
+{
     // TODO: figure out why we *do* get called (during subtyping, apparently)
-    //if !Mode::D::is_positive() { panic!("ICE: e_f_b on {:#?} in {} (negative)", b, Mode::name())}
+    // if !Mode::D::is_positive() { panic!("ICE: e_f_b on {:#?} in {} (negative)", b, Mode::name())}
     match *b {
         Nothing => Ok(Assoc::new()),
         Shadow(ref lhs, ref rhs) => {
@@ -158,12 +159,10 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(
             Ok(res)
         }
         Basic(name_source, ty_source) => {
-            if let LazilyWalkedTerm {
-                term: Atom(ref name),
-                ..
-            } = **parts.parts.get_leaf_or_panic(&name_source)
+            if let LazilyWalkedTerm { term: Atom(ref name), .. } =
+                **parts.parts.get_leaf_or_panic(&name_source)
             {
-                //let LazilyWalkedTerm {term: ref ty_stx, ..}
+                // let LazilyWalkedTerm {term: ref ty_stx, ..}
                 //    = **parts.parts.get_leaf_or_panic(ty_source);
                 let ty = parts.get_res(ty_source)?;
 
@@ -227,10 +226,8 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(
         }
 
         Underspecified(ref name_source) => {
-            if let LazilyWalkedTerm {
-                term: Atom(ref name),
-                ..
-            } = **parts.parts.get_leaf_or_panic(name_source)
+            if let LazilyWalkedTerm { term: Atom(ref name), .. } =
+                **parts.parts.get_leaf_or_panic(name_source)
             {
                 Ok(Assoc::new().set(*name, Mode::underspecified(*name)))
             } else {
@@ -243,20 +240,16 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(
 
         Protected(ref name_source) => {
             // Since protection isn't binding, it gets variable references instead
-            if let LazilyWalkedTerm {
-                term: ExtendEnv(ref boxed_vr, _),
-                ..
-            } = **parts.parts.get_leaf_or_panic(name_source)
+            if let LazilyWalkedTerm { term: ExtendEnv(ref boxed_vr, _), .. } =
+                **parts.parts.get_leaf_or_panic(name_source)
             {
                 use walk_mode::WalkElt;
 
                 // HACK: rely on the fact that `walk_var`
                 //  won't recursively substitute until it "hits bottom"
                 // Drop the variable reference right into the environment.
-                Ok(Assoc::new().set(
-                    ::core_forms::vr_to_name(&*boxed_vr),
-                    Mode::Elt::from_ast(&*boxed_vr),
-                ))
+                Ok(Assoc::new()
+                    .set(::core_forms::vr_to_name(&*boxed_vr), Mode::Elt::from_ast(&*boxed_vr)))
             } else {
                 panic!(
                     "{:#?} is supposed to supply names, but is not an EE(VR()).",
@@ -317,12 +310,13 @@ impl ExportBeta {
         &self,
         parts: &EnvMBE<T>,
         f: &dyn Fn(&T) -> &Ren,
-    ) -> Ren {
+    ) -> Ren
+    {
         match *self {
             ExportBeta::Nothing => Ren::new(),
-            ExportBeta::Shadow(ref lhs, ref rhs) => lhs
-                .extract_from_mbe(parts, f)
-                .set_assoc(&rhs.extract_from_mbe(parts, f)),
+            ExportBeta::Shadow(ref lhs, ref rhs) => {
+                lhs.extract_from_mbe(parts, f).set_assoc(&rhs.extract_from_mbe(parts, f))
+            }
             ExportBeta::ShadowAll(ref sub_beta, ref drivers) => {
                 let mut res = Ren::new();
                 for parts in parts.march_all(drivers) {
@@ -396,7 +390,8 @@ pub fn bound_from_export_beta(
     b: &ExportBeta,
     parts: &EnvMBE<::ast::Ast>,
     quote_depth: i16,
-) -> Vec<Name> {
+) -> Vec<Name>
+{
     match *b {
         ExportBeta::Nothing => vec![],
         ExportBeta::Shadow(ref lhs, ref rhs) => {
@@ -408,11 +403,7 @@ pub fn bound_from_export_beta(
         ExportBeta::ShadowAll(ref sub_beta, ref drivers) => {
             let mut res = vec![];
             for ref sub_parts in parts.march_all(drivers) {
-                res.append(&mut bound_from_export_beta(
-                    &*sub_beta,
-                    sub_parts,
-                    quote_depth,
-                ));
+                res.append(&mut bound_from_export_beta(&*sub_beta, sub_parts, quote_depth));
             }
             res
         }
@@ -433,7 +424,8 @@ pub fn freshening_from_beta(
     b: &Beta,
     parts: &EnvMBE<::ast::Ast>,
     memo: &mut ::std::collections::HashMap<(Name, Name), Name>,
-) -> Assoc<Name, Ast> {
+) -> Assoc<Name, Ast>
+{
     match *b {
         Nothing => Assoc::new(),
         Shadow(ref lhs, ref rhs) => freshening_from_beta(&*lhs, parts, memo)
@@ -452,16 +444,14 @@ pub fn freshening_from_beta(
             Assoc::new().set(
                 this_name,
                 ::ast::VariableReference(
-                    *memo
-                        .entry((n_s, this_name))
-                        .or_insert_with(|| this_name.freshen()),
+                    *memo.entry((n_s, this_name)).or_insert_with(|| this_name.freshen()),
                 ),
             )
         }
     }
 }
 
-//fn fold_beta<T>(b: Beta, over: Assoc<Name, T>,
+// fn fold_beta<T>(b: Beta, over: Assoc<Name, T>,
 //                    leaf: Fn(&Ast ) -> S
 
 // TODO: Test negative quasiquotation (in a non end-to-end way):
