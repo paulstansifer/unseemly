@@ -918,7 +918,6 @@ fn use_dotdotdot() {
 
     let env = assoc_n!(
         "n" => ty!({"Type" "Nat" :}),
-        "five" => ty!({"Type" "Nat" :}),
         "ns" => ty!({"Type" "tuple" :
             "component" =>
                 [{"Type" "type_apply" :
@@ -931,7 +930,8 @@ fn use_dotdotdot() {
     );
 
     let qenv = assoc_n!(
-        "qn" => ty!({"Type" "Nat" :})
+        "qn" => ty!({"Type" "Nat" :}),
+        "five" => ty!({"Type" "Int" :})
     );
 
     let eval_env = assoc_n!(
@@ -996,6 +996,59 @@ fn use_dotdotdot() {
                         "arm" => [@"c" (import ["p" = "scrutinee"] (vr "qn")),
                                     (import ["p" = "scrutinee"] (vr "qnn"))]})));
     }
+
+    let type_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Type" });
+
+    let ddd_env = assoc_n!(
+        "names" =>  ty!({"Type" "tuple" :
+            "component" => [{"Type" "Ident" : }, {"Type" "Ident" :}]}),
+        "types" => ty!({"Type" "tuple" :
+            "component" =>
+                [{"Type" "type_apply" :
+                     "type_rator" => (,type_type.clone()),
+                     "arg" => [{"Type" "Float" :}]},
+                 {"Type" "type_apply" :
+                     "type_rator" => (,type_type.clone()),
+                     "arg" => [{"Type" "Nat" :}]}]}),
+        "args" => ty!({"Type" "tuple" :
+            "component" =>
+                [{"Type" "type_apply" :
+                     "type_rator" => (,expr_type.clone()),
+                     "arg" => [{"Type" "Float" :}]},
+                 {"Type" "type_apply" :
+                     "type_rator" => (,expr_type.clone()),
+                     "arg" => [{"Type" "Nat" :}]}]})
+    );
+
+
+    // Invoke a function on some number of arguments, not necessarily with the same type:
+    // '[Expr | (.[ ...[names >> ,[Ident | names],]... : ...[types >> ,[Type | types],]...
+    //              . five].
+    //           ...[args >> ,[Expr | args],]...)]'
+    assert_eq!(synth_type_two_phased(
+            &ast!({quote(pos) ; "nt" => (vr "Expr"), "body" => (++ true
+                {"Expr" "apply" :
+                    "rator" => {"Expr" "lambda" :
+                        "param" => [@"p" {dotdotdot_form(n("Ident")) ;
+                            "driver" => [(vr "names")],
+                            "body" => {unquote_form(n("Ident"), pos, 1);
+                                "body" => (-- 1 (vr "names"))}
+                        }],
+                        "p_t" => [@"p" {dotdotdot_form(n("Type")) ;
+                            "driver" => [(vr "types")],
+                            "body" => {unquote_form(n("Type"), pos, 1);
+                                "body" => (-- 1 (vr "types"))}
+                        }],
+                        "body" => (vr "five")
+                    },
+                    "rand" => [{dotdotdot_form(n("Expr")) ;
+                        "driver" => [(vr "args")],
+                        "body" => {unquote_form(n("Expr"), pos, 1);
+                            "body" => (-- 1 (vr "args"))}}]
+                })}),
+            ddd_env.clone(), qenv.clone()),
+        Ok(ty!({"Type" "type_apply" :
+            "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Int" :}]})));
 
 }
 
