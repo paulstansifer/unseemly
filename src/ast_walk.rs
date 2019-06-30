@@ -1,4 +1,3 @@
-
 /*
 We often need to walk an `Ast` while maintaining an environment.
 This seems to be true at typecheck time and at runtime.
@@ -65,22 +64,22 @@ Everything should be ambidextrous under quasiquotation,
  because all syntax should be constructable and matchable.
 */
 
-use std::rc::Rc;
-use std::cell::RefCell;
-use name::*;
-use util::assoc::Assoc;
-use util::mbe::EnvMBE;
 use ast::Ast;
 use ast::Ast::*;
 use beta::*;
-use runtime::{reify, eval};
-use walk_mode::{WalkMode, WalkElt, Dir};
+use name::*;
+use runtime::{eval, reify};
+use std::cell::RefCell;
+use std::rc::Rc;
+use util::assoc::Assoc;
+use util::mbe::EnvMBE;
+use walk_mode::{Dir, WalkElt, WalkMode};
 
 /// A closed `Elt`; an `Elt` paired with an environment with which to interpret its free names.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Clo<Elt : WalkElt> {
+pub struct Clo<Elt: WalkElt> {
     pub it: Elt,
-    pub env: Assoc<Name, Elt>
+    pub env: Assoc<Name, Elt>,
 }
 
 impl<Elt: WalkElt> Clo<Elt> {
@@ -89,8 +88,8 @@ impl<Elt: WalkElt> Clo<Elt> {
         // we cut out the bits of the environments that are the same.
         let o_different_env = other.env.cut_common(&self.env);
 
-        let o_renaming = o_different_env.keyed_map_borrow_f(
-            &mut |name, _| VariableReference(name.freshen()));
+        let o_renaming =
+            o_different_env.keyed_map_borrow_f(&mut |name, _| VariableReference(name.freshen()));
 
         // if !o_renaming.empty() { println!("MERGE: {}", o_renaming); }
 
@@ -98,11 +97,15 @@ impl<Elt: WalkElt> Clo<Elt> {
         for (o_name, o_val) in o_different_env.iter_pairs() {
             fresh_o_env = fresh_o_env.set(
                 ::core_forms::vr_to_name(o_renaming.find(o_name).unwrap()), // HACK: VR -> Name
-                Elt::from_ast(&::alpha::substitute(&Elt::to_ast(o_val), &o_renaming)));
+                Elt::from_ast(&::alpha::substitute(&Elt::to_ast(o_val), &o_renaming)),
+            );
         }
 
-        (self.it, Elt::from_ast(&::alpha::substitute(&Elt::to_ast(&other.it), &o_renaming)),
-         self.env.set_assoc(&fresh_o_env))
+        (
+            self.it,
+            Elt::from_ast(&::alpha::substitute(&Elt::to_ast(&other.it), &o_renaming)),
+            self.env.set_assoc(&fresh_o_env),
+        )
     }
 }
 
@@ -115,166 +118,174 @@ thread_local! {
  * `walk_ctxt` is used as an environment,
  *  and by betas to access other parts of the current node.
  */
-pub fn walk<Mode: WalkMode>(a: &Ast, walk_ctxt: &LazyWalkReses<Mode>)
-        -> Result<<Mode::D as Dir>::Out, Mode::Err> { layer_watch!{ ast_walk_layer :
-    // TODO: can we get rid of the & in front of our arguments and save the cloning?
-    // TODO: this has a lot of direction-specific runtime hackery.
-    //  Maybe we want separate positive and negative versions?
-    let (a, walk_ctxt) = match *a {
-      // HACK: We want to process EE before pre_match before everything else.
-      // This probably means we should find a way to get rid of pre_match.
-      // But we can't just swap `a` and the ctxt when `a` is LiteralLike and the ctxt isn't.
+pub fn walk<Mode: WalkMode>(
+    a: &Ast,
+    walk_ctxt: &LazyWalkReses<Mode>,
+) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
+    layer_watch! { ast_walk_layer :
+        // TODO: can we get rid of the & in front of our arguments and save the cloning?
+        // TODO: this has a lot of direction-specific runtime hackery.
+        //  Maybe we want separate positive and negative versions?
+        let (a, walk_ctxt) = match *a {
+          // HACK: We want to process EE before pre_match before everything else.
+          // This probably means we should find a way to get rid of pre_match.
+          // But we can't just swap `a` and the ctxt when `a` is LiteralLike and the ctxt isn't.
 
-      ExtendEnv(_,_) => { (a.clone(), walk_ctxt.clone()) }
-      _ => Mode::D::pre_walk(a.clone(), walk_ctxt.clone())
-    };
-
-    // ld!(ast_walk_layer, "{} {}", Mode::name(), a);
-    // lc!(ast_walk_layer, "  from: {}", walk_ctxt.this_ast);
-    // match walk_ctxt.env.find(&negative_ret_val()) {
-    //     Some(ref ctxt) => lc!(ast_walk_layer, "  ctxt: {}", ctxt), _ => {}};
-    // lc!(ast_walk_layer, "  in: {:#?}", walk_ctxt.env.map_borrow_f(&mut |_| "…"));
-
-    let literally : Option<bool> = // If we're under a wrapper, `this_ast` might not be a Node
-        match a {
-            QuoteMore(_,_) | QuoteLess(_,_) | ExtendEnv(_,_) => {
-                match walk_ctxt.this_ast {
-                    // `this_ast` might be `NotWalked` (and non-literal) if under `switch_mode`.
-                    // It's weird, but seems to be the right thing
-                    Node(ref f, _, _) => Some(Mode::get_walk_rule(f).is_literally()),
-                    _ => None
-                }
-            }
-            _ => None
+          ExtendEnv(_,_) => { (a.clone(), walk_ctxt.clone()) }
+          _ => Mode::D::pre_walk(a.clone(), walk_ctxt.clone())
         };
 
-    match a {
-        Node(ref f, ref parts, _) => {
-            let new_walk_ctxt = walk_ctxt.switch_ast(parts, a.clone());
-            // certain walks only work on certain kinds of AST nodes
-            match Mode::get_walk_rule(f) {
-                Custom(ref ts_fn) =>  ts_fn(new_walk_ctxt),
-                Body(n) =>            walk(parts.get_leaf(n).unwrap(), &new_walk_ctxt),
-                LiteralLike =>        Mode::walk_quasi_literally(a.clone(), &new_walk_ctxt),
-                NotWalked =>          panic!("ICE: {:#?} should not be walked at all!", a)
-            }
-        }
-        IncompleteNode(ref parts) => { panic!("ICE: {:#?} isn't a complete node", parts)}
+        // ld!(ast_walk_layer, "{} {}", Mode::name(), a);
+        // lc!(ast_walk_layer, "  from: {}", walk_ctxt.this_ast);
+        // match walk_ctxt.env.find(&negative_ret_val()) {
+        //     Some(ref ctxt) => lc!(ast_walk_layer, "  ctxt: {}", ctxt), _ => {}};
+        // lc!(ast_walk_layer, "  in: {:#?}", walk_ctxt.env.map_borrow_f(&mut |_| "…"));
 
-        VariableReference(n) => { Mode::walk_var(n, &walk_ctxt) }
-        Atom(n) => { Mode::walk_atom(n, &walk_ctxt) }
-
-        // TODO: we need to preserve these in LiteralLike contexts!!
-
-        // So do we just set the context element at the wrong level and then grab it for the shift?
-        // I guess so.
-        QuoteMore(ref body, pos_inside) => {
-            let oeh_m = Mode::D::oeh_if_negative();
-            let old_ctxt_elt = walk_ctxt.maybe__context_elt();
-
-            let currently_positive = oeh_m.is_none(); // kinda a hack for "Is `Mode` positive?"
-
-            // Negative modes at quotation does some weird stuff. For example:
-            // `match e { `[Expr | (add 5 ,[Expr <[Nat]< | a],)]` => ⋯}`
-            //            ^--- `quote_more` here (`get_res` produces `Expr <[Nat]<`),
-            //                 which we already knew.
-            //                            ^--- `quote_less`, and we get {a => Expr <[Nat]<}
-            // We need to smuggle out what we know at each `quote_less` (there might be many),
-            //  so that `a` winds up bound to `Expr <[Nat]<` on the RHS.
-
-            // If the quotation (outside) is negative, we need to unsquirrel no matter the inside.
-            // If both are positive, return the result (so the form can do `Nat` → `Expr <[Nat]<`).
-            // Otherwise, the context (expected type) is the result.
-
-            if pos_inside == currently_positive { // stay in the same mode?
-                let inner_walk_ctxt = walk_ctxt.clone()
-                    .quote_more(oeh_m.clone());
-                let res = maybe_literally__walk(&a, body, inner_walk_ctxt, old_ctxt_elt,
-                                                literally)?;
-
-                match oeh_m {
-                    None => Ok(res), // positive walk, result is useful. Otherwise, unsquirrel:
-                    Some(oeh) => { Ok( Mode::env_as_out((*oeh.borrow()).clone()) ) }
-                }
-            } else {
-                let inner_walk_ctxt = walk_ctxt.clone()
-                    .switch_mode::<Mode::Negated>().quote_more(oeh_m.clone());
-                let _ = maybe_literally__walk(&a, body, inner_walk_ctxt, old_ctxt_elt,
-                                              literally)?;
-
-                match oeh_m {
-                    // HACK: just return the context element (and massage the type)
-                    None => Mode::walk_var(negative_ret_val(), &walk_ctxt),
-                    Some(oeh) => { Ok( Mode::env_as_out((*oeh.borrow()).clone()) ) }
-                }
-            }
-        }
-        QuoteLess(ref body, depth) => {
-            let old_ctxt_elt = walk_ctxt.maybe__context_elt();
-
-            let mut oeh = None;
-            let mut walk_ctxt = walk_ctxt.clone();
-            for _ in 0..depth {
-                let (oeh_new, walk_ctxt_new) = walk_ctxt.quote_less();
-                oeh = oeh_new;
-                walk_ctxt = walk_ctxt_new;
-            }
-
-            let res = maybe_literally__walk(&a, body, walk_ctxt, old_ctxt_elt, literally)?;
-
-            squirrel_away::<Mode>(oeh, res.clone());
-
-            Ok(res)
-        }
-
-        Trivial | Shape(_) => {
-            panic!("ICE: {:#?} is not a walkable AST", a);
-        }
-
-        // TODO: `env_from_beta` only works in positive modes... what should we do otherwise?
-        ExtendEnv(ref body, ref beta) => {
-            let new_env = if Mode::automatically_extend_env() {
-                walk_ctxt.env.set_assoc(
-                    &env_from_beta(beta, &walk_ctxt)?)
-            } else {
-                walk_ctxt.env.clone()
-            };
-            // print!("↓↓↓↓: {:#?}\n    : {:#?}\n", beta, new_env.map(|_| "…"));
-
-            let new__walk_ctxt = walk_ctxt.with_environment(new_env);
-            let new__walk_ctxt = // If the RHS is also binding, assume it's the same
-            // TODO: we should make this only happen if we're actually negative.
-            // The context element is sometimes leftover from a previous negative walk.
-                match walk_ctxt.env.find(&negative_ret_val())
-                        .map(<Mode as WalkMode>::Elt::to_ast) {
-                    Some(ExtendEnv(ref rhs_body, _)) => {
-                        new__walk_ctxt.with_context(
-                            <Mode as WalkMode>::Elt::from_ast(&*rhs_body))
+        let literally : Option<bool> = // If we're under a wrapper, `this_ast` might not be a Node
+            match a {
+                QuoteMore(_,_) | QuoteLess(_,_) | ExtendEnv(_,_) => {
+                    match walk_ctxt.this_ast {
+                        // `this_ast` might be `NotWalked` (and non-literal) if under `switch_mode`.
+                        // It's weird, but seems to be the right thing
+                        Node(ref f, _, _) => Some(Mode::get_walk_rule(f).is_literally()),
+                        _ => None
                     }
-                    _ => new__walk_ctxt
+                }
+                _ => None
             };
 
-            fn extract__ee_body<Mode: WalkMode>(e: <Mode as WalkMode>::Elt)
-                    -> <Mode as WalkMode>::Elt {
-                match e.to_ast() {
-                    ExtendEnv(ref body, _) => { <Mode as WalkMode>::Elt::from_ast(&*body) }
-                    _ => { e } // Match will fail
+        match a {
+            Node(ref f, ref parts, _) => {
+                let new_walk_ctxt = walk_ctxt.switch_ast(parts, a.clone());
+                // certain walks only work on certain kinds of AST nodes
+                match Mode::get_walk_rule(f) {
+                    Custom(ref ts_fn) =>  ts_fn(new_walk_ctxt),
+                    Body(n) =>            walk(parts.get_leaf(n).unwrap(), &new_walk_ctxt),
+                    LiteralLike =>        Mode::walk_quasi_literally(a.clone(), &new_walk_ctxt),
+                    NotWalked =>          panic!("ICE: {:#?} should not be walked at all!", a)
                 }
             }
+            IncompleteNode(ref parts) => { panic!("ICE: {:#?} isn't a complete node", parts)}
 
-            maybe_literally__walk(&a, body, new__walk_ctxt,
-                walk_ctxt.maybe__context_elt().map(extract__ee_body::<Mode>), literally)
+            VariableReference(n) => { Mode::walk_var(n, &walk_ctxt) }
+            Atom(n) => { Mode::walk_atom(n, &walk_ctxt) }
+
+            // TODO: we need to preserve these in LiteralLike contexts!!
+
+            // So do we just set the context element at the wrong level and then grab it for the shift?
+            // I guess so.
+            QuoteMore(ref body, pos_inside) => {
+                let oeh_m = Mode::D::oeh_if_negative();
+                let old_ctxt_elt = walk_ctxt.maybe__context_elt();
+
+                let currently_positive = oeh_m.is_none(); // kinda a hack for "Is `Mode` positive?"
+
+                // Negative modes at quotation does some weird stuff. For example:
+                // `match e { `[Expr | (add 5 ,[Expr <[Nat]< | a],)]` => ⋯}`
+                //            ^--- `quote_more` here (`get_res` produces `Expr <[Nat]<`),
+                //                 which we already knew.
+                //                            ^--- `quote_less`, and we get {a => Expr <[Nat]<}
+                // We need to smuggle out what we know at each `quote_less` (there might be many),
+                //  so that `a` winds up bound to `Expr <[Nat]<` on the RHS.
+
+                // If the quotation (outside) is negative, we need to unsquirrel no matter the inside.
+                // If both are positive, return the result (so the form can do `Nat` → `Expr <[Nat]<`).
+                // Otherwise, the context (expected type) is the result.
+
+                if pos_inside == currently_positive { // stay in the same mode?
+                    let inner_walk_ctxt = walk_ctxt.clone()
+                        .quote_more(oeh_m.clone());
+                    let res = maybe_literally__walk(&a, body, inner_walk_ctxt, old_ctxt_elt,
+                                                    literally)?;
+
+                    match oeh_m {
+                        None => Ok(res), // positive walk, result is useful. Otherwise, unsquirrel:
+                        Some(oeh) => { Ok( Mode::env_as_out((*oeh.borrow()).clone()) ) }
+                    }
+                } else {
+                    let inner_walk_ctxt = walk_ctxt.clone()
+                        .switch_mode::<Mode::Negated>().quote_more(oeh_m.clone());
+                    let _ = maybe_literally__walk(&a, body, inner_walk_ctxt, old_ctxt_elt,
+                                                  literally)?;
+
+                    match oeh_m {
+                        // HACK: just return the context element (and massage the type)
+                        None => Mode::walk_var(negative_ret_val(), &walk_ctxt),
+                        Some(oeh) => { Ok( Mode::env_as_out((*oeh.borrow()).clone()) ) }
+                    }
+                }
+            }
+            QuoteLess(ref body, depth) => {
+                let old_ctxt_elt = walk_ctxt.maybe__context_elt();
+
+                let mut oeh = None;
+                let mut walk_ctxt = walk_ctxt.clone();
+                for _ in 0..depth {
+                    let (oeh_new, walk_ctxt_new) = walk_ctxt.quote_less();
+                    oeh = oeh_new;
+                    walk_ctxt = walk_ctxt_new;
+                }
+
+                let res = maybe_literally__walk(&a, body, walk_ctxt, old_ctxt_elt, literally)?;
+
+                squirrel_away::<Mode>(oeh, res.clone());
+
+                Ok(res)
+            }
+
+            Trivial | Shape(_) => {
+                panic!("ICE: {:#?} is not a walkable AST", a);
+            }
+
+            // TODO: `env_from_beta` only works in positive modes... what should we do otherwise?
+            ExtendEnv(ref body, ref beta) => {
+                let new_env = if Mode::automatically_extend_env() {
+                    walk_ctxt.env.set_assoc(
+                        &env_from_beta(beta, &walk_ctxt)?)
+                } else {
+                    walk_ctxt.env.clone()
+                };
+                // print!("↓↓↓↓: {:#?}\n    : {:#?}\n", beta, new_env.map(|_| "…"));
+
+                let new__walk_ctxt = walk_ctxt.with_environment(new_env);
+                let new__walk_ctxt = // If the RHS is also binding, assume it's the same
+                // TODO: we should make this only happen if we're actually negative.
+                // The context element is sometimes leftover from a previous negative walk.
+                    match walk_ctxt.env.find(&negative_ret_val())
+                            .map(<Mode as WalkMode>::Elt::to_ast) {
+                        Some(ExtendEnv(ref rhs_body, _)) => {
+                            new__walk_ctxt.with_context(
+                                <Mode as WalkMode>::Elt::from_ast(&*rhs_body))
+                        }
+                        _ => new__walk_ctxt
+                };
+
+                fn extract__ee_body<Mode: WalkMode>(e: <Mode as WalkMode>::Elt)
+                        -> <Mode as WalkMode>::Elt {
+                    match e.to_ast() {
+                        ExtendEnv(ref body, _) => { <Mode as WalkMode>::Elt::from_ast(&*body) }
+                        _ => { e } // Match will fail
+                    }
+                }
+
+                maybe_literally__walk(&a, body, new__walk_ctxt,
+                    walk_ctxt.maybe__context_elt().map(extract__ee_body::<Mode>), literally)
+            }
         }
     }
-}}
+}
 
 /// If a `Node` is `LiteralLike`, its imports and [un]quotes should be, too!
-fn maybe_literally__walk<Mode: WalkMode>(a: &Ast, body: &Ast, walk_ctxt: LazyWalkReses<Mode>,
-                                         ctxt_elt: Option<Mode::Elt>, literally: Option<bool>)
-        -> Result<<Mode::D as Dir>::Out, Mode::Err> {
+fn maybe_literally__walk<Mode: WalkMode>(
+    a: &Ast,
+    body: &Ast,
+    walk_ctxt: LazyWalkReses<Mode>,
+    ctxt_elt: Option<Mode::Elt>,
+    literally: Option<bool>,
+) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
     let walk_ctxt = match ctxt_elt {
         Some(e) => walk_ctxt.with_context(e),
-        None => walk_ctxt
+        None => walk_ctxt,
     };
     // It might be right to assume that it's true if the mode is quasiquotation
     if literally.expect("ICE: unable to determine literalness") {
@@ -299,17 +310,24 @@ pub enum WalkRule<Mode: WalkMode> {
     /// Only valid in modes where `Ast`s can be converted to `::Elt`s.
     LiteralLike,
     /// "this form should not ever be walked".
-    NotWalked
+    NotWalked,
 }
 
 impl<Mode: WalkMode> WalkRule<Mode> {
-    fn is_literally(&self) -> bool { match self { LiteralLike => true, _ => false } }
+    fn is_literally(&self) -> bool {
+        match self {
+            LiteralLike => true,
+            _ => false,
+        }
+    }
 }
 
 // trait bounds on parameters and functions are not yet supported by `Reifiable!`
 impl<Mode: WalkMode + Copy + 'static> reify::Reifiable for WalkRule<Mode> {
     // doesn't need to be parameterized because it will be opaque. I think!?
-    fn ty_name() -> Name { n("walk_rule") }
+    fn ty_name() -> Name {
+        n("walk_rule")
+    }
 
     fn reify(&self) -> eval::Value {
         match *self {
@@ -317,23 +335,23 @@ impl<Mode: WalkMode + Copy + 'static> reify::Reifiable for WalkRule<Mode> {
             Body(ref n) => val!(enum "Body", (, n.reify())),
             Custom(ref lwr_to_out) => val!(enum "Custom", (,
                 reify::reify_1ary_function(lwr_to_out.clone()))),
-            LiteralLike => val!(enum "LiteralLike",)
+            LiteralLike => val!(enum "LiteralLike",),
         }
     }
 
     fn reflect(v: &eval::Value) -> Self {
         extract!((v) eval::Value::Enum = (ref choice, ref parts) =>
-            if choice.is("NotWalked") {
-                WalkRule::NotWalked
-            } else if choice.is("Body") {
-                WalkRule::Body(Name::reflect(&parts[0]))
-            } else if choice.is("Custom") {
-                WalkRule::Custom(reify::reflect_1ary_function(parts[0].clone()))
-            } else if choice.is("LiteralLike") {
-                WalkRule::LiteralLike
-            } else {
-                panic!("ICE in WalkRule reflection")
-            })
+        if choice.is("NotWalked") {
+            WalkRule::NotWalked
+        } else if choice.is("Body") {
+            WalkRule::Body(Name::reflect(&parts[0]))
+        } else if choice.is("Custom") {
+            WalkRule::Custom(reify::reflect_1ary_function(parts[0].clone()))
+        } else if choice.is("LiteralLike") {
+            WalkRule::LiteralLike
+        } else {
+            panic!("ICE in WalkRule reflection")
+        })
     }
 }
 
@@ -343,11 +361,10 @@ impl<Mode: WalkMode> ::std::fmt::Debug for WalkRule<Mode> {
             NotWalked => write!(f, "NotWalked"),
             Body(ref n) => write!(f, "Body({})", n),
             Custom(_) => write!(f, "Custom(-)"),
-            LiteralLike => write!(f, "LiteralLike")
+            LiteralLike => write!(f, "LiteralLike"),
         }
     }
 }
-
 
 pub use self::WalkRule::*;
 
@@ -358,13 +375,15 @@ pub type ResEnv<Elt> = Assoc<Name, Elt>;
 #[derive(Debug)]
 pub struct LazilyWalkedTerm<Mode: WalkMode> {
     pub term: Ast,
-    pub res: RefCell<Option<Result<<Mode::D as Dir>::Out, Mode::Err>>>
+    pub res: RefCell<Option<Result<<Mode::D as Dir>::Out, Mode::Err>>>,
 }
 
 // trait bounds on parameters are not yet supported by `Reifiable!`
 impl<Mode: WalkMode> reify::Reifiable for LazilyWalkedTerm<Mode> {
     // doesn't need to be parameterized because it will be opaque. I think!?
-    fn ty_name() -> Name { n("lazily_walked_term") }
+    fn ty_name() -> Name {
+        n("lazily_walked_term")
+    }
 
     fn reify(&self) -> eval::Value {
         val!(struct "term" => (, self.term.reify()), "res" => (, self.res.reify()))
@@ -381,32 +400,41 @@ impl<Mode: WalkMode> reify::Reifiable for LazilyWalkedTerm<Mode> {
 // We only implement this because lazy-rust is unstable
 impl<Mode: WalkMode> LazilyWalkedTerm<Mode> {
     pub fn new(t: &Ast) -> Rc<LazilyWalkedTerm<Mode>> {
-        Rc::new(LazilyWalkedTerm { term: t.clone(), res: RefCell::new(None) })
+        Rc::new(LazilyWalkedTerm {
+            term: t.clone(),
+            res: RefCell::new(None),
+        })
     }
 
     /** Get the result of walking this term (memoized) */
-    fn get_res(&self, cur_node_contents: &LazyWalkReses<Mode>)
-            -> Result<<Mode::D as Dir>::Out, Mode::Err> {
+    fn get_res(
+        &self,
+        cur_node_contents: &LazyWalkReses<Mode>,
+    ) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
         self.memoized(&|| walk::<Mode>(&self.term, cur_node_contents))
     }
 
-    fn memoized(&self, f: &dyn Fn() -> Result<<Mode::D as Dir>::Out, Mode::Err>)
-            -> Result<<Mode::D as Dir>::Out, Mode::Err> {
+    fn memoized(
+        &self,
+        f: &dyn Fn() -> Result<<Mode::D as Dir>::Out, Mode::Err>,
+    ) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
         let result = self.res.borrow_mut().take().unwrap_or_else(f);
-        * self.res.borrow_mut() = Some(result.clone());
+        *self.res.borrow_mut() = Some(result.clone());
         result
     }
 
     fn clear_memo(&self) {
-        * self.res.borrow_mut() = None;
+        *self.res.borrow_mut() = None;
     }
 }
 
-pub type OutEnvHandle<Mode> = Rc<RefCell<Assoc<Name,<Mode as WalkMode>::Elt>>>;
+pub type OutEnvHandle<Mode> = Rc<RefCell<Assoc<Name, <Mode as WalkMode>::Elt>>>;
 
 /// Only does anything if `Mode` is negative.
-pub fn squirrel_away<Mode: WalkMode>(opt_oeh: Option<OutEnvHandle<Mode>>,
-                                     more_env: <Mode::D as Dir>::Out) {
+pub fn squirrel_away<Mode: WalkMode>(
+    opt_oeh: Option<OutEnvHandle<Mode>>,
+    more_env: <Mode::D as Dir>::Out,
+) {
     if let Some(oeh) = opt_oeh {
         let new_env = oeh.borrow().set_assoc(&Mode::out_as_env(more_env));
         *oeh.borrow_mut() = new_env;
@@ -439,13 +467,15 @@ pub struct LazyWalkReses<Mode: WalkMode> {
 
     pub this_ast: Ast,
 
-    pub extra_info: Mode::ExtraInfo
+    pub extra_info: Mode::ExtraInfo,
 }
 
 // trait bounds on parameters are not yet supported by `Reifiable!`
 impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
     // doesn't need to be parameterized because it will be opaque. I think!?
-    fn ty_name() -> Name { n("lazy_walked_reses") }
+    fn ty_name() -> Name {
+        n("lazy_walked_reses")
+    }
 
     fn reify(&self) -> eval::Value {
         val!(struct "parts" => (, self.parts.reify()), "env" => (, self.env.reify()),
@@ -475,20 +505,20 @@ impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
     }
 }
 
-
-
 impl<Mode: WalkMode> LazyWalkReses<Mode> {
-    pub fn new(env: ResEnv<Mode::Elt>, // TODO: we could get rid of the middle argument
-               parts_unwalked: &EnvMBE<Ast>,
-               this_ast: Ast)
-            -> LazyWalkReses<Mode> {
+    pub fn new(
+        env: ResEnv<Mode::Elt>, // TODO: we could get rid of the middle argument
+        parts_unwalked: &EnvMBE<Ast>,
+        this_ast: Ast,
+    ) -> LazyWalkReses<Mode> {
         LazyWalkReses {
             env: env,
-            more_quoted_env: vec![], less_quoted_env: vec![],
+            more_quoted_env: vec![],
+            less_quoted_env: vec![],
             less_quoted_out_env: vec![],
             parts: parts_unwalked.map(&mut LazilyWalkedTerm::new),
             this_ast: this_ast,
-            extra_info: ::std::default::Default::default()
+            extra_info: ::std::default::Default::default(),
         }
     }
 
@@ -499,32 +529,39 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             more_quoted_env: vec![],
             less_quoted_env: vec![],
             less_quoted_out_env: vec![],
-            parts: EnvMBE::new(), this_ast: ast!("wrapper"),
-            extra_info: ::std::default::Default::default()
+            parts: EnvMBE::new(),
+            this_ast: ast!("wrapper"),
+            extra_info: ::std::default::Default::default(),
         }
     }
 
-    pub fn new_mq_wrapper(env: ResEnv<Mode::Elt>,
-            mqe: Vec<ResEnv<Mode::Elt>>) -> LazyWalkReses<Mode> {
+    pub fn new_mq_wrapper(
+        env: ResEnv<Mode::Elt>,
+        mqe: Vec<ResEnv<Mode::Elt>>,
+    ) -> LazyWalkReses<Mode> {
         LazyWalkReses {
             env: env,
             more_quoted_env: mqe,
             less_quoted_env: vec![],
             less_quoted_out_env: vec![], // If we want a `lqe`, we need to fill this in, too!
-            parts: EnvMBE::new(), this_ast: ast!("wrapper"),
-            extra_info: ::std::default::Default::default()
+            parts: EnvMBE::new(),
+            this_ast: ast!("wrapper"),
+            extra_info: ::std::default::Default::default(),
         }
     }
 
     pub fn switch_ast(self, parts: &EnvMBE<Ast>, this_ast: Ast) -> LazyWalkReses<Mode> {
         LazyWalkReses {
-            parts: parts.map(&mut LazilyWalkedTerm::new), this_ast: this_ast, .. self
+            parts: parts.map(&mut LazilyWalkedTerm::new),
+            this_ast: this_ast,
+            ..self
         }
     }
 
     pub fn this_form(&self) -> Rc<::form::Form> {
         match self.this_ast {
-            Node(ref f, _, _) => f.clone(),  _ => panic!("ICE")
+            Node(ref f, _, _) => f.clone(),
+            _ => panic!("ICE"),
         }
     }
 
@@ -535,17 +572,23 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
 
     /// Like `get_res`, but for subforms that are repeated at depth 1. Sort of a hack.
     pub fn get_rep_res(&self, part_name: Name) -> Result<Vec<<Mode::D as Dir>::Out>, Mode::Err> {
-        self.parts.get_rep_leaf_or_panic(part_name)
-            .iter().map( |&lwt| lwt.get_res(self)).collect()
+        self.parts
+            .get_rep_leaf_or_panic(part_name)
+            .iter()
+            .map(|&lwt| lwt.get_res(self))
+            .collect()
     }
 
     /// Like `get_res`, but with `depth` levels of repetition, and calling `f` to flatten the result
     pub fn flatten_res_at_depth(
-            &self, part_name: Name, depth: u8,
-            f: &dyn Fn(Vec<<Mode::D as Dir>::Out>) -> <Mode::D as Dir>::Out)
-                -> Result<<Mode::D as Dir>::Out, Mode::Err> {
+        &self,
+        part_name: Name,
+        depth: u8,
+        f: &dyn Fn(Vec<<Mode::D as Dir>::Out>) -> <Mode::D as Dir>::Out,
+    ) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
         self.parts.map_flatten_rep_leaf_or_panic(
-            part_name, depth,
+            part_name,
+            depth,
             &|lwt: &Rc<LazilyWalkedTerm<Mode>>| -> Result<<Mode::D as Dir>::Out, Mode::Err> {
                 return lwt.get_res(self);
             },
@@ -555,7 +598,8 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
                     accum.push(elt?);
                 }
                 Ok(f(accum))
-            })
+            },
+        )
     }
 
     /*/** Like `get_rep_res`, but doesn't panic if the name is absent. */
@@ -581,8 +625,11 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
 
     pub fn get_rep_term(&self, part_name: Name) -> Vec<Ast> {
-        self.parts.get_rep_leaf_or_panic(part_name)
-            .iter().map( |&lwt| lwt.term.clone()).collect()
+        self.parts
+            .get_rep_leaf_or_panic(part_name)
+            .iter()
+            .map(|&lwt| lwt.term.clone())
+            .collect()
     }
 
     /** Only sensible for negative walks */
@@ -598,27 +645,35 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     /// Change the context (by editing the environment). Only sensible for negative walks.
     /// Don't do `.with_context(…).with_environment(…)`
     pub fn with_context(&self, e: Mode::Elt) -> LazyWalkReses<Mode> {
-        LazyWalkReses { env: self.env.set(negative_ret_val(), e), .. (*self).clone() }
+        LazyWalkReses {
+            env: self.env.set(negative_ret_val(), e),
+            ..(*self).clone()
+        }
     }
 
     /// Change the whole environment
     pub fn with_environment(&self, env: ResEnv<Mode::Elt>) -> LazyWalkReses<Mode> {
-        LazyWalkReses { env: env, .. (*self).clone() }
+        LazyWalkReses {
+            env: env,
+            ..(*self).clone()
+        }
     }
 
     /// Clear the memo table; important if you're re-evaluating the same term,
     /// but have changed the environment
     pub fn clear_memo(&self) {
-        self.parts.map(&mut |lwt: &Rc<LazilyWalkedTerm<Mode>>| lwt.clear_memo());
+        self.parts
+            .map(&mut |lwt: &Rc<LazilyWalkedTerm<Mode>>| lwt.clear_memo());
     }
 
     /// Switch to a different mode with the same `Elt` type.
-    pub fn switch_mode<NewMode: WalkMode<Elt=Mode::Elt, ExtraInfo=Mode::ExtraInfo>>(&self)
-             -> LazyWalkReses<NewMode> {
+    pub fn switch_mode<NewMode: WalkMode<Elt = Mode::Elt, ExtraInfo = Mode::ExtraInfo>>(
+        &self,
+    ) -> LazyWalkReses<NewMode> {
         let new_parts: EnvMBE<Rc<LazilyWalkedTerm<NewMode>>> =
-            self.parts.map(
-                &mut |part: &Rc<LazilyWalkedTerm<Mode>>|
-                    LazilyWalkedTerm::<NewMode>::new(&part.term));
+            self.parts.map(&mut |part: &Rc<LazilyWalkedTerm<Mode>>| {
+                LazilyWalkedTerm::<NewMode>::new(&part.term)
+            });
         LazyWalkReses::<NewMode> {
             parts: new_parts,
             env: self.env.clone(),
@@ -626,12 +681,15 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             less_quoted_env: self.less_quoted_env.clone(),
             less_quoted_out_env: self.less_quoted_out_env.clone(),
             this_ast: self.this_ast.clone(),
-            extra_info: self.extra_info.clone()
+            extra_info: self.extra_info.clone(),
         }
     }
 
     pub fn quote_more(mut self, oeh: Option<OutEnvHandle<Mode>>) -> LazyWalkReses<Mode> {
-        let env = self.more_quoted_env.pop().unwrap_or_else(Mode::Elt::core_env);
+        let env = self
+            .more_quoted_env
+            .pop()
+            .unwrap_or_else(Mode::Elt::core_env);
         let more_quoted_env = self.more_quoted_env;
         self.less_quoted_env.push(self.env);
         let less_quoted_env = self.less_quoted_env;
@@ -639,22 +697,35 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         self.less_quoted_out_env.push(oeh);
         let less_quoted_out_env = self.less_quoted_out_env;
 
-        LazyWalkReses { env, more_quoted_env, less_quoted_env, less_quoted_out_env, .. self }
+        LazyWalkReses {
+            env,
+            more_quoted_env,
+            less_quoted_env,
+            less_quoted_out_env,
+            ..self
+        }
     }
 
     /// Shift to a less-quoted level. If the OEH is non-`None`, you need to call `squirrel_away`.
-    pub fn quote_less(mut self) -> (Option<OutEnvHandle<Mode>>, LazyWalkReses<Mode>){
-        let env = self.less_quoted_env.pop().unwrap_or_else(Mode::Elt::core_env);
+    pub fn quote_less(mut self) -> (Option<OutEnvHandle<Mode>>, LazyWalkReses<Mode>) {
+        let env = self
+            .less_quoted_env
+            .pop()
+            .unwrap_or_else(Mode::Elt::core_env);
         let less_quoted_env = self.less_quoted_env;
 
-        let out_env : Option<OutEnvHandle<Mode>> = self.less_quoted_out_env.pop().unwrap();
+        let out_env: Option<OutEnvHandle<Mode>> = self.less_quoted_out_env.pop().unwrap();
         let less_quoted_out_env = self.less_quoted_out_env;
 
         self.more_quoted_env.push(self.env);
         let more_quoted_env = self.more_quoted_env;
 
         let res = LazyWalkReses {
-            env, less_quoted_env, more_quoted_env, less_quoted_out_env, .. self
+            env,
+            less_quoted_env,
+            more_quoted_env,
+            less_quoted_out_env,
+            ..self
         };
 
         (out_env, res)
@@ -664,10 +735,13 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
      * Keeps the same environment.
      */
     pub fn march_parts(&self, driving_names: &[Name]) -> Vec<LazyWalkReses<Mode>> {
-        let marched  = self.parts.march_all(driving_names);
+        let marched = self.parts.march_all(driving_names);
         let mut res = vec![];
         for marched_parts in marched {
-            res.push(LazyWalkReses{ parts: marched_parts, .. self.clone() });
+            res.push(LazyWalkReses {
+                parts: marched_parts,
+                ..self.clone()
+            });
         }
         res
     }
@@ -684,32 +758,48 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     /** Combines `march_parts` and `with_context`. `new_contexts` should have the same length
      * as the repetition marched.
      */
-    pub fn march_parts_with(&self, driving_names: &[Name], new_contexts: Vec<Mode::Elt>)
-             -> Option<Vec<LazyWalkReses<Mode>>> {
-        let marched  = self.parts.march_all(driving_names);
-        if marched.len() != new_contexts.len() { return None; }
+    pub fn march_parts_with(
+        &self,
+        driving_names: &[Name],
+        new_contexts: Vec<Mode::Elt>,
+    ) -> Option<Vec<LazyWalkReses<Mode>>> {
+        let marched = self.parts.march_all(driving_names);
+        if marched.len() != new_contexts.len() {
+            return None;
+        }
         let mut res = vec![];
         for (marched_parts, ctx) in marched.into_iter().zip(new_contexts.into_iter()) {
-            res.push(LazyWalkReses{env: self.env.set(negative_ret_val(), ctx),
-                                   parts: marched_parts, .. self.clone()});
+            res.push(LazyWalkReses {
+                env: self.env.set(negative_ret_val(), ctx),
+                parts: marched_parts,
+                ..self.clone()
+            });
         }
         Some(res)
     }
 
     pub fn map_terms<F, E: Clone>(self, f: &mut F) -> Result<LazyWalkReses<Mode>, E>
-            where F: FnMut(Name, &Ast) -> Result<Ast, E> {
+    where
+        F: FnMut(Name, &Ast) -> Result<Ast, E>,
+    {
         use std::clone::Clone;
         Ok(LazyWalkReses {
-            parts: self.parts.named_map(
-                &mut |n: &Name, lwt: &Rc<LazilyWalkedTerm<Mode>>|
-                    Ok(LazilyWalkedTerm::new(&f(*n, &lwt.term)?))).lift_result()?,
-            .. self
+            parts: self
+                .parts
+                .named_map(&mut |n: &Name, lwt: &Rc<LazilyWalkedTerm<Mode>>| {
+                    Ok(LazilyWalkedTerm::new(&f(*n, &lwt.term)?))
+                })
+                .lift_result()?,
+            ..self
         })
     }
 
     /** Like `get_rep_res`, but with a different context for each repetition */
-    pub fn get_rep_res_with(&self, n: Name, new_contexts: Vec<Mode::Elt>)
-            -> Result<Vec<<Mode::D as Dir>::Out>, Mode::Err> {
+    pub fn get_rep_res_with(
+        &self,
+        n: Name,
+        new_contexts: Vec<Mode::Elt>,
+    ) -> Result<Vec<<Mode::D as Dir>::Out>, Mode::Err> {
         if let Some(sub_parts) = self.march_parts_with(&[n], new_contexts) {
             //Some(sub_parts.iter().map(|sp| sp.get_res(n)).collect())
             let mut res = vec![];
@@ -730,12 +820,13 @@ fn quote_more_and_less() {
         assoc_n!("a" => ty!({"Type" "Nat" :})),
         // we'll pretend this is under an unquote or something:
         &mbe!("body" => "bind_me"),
-        ast!("[ignored]"));
+        ast!("[ignored]"),
+    );
 
     let parts = parts.with_context(ty!({"Type" "Int" :}));
 
-    let interpolation_accumulator = Rc::new(::std::cell::RefCell::new(
-        Assoc::<Name, ::ty::Ty>::new()));
+    let interpolation_accumulator =
+        Rc::new(::std::cell::RefCell::new(Assoc::<Name, ::ty::Ty>::new()));
 
     assert_eq!(parts.env.find(&n("a")), Some(&ty!({"Type" "Nat" :})));
 
@@ -751,8 +842,9 @@ fn quote_more_and_less() {
     // the other thing `unquote` needs to do; save the result for out-of-band retrieval
     squirrel_away::<::ty::UnpackTy>(squirreler, res);
 
-
-
     // check that we successfully squirreled it away:
-    assert_eq!(*interpolation_accumulator.borrow(), assoc_n!("bind_me" => ty!({"Type" "Int" :})));
+    assert_eq!(
+        *interpolation_accumulator.borrow(),
+        assoc_n!("bind_me" => ty!({"Type" "Int" :}))
+    );
 }

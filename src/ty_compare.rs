@@ -1,14 +1,14 @@
-use ast_walk::{walk, LazyWalkReses, WalkRule, Clo};
-use ast_walk::WalkRule::*;
-use walk_mode::WalkMode;
-use form::Form;
-use util::assoc::Assoc;
 use ast::*;
-use ty::{Ty, TyErr};
+use ast_walk::WalkRule::*;
+use ast_walk::{walk, Clo, LazyWalkReses, WalkRule};
+use core_forms::{ast_to_name, find_core_form};
+use form::Form;
 use name::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use core_forms::{find_core_form, ast_to_name};
+use ty::{Ty, TyErr};
+use util::assoc::Assoc;
+use walk_mode::WalkMode;
 
 /* Let me write down an example subtyping hierarchy, to stop myself from getting confused.
     ⊤ (any type/dynamic type/"dunno"/∀X.X)
@@ -107,15 +107,18 @@ The other thing that subtyping has to deal with is `...[T >> T]...`.
 /// TODO: could this be replaced by `synth_type`? Can `canonicalize` be replaced by it, too?
 /// TODO: This doesn't change `env`, and none of its clients care. It should just return `Ty`.
 pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Clo<Ty> {
-    let u_f = underdetermined_form.with(|u_f| { u_f.clone() });
+    let u_f = underdetermined_form.with(|u_f| u_f.clone());
 
     let resolved = match t {
         Ty(VariableReference(vr)) => {
             match env.find(&vr).cloned() {
                 // HACK: leave mu-protected variables alone, instead of recurring forever
                 Some(Ty(VariableReference(new_vr))) if vr == new_vr => None,
-                Some(different) => Some(Clo{it: different, env: env.clone()}),
-                None => None
+                Some(different) => Some(Clo {
+                    it: different,
+                    env: env.clone(),
+                }),
+                None => None,
             }
         }
         Ty(Node(ref form, ref parts, _)) if form == &find_core_form("Type", "type_apply") => {
@@ -125,11 +128,18 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
             let arg_terms = parts.get_rep_leaf_or_panic(n("arg"));
 
             let resolved = resolve(
-                Clo{it: Ty(parts.get_leaf_or_panic(&n("type_rator")).clone()), env: env.clone()},
-                unif);
+                Clo {
+                    it: Ty(parts.get_leaf_or_panic(&n("type_rator")).clone()),
+                    env: env.clone(),
+                },
+                unif,
+            );
 
             match resolved {
-                Clo{it: Ty(VariableReference(rator_vr)), env} => {
+                Clo {
+                    it: Ty(VariableReference(rator_vr)),
+                    env,
+                } => {
                     // e.g. `X<[int, Y]<` underneath `mu X. ...`
 
                     // Rebuild a type_apply, but evaulate its arguments
@@ -137,54 +147,78 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
                     //  we wish to avoid aliasing problems at the type level.
                     // In System F, this is avoided by performing capture-avoiding substitution.
                     let mut new__tapp_parts = ::util::mbe::EnvMBE::new_from_leaves(
-                        assoc_n!("type_rator" => VariableReference(rator_vr)));
+                        assoc_n!("type_rator" => VariableReference(rator_vr)),
+                    );
 
                     let mut args = vec![];
                     for individual__arg_res in arg_terms {
                         args.push(::util::mbe::EnvMBE::new_from_leaves(
-                            assoc_n!("arg" => individual__arg_res.clone())));
+                            assoc_n!("arg" => individual__arg_res.clone()),
+                        ));
                     }
                     new__tapp_parts.add_anon_repeat(args, None);
 
-                    let res = Ty::new(Node(find_core_form("Type", "type_apply"),
-                        new__tapp_parts, ::beta::ExportBeta::Nothing));
+                    let res = Ty::new(Node(
+                        find_core_form("Type", "type_apply"),
+                        new__tapp_parts,
+                        ::beta::ExportBeta::Nothing,
+                    ));
 
-                    if res != t { Some(Clo{it: res, env: env.clone()}) } else { None }
+                    if res != t {
+                        Some(Clo {
+                            it: res,
+                            env: env.clone(),
+                        })
+                    } else {
+                        None
+                    }
                 }
-                Clo{it: defined_type, env} => {
-                    match defined_type.destructure(
-                            find_core_form("Type", "forall_type"), &t.0) {
+                Clo {
+                    it: defined_type,
+                    env,
+                } => {
+                    match defined_type.destructure(find_core_form("Type", "forall_type"), &t.0) {
                         Err(_) => None, // Broken "type_apply", but let it fail elsewhere
                         Ok(ref got_forall) => {
                             let params = got_forall.get_rep_leaf_or_panic(n("param"));
                             if params.len() != arg_terms.len() {
-                                panic!("Kind error: wrong number of arguments: {} vs {}",
-                                    params.len(), arg_terms.len());
+                                panic!(
+                                    "Kind error: wrong number of arguments: {} vs {}",
+                                    params.len(),
+                                    arg_terms.len()
+                                );
                             }
                             let mut actual_params = Assoc::new();
                             for (name, arg_term) in params.iter().zip(arg_terms) {
-                                actual_params = actual_params.set(ast_to_name(name),
-                                                                  arg_term.clone());
+                                actual_params =
+                                    actual_params.set(ast_to_name(name), arg_term.clone());
                             }
 
-                            Some(Clo{
+                            Some(Clo {
                                 it: Ty(::alpha::substitute(
                                     ::core_forms::strip_ee(
-                                        got_forall.get_leaf_or_panic(&n("body"))),
-                                    &actual_params)),
-                                env: env.clone()})
+                                        got_forall.get_leaf_or_panic(&n("body")),
+                                    ),
+                                    &actual_params,
+                                )),
+                                env: env.clone(),
+                            })
                         }
                     }
                 }
             }
         }
-        Ty(Node(ref form, ref parts, _)) if form == &u_f => { // underdetermined
-            unif.get(&ast_to_name(parts.get_leaf_or_panic(&n("id")))).cloned()
+        Ty(Node(ref form, ref parts, _)) if form == &u_f => {
+            // underdetermined
+            unif.get(&ast_to_name(parts.get_leaf_or_panic(&n("id"))))
+                .cloned()
         }
-        _ => None
+        _ => None,
     };
 
-    resolved.map(|clo| resolve(clo, unif)).unwrap_or(Clo{ it: t, env: env })
+    resolved
+        .map(|clo| resolve(clo, unif))
+        .unwrap_or(Clo { it: t, env: env })
 }
 
 thread_local! {
@@ -214,18 +248,19 @@ thread_local! {
     })
 }
 
-
-custom_derive!{
+custom_derive! {
     #[derive(Copy, Clone, Debug, Reifiable)]
     pub struct Canonicalize {}
 }
-custom_derive!{
+custom_derive! {
     #[derive(Copy, Clone, Debug, Reifiable)]
     pub struct Subtype {}
 }
 
 impl WalkMode for Canonicalize {
-    fn name() -> &'static str { "Canon" }
+    fn name() -> &'static str {
+        "Canon"
+    }
 
     type Elt = Ty;
     type Negated = Subtype;
@@ -234,21 +269,27 @@ impl WalkMode for Canonicalize {
     type ExtraInfo = ();
 
     // Actually, always `LiteralLike`, but need to get the lifetime as long as `f`'s
-    fn get_walk_rule(f: &Form) -> WalkRule<Canonicalize> { f.type_compare.pos().clone() }
-    fn automatically_extend_env() -> bool { true }
+    fn get_walk_rule(f: &Form) -> WalkRule<Canonicalize> {
+        f.type_compare.pos().clone()
+    }
+    fn automatically_extend_env() -> bool {
+        true
+    }
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Canonicalize>) -> Result<Ty, TyErr> {
         match cnc.env.find(&n) {
             // If it's protected, stop:
             Some(t) if &Ty(VariableReference(n)) == t => Ok(t.clone()),
             Some(t) => canonicalize(t, cnc.env.clone()),
-            None => Ok(Ty(VariableReference(n))) //TODO why can this happen?
+            None => Ok(Ty(VariableReference(n))), //TODO why can this happen?
         }
     }
 }
 
 impl WalkMode for Subtype {
-    fn name() -> &'static str { "SubTy" }
+    fn name() -> &'static str {
+        "SubTy"
+    }
 
     type Elt = Ty;
     type Negated = Canonicalize;
@@ -256,8 +297,12 @@ impl WalkMode for Subtype {
     type D = ::walk_mode::Negative<Subtype>;
     type ExtraInfo = ();
 
-    fn get_walk_rule(f: &Form) -> WalkRule<Subtype> { f.type_compare.neg().clone() }
-    fn automatically_extend_env() -> bool { true }
+    fn get_walk_rule(f: &Form) -> WalkRule<Subtype> {
+        f.type_compare.neg().clone()
+    }
+    fn automatically_extend_env() -> bool {
+        true
+    }
 
     fn underspecified(name: Name) -> Ty {
         ::ty_compare::next_id.with(|id| {
@@ -274,12 +319,13 @@ impl WalkMode for Subtype {
     /// Look up the reference and keep going.
     fn walk_var(n: Name, cnc: &LazyWalkReses<Subtype>) -> Result<Assoc<Name, Ty>, TyErr> {
         let lhs: &Ty = cnc.env.find_or_panic(&n);
-        if lhs == &Ty(VariableReference(n)) { // mu-protected!
+        if lhs == &Ty(VariableReference(n)) {
+            // mu-protected!
             return match cnc.context_elt() {
                 // mu-protected type variables have to exactly match by name:
                 &Ty(VariableReference(other_n)) if other_n == n => Ok(Assoc::new()),
-                different => Err(TyErr::Mismatch(different.clone(), lhs.clone()))
-            }
+                different => Err(TyErr::Mismatch(different.clone(), lhs.clone())),
+            };
         }
         walk::<Subtype>(&lhs.concrete(), cnc)
     }
@@ -287,13 +333,14 @@ impl WalkMode for Subtype {
 
 // This captures the environment, and produces a function suitable for `heal_splices__with`.
 // `sup` is the general type that needs specializing into `sub`.
-fn match_dotdotdot<'a>(env: &'a Assoc<Name, Ty>)
-        -> impl Fn(&Ast, &dyn Fn() -> Vec<Ast>) -> Option<Vec<Ast>> + 'a {
+fn match_dotdotdot<'a>(
+    env: &'a Assoc<Name, Ty>,
+) -> impl Fn(&Ast, &dyn Fn() -> Vec<Ast>) -> Option<Vec<Ast>> + 'a {
     let env = env.clone();
     move |sup: &Ast, sub_thunk: &dyn Fn() -> Vec<Ast>| -> Option<Vec<Ast>> {
         let ddd_form = ::core_forms::find("Type", "dotdotdot");
         let tuple_form = ::core_forms::find("Type", "tuple");
-        let undet_form = underdetermined_form.with(|u_f| { u_f.clone() });
+        let undet_form = underdetermined_form.with(|u_f| u_f.clone());
 
         // Is it a dotdotdot?
         let ddd_parts = sup.destructure(ddd_form.clone())?;
@@ -305,21 +352,38 @@ fn match_dotdotdot<'a>(env: &'a Assoc<Name, Ty>)
                 None => {} // False alarm; not a dotdotdot!
                 Some(sub_parts) => {
                     // Uh-oh, maybe we're comparing two dotdotdots?
-                    match sub_parts.get_leaf_or_panic(&n("body")).destructure(ddd_form) {
-                        Some(_) => { panic!("ICE: TODO: count up the stacks of :::[]:::")}
-                        None => { return None; } // :::[]::: is a subtype of :::[]:::
+                    match sub_parts
+                        .get_leaf_or_panic(&n("body"))
+                        .destructure(ddd_form)
+                    {
+                        Some(_) => panic!("ICE: TODO: count up the stacks of :::[]:::"),
+                        None => {
+                            return None;
+                        } // :::[]::: is a subtype of :::[]:::
                     }
                 }
             }
         }
 
-        let drivers : Vec<(Name, Ty)> =
-        unification.with(|unif| {
-            ddd_parts.get_rep_leaf_or_panic(n("driver")).iter()
-                .map(|a: &&Ast|
-                    (::core_forms::vr_to_name(*a),
-                     resolve(Clo{it: Ty((*a).clone()), env: env.clone()}, &unif.borrow()).it))
-                .collect()});
+        let drivers: Vec<(Name, Ty)> = unification.with(|unif| {
+            ddd_parts
+                .get_rep_leaf_or_panic(n("driver"))
+                .iter()
+                .map(|a: &&Ast| {
+                    (
+                        ::core_forms::vr_to_name(*a),
+                        resolve(
+                            Clo {
+                                it: Ty((*a).clone()),
+                                env: env.clone(),
+                            },
+                            &unif.borrow(),
+                        )
+                        .it,
+                    )
+                })
+                .collect()
+        });
         let expected_len = concrete_subs.len();
 
         let mut substitution_envs = vec![];
@@ -339,17 +403,19 @@ fn match_dotdotdot<'a>(env: &'a Assoc<Name, Ty>)
             } else if let Some(undet_parts) = driver.0.destructure(undet_form.clone()) {
                 unification.with(|unif| {
                     let mut undet_components = vec![];
-                    undet_components.resize_with(
-                        expected_len, || Subtype::underspecified(n("ddd_bit")).0);
-                    unif.borrow_mut().insert(ast_to_name(undet_parts.get_leaf_or_panic(&n("id"))),
+                    undet_components
+                        .resize_with(expected_len, || Subtype::underspecified(n("ddd_bit")).0);
+                    unif.borrow_mut().insert(
+                        ast_to_name(undet_parts.get_leaf_or_panic(&n("id"))),
                         Clo {
                             it: ty!({"Type" "tuple" :
                                 "component" => (,seq undet_components.clone()) }),
-                            env: env.clone()
-                        });
+                            env: env.clone(),
+                        },
+                    );
                     for i in 0..expected_len {
-                        substitution_envs[i]
-                            = substitution_envs[i].set(name, undet_components[i].clone());
+                        substitution_envs[i] =
+                            substitution_envs[i].set(name, undet_components[i].clone());
                     }
                 })
             } else {
@@ -362,62 +428,99 @@ fn match_dotdotdot<'a>(env: &'a Assoc<Name, Ty>)
         // TODO #13: This violates one of our main principles!
         // We should never modify code (in this case, types) before checking it.
         // We need to redesign `pre_match` to avoid this (we want to just change the ed)
-        Some(substitution_envs.iter().map(|env| ::alpha::substitute(&body, env)).collect())
+        Some(
+            substitution_envs
+                .iter()
+                .map(|env| ::alpha::substitute(&body, env))
+                .collect(),
+        )
     }
 }
 
 impl ::walk_mode::NegativeWalkMode for Subtype {
-    fn qlit_mismatch_error(got: Ty, expd: Ty) -> Self::Err { TyErr::Mismatch(got, expd) }
+    fn qlit_mismatch_error(got: Ty, expd: Ty) -> Self::Err {
+        TyErr::Mismatch(got, expd)
+    }
 
-    fn needs_pre_match() -> bool { true }
+    fn needs_pre_match() -> bool {
+        true
+    }
 
     /// Push through all variable references and underdeterminednesses on both sides,
     ///  returning types that are ready to compare, or `None` if they're definitionally equal
     fn pre_match(lhs_ty: Ty, rhs_ty: Ty, env: &Assoc<Name, Ty>) -> Option<(Clo<Ty>, Clo<Ty>)> {
-        let u_f = underdetermined_form.with(|u_f| { u_f.clone() });
+        let u_f = underdetermined_form.with(|u_f| u_f.clone());
 
         let (res_lhs, mut res_rhs) = unification.with(|unif| {
             // Capture the environment and resolve:
-            let lhs : Clo<Ty> = resolve(Clo{it: lhs_ty, env: env.clone()}, &unif.borrow()).clone();
-            let rhs : Clo<Ty> = resolve(Clo{it: rhs_ty, env: env.clone()}, &unif.borrow()).clone();
+            let lhs: Clo<Ty> = resolve(
+                Clo {
+                    it: lhs_ty,
+                    env: env.clone(),
+                },
+                &unif.borrow(),
+            )
+            .clone();
+            let rhs: Clo<Ty> = resolve(
+                Clo {
+                    it: rhs_ty,
+                    env: env.clone(),
+                },
+                &unif.borrow(),
+            )
+            .clone();
 
-            let lhs_name = lhs.it.destructure(u_f.clone(), &Trivial).map( // errors get swallowed ↓
-                |p| ast_to_name(p.get_leaf_or_panic(&n("id"))));
-            let rhs_name = rhs.it.destructure(u_f.clone(), &Trivial).map(
-                |p| ast_to_name(p.get_leaf_or_panic(&n("id"))));
+            let lhs_name = lhs.it.destructure(u_f.clone(), &Trivial).map(
+                // errors get swallowed ↓
+                |p| ast_to_name(p.get_leaf_or_panic(&n("id"))),
+            );
+            let rhs_name = rhs
+                .it
+                .destructure(u_f.clone(), &Trivial)
+                .map(|p| ast_to_name(p.get_leaf_or_panic(&n("id"))));
 
             // print!("%%: {}\n%%: {}\n", lhs, rhs);
             // print!("in: {:#?}\n", env.map(|_| "…"));
 
             match (lhs_name, rhs_name) {
                 // They are the same underdetermined type; nothing to do:
-                (Ok(l), Ok(r)) if l == r => { return None; }
+                (Ok(l), Ok(r)) if l == r => {
+                    return None;
+                }
                 // Make a determination (possibly just merging two underdetermined types):
-                (Ok(l), _) => { unif.borrow_mut().insert(l, rhs.clone()); return None; }
-                (_, Ok(r)) => { unif.borrow_mut().insert(r, lhs.clone()); return None; }
+                (Ok(l), _) => {
+                    unif.borrow_mut().insert(l, rhs.clone());
+                    return None;
+                }
+                (_, Ok(r)) => {
+                    unif.borrow_mut().insert(r, lhs.clone());
+                    return None;
+                }
                 // They are (potentially) different.
-                _ => { Some((lhs, rhs)) }
+                _ => Some((lhs, rhs)),
             }
         })?;
 
         // Now, resolve `:::[]:::` subtyping
         match (&res_lhs.it, &mut res_rhs.it) {
             (&Ty(Node(_, ref lhs_body, _)), &mut Ty(Node(_, ref mut rhs_body, _))) => {
-                    // the LHS should be the subtype (i.e. already specific),
-                    // and the RHS should be made to match
-                    let _ = rhs_body.heal_splices__with(lhs_body, &match_dotdotdot(env));
-                }
+                // the LHS should be the subtype (i.e. already specific),
+                // and the RHS should be made to match
+                let _ = rhs_body.heal_splices__with(lhs_body, &match_dotdotdot(env));
+            }
             _ => {}
         }
         Some((res_lhs, res_rhs))
-
     }
 
     // TODO: should unbound variable references ever be walked at all? Maybe it should panic?
 }
 
 pub fn canonicalize(t: &Ty, env: Assoc<Name, Ty>) -> Result<Ty, TyErr> {
-    walk::<Canonicalize>(&t.concrete(), &LazyWalkReses::<Canonicalize>::new_wrapper(env))
+    walk::<Canonicalize>(
+        &t.concrete(),
+        &LazyWalkReses::<Canonicalize>::new_wrapper(env),
+    )
 }
 
 pub fn must_subtype(sub: &Ty, sup: &Ty, env: Assoc<Name, Ty>) -> Result<Assoc<Name, Ty>, TyErr> {
@@ -432,7 +535,8 @@ pub fn must_subtype(sub: &Ty, sup: &Ty, env: Assoc<Name, Ty>) -> Result<Assoc<Na
 pub fn must_equal(lhs: &Ty, rhs: &Ty, env: Assoc<Name, Ty>) -> Result<(), TyErr> {
     let lwr_env = &LazyWalkReses::new_wrapper(env);
     if walk::<Canonicalize>(&lhs.concrete(), lwr_env)
-       == walk::<Canonicalize>(&rhs.concrete(), lwr_env) {
+        == walk::<Canonicalize>(&rhs.concrete(), lwr_env)
+    {
         Ok(())
     } else {
         Err(TyErr::Mismatch(lhs.clone(), rhs.clone()))
@@ -441,19 +545,20 @@ pub fn must_equal(lhs: &Ty, rhs: &Ty, env: Assoc<Name, Ty>) -> Result<(), TyErr>
 
 #[test]
 fn basic_subtyping() {
-    use ::ty::TyErr::*;
-    use ::util::assoc::Assoc;
+    use ty::TyErr::*;
+    use util::assoc::Assoc;
 
     let mt_ty_env = Assoc::new();
     let int_ty = ty!({ "Type" "Int" : });
     let nat_ty = ty!({ "Type" "Nat" : });
     let float_ty = ty!({ "Type" "Float" : });
 
-
     assert_m!(must_subtype(&int_ty, &int_ty, mt_ty_env.clone()), Ok(_));
 
-    assert_eq!(must_subtype(&float_ty, &int_ty, mt_ty_env.clone()),
-        Err(Mismatch(float_ty.clone(), int_ty.clone())));
+    assert_eq!(
+        must_subtype(&float_ty, &int_ty, mt_ty_env.clone()),
+        Err(Mismatch(float_ty.clone(), int_ty.clone()))
+    );
 
     let id_fn_ty = ty!({ "Type" "forall_type" :
         "param" => ["t"],
@@ -464,21 +569,24 @@ fn basic_subtyping() {
          "param" => [(, int_ty.concrete())],
          "ret" => (, int_ty.concrete())});
 
-    assert_m!(must_subtype(&int_to_int_fn_ty, &int_to_int_fn_ty, mt_ty_env.clone()),
-               Ok(_));
+    assert_m!(
+        must_subtype(&int_to_int_fn_ty, &int_to_int_fn_ty, mt_ty_env.clone()),
+        Ok(_)
+    );
 
-
-
-    assert_m!(must_subtype(&id_fn_ty, &id_fn_ty, mt_ty_env.clone()),
-               Ok(_));
+    assert_m!(must_subtype(&id_fn_ty, &id_fn_ty, mt_ty_env.clone()), Ok(_));
 
     // actually subtype interestingly!
-    assert_m!(must_subtype(&int_to_int_fn_ty, &id_fn_ty, mt_ty_env.clone()),
-               Ok(_));
+    assert_m!(
+        must_subtype(&int_to_int_fn_ty, &id_fn_ty, mt_ty_env.clone()),
+        Ok(_)
+    );
 
     // TODO: this error spits out generated names to the user without context ) :
-    assert_m!(must_subtype(&id_fn_ty, &int_to_int_fn_ty, mt_ty_env.clone()),
-              Err(Mismatch(_,_)));
+    assert_m!(
+        must_subtype(&id_fn_ty, &int_to_int_fn_ty, mt_ty_env.clone()),
+        Err(Mismatch(_, _))
+    );
 
     let parametric_ty_env = assoc_n!(
         "some_int" => ty!( { "Type" "Int" : }),
@@ -491,41 +599,56 @@ fn basic_subtyping() {
         "identity" => id_fn_ty.clone(),
         "int_to_int" => int_to_int_fn_ty.clone());
 
+    assert_m!(
+        must_subtype(
+            &ty!((vr "int_to_int")),
+            &ty!((vr "identity")),
+            parametric_ty_env.clone()
+        ),
+        Ok(_)
+    );
 
-    assert_m!(must_subtype(&ty!((vr "int_to_int")), &ty!((vr "identity")),
-                  parametric_ty_env.clone()),
-              Ok(_));
+    assert_m!(
+        must_subtype(
+            &ty!((vr "identity")),
+            &ty!((vr "int_to_int")),
+            parametric_ty_env.clone()
+        ),
+        Err(Mismatch(_, _))
+    );
 
-    assert_m!(must_subtype(&ty!((vr "identity")), &ty!((vr "int_to_int")),
-                  parametric_ty_env.clone()),
-              Err(Mismatch(_,_)));
-
-    fn incomplete_fn_ty() -> Ty { // A function, so we get a fresh underspecified type each time.
+    fn incomplete_fn_ty() -> Ty {
+        // A function, so we get a fresh underspecified type each time.
         ty!({ "Type" "fn" :
             "param" => [ { "Type" "Int" : } ],
             "ret" => (, Subtype::underspecified(n("<return_type>")).concrete() )})
     }
 
+    assert_m!(
+        must_subtype(&incomplete_fn_ty(), &int_to_int_fn_ty, mt_ty_env.clone()),
+        Ok(_)
+    );
 
-    assert_m!(must_subtype(&incomplete_fn_ty(), &int_to_int_fn_ty, mt_ty_env.clone()),
-              Ok(_));
+    assert_m!(
+        must_subtype(&incomplete_fn_ty(), &id_fn_ty, mt_ty_env.clone()),
+        Ok(_)
+    );
 
-    assert_m!(must_subtype(&incomplete_fn_ty(), &id_fn_ty, mt_ty_env.clone()),
-              Ok(_));
-
-    assert_eq!(::ty::synth_type(&ast!({"Expr" "apply" : "rator" => (vr "identity"),
+    assert_eq!(
+        ::ty::synth_type(
+            &ast!({"Expr" "apply" : "rator" => (vr "identity"),
                                                         "rand" => [(vr "some_int")]}),
-                          parametric_ty_env.clone()),
-               Ok(ty!({"Type" "Int" : })));
+            parametric_ty_env.clone()
+        ),
+        Ok(ty!({"Type" "Int" : }))
+    );
 
     // TODO: write a test that relies on the capture-the-environment behavior of `pre_match`
 }
 
-
 #[test]
 fn misc_subtyping_problems() {
-    let list_ty =
-        ty!( { "Type" "forall_type" :
+    let list_ty = ty!( { "Type" "forall_type" :
             "param" => ["Datum"],
             "body" => (import [* [forall "param"]] { "Type" "mu_type" :
                 "param" => [(import [prot "param"] (vr "List"))],
@@ -536,14 +659,12 @@ fn misc_subtyping_problems() {
                             "type_rator" => (vr "List"),
                             "arg" => [(vr "Datum")]} ]]})})});
 
-    let int_list_ty =
-        ty!( { "Type" "mu_type" :
+    let int_list_ty = ty!( { "Type" "mu_type" :
             "param" => [(import [prot "param"] (vr "IntList"))],
             "body" => (import [* [prot "param"]] { "Type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
                 "component" => [@"c" [], [{"Type" "Int" :}, (vr "IntList") ]]})});
-    let bool_list_ty =
-        ty!( { "Type" "mu_type" :
+    let bool_list_ty = ty!( { "Type" "mu_type" :
             "param" => [(import [prot "param"] (vr "FloatList"))],
             "body" => (import [* [prot "param"]] { "Type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
@@ -556,25 +677,31 @@ fn misc_subtyping_problems() {
     );
 
     // μ also has binding:
-    assert_m!(must_subtype(&int_list_ty, &int_list_ty, ty_env.clone()), Ok(_));
-    assert_m!(must_subtype(&int_list_ty, &bool_list_ty, ty_env.clone()), Err(_));
+    assert_m!(
+        must_subtype(&int_list_ty, &int_list_ty, ty_env.clone()),
+        Ok(_)
+    );
+    assert_m!(
+        must_subtype(&int_list_ty, &bool_list_ty, ty_env.clone()),
+        Err(_)
+    );
 
     // Don't walk `Atom`s!
     let basic_enum = ty!({"Type" "enum" :
         "name" => [@"arm" "Aa", "Bb"],
         "component" => [@"arm" [{"Type" "Int" :}], []]});
-    assert_m!(must_subtype(&basic_enum, &basic_enum, ::util::assoc::Assoc::new()),
-              Ok(_));
+    assert_m!(
+        must_subtype(&basic_enum, &basic_enum, ::util::assoc::Assoc::new()),
+        Ok(_)
+    );
 
     let basic_mu = ty!({"Type" "mu_type" :
         "param" => [(import [prot "param"] (vr "X"))],
         "body" => (import [* [prot "param"]] (vr "X"))});
     let mu_env = assoc_n!("X" => basic_mu.clone());
 
-
     // Don't diverge on `μ`!
-    assert_m!(must_subtype(&basic_mu, &basic_mu, mu_env),
-              Ok(_));
+    assert_m!(must_subtype(&basic_mu, &basic_mu, mu_env), Ok(_));
 
     let id_fn_ty = ty!({ "Type" "forall_type" :
         "param" => ["t"],
@@ -586,11 +713,9 @@ fn misc_subtyping_problems() {
     let int_ty = ty!({ "Type" "Int" : });
     let nat_ty = ty!({ "Type" "Nat" : });
 
-
     let int_to_int_fn_ty = ty!({ "Type" "fn" :
         "param" => [(, int_ty.concrete())],
         "ret" => (, int_ty.concrete())});
-
 
     let parametric_ty_env = assoc_n!(
         "some_int" => ty!( { "Type" "Int" : }),
@@ -603,114 +728,141 @@ fn misc_subtyping_problems() {
         "identity" => id_fn_ty.clone(),
         "int_to_int" => int_to_int_fn_ty.clone());
 
-    assert_m!(must_subtype(
-        &ty!({"Type" "type_apply" : "type_rator" => (vr "identity"), "arg" => [{"Type" "Int" :}]}),
-        &ty!({"Type" "type_apply" : "type_rator" => (vr "identity"), "arg" => [{"Type" "Int" :}]}),
-        parametric_ty_env.clone()),
-    Ok(_));
+    assert_m!(
+        must_subtype(
+            &ty!({"Type" "type_apply" : "type_rator" => (vr "identity"), "arg" => [{"Type" "Int" :}]}),
+            &ty!({"Type" "type_apply" : "type_rator" => (vr "identity"), "arg" => [{"Type" "Int" :}]}),
+            parametric_ty_env.clone()
+        ),
+        Ok(_)
+    );
 
-
-    assert_m!(must_subtype(
-        &ty!({"Type" "type_apply" : "type_rator" => (vr "identity"), "arg" => [{"Type" "Int" :}]}),
-        &ty!((vr "identity")),
-        parametric_ty_env.clone()),
-    Ok(_));
+    assert_m!(
+        must_subtype(
+            &ty!({"Type" "type_apply" : "type_rator" => (vr "identity"), "arg" => [{"Type" "Int" :}]}),
+            &ty!((vr "identity")),
+            parametric_ty_env.clone()
+        ),
+        Ok(_)
+    );
 
     // Some things that involve mu
 
-    assert_m!(must_subtype(
-        &ty!((vr "List")), &ty!((vr "List")), ty_env.clone()),
-    Ok(_));
+    assert_m!(
+        must_subtype(&ty!((vr "List")), &ty!((vr "List")), ty_env.clone()),
+        Ok(_)
+    );
 
+    assert_m!(
+        must_subtype(
+            &ty!({"Type" "type_apply" : "type_rator" => (vr "List"), "arg" => [{"Type" "Int" :}]}),
+            &ty!({"Type" "type_apply" : "type_rator" => (vr "List"), "arg" => [{"Type" "Int" :}]}),
+            ty_env.clone()
+        ),
+        Ok(_)
+    );
 
-    assert_m!(must_subtype(
-        &ty!({"Type" "type_apply" : "type_rator" => (vr "List"), "arg" => [{"Type" "Int" :}]}),
-        &ty!({"Type" "type_apply" : "type_rator" => (vr "List"), "arg" => [{"Type" "Int" :}]}),
-        ty_env.clone()),
-    Ok(_));
-
-    assert_m!(must_subtype(
-        &ty!({"Type" "type_apply" : "type_rator" => (, ty_env.find_or_panic(&n("List")).0.clone()),
+    assert_m!(
+        must_subtype(
+            &ty!({"Type" "type_apply" : "type_rator" => (, ty_env.find_or_panic(&n("List")).0.clone()),
                                     "arg" => [{"Type" "Int" :}]}),
-        &ty!({"Type" "type_apply" : "type_rator" => (vr "List"), "arg" => [{"Type" "Int" :}]}),
-        ty_env.clone()),
-    Ok(_));
+            &ty!({"Type" "type_apply" : "type_rator" => (vr "List"), "arg" => [{"Type" "Int" :}]}),
+            ty_env.clone()
+        ),
+        Ok(_)
+    );
 
-
-    assert_m!(must_subtype(
-        &ty!({"Type" "mu_type" :
+    assert_m!(
+        must_subtype(
+            &ty!({"Type" "mu_type" :
             "param" => [(import [prot "param"] (vr "List"))],
             "body" =>  (import [* [prot "param"]]
                 {"Type" "type_apply": "type_rator" => (vr "List"), "arg" => [{"Type" "Int" :}]})}),
-        &ty!({"Type" "mu_type" :
+            &ty!({"Type" "mu_type" :
             "param" => [(import [prot "param"] (vr "List"))],
             "body" =>  (import [* [prot "param"]]
                 {"Type" "type_apply": "type_rator" => (vr "List"), "arg" => [{"Type" "Int" :}]})}),
-        ty_env.clone()),
-    Ok(_));
+            ty_env.clone()
+        ),
+        Ok(_)
+    );
 
-    assert_m!(must_subtype( // Reparameterize
-        &ty!((vr "List")),
-        &ty!( { "Type" "forall_type" :
+    assert_m!(
+        must_subtype(
+            // Reparameterize
+            &ty!((vr "List")),
+            &ty!( { "Type" "forall_type" :
             "param" => ["Datum2"],
             "body" => (import [* [forall "param"]]
                 {"Type" "type_apply" : "type_rator" => (vr "List"), "arg" => [(vr "Datum2")]})}),
-        ty_env.clone()),
-    Ok(_));
-
+            ty_env.clone()
+        ),
+        Ok(_)
+    );
 }
 
 #[test]
 fn struct_subtyping() {
     // Trivial struct subtying:
-    assert_m!(must_subtype(
-        &ty!( { "Type" "struct" :
+    assert_m!(
+        must_subtype(
+            &ty!( { "Type" "struct" :
             "component_name" => [@"c" "a", "b"],
             "component" => [@"c" {"Type" "Int" :}, {"Type" "Nat" :}]}),
-        &ty!( { "Type" "struct" :
+            &ty!( { "Type" "struct" :
             "component_name" => [@"c" "a", "b"],
             "component" => [@"c" {"Type" "Int" :}, {"Type" "Nat" :}]}),
-        Assoc::new()),
-    Ok(_));
+            Assoc::new()
+        ),
+        Ok(_)
+    );
 
     // Add a component:
-    assert_m!(must_subtype(
-        &ty!( { "Type" "struct" :
+    assert_m!(
+        must_subtype(
+            &ty!( { "Type" "struct" :
             "component_name" => [@"c" "a", "b"],
             "component" => [@"c" {"Type" "Int" :}, {"Type" "Nat" :}]}),
-        &ty!( { "Type" "struct" :
+            &ty!( { "Type" "struct" :
             "component_name" => [@"c" "a", "b", "c"],
             "component" => [@"c" {"Type" "Int" :}, {"Type" "Nat" :}, {"Type" "Float" :}]}),
-        Assoc::new()),
-    Ok(_));
+            Assoc::new()
+        ),
+        Ok(_)
+    );
 
     // Reorder components:
-    assert_m!(must_subtype(
-        &ty!( { "Type" "struct" :
+    assert_m!(
+        must_subtype(
+            &ty!( { "Type" "struct" :
             "component_name" => [@"c" "a", "b"],
             "component" => [@"c" {"Type" "Int" :}, {"Type" "Nat" :}]}),
-        &ty!( { "Type" "struct" :
+            &ty!( { "Type" "struct" :
             "component_name" => [@"c" "b", "a"],
             "component" => [@"c" {"Type" "Nat" :}, {"Type" "Int" :}]}),
-        Assoc::new()),
-    Ok(_));
+            Assoc::new()
+        ),
+        Ok(_)
+    );
 
     // Scramble:
-    assert_m!(must_subtype(
-        &ty!( { "Type" "struct" :
+    assert_m!(
+        must_subtype(
+            &ty!( { "Type" "struct" :
             "component_name" => [@"c" "a", "b"],
             "component" => [@"c" {"Type" "Int" :}, {"Type" "Nat" :}]}),
-        &ty!( { "Type" "struct" :
+            &ty!( { "Type" "struct" :
             "component_name" => [@"c" "b", "a"],
             "component" => [@"c" {"Type" "Int" :}, {"Type" "Nat" :}]}),
-        Assoc::new()),
-    Err(_));
-
-
+            Assoc::new()
+        ),
+        Err(_)
+    );
 }
 
 #[test]
-fn subtype_different_mus() { // testing the Amber rule:
+fn subtype_different_mus() {
+    // testing the Amber rule:
     // These types are non-contractive, but it doesn't matter for subtyping purposes.
     let jane_author = ty!({"Type" "mu_type" :
         "param" => [(import [prot "param"] (vr "CharlotteBrontë"))],
@@ -728,14 +880,20 @@ fn subtype_different_mus() { // testing the Amber rule:
         "CharlotteBrontë" => jane_author.clone(),
         "CurrerBell" => jane_psuedonym.clone(),
         "EmilyBrontë" => wuthering_author.clone());
-    assert_m!(must_subtype(&jane_author, &jane_author, mu_env.clone()),
-        Ok(_));
+    assert_m!(
+        must_subtype(&jane_author, &jane_author, mu_env.clone()),
+        Ok(_)
+    );
 
-    assert_m!(must_subtype(&jane_author, &jane_psuedonym, mu_env.clone()),
-        Ok(_));
+    assert_m!(
+        must_subtype(&jane_author, &jane_psuedonym, mu_env.clone()),
+        Ok(_)
+    );
 
-    assert_m!(must_subtype(&jane_author, &wuthering_author, mu_env.clone()),
-        Err(_));
+    assert_m!(
+        must_subtype(&jane_author, &wuthering_author, mu_env.clone()),
+        Err(_)
+    );
 }
 
 #[test]
@@ -747,44 +905,72 @@ fn subtype_dotdotdot() {
         "component" => [{"Type" "dotdotdot" : "driver" => [(vr "T")], "body" => (vr "T")}]
     });
 
-    assert_m!(must_subtype(&dddple, &threeple, assoc_n!("T" => Subtype::underspecified(n("-")))),
-        Ok(_));
+    assert_m!(
+        must_subtype(
+            &dddple,
+            &threeple,
+            assoc_n!("T" => Subtype::underspecified(n("-")))
+        ),
+        Ok(_)
+    );
 
     // TODO #15: this panics in mbe.rs; it ought to error instead
     // assert_m!(must_subtype(&threeple, &dddple, assoc_n!("T" => Subtype::underspecified(n("-")))),
     //     Err(_));
 
-    assert_m!(must_subtype(&dddple, &dddple, assoc_n!("T" => Subtype::underspecified(n("-")))),
-        Ok(_));
+    assert_m!(
+        must_subtype(
+            &dddple,
+            &dddple,
+            assoc_n!("T" => Subtype::underspecified(n("-")))
+        ),
+        Ok(_)
+    );
 
     let intdddple = ty!({"Type" "tuple" :
         "component" => [{"Type" "Int" :},
                         {"Type" "dotdotdot" : "driver" => [(vr "T")], "body" => (vr "T")}]
     });
 
-    assert_m!(must_subtype(&intdddple, &threeple, assoc_n!("T" => Subtype::underspecified(n("-")))),
-        Ok(_));
+    assert_m!(
+        must_subtype(
+            &intdddple,
+            &threeple,
+            assoc_n!("T" => Subtype::underspecified(n("-")))
+        ),
+        Ok(_)
+    );
 
-    assert_m!(must_subtype(&intdddple, &intdddple, assoc_n!("T" => Subtype::underspecified(n("-")))),
-        Ok(_));
-
+    assert_m!(
+        must_subtype(
+            &intdddple,
+            &intdddple,
+            assoc_n!("T" => Subtype::underspecified(n("-")))
+        ),
+        Ok(_)
+    );
 
     let floatdddple = ty!({"Type" "tuple" :
         "component" => [{"Type" "Float" :},
                         {"Type" "dotdotdot" : "driver" => [(vr "T")], "body" => (vr "T")}]
     });
 
-    assert_m!(must_subtype(&floatdddple, &threeple, assoc_n!("T" => Subtype::underspecified(n("-")))),
-        Err(_));
+    assert_m!(
+        must_subtype(
+            &floatdddple,
+            &threeple,
+            assoc_n!("T" => Subtype::underspecified(n("-")))
+        ),
+        Err(_)
+    );
 }
 
 #[test]
 fn basic_resolve() {
-    let u_f = underdetermined_form.with(|u_f| { u_f.clone() });
+    let u_f = underdetermined_form.with(|u_f| u_f.clone());
     let ud0 = ast!({ u_f.clone() ; "id" => "a⚁99" });
 
-    let list_ty =
-        ty!( { "Type" "forall_type" :
+    let list_ty = ty!( { "Type" "forall_type" :
             "param" => ["Datum"],
             "body" => (import [* [forall "param"]] { "Type" "mu_type" :
                 "param" => [(import [prot "param"] (vr "List"))],
@@ -796,14 +982,30 @@ fn basic_resolve() {
                               "type_rator" => (vr "List"), "arg" => [(,ud0.clone())]}]]})})});
     let t_env = assoc_n!("List" => list_ty.clone());
 
-
     let unif = HashMap::<Name, Clo<Ty>>::new();
 
-    assert_eq!(resolve(Clo{ it: ty!({"Type" "Int" :}), env: t_env.clone()}, &unif).it,
-               ty!({"Type" "Int" :}));
+    assert_eq!(
+        resolve(
+            Clo {
+                it: ty!({"Type" "Int" :}),
+                env: t_env.clone()
+            },
+            &unif
+        )
+        .it,
+        ty!({"Type" "Int" :})
+    );
 
-    assert_eq!(resolve(Clo{ it: ty!({"Type" "type_apply" :
-        "type_rator" => (vr "List"), "arg" => [(,ud0.clone())] }), env: t_env.clone()}, &unif).it,
+    assert_eq!(
+        resolve(
+            Clo {
+                it: ty!({"Type" "type_apply" :
+        "type_rator" => (vr "List"), "arg" => [(,ud0.clone())] }),
+                env: t_env.clone()
+            },
+            &unif
+        )
+        .it,
         ty!({ "Type" "mu_type" :
             "param" => [(import [prot "param"] (vr "List"))],
             "body" => (import [* [prot "param"]] { "Type" "enum" :
@@ -811,5 +1013,6 @@ fn basic_resolve() {
                 "component" => [@"c" [],
                     [(,ud0.clone()),
                      {"Type" "type_apply" :
-                          "type_rator" => (vr "List"), "arg" => [(,ud0.clone())]} ]]})}));
+                          "type_rator" => (vr "List"), "arg" => [(,ud0.clone())]} ]]})})
+    );
 }

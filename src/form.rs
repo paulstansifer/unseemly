@@ -1,11 +1,11 @@
 #![macro_use]
 
+use ast_walk::WalkRule;
 use grammar::FormPat;
 use name::*;
-use std::fmt::{Debug,Formatter,Error};
-use util::assoc::Assoc;
+use std::fmt::{Debug, Error, Formatter};
 use std::rc::Rc;
-use ast_walk::WalkRule;
+use util::assoc::Assoc;
 use walk_mode::WalkMode;
 
 pub type NMap<T> = Assoc<Name, T>;
@@ -45,7 +45,6 @@ custom_derive! {
 }
 pub use self::EitherPN::*;
 
-
 impl<Mode: WalkMode> EitherPN<WalkRule<Mode>, WalkRule<Mode::Negated>> {
     pub fn pos(&self) -> &WalkRule<Mode> {
         match *self {
@@ -55,14 +54,23 @@ impl<Mode: WalkMode> EitherPN<WalkRule<Mode>, WalkRule<Mode::Negated>> {
     }
     pub fn neg(&self) -> &WalkRule<Mode::Negated> {
         match *self {
-            Negative(ref r) | Both(_, ref r)=> r,
+            Negative(ref r) | Both(_, ref r) => r,
             Positive(_) => &WalkRule::NotWalked,
         }
     }
-    pub fn is_pos(&self) -> bool { match *self { Negative(_) => false, _ => true }}
-    pub fn is_neg(&self) -> bool { match *self { Positive(_) => false, _ => true }}
+    pub fn is_pos(&self) -> bool {
+        match *self {
+            Negative(_) => false,
+            _ => true,
+        }
+    }
+    pub fn is_neg(&self) -> bool {
+        match *self {
+            Positive(_) => false,
+            _ => true,
+        }
+    }
 }
-
 
 impl PartialEq for Form {
     /// pointer equality on the underlying structure!
@@ -71,21 +79,19 @@ impl PartialEq for Form {
     }
 }
 
-
 impl Debug for Form {
     fn fmt(&self, formatter: &mut Formatter) -> Result<(), Error> {
         formatter.write_str(format!("[FORM {:#?}]", self.name).as_str())
     }
 }
 
-
 pub fn simple_form(form_name: &str, p: FormPat) -> Rc<Form> {
     Rc::new(Form {
-            name: n(form_name),
-            grammar: Rc::new(p),
-            type_compare: ::form::Both(WalkRule::NotWalked, WalkRule::NotWalked),
-            synth_type: ::form::Positive(WalkRule::NotWalked),
-            eval: ::form::Positive(WalkRule::NotWalked),
-            quasiquote: ::form::Both(WalkRule::LiteralLike, WalkRule::LiteralLike)
-        })
+        name: n(form_name),
+        grammar: Rc::new(p),
+        type_compare: ::form::Both(WalkRule::NotWalked, WalkRule::NotWalked),
+        synth_type: ::form::Positive(WalkRule::NotWalked),
+        eval: ::form::Positive(WalkRule::NotWalked),
+        quasiquote: ::form::Both(WalkRule::LiteralLike, WalkRule::LiteralLike),
+    })
 }

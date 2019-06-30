@@ -1,23 +1,25 @@
 use ast::Ast;
-use ty::Ty;
-use runtime::eval::{Value, BIF, eval};
-use runtime::eval::Value::*;
-use util::assoc::Assoc;
 use name::*;
+use runtime::eval::Value::*;
+use runtime::eval::{eval, Value, BIF};
 use std::rc::Rc;
+use ty::Ty;
+use util::assoc::Assoc;
 
+use num::BigInt;
 
-use num::{BigInt};
-
-#[derive(Debug,Clone,PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TypedValue {
     pub ty: Ast,
-    pub val: Value
+    pub val: Value,
 }
 
-pub fn erase_type(tv: &TypedValue) -> Value { tv.val.clone() }
-pub fn erase_value(tv: &TypedValue) -> Ty { Ty::new(tv.ty.clone()) }
-
+pub fn erase_type(tv: &TypedValue) -> Value {
+    tv.val.clone()
+}
+pub fn erase_value(tv: &TypedValue) -> Ty {
+    Ty::new(tv.ty.clone())
+}
 
 pub fn core_typed_values() -> Assoc<Name, TypedValue> {
     assoc_n!(
@@ -81,20 +83,35 @@ pub fn core_values() -> Assoc<Name, Value> {
 }
 
 pub fn core_types() -> Assoc<Name, Ty> {
-    use ::core_type_forms::get__abstract_parametric_type;
-    core_typed_values().map(&erase_value)
-        .set(n("Bool"), ty!(
-            {"Type" "enum" : "name" => [@"c" "True", "False"], "component" => [@"c" [], []]}))
+    use core_type_forms::get__abstract_parametric_type;
+    core_typed_values()
+        .map(&erase_value)
+        .set(
+            n("Bool"),
+            ty!(
+            {"Type" "enum" : "name" => [@"c" "True", "False"], "component" => [@"c" [], []]}),
+        )
         // These need to be in the environment, not just atomic types
         //  because we sometimes look them up internally in the compiler
         //   in the environment,
         //  not just as programmers, looking them up by syntax, where this whole thing is a wash.
-        .set(n("Pat"), ty!({get__abstract_parametric_type() ; "name" => "Pat" }))
-        .set(n("Type"), ty!({get__abstract_parametric_type() ; "name" => "Type" }))
-        .set(n("Expr"), ty!({get__abstract_parametric_type() ; "name" => "Expr" }))
-        .set(n("Sequence"), ty!({get__abstract_parametric_type() ; "name" => "Sequence" }))
+        .set(
+            n("Pat"),
+            ty!({get__abstract_parametric_type() ; "name" => "Pat" }),
+        )
+        .set(
+            n("Type"),
+            ty!({get__abstract_parametric_type() ; "name" => "Type" }),
+        )
+        .set(
+            n("Expr"),
+            ty!({get__abstract_parametric_type() ; "name" => "Expr" }),
+        )
+        .set(
+            n("Sequence"),
+            ty!({get__abstract_parametric_type() ; "name" => "Sequence" }),
+        )
 }
-
 
 #[test]
 fn basic_core_value_evaluation() {
@@ -103,19 +120,23 @@ fn basic_core_value_evaluation() {
     let cte = core_typed_values();
     let ce = cte.map(&erase_type);
 
-    assert_eq!(eval(
-        &ast!({ find_core_form( "Expr", "apply") ;
-            "rator" => (vr "plus"),
-            "rand" => [ (vr "one"), (vr "one") ]
-        }),
-        ce),
-        Ok(Int(BigInt::from(2))));
+    assert_eq!(
+        eval(
+            &ast!({ find_core_form( "Expr", "apply") ;
+                "rator" => (vr "plus"),
+                "rand" => [ (vr "one"), (vr "one") ]
+            }),
+            ce
+        ),
+        Ok(Int(BigInt::from(2)))
+    );
 }
 
 #[test]
 fn fixpoint_evaluation() {
-    assert_eq!(eval(
-        &ast!( {"Expr" "apply" : "rator" =>
+    assert_eq!(
+        eval(
+            &ast!( {"Expr" "apply" : "rator" =>
         { "Expr" "apply" :
             "rator" => (vr "fix"),
             "rand" => [{ "Expr" "lambda" :
@@ -145,6 +166,8 @@ fn fixpoint_evaluation() {
                                                  "rator" => (vr "minus"),
                                                  "rand" => [(vr "n"), (vr "one")]}]}]})]})})}]},
         "rand" => [(vr "five")]}),
-        core_values()),
-        Ok(val!(i 120)));
+            core_values()
+        ),
+        Ok(val!(i 120))
+    );
 }
