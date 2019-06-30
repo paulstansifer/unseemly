@@ -8,14 +8,14 @@ These nodes may depend on
   (i.e., type annotations).
 */
 
-use ast_walk::{walk, LazyWalkReses, WalkRule};
-use ast_walk::WalkRule::*;
-use walk_mode::WalkMode;
-use form::Form;
-use util::assoc::Assoc;
 use ast::*;
+use ast_walk::WalkRule::*;
+use ast_walk::{walk, LazyWalkReses, WalkRule};
+use form::Form;
 use name::*;
 use std::rc::Rc;
+use util::assoc::Assoc;
+use walk_mode::WalkMode;
 
 #[derive(PartialEq, Clone)]
 pub struct Ty(pub Ast);
@@ -27,17 +27,24 @@ impl ::std::fmt::Debug for Ty {
 }
 
 impl Ty {
-    pub fn new(a: Ast) -> Ty { Ty(a) } // TODO: deprecate in favor of `Ty()`
-    pub fn concrete(&self) -> Ast { // TODO: just use `Ty::to_ast()`; this name is obsolete
+    pub fn new(a: Ast) -> Ty {
+        Ty(a)
+    } // TODO: deprecate in favor of `Ty()`
+    pub fn concrete(&self) -> Ast {
+        // TODO: just use `Ty::to_ast()`; this name is obsolete
         self.0.clone()
     }
 
     // TODO: use this more
     // TODO: make `expd_form` a reference
-    pub fn destructure(&self, expd_form: Rc<Form>, loc: &Ast)
-            -> Result<::util::mbe::EnvMBE<Ast>, TypeError> {
-        self.0.destructure(expd_form.clone()).ok_or(
-            ty_err_val!(UnableToDestructure(self.clone(), expd_form.name) at loc /*TODO*/))
+    pub fn destructure(
+        &self,
+        expd_form: Rc<Form>,
+        loc: &Ast,
+    ) -> Result<::util::mbe::EnvMBE<Ast>, TypeError> {
+        self.0
+            .destructure(expd_form.clone())
+            .ok_or(ty_err_val!(UnableToDestructure(self.clone(), expd_form.name) at loc /*TODO*/))
     }
 }
 
@@ -49,73 +56,110 @@ impl ::std::fmt::Display for Ty {
 }
 
 impl ::runtime::reify::Reifiable for Ty {
-    fn ty() -> Ast { Ast::ty() }
+    fn ty() -> Ast {
+        Ast::ty()
+    }
 
-    fn ty_name() -> Name { n("Type") }
+    fn ty_name() -> Name {
+        n("Type")
+    }
 
-    fn ty_invocation() -> Ast { Ast::ty_invocation() }
+    fn ty_invocation() -> Ast {
+        Ast::ty_invocation()
+    }
 
-    fn reify(&self) -> ::runtime::eval::Value { self.0.reify() }
+    fn reify(&self) -> ::runtime::eval::Value {
+        self.0.reify()
+    }
 
-    fn reflect(v: &::runtime::eval::Value) -> Self { Ty::new(Ast::reflect(v))}
+    fn reflect(v: &::runtime::eval::Value) -> Self {
+        Ty::new(Ast::reflect(v))
+    }
 }
 
 impl ::walk_mode::WalkElt for Ty {
-    fn from_ast(a: &Ast) -> Ty { Ty::new(a.clone()) }
-    fn to_ast(&self) -> Ast { self.concrete() }
+    fn from_ast(a: &Ast) -> Ty {
+        Ty::new(a.clone())
+    }
+    fn to_ast(&self) -> Ast {
+        self.concrete()
+    }
 
-    fn core_env() -> Assoc<Name, Ty> { ::runtime::core_values::core_types() }
+    fn core_env() -> Assoc<Name, Ty> {
+        ::runtime::core_values::core_types()
+    }
 }
 
-custom_derive!{
+custom_derive! {
     #[derive(Copy, Clone, Debug, Reifiable)]
     pub struct SynthTy {}
 }
-custom_derive!{
+custom_derive! {
     #[derive(Copy, Clone, Debug, Reifiable)]
     pub struct UnpackTy {}
 }
 
 impl WalkMode for SynthTy {
-    fn name() -> &'static str { "SynTy" }
+    fn name() -> &'static str {
+        "SynTy"
+    }
     type Elt = Ty;
     type Negated = UnpackTy;
     type Err = TypeError;
     type D = ::walk_mode::Positive<SynthTy>;
     type ExtraInfo = ();
 
-    fn get_walk_rule(f: &Form) -> WalkRule<SynthTy> { f.synth_type.pos().clone() }
-    fn automatically_extend_env() -> bool { true }
+    fn get_walk_rule(f: &Form) -> WalkRule<SynthTy> {
+        f.synth_type.pos().clone()
+    }
+    fn automatically_extend_env() -> bool {
+        true
+    }
 
     fn walk_var(name: Name, parts: &::ast_walk::LazyWalkReses<SynthTy>) -> Result<Ty, TypeError> {
         match parts.env.find(&name) {
-            None => Err(::util::err::sp(TyErr::UnboundName(name), parts.this_ast.clone())),
+            None => Err(::util::err::sp(
+                TyErr::UnboundName(name),
+                parts.this_ast.clone(),
+            )),
             // If name is protected, stop:
             Some(ty) if &Ty(VariableReference(name)) == ty => Ok(ty.clone()),
-            Some(ty) => synth_type(&ty.concrete(), parts.env.clone())
+            Some(ty) => synth_type(&ty.concrete(), parts.env.clone()),
         }
     }
 
     // Simply protect the name; don't try to unify it.
-    fn underspecified(name: Name) -> Ty { Ty(VariableReference(name)) }
+    fn underspecified(name: Name) -> Ty {
+        Ty(VariableReference(name))
+    }
 }
 
 impl WalkMode for UnpackTy {
-    fn name() -> &'static str { "UnpTy" }
+    fn name() -> &'static str {
+        "UnpTy"
+    }
     type Elt = Ty;
     type Negated = SynthTy;
     type Err = TypeError;
     type D = ::walk_mode::Negative<UnpackTy>;
     type ExtraInfo = ();
 
-    fn get_walk_rule(f: &Form) -> WalkRule<UnpackTy> { f.synth_type.neg().clone() }
-    fn automatically_extend_env() -> bool { true }
+    fn get_walk_rule(f: &Form) -> WalkRule<UnpackTy> {
+        f.synth_type.neg().clone()
+    }
+    fn automatically_extend_env() -> bool {
+        true
+    }
 
-    fn underspecified(name: Name) -> Ty { Ty(VariableReference(name)) }
+    fn underspecified(name: Name) -> Ty {
+        Ty(VariableReference(name))
+    }
 }
 
 impl ::walk_mode::NegativeWalkMode for UnpackTy {
-    fn needs_pre_match() -> bool { true }
+    fn needs_pre_match() -> bool {
+        true
+    }
 }
 
 pub fn synth_type_top(expr: &Ast) -> TypeResult {
@@ -126,8 +170,7 @@ pub fn synth_type(expr: &Ast, env: Assoc<Name, Ty>) -> TypeResult {
     walk::<SynthTy>(expr, &LazyWalkReses::new_wrapper(env))
 }
 
-pub fn neg_synth_type(pat: &Ast, env: Assoc<Name, Ty>)
-        -> Result<Assoc<Name, Ty>, TypeError> {
+pub fn neg_synth_type(pat: &Ast, env: Assoc<Name, Ty>) -> Result<Assoc<Name, Ty>, TypeError> {
     walk::<UnpackTy>(pat, &LazyWalkReses::new_wrapper(env))
 }
 
@@ -149,9 +192,11 @@ impl ::std::fmt::Display for TyErr {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         use self::TyErr::*;
         match *self {
-            Mismatch(ref got, ref exp) => {
-                write!(f, "[Mismatch] got:\n  `{:#?}`\n   expected:\n  `{:#?}`\n", got, exp)
-            }
+            Mismatch(ref got, ref exp) => write!(
+                f,
+                "[Mismatch] got:\n  `{:#?}`\n   expected:\n  `{:#?}`\n",
+                got, exp
+            ),
             LengthMismatch(ref got, exp_len) => {
                 write!(f, "[LengthMismatch] got:\n  ")?;
                 for g in got {
@@ -159,28 +204,32 @@ impl ::std::fmt::Display for TyErr {
                 }
                 write!(f, "\n  expected {} arguments.\n", exp_len)
             }
-            NtInterpMismatch(got, exp) => {
-                write!(f, "[NtInterpMismatch] expected the nonterminal `{:#?}`, \
-                           but `{:#?}` was interpolated",
-                       exp, got)
+            NtInterpMismatch(got, exp) => write!(
+                f,
+                "[NtInterpMismatch] expected the nonterminal `{:#?}`, \
+                 but `{:#?}` was interpolated",
+                exp, got
+            ),
+            NonexistentEnumArm(got_name, ref ty) => write!(
+                f,
+                "[NonexistentEnumArm] the enum `{}` doesn't have an arm named `{:#?}`",
+                ty, got_name
+            ),
+            NonexistentStructField(got_name, ref ty) => write!(
+                f,
+                "[NonexistentStructField] the struct `{}` doesn't have a \
+                 field named `{:#?}`",
+                ty, got_name
+            ),
+            NonExhaustiveMatch(ref ty) => {
+                write!(f, "[NonExhaustiveMatch] non-exhaustive match of `{}`", ty)
             }
-            NonexistentEnumArm(got_name, ref ty) => {
-                write!(f, "[NonexistentEnumArm] the enum `{}` doesn't have an arm named `{:#?}`",
-                       ty, got_name)
-            }
-            NonexistentStructField(got_name, ref ty) => {
-                write!(f, "[NonexistentStructField] the struct `{}` doesn't have a \
-                           field named `{:#?}`",
-                       ty, got_name)
-            }
-            NonExhaustiveMatch(ref ty) =>
-                write!(f, "[NonExhaustiveMatch] non-exhaustive match of `{}`", ty),
-            UnableToDestructure(ref ty, expected_name) => {
-                write!(f, "[UnableToDestructure] expected a `{}` type, got `{}`", expected_name, ty)
-            }
-            UnboundName(name) => {
-                write!(f, "[UnboundName] `{}` is not defined", name)
-            }
+            UnableToDestructure(ref ty, expected_name) => write!(
+                f,
+                "[UnableToDestructure] expected a `{}` type, got `{}`",
+                expected_name, ty
+            ),
+            UnboundName(name) => write!(f, "[UnboundName] `{}` is not defined", name),
         }
     }
 }
@@ -205,12 +254,12 @@ pub type TypeError = ::util::err::Spanned<TyErr>;
 
 pub type TypeResult = Result<Ty, TypeError>;
 
-
 pub fn expect_type(expected: &Ty, got: &Ty, loc: &Ast) -> Result<(), TypeError> {
     if got != expected {
         Err(::util::err::Spanned {
-            loc: loc.clone(), body: TyErr::Mismatch(expected.clone(), got.clone())
-        } )
+            loc: loc.clone(),
+            body: TyErr::Mismatch(expected.clone(), got.clone()),
+        })
     } else {
         Ok(())
     }
@@ -219,47 +268,69 @@ pub fn expect_type(expected: &Ty, got: &Ty, loc: &Ast) -> Result<(), TypeError> 
 #[test]
 fn basic_type_synth() {
     let mt_ty_env = Assoc::new();
-    let int_ty = ty!({ ::core_forms::find_core_form("Type", "Int") ; });
-    let nat_ty = ty!({ ::core_forms::find_core_form("Type", "Nat") ; });
+    let int_ty = ty!({
+        ::core_forms::find_core_form("Type", "Int");
+    });
+    let nat_ty = ty!({
+        ::core_forms::find_core_form("Type", "Nat");
+    });
 
     let simple_ty_env = mt_ty_env.set(n("x"), int_ty.clone());
 
     let body = basic_typed_form!(aat, Body(n("body")), NotWalked);
     let untypeable = basic_typed_form!(aat, NotWalked, NotWalked);
 
-    assert_eq!(synth_type(&ast!((vr "x")), simple_ty_env.clone()),
-               Ok(int_ty.clone()));
+    assert_eq!(
+        synth_type(&ast!((vr "x")), simple_ty_env.clone()),
+        Ok(int_ty.clone())
+    );
 
-    assert_eq!(synth_type(&ast!({body.clone() ;
+    assert_eq!(
+        synth_type(
+            &ast!({body.clone() ;
                                      ["irrelevant" => {untypeable.clone() ; },
                                       "body" => (vr "x")]}),
-                          simple_ty_env.clone()),
-               Ok(int_ty.clone()));
+            simple_ty_env.clone()
+        ),
+        Ok(int_ty.clone())
+    );
 
-    assert_eq!(synth_type(&ast!({body.clone() ;
+    assert_eq!(
+        synth_type(
+            &ast!({body.clone() ;
                                      "type_of_new_var" => (, int_ty.concrete()),
                                      "new_var" => "y",
                                      "body" => (import ["new_var" : "type_of_new_var"] (vr "y"))}),
-                          simple_ty_env.clone()),
-               Ok(int_ty.clone()));
+            simple_ty_env.clone()
+        ),
+        Ok(int_ty.clone())
+    );
 
-    assert_eq!(synth_type(
-        &ast!(
-            {basic_typed_form!(
-                aat,
-                Custom(Rc::new(Box::new(
-                    |_| Ok(ty!({ ::core_forms::find_core_form("Type", "Nat") ; }))))),
-                NotWalked) ; []}),
-            simple_ty_env.clone()),
-        Ok(nat_ty.clone()));
+    assert_eq!(
+        synth_type(
+            &ast!({
+                basic_typed_form!(
+                    aat,
+                    Custom(Rc::new(Box::new(|_| Ok(ty!({
+                        ::core_forms::find_core_form("Type", "Nat");
+                    }))))),
+                    NotWalked
+                );
+                []
+            }),
+            simple_ty_env.clone()
+        ),
+        Ok(nat_ty.clone())
+    );
 
+    let chained_ty_env =
+        assoc_n!("a" => ty!((vr "B")), "B" => ty!((vr "C")), "C" => ty!({"Type" "Int":}));
 
-    let chained_ty_env
-        = assoc_n!("a" => ty!((vr "B")), "B" => ty!((vr "C")), "C" => ty!({"Type" "Int":}));
-
-    assert_eq!(synth_type(&ast!((vr "a")), chained_ty_env), Ok(ty!({"Type" "Int":})));
+    assert_eq!(
+        synth_type(&ast!((vr "a")), chained_ty_env),
+        Ok(ty!({"Type" "Int":}))
+    );
 }
-
 
 #[test]
 fn type_specialization() {

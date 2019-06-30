@@ -6,11 +6,11 @@
 
 #![macro_use]
 
-use util::mbe::EnvMBE;
-use name::*;
 use beta::{Beta, ExportBeta};
-use std::iter;
+use name::*;
 use std::fmt;
+use std::iter;
+use util::mbe::EnvMBE;
 
 // TODO: This really ought to be an `Rc` around an `enum`
 custom_derive! {
@@ -45,24 +45,26 @@ pub use self::Ast::*;
 impl fmt::Debug for Ast {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Trivial => { write!(f, "⨉") },
-            Atom(ref n) => { write!(f, "∘{:#?}∘", n) },
-            VariableReference(ref v) => { write!(f, "{:#?}", v) }
+            Trivial => write!(f, "⨉"),
+            Atom(ref n) => write!(f, "∘{:#?}∘", n),
+            VariableReference(ref v) => write!(f, "{:#?}", v),
             Shape(ref v) => {
                 write!(f, "(")?;
                 let mut first = true;
                 for elt in v {
-                    if !first { write!(f, " ")? }
+                    if !first {
+                        write!(f, " ")?
+                    }
                     elt.fmt(f)?;
                     first = false;
                 }
                 write!(f, ")")
-            },
+            }
             Node(ref form, ref body, ref export) => {
                 write!(f, "{{ ({}); {:#?}", form.name.sp(), body)?;
                 match *export {
                     ::beta::ExportBeta::Nothing => {}
-                    _ => write!(f, " ⇑{:#?}", export)?
+                    _ => write!(f, " ⇑{:#?}", export)?,
                 }
                 write!(f, "}}")
             }
@@ -73,15 +75,9 @@ impl fmt::Debug for Ast {
                     write!(f, "neg``{:#?}``", body)
                 }
             }
-            QuoteLess(ref body, depth) => {
-                write!(f, ",,({}){:#?},,", depth, body)
-            }
-            IncompleteNode(ref body) => {
-                write!(f, "{{ INCOMPLETE; {:#?} }}", body)
-            }
-            ExtendEnv(ref body, ref beta) => {
-                write!(f, "{:#?}↓{:#?}", body, beta)
-            }
+            QuoteLess(ref body, depth) => write!(f, ",,({}){:#?},,", depth, body),
+            IncompleteNode(ref body) => write!(f, "{{ INCOMPLETE; {:#?} }}", body),
+            ExtendEnv(ref body, ref beta) => write!(f, "{:#?}↓{:#?}", body, beta),
         }
     }
 }
@@ -90,19 +86,22 @@ impl fmt::Debug for Ast {
 impl fmt::Display for Ast {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Atom(ref n) => { write!(f, "{}", n.print()) },
-            VariableReference(ref v) => { write!(f, "{}", v.print()) }
+            Atom(ref n) => write!(f, "{}", n.print()),
+            VariableReference(ref v) => write!(f, "{}", v.print()),
             Node(ref form, ref body, _) => {
                 let s = ::unparse::unparse_mbe(
-                    &form.grammar, self, body, &::core_forms::get_core_forms());
+                    &form.grammar,
+                    self,
+                    body,
+                    &::core_forms::get_core_forms(),
+                );
                 write!(f, "{}", s)
             }
-            ExtendEnv(ref body, _) => { write!(f, "{}↓", body) }
-            _ => write!(f, "{:#?}", self)
+            ExtendEnv(ref body, _) => write!(f, "{}↓", body),
+            _ => write!(f, "{:#?}", self),
         }
     }
 }
-
 
 impl Ast {
     // TODO: this ought to at least warn if we're losing anything other than `Shape`
@@ -116,22 +115,24 @@ impl Ast {
                     accum = accum.combine_overriding(&sub_a.flatten())
                 }
                 accum
-            },
-            IncompleteNode(ref env) => { env.clone() }
+            }
+            IncompleteNode(ref env) => env.clone(),
             Node(ref _f, ref _body, ref _export) => {
                 // TODO: think about what should happen when
                 //  `Scope` contains a `Scope` without an intervening `Named`
                 panic!("I don't know what to do here!")
-            },
+            }
             QuoteMore(ref body, _) => body.flatten(),
             QuoteLess(ref body, _) => body.flatten(),
-            ExtendEnv(ref body, _) => body.flatten()
+            ExtendEnv(ref body, _) => body.flatten(),
         }
     }
 
     // TODO: use this more
-    pub fn destructure(&self, expd_form: ::std::rc::Rc<::form::Form>)
-            -> Option<::util::mbe::EnvMBE<Ast>> {
+    pub fn destructure(
+        &self,
+        expd_form: ::std::rc::Rc<::form::Form>,
+    ) -> Option<::util::mbe::EnvMBE<Ast>> {
         match self {
             Node(ref f, ref parts, _) => {
                 if f == &expd_form {
@@ -141,34 +142,31 @@ impl Ast {
             _ => {}
         }
         None
-
     }
-
 
     // TODO: I think we have a lot of places where we ought to use this function:
     pub fn node_parts(&self) -> &EnvMBE<Ast> {
         match *self {
             Node(_, ref body, _) => body,
-            _ => panic!("ICE")
+            _ => panic!("ICE"),
         }
     }
     pub fn node_form(&self) -> &::form::Form {
         match *self {
             Node(ref form, _, _) => form,
-            _ => panic!("ICE")
+            _ => panic!("ICE"),
         }
     }
 }
 
 // This is used by combine::many, which is used by the Star parser
 impl iter::FromIterator<Ast> for Ast {
-    fn from_iter<I: IntoIterator<Item=Ast>>(i: I) -> Self {
-        IncompleteNode(
-            EnvMBE::new_from_anon_repeat(
-                i.into_iter().map(|a| a.flatten()).collect()))
+    fn from_iter<I: IntoIterator<Item = Ast>>(i: I) -> Self {
+        IncompleteNode(EnvMBE::new_from_anon_repeat(
+            i.into_iter().map(|a| a.flatten()).collect(),
+        ))
     }
 }
-
 
 /*
  * This is also sort of a test of MBE, since we need `Ast`s to make them with the macros
@@ -183,19 +181,19 @@ impl iter::FromIterator<Ast> for Ast {
 fn combine_from_kleene_star() {
     use std::iter::FromIterator;
 
-    let parse_parts = vec![ast!({ - "b" => "8.0"}),
-                           ast!({ - "a" => ["1", "2"], "b" => "8.1"}),
-                           ast!({ - "a" => ["1", "2", "3"], "b" => "8.2"})];
+    let parse_parts = vec![
+        ast!({ - "b" => "8.0"}),
+        ast!({ - "a" => ["1", "2"], "b" => "8.1"}),
+        ast!({ - "a" => ["1", "2", "3"], "b" => "8.2"}),
+    ];
     let parsed = Ast::from_iter(parse_parts);
 
-    let mut expected_mbe =
-        mbe!("a" => [@"triple" [], ["1", "2"], ["1", "2", "3"]],
+    let mut expected_mbe = mbe!("a" => [@"triple" [], ["1", "2"], ["1", "2", "3"]],
              "b" => [@"triple" "8.0", "8.1", "8.2"]);
     expected_mbe.anonimize_repeat(n("triple"));
 
     assert_eq!(parsed, IncompleteNode(expected_mbe));
 }
-
 
 #[test]
 fn star_construction() {
@@ -203,9 +201,8 @@ fn star_construction() {
 
     assert_eq!(
         ast!( { - "x" => [* env =>("a") env : (, env.get_leaf_or_panic(&n("a")).clone())]} ),
-        ast!( { - "x" => ["1", "2"] }));
-
-
+        ast!( { - "x" => ["1", "2"] })
+    );
 
     let env = mbe!( "a" => [@"duo" "1", "2"], "b" => [@"duo" "11", "22"]);
 
@@ -213,8 +210,8 @@ fn star_construction() {
         ast!( { - "x" => [* env =>("a", "b") env :
                             ((, env.get_leaf_or_panic(&n("b")).clone())
                              (, env.get_leaf_or_panic(&n("a")).clone()))]} ),
-        ast!( { - "x" => [("11" "1"), ("22" "2")] }));
-
+        ast!( { - "x" => [("11" "1"), ("22" "2")] })
+    );
 }
 
 #[test]

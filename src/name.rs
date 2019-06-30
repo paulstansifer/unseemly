@@ -1,20 +1,20 @@
 #![macro_use]
 
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::string::String;
-use std::collections::{HashMap, HashSet};
-use std::cell::RefCell;
 
-#[derive(PartialEq,Eq,Clone,Copy,Hash)]
+#[derive(PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Name {
-    id: usize
+    id: usize,
 }
 
 pub struct Spelling {
     // No two different variables have this the same. Tomatoes may have been added:
     unique: String,
     // The original spelling that the programmer chose.
-    orig: String
+    orig: String,
 }
 
 thread_local! {
@@ -32,7 +32,9 @@ thread_local! {
 }
 
 impl ::runtime::reify::Reifiable for Name {
-    fn ty_name() -> Name { n("Name") }
+    fn ty_name() -> Name {
+        n("Name")
+    }
 
     fn reify(&self) -> ::runtime::eval::Value {
         ::runtime::eval::Value::AbstractSyntax(::ast::Ast::Atom(*self))
@@ -46,9 +48,9 @@ impl ::runtime::reify::Reifiable for Name {
 
 // These are for isolating tests of alpha-equivalence from each other.
 
-pub fn enable_fake_freshness(ff: bool)  {
+pub fn enable_fake_freshness(ff: bool) {
     use std::borrow::BorrowMut;
-    
+
     fake_freshness.with(|fake_freshness_| {
         *fake_freshness_.borrow_mut() = ff;
     })
@@ -58,8 +60,12 @@ pub fn enable_fake_freshness(ff: bool)  {
 // impl !Send for Name {}
 
 impl Name {
-    pub fn sp(self) -> String { spellings.with(|us| us.borrow()[self.id].unique.clone()) }
-    pub fn orig_sp(self) -> String { spellings.with(|us| us.borrow()[self.id].orig.clone()) }
+    pub fn sp(self) -> String {
+        spellings.with(|us| us.borrow()[self.id].unique.clone())
+    }
+    pub fn orig_sp(self) -> String {
+        spellings.with(|us| us.borrow()[self.id].orig.clone())
+    }
 
     // Printable names are unique, like `unique_spelling`s, but are assigned during printing.
     // This way if the compiler freshens some name a bunch of times, producing a tomato-filled mess,
@@ -67,14 +73,18 @@ impl Name {
     pub fn print(self) -> String {
         printables.with(|printables_| {
             printables_used.with(|printables_used_| {
-                printables_.borrow_mut().entry(self.id).or_insert_with(|| {
-                    let mut print_version = self.orig_sp();
-                    while printables_used_.borrow().contains(&print_version) {
-                        print_version = format!("{}🥕", print_version);
-                    }
-                    printables_used_.borrow_mut().insert(print_version.clone());
-                    print_version.clone()
-                }).clone()
+                printables_
+                    .borrow_mut()
+                    .entry(self.id)
+                    .or_insert_with(|| {
+                        let mut print_version = self.orig_sp();
+                        while printables_used_.borrow().contains(&print_version) {
+                            print_version = format!("{}🥕", print_version);
+                        }
+                        printables_used_.borrow_mut().insert(print_version.clone());
+                        print_version.clone()
+                    })
+                    .clone()
             })
         })
     }
@@ -90,7 +100,7 @@ impl Name {
     }
 
     fn new(orig_spelling: &str, freshen: bool) -> Name {
-        use std::borrow::{BorrowMut, Borrow};
+        use std::borrow::{Borrow, BorrowMut};
 
         let fake_freshness_ = fake_freshness.with(|ff| *ff.borrow());
 
@@ -106,13 +116,12 @@ impl Name {
                 unique_spelling = format!("{}🍅", orig_spelling);
             }
 
-
             let claim_id = || {
                 spellings.with(|spellings_| {
                     let new_id = spellings_.borrow().len();
-                    spellings_.borrow_mut().push(Spelling { 
+                    spellings_.borrow_mut().push(Spelling {
                         unique: unique_spelling.clone(),
-                        orig: orig_spelling.to_owned()
+                        orig: orig_spelling.to_owned(),
                     });
                     new_id
                 })
@@ -122,7 +131,10 @@ impl Name {
             let id = if freshen && !fake_freshness_ {
                 claim_id() // ...don't put it in the table
             } else {
-                *id_map_.borrow_mut().entry(unique_spelling.clone()).or_insert_with(claim_id)
+                *id_map_
+                    .borrow_mut()
+                    .entry(unique_spelling.clone())
+                    .or_insert_with(claim_id)
             };
 
             Name { id: id }
@@ -135,9 +147,7 @@ impl Name {
     pub fn is_name(self, n: Name) -> bool {
         self.sp() == n.sp()
     }
-
 }
-
 
 // TODO: move to `ast_walk`
 // TODO: using `lazy_static!` (with or without gensym) makes some tests fail. Why?

@@ -16,16 +16,16 @@
 //
 // Also, it turns out that implementing an Earley parser goes pretty smoothly. Yay!
 
-use grammar::{FormPat, SynEnv};
-use grammar::FormPat::*;
-use grammar::plug_hole;
-use read::{Token, TokenTree};
-use read::Token::*;
 use ast::Ast;
-use std::rc::Rc;
-use std::cell::RefCell;
+use grammar::plug_hole;
+use grammar::FormPat::*;
+use grammar::{FormPat, SynEnv};
 use name::*;
+use read::Token::*;
+use read::{Token, TokenTree};
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 pub fn end_of_delim() -> Token {
     Token::Simple(n("☾end delimiter☽"))
@@ -54,7 +54,7 @@ fn get_next_id() -> UniqueId {
 }
 
 // Specifically *not* `Clone` or `Copy`
-#[derive(PartialEq,Eq)]
+#[derive(PartialEq, Eq)]
 pub struct UniqueId(u32);
 
 impl ::std::fmt::Debug for UniqueId {
@@ -63,13 +63,17 @@ impl ::std::fmt::Debug for UniqueId {
     }
 }
 
-#[derive(PartialEq,Eq,Clone,Copy,Hash)]
+#[derive(PartialEq, Eq, Clone, Copy, Hash)]
 pub struct UniqueIdRef(u32);
 
 impl UniqueId {
-    fn get_ref(&self) -> UniqueIdRef { UniqueIdRef(self.0) }
+    fn get_ref(&self) -> UniqueIdRef {
+        UniqueIdRef(self.0)
+    }
 
-    fn is(&self, other: UniqueIdRef) -> bool { self.0 == other.0 }
+    fn is(&self, other: UniqueIdRef) -> bool {
+        self.0 == other.0
+    }
 }
 
 impl ::std::fmt::Debug for UniqueIdRef {
@@ -80,10 +84,14 @@ impl ::std::fmt::Debug for UniqueIdRef {
 
 /// Hardcoded `nt` name for the dotdotdot form; it can be used anywhere under a + or *.
 /// TODO: this shouldn't be hardcoded!
-pub fn special_ddd_nt() -> Name { n("dotdotdot") }
+pub fn special_ddd_nt() -> Name {
+    n("dotdotdot")
+}
 
 /// Used as a HACK to mark nodes that should be DDDed when put into an MBE
-fn ddd_ast_marker() -> Name { n("⌜⋯⌟") } // TODO: gensym
+fn ddd_ast_marker() -> Name {
+    n("⌜⋯⌟")
+} // TODO: gensym
 
 fn ddd_wrap(a: Ast) -> Ast {
     Ast::Shape(vec![a, Ast::Atom(ddd_ast_marker())])
@@ -92,19 +100,27 @@ fn ddd_wrap(a: Ast) -> Ast {
 /// If `a` is a specially-marked DDD node, remove the special marker (and return true)
 fn ddd_unwrap(a: &Ast) -> Option<Ast> {
     match a {
-        Ast::Shape(ref subs) if subs.len() == 2 && subs[1] == Ast::Atom(ddd_ast_marker()) =>
-                Some(subs[0].clone()),
-        _ => None
+        Ast::Shape(ref subs) if subs.len() == 2 && subs[1] == Ast::Atom(ddd_ast_marker()) => {
+            Some(subs[0].clone())
+        }
+        _ => None,
     }
 }
-
 
 // TODO: this shouldn't be hardcoded into the parser; it should be ... how should it work?
 // (Maybe the `Biased`s in the grammar take care of this now?)
 fn reserved(nm: Name) -> bool {
-    Simple(nm) == end_of_delim() || nm == n("forall") || nm == n("mu_type")
-        || nm == n("Int") || nm == n("Ident") || nm == n("Float") || nm == n("match")
-        || nm == n("enum") || nm == n("struct") || nm == n("fold") || nm == n("unfold")
+    Simple(nm) == end_of_delim()
+        || nm == n("forall")
+        || nm == n("mu_type")
+        || nm == n("Int")
+        || nm == n("Ident")
+        || nm == n("Float")
+        || nm == n("match")
+        || nm == n("enum")
+        || nm == n("struct")
+        || nm == n("fold")
+        || nm == n("unfold")
 }
 
 // Hey, this doesn't need to be Reifiable!
@@ -121,15 +137,12 @@ pub struct Item {
     ddd: bool,
 
     // Everything after this line is nonstandard, and is just here as an optimization
-
-
     /// Identity for the purposes of `wanted_by` and `local_parse`
     id: UniqueId,
 
     /// Can this complete things that have asked for it?
     /// This is mostly a convenience.
     done: RefCell<bool>, // Can this complete things that have asked for it?
-
 
     /// For simple (leaf) nodes, we just store the resulting parse right away.
     /// This is a convenience so that extracting the parse tree
@@ -149,12 +162,12 @@ pub struct Item {
     /// This, uh, might be an excessively cocky design.
     /// But searching item lists is *hard* when your Earley parser
     ///  has so many different kings of rules!
-    wanted_by: Rc<RefCell<Vec<UniqueIdRef>>>
+    wanted_by: Rc<RefCell<Vec<UniqueIdRef>>>,
 }
 
 /// Information for parsing. It's not a parse tree, but it tells you the next step to get one.
 /// (Hence "local")
-#[derive(PartialEq,Debug,Clone)]
+#[derive(PartialEq, Debug, Clone)]
 enum LocalParse {
     /// ⊤; no information yet
     NothingYet,
@@ -162,7 +175,7 @@ enum LocalParse {
     JustifiedByItem(UniqueIdRef),
     ParsedAtom(Ast),
     /// ⊥; contradiction (TMI!)
-    Ambiguous(Box<LocalParse>, Box<LocalParse>)
+    Ambiguous(Box<LocalParse>, Box<LocalParse>),
 }
 use self::LocalParse::*;
 
@@ -172,16 +185,18 @@ impl PartialOrd for LocalParse {
     /// But there's also `NothingYet`, for ... (TODO: only leaves and just-started nodes?)
     /// ... and `Ambiguous`, when we know that there are multiple justifications for a single node
     fn partial_cmp(&self, other: &LocalParse) -> Option<::std::cmp::Ordering> {
-        use ::std::cmp::Ordering::*;
-        if self == other { return Some(Equal) }
+        use std::cmp::Ordering::*;
+        if self == other {
+            return Some(Equal);
+        }
         match (self, other) {
-            (&NothingYet, _) | (_, &Ambiguous(_,_)) => Some(Less),
-            (&Ambiguous(_,_), _) | (_, &NothingYet) => Some(Greater),
+            (&NothingYet, _) | (_, &Ambiguous(_, _)) => Some(Less),
+            (&Ambiguous(_, _), _) | (_, &NothingYet) => Some(Greater),
             (&JustifiedByItemPlanB(_), &JustifiedByItem(_)) => Some(Less),
             (&JustifiedByItem(_), &JustifiedByItemPlanB(_)) => Some(Greater),
             (&JustifiedByItem(_), &JustifiedByItem(_)) => None,
             // semantically, this ought to be `None`, but that would be a hard-to-debug logic error
-            _ => { panic!("Attempted to compare {:#?} and {:#?}", self, other) }
+            _ => panic!("Attempted to compare {:#?} and {:#?}", self, other),
         }
     }
 }
@@ -197,24 +212,30 @@ impl Clone for Item {
             id: get_next_id(),
             done: self.done.clone(),
             local_parse: RefCell::new(LocalParse::NothingYet),
-            wanted_by: self.wanted_by.clone()
+            wanted_by: self.wanted_by.clone(),
         }
     }
 }
 
 /// Progress through the state sets
 // TODO: this ought to produce an Option<ParseError>, not a bool!
-fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, tt: &TokenTree)
-        -> (UniqueId, Vec<Vec<Item>>) {
+fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, tt: &TokenTree) -> (UniqueId, Vec<Vec<Item>>) {
     let mut chart = vec![vec![]];
     let mut cur_tok = 0;
 
     let start_but_startier = get_next_id();
 
-    let start_item =
-        Item{start_idx: 0, rule: rule, pos: 0, grammar: grammar, ddd: false, id: get_next_id(),
-             done: RefCell::new(false), local_parse: RefCell::new(LocalParse::NothingYet),
-             wanted_by: Rc::new(RefCell::new(vec![start_but_startier.get_ref()]))};
+    let start_item = Item {
+        start_idx: 0,
+        rule: rule,
+        pos: 0,
+        grammar: grammar,
+        ddd: false,
+        id: get_next_id(),
+        done: RefCell::new(false),
+        local_parse: RefCell::new(LocalParse::NothingYet),
+        wanted_by: Rc::new(RefCell::new(vec![start_but_startier.get_ref()])),
+    };
 
     chart[0].push(start_item);
     for t in &tt.t {
@@ -228,11 +249,12 @@ fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, tt: &TokenTree)
 fn recognize(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> bool {
     let (start_but_startier, chart) = create_chart(Rc::new(rule.clone()), grammar.clone(), tt);
 
-    chart[chart.len()-1].iter().any(
-        |item|
-            (*item.wanted_by.borrow()).iter().any(|idr| start_but_startier.is(*idr))
+    chart[chart.len() - 1].iter().any(|item| {
+        (*item.wanted_by.borrow())
+            .iter()
+            .any(|idr| start_but_startier.is(*idr))
             && *item.done.borrow()
-    )
+    })
 }
 
 fn walk_tt(chart: &mut Vec<Vec<Item>>, t: &Token, cur_tok: &mut usize) {
@@ -241,7 +263,7 @@ fn walk_tt(chart: &mut Vec<Vec<Item>>, t: &Token, cur_tok: &mut usize) {
     //log!("\n  {:#?}\n->{:#?}\n", chart[*cur_tok], chart[*cur_tok + 1]);
     *cur_tok += 1;
     match *t {
-        Simple(_) => { }
+        Simple(_) => {}
         Group(_, _, ref tree) => {
             for sub_tok in &tree.t {
                 walk_tt(chart, sub_tok, cur_tok);
@@ -257,16 +279,21 @@ fn examine_state_set(chart: &mut Vec<Vec<Item>>, tok: Option<&Token>, cur_tok: u
     // If nullable items are statically identified, I think there's an optimization
     //  where we don't re-walk old items
     loop {
-        if ! new_items_from_state_set(chart, tok, cur_tok) { break; } // reached the fixpoint?
+        if !new_items_from_state_set(chart, tok, cur_tok) {
+            break;
+        } // reached the fixpoint?
     }
 }
 
-fn new_items_from_state_set(chart: &mut Vec<Vec<Item>>, tok: Option<&Token>,
-                                cur_tok: usize) -> bool {
+fn new_items_from_state_set(
+    chart: &mut Vec<Vec<Item>>,
+    tok: Option<&Token>,
+    cur_tok: usize,
+) -> bool {
     let mut effect = false;
     for idx in 0..chart[cur_tok].len() {
         for (new_item, next) in chart[cur_tok][idx].examine(tok, cur_tok, chart) {
-            effect = merge_into_state_set(new_item, &mut chart[cur_tok + if next {1} else {0}])
+            effect = merge_into_state_set(new_item, &mut chart[cur_tok + if next { 1 } else { 0 }])
                 || effect;
         }
     }
@@ -274,11 +301,12 @@ fn new_items_from_state_set(chart: &mut Vec<Vec<Item>>, tok: Option<&Token>,
 }
 
 // Returns whether anything happened
-fn merge_into_state_set(item: Item, items: &mut Vec<Item>)
-        -> bool {
+fn merge_into_state_set(item: Item, items: &mut Vec<Item>) -> bool {
     for i in items.iter() {
         if i.similar(&item) {
-            if i.as_good_as(&item) { return false; /* no new information */ }
+            if i.as_good_as(&item) {
+                return false; /* no new information */
+            }
             log!("improved item: {:#?} vs. {:#?}\n", item, i);
             i.merge(&item);
             return true;
@@ -292,10 +320,17 @@ fn merge_into_state_set(item: Item, items: &mut Vec<Item>)
 
 impl ::std::fmt::Debug for Item {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        write!(f, "[({:#?}){}({:#?}.{}){}<{:#?} - {:#?}>]",
-               self.id, self.start_idx, self.rule, self.pos,
-               if *self.done.borrow() { "✓" } else { "…" },
-               self.local_parse.borrow(), self.wanted_by.borrow())
+        write!(
+            f,
+            "[({:#?}){}({:#?}.{}){}<{:#?} - {:#?}>]",
+            self.id,
+            self.start_idx,
+            self.rule,
+            self.pos,
+            if *self.done.borrow() { "✓" } else { "…" },
+            self.local_parse.borrow(),
+            self.wanted_by.borrow()
+        )
     }
 }
 
@@ -305,10 +340,10 @@ impl Item {
     ///  because those should be merged.
     fn similar<'f>(&'f self, other: &'f Item) -> bool {
         self.start_idx == other.start_idx
-        && &*self.rule as *const FormPat == &*other.rule as *const FormPat
-        && self.pos == other.pos
-        && self.grammar.almost_ptr_eq(&other.grammar)
-        && self.ddd == other.ddd
+            && &*self.rule as *const FormPat == &*other.rule as *const FormPat
+            && self.pos == other.pos
+            && self.grammar.almost_ptr_eq(&other.grammar)
+            && self.ddd == other.ddd
     }
 
     /// `false` if `other` might provide new information
@@ -324,20 +359,31 @@ impl Item {
     }
 
     fn merge(&self, other: &Item) {
-        if *other.done.borrow() { *self.done.borrow_mut() = true; }
+        if *other.done.borrow() {
+            *self.done.borrow_mut() = true;
+        }
 
-        use ::std::cmp::Ordering::*;
-        let comparison = other.local_parse.borrow().partial_cmp(&*self.local_parse.borrow());
-        log!("\n(For {}) Merging {:#?} and {:#?}... ", self.id.0, *other.local_parse.borrow(),
-             *self.local_parse.borrow());
+        use std::cmp::Ordering::*;
+        let comparison = other
+            .local_parse
+            .borrow()
+            .partial_cmp(&*self.local_parse.borrow());
+        log!(
+            "\n(For {}) Merging {:#?} and {:#?}... ",
+            self.id.0,
+            *other.local_parse.borrow(),
+            *self.local_parse.borrow()
+        );
         match comparison {
             Some(Greater) => {
                 *self.local_parse.borrow_mut() = other.local_parse.borrow().clone();
-            },
-            Some(Equal) | Some(Less) => { /* no new information */ },
+            }
+            Some(Equal) | Some(Less) => { /* no new information */ }
             None => {
-                let amb = LocalParse::Ambiguous(Box::new(self.local_parse.borrow().clone()),
-                                                Box::new(other.local_parse.borrow().clone()));
+                let amb = LocalParse::Ambiguous(
+                    Box::new(self.local_parse.borrow().clone()),
+                    Box::new(other.local_parse.borrow().clone()),
+                );
                 *self.local_parse.borrow_mut() = amb;
             }
         }
@@ -347,7 +393,8 @@ impl Item {
             let mut has = false;
             for self_wanted in self.wanted_by.borrow().iter() {
                 if self_wanted == other_wanted {
-                    has = true; break;
+                    has = true;
+                    break;
                 }
             }
 
@@ -363,51 +410,84 @@ impl Item {
 
     fn advance(&self, consume_tok: bool) -> Vec<(Item, bool)> {
         log!("[adv ({})]", self.id.0);
-        vec![(Item{ pos: self.pos + 1,  .. self.clone() },
-              consume_tok)]
+        vec![(
+            Item {
+                pos: self.pos + 1,
+                ..self.clone()
+            },
+            consume_tok,
+        )]
     }
 
     fn finish_with(&self, lp: LocalParse, consume_tok: bool) -> Vec<(Item, bool)> {
         log!("[fin_w/ ({})]", self.id.0);
-        vec![(Item{ done: RefCell::new(true), local_parse: RefCell::new(lp),
-                    pos: self.pos + 1,  .. self.clone() },
-              consume_tok)]
+        vec![(
+            Item {
+                done: RefCell::new(true),
+                local_parse: RefCell::new(lp),
+                pos: self.pos + 1,
+                ..self.clone()
+            },
+            consume_tok,
+        )]
     }
 
     fn finish(&self, consume_tok: bool) -> Vec<(Item, bool)> {
         log!("[finish ({})]", self.id.0);
-        vec![(Item{ done: RefCell::new(true), local_parse: RefCell::new(LocalParse::NothingYet),
-                    pos: self.pos + 1,  .. self.clone() },
-              consume_tok)]
+        vec![(
+            Item {
+                done: RefCell::new(true),
+                local_parse: RefCell::new(LocalParse::NothingYet),
+                pos: self.pos + 1,
+                ..self.clone()
+            },
+            consume_tok,
+        )]
     }
 
     fn start(&self, rule: &Rc<FormPat>, cur_idx: usize, allow_ddd: bool) -> Vec<(Item, bool)> {
         log!("[start ({})]", self.id.0);
-        let mut res = vec![(Item {
-                start_idx: cur_idx, rule: rule.clone(), pos: 0, done: RefCell::new(false),
-                grammar: self.grammar.clone(), ddd: false,
-                local_parse: RefCell::new(LocalParse::NothingYet), id: get_next_id(),
-                wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()]))
+        let mut res = vec![(
+            Item {
+                start_idx: cur_idx,
+                rule: rule.clone(),
+                pos: 0,
+                done: RefCell::new(false),
+                grammar: self.grammar.clone(),
+                ddd: false,
+                local_parse: RefCell::new(LocalParse::NothingYet),
+                id: get_next_id(),
+                wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()])),
             },
-            false)];
+            false,
+        )];
         if allow_ddd {
             if let Some(ref ddd_grammar) = self.grammar.find(&special_ddd_nt()) {
-
                 // memoize the plugging process for speed,
                 //  and because we need the results to be pointer-equal
                 let ddd_rule = all_plugged_ddds.with(|plugged_ddds| {
                     // (keyed on ID rather than grammars because grammars aren't `Eq`)
                     let mut mut__plugged_ddds = plugged_ddds.borrow_mut();
-                    mut__plugged_ddds.entry(self.id.get_ref())
-                        .or_insert_with(|| plug_hole(ddd_grammar, n("body"), &rule)).clone()
+                    mut__plugged_ddds
+                        .entry(self.id.get_ref())
+                        .or_insert_with(|| plug_hole(ddd_grammar, n("body"), &rule))
+                        .clone()
                 });
 
-                res.push((Item {
-                    start_idx: cur_idx, rule: ddd_rule, pos: 0,
-                    done: RefCell::new(false), grammar: self.grammar.clone(), ddd: true,
-                    local_parse: RefCell::new(LocalParse::NothingYet),
-                    id: get_next_id(), wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()]))
-                }, false))
+                res.push((
+                    Item {
+                        start_idx: cur_idx,
+                        rule: ddd_rule,
+                        pos: 0,
+                        done: RefCell::new(false),
+                        grammar: self.grammar.clone(),
+                        ddd: true,
+                        local_parse: RefCell::new(LocalParse::NothingYet),
+                        id: get_next_id(),
+                        wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()])),
+                    },
+                    false,
+                ))
             }
         }
         res
@@ -415,19 +495,28 @@ impl Item {
 
     // -----------------------------------------------------------
 
-
     /// See what new items this item justifies
-    fn examine(&self, cur: Option<&Token>, cur_idx: usize, chart: &[Vec<Item>])
-            -> Vec<(Item, bool)> {
+    fn examine(
+        &self,
+        cur: Option<&Token>,
+        cur_idx: usize,
+        chart: &[Vec<Item>],
+    ) -> Vec<(Item, bool)> {
         let mut res = if *self.done.borrow() {
             let mut waiting_satisfied = vec![];
 
-            log!("({:#?}) done; {} items want it\n", self, (*self.wanted_by.borrow()).len());
+            log!(
+                "({:#?}) done; {} items want it\n",
+                self,
+                (*self.wanted_by.borrow()).len()
+            );
 
             for &waiting_item_id in self.wanted_by.borrow().iter() {
-                if let Some(waiting_item) = chart[self.start_idx].iter()
-                    .find(|i| i.id.is(waiting_item_id)) { // It's `None` if it's the startier item
-
+                if let Some(waiting_item) = chart[self.start_idx]
+                    .iter()
+                    .find(|i| i.id.is(waiting_item_id))
+                {
+                    // It's `None` if it's the startier item
 
                     let me_justif = JustifiedByItem(self.id.get_ref());
 
@@ -442,34 +531,54 @@ impl Item {
                         Seq(ref subs) => {
                             if (waiting_item.pos) as usize == subs.len() {
                                 vec![]
-                            } else { // Like `waiting_item.advance`, but with a local_parse
-                                vec![(Item { pos: waiting_item.pos+1,
-                                             local_parse: RefCell::new(me_justif),
-                                               .. waiting_item.clone() }, false)]
+                            } else {
+                                // Like `waiting_item.advance`, but with a local_parse
+                                vec![(
+                                    Item {
+                                        pos: waiting_item.pos + 1,
+                                        local_parse: RefCell::new(me_justif),
+                                        ..waiting_item.clone()
+                                    },
+                                    false,
+                                )]
                             }
                         }
-                        Delimited(_,_,_) => { // Like `waiting_item.advance` (etc.)
-                            vec![(Item { pos: waiting_item.pos+1,
-                                         local_parse: RefCell::new(me_justif),
-                                           .. waiting_item.clone() }, false)]
+                        Delimited(_, _, _) => {
+                            // Like `waiting_item.advance` (etc.)
+                            vec![(
+                                Item {
+                                    pos: waiting_item.pos + 1,
+                                    local_parse: RefCell::new(me_justif),
+                                    ..waiting_item.clone()
+                                },
+                                false,
+                            )]
                         }
-                        Plus(_) | Star(_) => { // It'll also keep going, though!
+                        Plus(_) | Star(_) => {
+                            // It'll also keep going, though!
                             waiting_item.finish_with(me_justif, false)
                         }
-                        SynImport(_,_,_) if waiting_item.pos == 0 => {
-                            vec![(Item { pos: 1,
-                                         local_parse: RefCell::new(me_justif),
-                                           .. waiting_item.clone() }, false)]
-                        }
-                        Alt(_) | Call(_) | ComputeSyntax(_,_)
-                        | Scope(_,_) | Named(_,_) | SynImport(_,_,_) | NameImport(_,_)
-                        | QuoteDeepen(_,_) | QuoteEscape(_,_) => {
-                            waiting_item.finish_with(me_justif, false)
-                        }
+                        SynImport(_, _, _) if waiting_item.pos == 0 => vec![(
+                            Item {
+                                pos: 1,
+                                local_parse: RefCell::new(me_justif),
+                                ..waiting_item.clone()
+                            },
+                            false,
+                        )],
+                        Alt(_)
+                        | Call(_)
+                        | ComputeSyntax(_, _)
+                        | Scope(_, _)
+                        | Named(_, _)
+                        | SynImport(_, _, _)
+                        | NameImport(_, _)
+                        | QuoteDeepen(_, _)
+                        | QuoteEscape(_, _) => waiting_item.finish_with(me_justif, false),
                         Biased(ref _plan_a, ref plan_b) => {
                             if &*self.rule as *const FormPat == &**plan_b as *const FormPat {
-                                waiting_item.finish_with(
-                                    JustifiedByItemPlanB(self.id.get_ref()), false)
+                                waiting_item
+                                    .finish_with(JustifiedByItemPlanB(self.id.get_ref()), false)
                             } else {
                                 waiting_item.finish_with(me_justif, false)
                             }
@@ -486,9 +595,13 @@ impl Item {
 
         if !res.is_empty() {
             if let Some(tok) = cur {
-                let n = match tok { Simple(x) => x, Group(x,_,_) => x };
-                best_token.with(|bt| *bt.borrow_mut()
-                    = (cur_idx, *n, res[0].0.rule.clone(), res[0].0.pos));
+                let n = match tok {
+                    Simple(x) => x,
+                    Group(x, _, _) => x,
+                };
+                best_token.with(|bt| {
+                    *bt.borrow_mut() = (cur_idx, *n, res[0].0.rule.clone(), res[0].0.pos)
+                });
             }
         }
 
@@ -497,19 +610,22 @@ impl Item {
         res
     }
 
-    fn shift_or_predict(&self, cur: Option<&Token>, cur_idx: usize, chart: &[Vec<Item>])
-            -> Vec<(Item, bool)> {
+    fn shift_or_predict(
+        &self,
+        cur: Option<&Token>,
+        cur_idx: usize,
+        chart: &[Vec<Item>],
+    ) -> Vec<(Item, bool)> {
         // Try to shift (bump `pos`, or set `done`) or predict (`start` a new item)
-        match (self.pos, &*(self.rule.clone())) { // TODO: is there a better way to match in `Rc`?
+        match (self.pos, &*(self.rule.clone())) {
+            // TODO: is there a better way to match in `Rc`?
             (0, &Anyways(ref a)) => self.finish_with(ParsedAtom(a.clone()), false),
-            (_, &Impossible) =>  vec![],
-            (0, &Literal(xptd_n)) => {
-                match cur {
-                    Some(&Simple(n)) if xptd_n == n =>  {
-                        self.finish_with(ParsedAtom(::ast::Atom(n)), true)
-                    }
-                    _ => vec![]
+            (_, &Impossible) => vec![],
+            (0, &Literal(xptd_n)) => match cur {
+                Some(&Simple(n)) if xptd_n == n => {
+                    self.finish_with(ParsedAtom(::ast::Atom(n)), true)
                 }
+                _ => vec![],
             },
             // TODO: without checking for `end_of_delim()`, `(plus (plus (plus one one) one) one)`
             //  parses incorrectly (one of the `end_of_delim()`s winds up in a VarRef).
@@ -518,91 +634,102 @@ impl Item {
             (0, &AnyToken) => {
                 match cur {
                     Some(&Simple(n)) if !reserved(n) => {
-                      self.finish_with(ParsedAtom(::ast::Atom(n)), true)
+                        self.finish_with(ParsedAtom(::ast::Atom(n)), true)
                     }
-                    Some(&Group(_,_,_)) => self.finish_with(ParsedAtom(::ast::Trivial), true), // TODO
-                    _ => vec![]
+                    Some(&Group(_, _, _)) => self.finish_with(ParsedAtom(::ast::Trivial), true), // TODO
+                    _ => vec![],
                 }
+            }
+            (0, &AnyAtomicToken) => match cur {
+                Some(&Simple(n)) if !reserved(n) => {
+                    self.finish_with(ParsedAtom(::ast::Atom(n)), true)
+                }
+                _ => vec![],
             },
-            (0, &AnyAtomicToken) => {
-                match cur {
-                    Some(&Simple(n)) if !reserved(n) => {
-                      self.finish_with(ParsedAtom(::ast::Atom(n)), true)
-                    }
-                    _ => vec![]
+            (0, &VarRef) => match cur {
+                Some(&Simple(n)) if !reserved(n) => {
+                    self.finish_with(ParsedAtom(::ast::VariableReference(n)), true)
                 }
-            },
-            (0, &VarRef) => {
-                match cur {
-                    Some(&Simple(n)) if !reserved(n) => {
-                        self.finish_with(ParsedAtom(::ast::VariableReference(n)), true)
-                    },
-                    _ => vec![]
-                }
+                _ => vec![],
             },
             // TODO: does `advance_one_token == true` just work to mean "descend here"?
-            (0, &Delimited(ref xptd_n, ref xptd_delim, _)) => {
-                match cur {
-                    Some(&Group(ref n, ref delim, _)) if n == xptd_n && delim == xptd_delim
-                        => self.advance(true),
-                    _ => vec![]
+            (0, &Delimited(ref xptd_n, ref xptd_delim, _)) => match cur {
+                Some(&Group(ref n, ref delim, _)) if n == xptd_n && delim == xptd_delim => {
+                    self.advance(true)
                 }
+                _ => vec![],
             },
-            (1, &Delimited(_, _, ref xptd_body)) => {
-                self.start(&xptd_body, cur_idx, false)
-            },
-            (2, &Delimited(_,_,_)) => {
+            (1, &Delimited(_, _, ref xptd_body)) => self.start(&xptd_body, cur_idx, false),
+            (2, &Delimited(_, _, _)) => {
                 match cur {
-                    Some(t) if t == &end_of_delim() => { // like `.finish`, but keeping local_parse
-                        vec![(Item{done: RefCell::new(true), pos: self.pos + 1,
-                                   local_parse: RefCell::new(self.local_parse.borrow().clone()),
-                                    .. self.clone()},
-                              true)]},
-                    _ => { vec![] }
+                    Some(t) if t == &end_of_delim() => {
+                        // like `.finish`, but keeping local_parse
+                        vec![(
+                            Item {
+                                done: RefCell::new(true),
+                                pos: self.pos + 1,
+                                local_parse: RefCell::new(self.local_parse.borrow().clone()),
+                                ..self.clone()
+                            },
+                            true,
+                        )]
+                    }
+                    _ => vec![],
                 }
-            },
+            }
             (pos, &Seq(ref subs)) => {
                 if pos < subs.len() {
                     self.start(&subs[pos as usize], cur_idx, false)
-                } else if pos == subs.len() { // a little like `.finish`, but without advancing
-                    vec![(Item{ done: RefCell::new(true), .. self.clone()}, false)]
+                } else if pos == subs.len() {
+                    // a little like `.finish`, but without advancing
+                    vec![(
+                        Item {
+                            done: RefCell::new(true),
+                            ..self.clone()
+                        },
+                        false,
+                    )]
                 } else {
                     vec![]
                 }
-            },
+            }
             (_, &Star(ref sub)) => {
                 // Special case: the elegant thing would be to create `Star` pre-`done`
-                let mut res = if self.pos == 0 { // Like `.finish`, but without advancing
-                    vec![(Item{ done: RefCell::new(true), .. self.clone()}, false)]
-                } else { vec![] };
+                let mut res = if self.pos == 0 {
+                    // Like `.finish`, but without advancing
+                    vec![(
+                        Item {
+                            done: RefCell::new(true),
+                            ..self.clone()
+                        },
+                        false,
+                    )]
+                } else {
+                    vec![]
+                };
                 res.append(&mut self.start(&sub, cur_idx, true)); // But we can take more!
                 res
-            },
-            (_, &Plus(ref sub)) => {
-                self.start(&sub, cur_idx, true)
-            },
+            }
+            (_, &Plus(ref sub)) => self.start(&sub, cur_idx, true),
             (0, &Alt(ref subs)) => {
                 let mut res = vec![];
                 for sub in subs {
                     res.append(&mut self.start(&(*sub), cur_idx, false));
                 }
                 res
-            },
+            }
             // Needs special handling elsewhere!
             (0, &Biased(ref plan_a, ref plan_b)) => {
-                let mut res =   self.start(&plan_a, cur_idx, false);
+                let mut res = self.start(&plan_a, cur_idx, false);
                 res.append(&mut self.start(&plan_b, cur_idx, false));
                 res
-            },
-            (0, &Call(n)) => {
-                self.start(&self.grammar.find_or_panic(&n), cur_idx, false)
-            },
-            (0, &Scope(ref f, _)) => { // form.grammar is a FormPat. Confusing!
-                self.start(&f.grammar, cur_idx, false)
-            },
-            (0, &SynImport(ref lhs, _, _)) => {
-                self.start(&lhs, cur_idx, false)
             }
+            (0, &Call(n)) => self.start(&self.grammar.find_or_panic(&n), cur_idx, false),
+            (0, &Scope(ref f, _)) => {
+                // form.grammar is a FormPat. Confusing!
+                self.start(&f.grammar, cur_idx, false)
+            }
+            (0, &SynImport(ref lhs, _, _)) => self.start(&lhs, cur_idx, false),
             (1, &SynImport(_, ref name, ref f)) => {
                 // TODO: handle errors properly! Probably need to memoize, also!
                 let partial_parse = match *self.local_parse.borrow() {
@@ -611,44 +738,55 @@ impl Item {
                     JustifiedByItem(_) | JustifiedByItemPlanB(_) => {
                         match self.find_wanted(chart, cur_idx).c_parse(chart, cur_idx) {
                             Ok(ast) => ast,
-                            Err(_) => { return vec![]; }
+                            Err(_) => {
+                                return vec![];
+                            }
                         }
                     }
                 };
 
                 let new_se = all_grammars.with(|grammars| {
                     let mut mut_grammars = grammars.borrow_mut();
-                    mut_grammars.entry(self.id.get_ref()) // memoize
-                        .or_insert_with(|| f.0(self.grammar.clone(), partial_parse)).clone()
+                    mut_grammars
+                        .entry(self.id.get_ref()) // memoize
+                        .or_insert_with(|| f.0(self.grammar.clone(), partial_parse))
+                        .clone()
                 });
 
-                vec![(Item { start_idx: cur_idx, rule: new_se.find_or_panic(name).clone(), pos: 0,
-                             done: RefCell::new(false),
-                             grammar: new_se, local_parse: RefCell::new(LocalParse::NothingYet),
-                             ddd: false, id: get_next_id(),
-                             wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()]))
-                      },
-                      false)]
+                vec![(
+                    Item {
+                        start_idx: cur_idx,
+                        rule: new_se.find_or_panic(name).clone(),
+                        pos: 0,
+                        done: RefCell::new(false),
+                        grammar: new_se,
+                        local_parse: RefCell::new(LocalParse::NothingYet),
+                        ddd: false,
+                        id: get_next_id(),
+                        wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()])),
+                    },
+                    false,
+                )]
             }
-            (0, &ComputeSyntax(_,_)) => { panic!("TODO") },
-            (0, &Named(_, ref body)) | (0, &NameImport(ref body, _))
-            | (0, &QuoteDeepen(ref body, _)) | (0, &QuoteEscape(ref body, _)) => {
-                self.start(&body, cur_idx, false)
-            },
+            (0, &ComputeSyntax(_, _)) => panic!("TODO"),
+            (0, &Named(_, ref body))
+            | (0, &NameImport(ref body, _))
+            | (0, &QuoteDeepen(ref body, _))
+            | (0, &QuoteEscape(ref body, _)) => self.start(&body, cur_idx, false),
             // Rust rightly complains that this is unreachable; yay!
             // But how do I avoid a catch-all pattern for the pos > 0 case?
             //(0, _) =>  { panic!("ICE: unhandled FormPat") },
-            _ => { vec![] } // end of a rule
+            _ => vec![], // end of a rule
         }
     }
 
-    fn find_wanted<'f, 'c>(&'f self, chart: &'c [Vec<Item>], done_tok: usize)
-            -> &'c Item {
-        let mut first_found : Option<&Item> = None;
+    fn find_wanted<'f, 'c>(&'f self, chart: &'c [Vec<Item>], done_tok: usize) -> &'c Item {
+        let mut first_found: Option<&Item> = None;
         let local_parse = self.local_parse.borrow().clone();
         let desired_id = match local_parse {
             JustifiedByItem(id) | JustifiedByItemPlanB(id) => id,
-            Ambiguous(ref l, ref r) => { // HACK: this is quite ugly!
+            Ambiguous(ref l, ref r) => {
+                // HACK: this is quite ugly!
                 let l = *l.clone();
                 let r = *r.clone();
                 log!("===Ambiguity===\n");
@@ -658,10 +796,9 @@ impl Item {
                 *self.local_parse.borrow_mut() = r;
                 let r_res = self.c_parse(chart, done_tok);
 
-
                 panic!("Ambiguity! \n{:#?}\n{:#?}\n", l_res, r_res)
-            },
-            _ => panic!("ICE: tried to parse unjustified item: {:#?} ", self)
+            }
+            _ => panic!("ICE: tried to parse unjustified item: {:#?} ", self),
         };
         log!("We are {:#?} at {}...\n", self, done_tok);
 
@@ -670,8 +807,10 @@ impl Item {
 
             if i.id.is(desired_id) {
                 match first_found {
-                    None => { first_found = Some(i); }
-                    Some(_) => { panic!("ICE: unacknowledged ambiguity!") }
+                    None => {
+                        first_found = Some(i);
+                    }
+                    Some(_) => panic!("ICE: unacknowledged ambiguity!"),
                 }
             }
         }
@@ -688,19 +827,21 @@ impl Item {
             Impossible => panic!("Impossible!"),
             Literal(_) | AnyToken | AnyAtomicToken | VarRef => {
                 match self.local_parse.borrow().clone() {
-                    ParsedAtom(a) => Ok(a), _ => { panic!("ICE: no simple parse saved")}
+                    ParsedAtom(a) => Ok(a),
+                    _ => panic!("ICE: no simple parse saved"),
                 }
-            },
+            }
             Delimited(_, _, _) => {
                 // HACK: the wanted item is misaligned by a token because of the close delimiter
-                self.find_wanted(chart, done_tok-1).c_parse(chart, done_tok-1)
+                self.find_wanted(chart, done_tok - 1)
+                    .c_parse(chart, done_tok - 1)
             }
-            Alt(_) | Biased(_, _) | Call(_) | SynImport(_,_, _) => {
+            Alt(_) | Biased(_, _) | Call(_) | SynImport(_, _, _) => {
                 self.find_wanted(chart, done_tok).c_parse(chart, done_tok)
-            },
+            }
             Seq(_) | Star(_) | Plus(_) => {
                 let mut step = self;
-                let mut subtrees : Vec<Ast> = vec![];
+                let mut subtrees: Vec<Ast> = vec![];
                 let mut pos = done_tok;
                 // Walk over "previous incarnations" of `self`
                 // TODO: It seems like I often have had the thought
@@ -710,7 +851,9 @@ impl Item {
                     log!("Trying to take a step...\n");
 
                     // Special case: we can't start the loop because there are 0 children
-                    if let NothingYet = step.local_parse.borrow().clone() { break; }
+                    if let NothingYet = step.local_parse.borrow().clone() {
+                        break;
+                    }
 
                     let sub = step.find_wanted(chart, pos);
                     subtrees.push(sub.c_parse(chart, pos)?);
@@ -724,22 +867,27 @@ impl Item {
                             log!("Checking {:#?}\n", i);
                             if self.grammar.almost_ptr_eq(&i.grammar)
                                 && &*self.rule as *const FormPat == &*i.rule as *const FormPat
-                                && step.pos - 1 == i.pos {
+                                && step.pos - 1 == i.pos
+                            {
                                 step = i;
                                 found = true;
                                 break;
                             }
                         }
-                        if !found { panic!("ICE: Can't find item previous to {:#?}", step) }
+                        if !found {
+                            panic!("ICE: Can't find item previous to {:#?}", step)
+                        }
                     }
                 }
                 subtrees.reverse();
 
-                let mut ddd_pos : Option<usize> = None;
+                let mut ddd_pos: Option<usize> = None;
                 for (i, subtree) in subtrees.iter_mut().enumerate() {
                     if let Some(unwrapped) = ddd_unwrap(&subtree) {
                         if ddd_pos != None {
-                            return Err(ParseError{msg: format!("Found two DDDs at {}", unwrapped)});
+                            return Err(ParseError {
+                                msg: format!("Found two DDDs at {}", unwrapped),
+                            });
                         }
                         *subtree = unwrapped;
                         ddd_pos = Some(i);
@@ -750,21 +898,29 @@ impl Item {
                     Seq(_) => Ok(Ast::Shape(subtrees)),
                     Star(_) | Plus(_) => Ok(Ast::IncompleteNode(
                         ::util::mbe::EnvMBE::new_from_anon_repeat_ddd(
-                            subtrees.into_iter().map(|a| a.flatten()).collect(), ddd_pos))),
-                    _ => { panic!("ICE: seriously, this can't happen") }
+                            subtrees.into_iter().map(|a| a.flatten()).collect(),
+                            ddd_pos,
+                        ),
+                    )),
+                    _ => panic!("ICE: seriously, this can't happen"),
                 }
-            },
-            ComputeSyntax(_, _) => { panic!("TODO") },
+            }
+            ComputeSyntax(_, _) => panic!("TODO"),
             Named(name, _) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
                 Ok(Ast::IncompleteNode(::util::mbe::EnvMBE::new_from_leaves(
-                    ::util::assoc::Assoc::single(name, sub_parsed))))
-            },
+                    ::util::assoc::Assoc::single(name, sub_parsed),
+                )))
+            }
             Scope(ref form, ref export) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
                 // TODO #14: We should add zero-length repeats of missing `Named`s,
-                Ok(Ast::Node(form.clone(), sub_parsed.flatten(), export.clone()))
-            },
+                Ok(Ast::Node(
+                    form.clone(),
+                    sub_parsed.flatten(),
+                    export.clone(),
+                ))
+            }
             NameImport(_, ref beta) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
                 Ok(Ast::ExtendEnv(Box::new(sub_parsed), beta.clone()))
@@ -792,24 +948,29 @@ type ParseResult = Result<Ast, ParseError>;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ParseError {
-    pub msg: String
+    pub msg: String,
 }
 
 pub fn parse(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> ParseResult {
     let (start_but_startier, chart) = create_chart(Rc::new(rule.clone()), grammar.clone(), tt);
-    let final_item = chart[chart.len()-1].iter().find(
-        |item|
-            (*item.wanted_by.borrow()).iter().any(|idr| start_but_startier.is(*idr))
-            && *item.done.borrow());
+    let final_item = chart[chart.len() - 1].iter().find(|item| {
+        (*item.wanted_by.borrow())
+            .iter()
+            .any(|idr| start_but_startier.is(*idr))
+            && *item.done.borrow()
+    });
     log!("-------\n");
     match final_item {
-        Some(i) => i.c_parse(&chart, chart.len()-1),
-        None => {
-            best_token.with(|bt| {
-                let (idx, tok, ref grammar, pos) = *bt.borrow();
-                Err(ParseError{ msg: format!("Could not parse past token {} ({}) {:#?} {}", idx, tok, grammar, pos) })
+        Some(i) => i.c_parse(&chart, chart.len() - 1),
+        None => best_token.with(|bt| {
+            let (idx, tok, ref grammar, pos) = *bt.borrow();
+            Err(ParseError {
+                msg: format!(
+                    "Could not parse past token {} ({}) {:#?} {}",
+                    idx, tok, grammar, pos
+                ),
             })
-        }
+        }),
     }
 }
 
@@ -825,60 +986,107 @@ fn earley_merging() {
     let another_grammar = assoc_n!("a" => Rc::new(form_pat!(aat)));
     let mut state_set = vec![];
 
-    let basic_item = Item{start_idx: 0, rule: Rc::new(one_rule), pos: 0,
-                          grammar: main_grammar.clone(), ddd: false,
-                          id: get_next_id(), done: RefCell::new(false),
-                          local_parse: RefCell::new(LocalParse::NothingYet),
-                          wanted_by: Rc::new(RefCell::new(vec![]))};
+    let basic_item = Item {
+        start_idx: 0,
+        rule: Rc::new(one_rule),
+        pos: 0,
+        grammar: main_grammar.clone(),
+        ddd: false,
+        id: get_next_id(),
+        done: RefCell::new(false),
+        local_parse: RefCell::new(LocalParse::NothingYet),
+        wanted_by: Rc::new(RefCell::new(vec![])),
+    };
 
-    assert_eq!(merge_into_state_set(basic_item.clone(), &mut state_set), true);
+    assert_eq!(
+        merge_into_state_set(basic_item.clone(), &mut state_set),
+        true
+    );
     assert_eq!(state_set.len(), 1);
 
     // exactly the same (except a different ID)
-    assert_eq!(merge_into_state_set(basic_item.clone(), &mut state_set), false);
+    assert_eq!(
+        merge_into_state_set(basic_item.clone(), &mut state_set),
+        false
+    );
     assert_eq!(state_set.len(), 1);
 
     // (not done yet)
     assert_eq!(*state_set[0].done.borrow(), false);
 
     // improvement in doneness, mergable
-    assert_eq!(merge_into_state_set(Item{done: RefCell::new(true), .. basic_item.clone()},
-                                    &mut state_set),
-               true);
+    assert_eq!(
+        merge_into_state_set(
+            Item {
+                done: RefCell::new(true),
+                ..basic_item.clone()
+            },
+            &mut state_set
+        ),
+        true
+    );
     assert_eq!(state_set.len(), 1);
     // now done!
     assert_eq!(*state_set[0].done.borrow(), true);
 
     // not an improvement this time!
-    assert_eq!(merge_into_state_set(Item{done: RefCell::new(true), .. basic_item.clone()},
-                                    &mut state_set),
-               false);
+    assert_eq!(
+        merge_into_state_set(
+            Item {
+                done: RefCell::new(true),
+                ..basic_item.clone()
+            },
+            &mut state_set
+        ),
+        false
+    );
     assert_eq!(state_set.len(), 1);
 
     // not as good as
-    assert_eq!(merge_into_state_set(Item{done: RefCell::new(false), .. basic_item.clone()},
-                                    &mut state_set),
-               false);
+    assert_eq!(
+        merge_into_state_set(
+            Item {
+                done: RefCell::new(false),
+                ..basic_item.clone()
+            },
+            &mut state_set
+        ),
+        false
+    );
     assert_eq!(state_set.len(), 1);
     // still done!
     assert_eq!(*state_set[0].done.borrow(), true);
 
     // different rule
-    assert_eq!(merge_into_state_set(Item{rule: Rc::new(another_rule), .. basic_item.clone()},
-                                    &mut state_set),
-               true);
+    assert_eq!(
+        merge_into_state_set(
+            Item {
+                rule: Rc::new(another_rule),
+                ..basic_item.clone()
+            },
+            &mut state_set
+        ),
+        true
+    );
     assert_eq!(state_set.len(), 2);
 
     // different grammar (pointer-wise!)
-    assert_eq!(merge_into_state_set(Item{grammar: another_grammar.clone(), .. basic_item.clone()},
-                                    &mut state_set),
-               true);
+    assert_eq!(
+        merge_into_state_set(
+            Item {
+                grammar: another_grammar.clone(),
+                ..basic_item.clone()
+            },
+            &mut state_set
+        ),
+        true
+    );
     assert_eq!(state_set.len(), 3);
 
     let id1 = get_next_id().get_ref();
     let id2 = get_next_id().get_ref();
     let id3 = get_next_id().get_ref();
-            /*
+    /*
         log!("AGA {:#?},{:#?},{:#?},{:#?}\n",
         (*self.done.borrow() == *other.done.borrow() || !*other.done.borrow())
         , *self.local_parse.borrow() == *other.local_parse.borrow()
@@ -889,37 +1097,56 @@ fn earley_merging() {
 
     );
         log!("  {:#?}=?{:#?}\n", *self.local_parse.borrow(), *other.local_parse.borrow());*/
-    let wanted_item = |ids| {
-        Item {
-            wanted_by: Rc::new(RefCell::new(ids)), .. basic_item.clone()
-        }
+    let wanted_item = |ids| Item {
+        wanted_by: Rc::new(RefCell::new(ids)),
+        ..basic_item.clone()
     };
 
     // test self-check (this shouldn't be interesting)
-    assert_eq!(merge_into_state_set(wanted_item(vec![]), &mut state_set), false);
+    assert_eq!(
+        merge_into_state_set(wanted_item(vec![]), &mut state_set),
+        false
+    );
     assert_eq!(state_set.len(), 3);
 
-    assert_eq!(merge_into_state_set(wanted_item(vec![id1]), &mut state_set), true);
+    assert_eq!(
+        merge_into_state_set(wanted_item(vec![id1]), &mut state_set),
+        true
+    );
     assert_eq!(state_set.len(), 3);
 
     // but another one doesn't have any effect
-    assert_eq!(merge_into_state_set(wanted_item(vec![id1]), &mut state_set), false);
+    assert_eq!(
+        merge_into_state_set(wanted_item(vec![id1]), &mut state_set),
+        false
+    );
     assert_eq!(state_set.len(), 3);
 
-    assert_eq!(merge_into_state_set(wanted_item(vec![id2]), &mut state_set), true);
+    assert_eq!(
+        merge_into_state_set(wanted_item(vec![id2]), &mut state_set),
+        true
+    );
     assert_eq!(state_set.len(), 3);
 
-    assert_eq!(merge_into_state_set(wanted_item(vec![id1, id2]), &mut state_set), false);
+    assert_eq!(
+        merge_into_state_set(wanted_item(vec![id1, id2]), &mut state_set),
+        false
+    );
     assert_eq!(state_set.len(), 3);
 
-    assert_eq!(merge_into_state_set(wanted_item(vec![id2, id1]), &mut state_set), false);
+    assert_eq!(
+        merge_into_state_set(wanted_item(vec![id2, id1]), &mut state_set),
+        false
+    );
     assert_eq!(state_set.len(), 3);
 
-    assert_eq!(merge_into_state_set(wanted_item(vec![id2, id3]), &mut state_set), true);
+    assert_eq!(
+        merge_into_state_set(wanted_item(vec![id2, id3]), &mut state_set),
+        true
+    );
     assert_eq!(state_set.len(), 3);
 
     // TODO: we ought to test the NothingYet - JustifiedByItem() / ParsedAtom() - Ambiguous lattice
-
 }
 
 #[test]
@@ -930,79 +1157,198 @@ fn earley_simple_recognition() {
 
     assert_eq!(recognize(&AnyAtomicToken, &main_grammar, &tokens!()), false);
 
-    assert_eq!(recognize(&Anyways(::ast::Trivial), &main_grammar, &tokens!()), true);
+    assert_eq!(
+        recognize(&Anyways(::ast::Trivial), &main_grammar, &tokens!()),
+        true
+    );
 
     assert_eq!(recognize(&Seq(vec![]), &main_grammar, &tokens!()), true);
 
-    assert_eq!(recognize(&Seq(vec![Rc::new(AnyAtomicToken)]), &main_grammar, &tokens!()), false);
+    assert_eq!(
+        recognize(
+            &Seq(vec![Rc::new(AnyAtomicToken)]),
+            &main_grammar,
+            &tokens!()
+        ),
+        false
+    );
 
-    assert_eq!(recognize(&Star(Rc::new(Impossible)), &main_grammar, &tokens!()), true);
+    assert_eq!(
+        recognize(&Star(Rc::new(Impossible)), &main_grammar, &tokens!()),
+        true
+    );
 
-    assert_eq!(recognize(&Star(Rc::new(AnyAtomicToken)), &main_grammar, &tokens!()), true);
+    assert_eq!(
+        recognize(&Star(Rc::new(AnyAtomicToken)), &main_grammar, &tokens!()),
+        true
+    );
 
     // 1-length strings
 
-    assert_eq!(recognize(&AnyAtomicToken, &main_grammar, &tokens!("Pierre Menard")), true);
+    assert_eq!(
+        recognize(&AnyAtomicToken, &main_grammar, &tokens!("Pierre Menard")),
+        true
+    );
 
-    assert_eq!(recognize(&Impossible, &main_grammar, &tokens!("Pierre Menard")), false);
+    assert_eq!(
+        recognize(&Impossible, &main_grammar, &tokens!("Pierre Menard")),
+        false
+    );
 
-    assert_eq!(recognize(&Literal(n("Cervantes")), &main_grammar, &tokens!("Pierre Menard")),
-               false);
+    assert_eq!(
+        recognize(
+            &Literal(n("Cervantes")),
+            &main_grammar,
+            &tokens!("Pierre Menard")
+        ),
+        false
+    );
 
-    assert_eq!(recognize(&Literal(n("Cervantes")), &main_grammar, &tokens!("Cervantes")),
-               true);
+    assert_eq!(
+        recognize(
+            &Literal(n("Cervantes")),
+            &main_grammar,
+            &tokens!("Cervantes")
+        ),
+        true
+    );
 
-    assert_eq!(recognize(&Seq(vec![Rc::new(AnyAtomicToken)]), &main_grammar, &tokens!("P.M.")),
-               true);
+    assert_eq!(
+        recognize(
+            &Seq(vec![Rc::new(AnyAtomicToken)]),
+            &main_grammar,
+            &tokens!("P.M.")
+        ),
+        true
+    );
 
-    assert_eq!(recognize(&Star(Rc::new(AnyAtomicToken)), &main_grammar, &tokens!("PM")), true);
+    assert_eq!(
+        recognize(
+            &Star(Rc::new(AnyAtomicToken)),
+            &main_grammar,
+            &tokens!("PM")
+        ),
+        true
+    );
 
-    assert_eq!(recognize(&Alt(vec![Rc::new(Impossible), Rc::new(AnyAtomicToken)]), &main_grammar,
-                         &tokens!("Pierre Menard")), true);
+    assert_eq!(
+        recognize(
+            &Alt(vec![Rc::new(Impossible), Rc::new(AnyAtomicToken)]),
+            &main_grammar,
+            &tokens!("Pierre Menard")
+        ),
+        true
+    );
 
-    assert_eq!(recognize(&Alt(vec![Rc::new(Impossible), Rc::new(Literal(n("Cervantes")))]),
-                         &main_grammar, &tokens!("Pierre Menard")), false);
+    assert_eq!(
+        recognize(
+            &Alt(vec![Rc::new(Impossible), Rc::new(Literal(n("Cervantes")))]),
+            &main_grammar,
+            &tokens!("Pierre Menard")
+        ),
+        false
+    );
 
-    assert_eq!(recognize(&Biased(Rc::new(Impossible), Rc::new(AnyAtomicToken)), &main_grammar,
-                         &tokens!("Pierre Menard")), true);
+    assert_eq!(
+        recognize(
+            &Biased(Rc::new(Impossible), Rc::new(AnyAtomicToken)),
+            &main_grammar,
+            &tokens!("Pierre Menard")
+        ),
+        true
+    );
 
-    assert_eq!(recognize(&Biased(Rc::new(AnyAtomicToken), Rc::new(Impossible)), &main_grammar,
-                         &tokens!("Pierre Menard")), true);
-
+    assert_eq!(
+        recognize(
+            &Biased(Rc::new(AnyAtomicToken), Rc::new(Impossible)),
+            &main_grammar,
+            &tokens!("Pierre Menard")
+        ),
+        true
+    );
 
     // Nesting!
 
-    assert_eq!(recognize(
-        &Seq(vec![Rc::new(Seq(vec![Rc::new(Seq(vec![Rc::new(AnyAtomicToken)]))]))]), &main_grammar,
-        &tokens!("Frustrated Novelist No Good At Describing Hands")), true);
+    assert_eq!(
+        recognize(
+            &Seq(vec![Rc::new(Seq(vec![Rc::new(Seq(vec![Rc::new(
+                AnyAtomicToken
+            )]))]))]),
+            &main_grammar,
+            &tokens!("Frustrated Novelist No Good At Describing Hands")
+        ),
+        true
+    );
 
-    assert_eq!(recognize(
-        &Alt(vec![Rc::new(Alt(vec![Rc::new(Alt(vec![Rc::new(AnyAtomicToken)]))]))]), &main_grammar,
-        &tokens!("(no pun intended, by the way)")), true);
+    assert_eq!(
+        recognize(
+            &Alt(vec![Rc::new(Alt(vec![Rc::new(Alt(vec![Rc::new(
+                AnyAtomicToken
+            )]))]))]),
+            &main_grammar,
+            &tokens!("(no pun intended, by the way)")
+        ),
+        true
+    );
 
-    assert_eq!(recognize(&Plus(Rc::new(Plus(Rc::new(Plus(Rc::new(AnyAtomicToken)))))),
-                         &main_grammar,
-                         &tokens!("(except I might've changed it otherwise)")), true);
-
+    assert_eq!(
+        recognize(
+            &Plus(Rc::new(Plus(Rc::new(Plus(Rc::new(AnyAtomicToken)))))),
+            &main_grammar,
+            &tokens!("(except I might've changed it otherwise)")
+        ),
+        true
+    );
 
     // Fine, there are longer strings.
 
-    assert_eq!(recognize(
-        &Seq(vec![Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken)]),
-        &main_grammar, &tokens!("Author" "of the" "Quixote")), true);
+    assert_eq!(
+        recognize(
+            &Seq(vec![
+                Rc::new(AnyAtomicToken),
+                Rc::new(AnyAtomicToken),
+                Rc::new(AnyAtomicToken)
+            ]),
+            &main_grammar,
+            &tokens!("Author" "of the" "Quixote")
+        ),
+        true
+    );
 
-    assert_eq!(recognize(
-        &Seq(vec![Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken)]),
-        &main_grammar, &tokens!("Author" "of" "the" "Quixote")), false);
+    assert_eq!(
+        recognize(
+            &Seq(vec![
+                Rc::new(AnyAtomicToken),
+                Rc::new(AnyAtomicToken),
+                Rc::new(AnyAtomicToken)
+            ]),
+            &main_grammar,
+            &tokens!("Author" "of" "the" "Quixote")
+        ),
+        false
+    );
 
-    assert_eq!(recognize(
-        &Seq(vec![Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken)]),
-        &main_grammar, &tokens!("Author of" "the Quixote")), false);
+    assert_eq!(
+        recognize(
+            &Seq(vec![
+                Rc::new(AnyAtomicToken),
+                Rc::new(AnyAtomicToken),
+                Rc::new(AnyAtomicToken)
+            ]),
+            &main_grammar,
+            &tokens!("Author of" "the Quixote")
+        ),
+        false
+    );
 
-    assert_eq!(recognize(&Plus(Rc::new(Plus(Rc::new(Plus(Rc::new(AnyAtomicToken)))))),
-                         &main_grammar,
-                         &tokens!("Author" "of" "the" "Quixote")), true);
-
+    assert_eq!(
+        recognize(
+            &Plus(Rc::new(Plus(Rc::new(Plus(Rc::new(AnyAtomicToken)))))),
+            &main_grammar,
+            &tokens!("Author" "of" "the" "Quixote")
+        ),
+        true
+    );
 }
 
 #[test]
@@ -1040,108 +1386,223 @@ fn earley_env_recognition() {
     assert_eq!(recognize(&Literal(n("a")), &env, &tokens!("b")), false);
 
     assert_eq!(recognize(&Call(n("empty")), &env, &tokens!()), true);
-    assert_eq!(recognize(&Call(n("empty")), &env, &tokens!("not empty!")), false);
+    assert_eq!(
+        recognize(&Call(n("empty")), &env, &tokens!("not empty!")),
+        false
+    );
 
-    assert_eq!(recognize(&Call(n("empty_indirect")), &env, &tokens!()), true);
-    assert_eq!(recognize(&Call(n("empty_indirect")), &env, &tokens!("not empty!")), false);
+    assert_eq!(
+        recognize(&Call(n("empty_indirect")), &env, &tokens!()),
+        true
+    );
+    assert_eq!(
+        recognize(&Call(n("empty_indirect")), &env, &tokens!("not empty!")),
+        false
+    );
 
     assert_eq!(recognize(&Call(n("aaa")), &env, &tokens!()), true);
     assert_eq!(recognize(&Call(n("aaa")), &env, &tokens!("a")), true);
     assert_eq!(recognize(&Call(n("aaa")), &env, &tokens!("a" "a")), true);
-    assert_eq!(recognize(&Call(n("aaa")), &env, &tokens!("a" "a" "a")), true);
-    assert_eq!(recognize(&Call(n("aaa")), &env, &tokens!("a" "x" "a")), false);
+    assert_eq!(
+        recognize(&Call(n("aaa")), &env, &tokens!("a" "a" "a")),
+        true
+    );
+    assert_eq!(
+        recognize(&Call(n("aaa")), &env, &tokens!("a" "x" "a")),
+        false
+    );
 
     assert_eq!(recognize(&Call(n("aaaa")), &env, &tokens!()), false);
     assert_eq!(recognize(&Call(n("aaaa")), &env, &tokens!("a")), true);
     assert_eq!(recognize(&Call(n("aaaa")), &env, &tokens!("a" "a")), true);
-    assert_eq!(recognize(&Call(n("aaaa")), &env, &tokens!("a" "a" "a")), true);
-    assert_eq!(recognize(&Call(n("aaaa")), &env, &tokens!("a" "x" "a")), false);
+    assert_eq!(
+        recognize(&Call(n("aaaa")), &env, &tokens!("a" "a" "a")),
+        true
+    );
+    assert_eq!(
+        recognize(&Call(n("aaaa")), &env, &tokens!("a" "x" "a")),
+        false
+    );
 
     assert_eq!(recognize(&Call(n("aaa_indirect")), &env, &tokens!()), true);
-    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, &tokens!("a")), true);
-    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, &tokens!("a" "a")), true);
-    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, &tokens!("a" "a" "a")), true);
-    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, &tokens!("a" "x" "a")), false);
+    assert_eq!(
+        recognize(&Call(n("aaa_indirect")), &env, &tokens!("a")),
+        true
+    );
+    assert_eq!(
+        recognize(&Call(n("aaa_indirect")), &env, &tokens!("a" "a")),
+        true
+    );
+    assert_eq!(
+        recognize(&Call(n("aaa_indirect")), &env, &tokens!("a" "a" "a")),
+        true
+    );
+    assert_eq!(
+        recognize(&Call(n("aaa_indirect")), &env, &tokens!("a" "x" "a")),
+        false
+    );
 
     for l_rec in vec!["l_rec_axxx", "l_rec_axxx_hard"] {
         assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a")), true);
         assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a" "x")), true);
-        assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a" "x" "x")), true);
-        assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a" "x" "x" "x")), true);
-        assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a" "a" "x" "x")), false);
+        assert_eq!(
+            recognize(&Call(n(l_rec)), &env, &tokens!("a" "x" "x")),
+            true
+        );
+        assert_eq!(
+            recognize(&Call(n(l_rec)), &env, &tokens!("a" "x" "x" "x")),
+            true
+        );
+        assert_eq!(
+            recognize(&Call(n(l_rec)), &env, &tokens!("a" "a" "x" "x")),
+            false
+        );
         assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!()), false);
-        assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a" "x" "a" "x")), false);
+        assert_eq!(
+            recognize(&Call(n(l_rec)), &env, &tokens!("a" "x" "a" "x")),
+            false
+        );
     }
 }
-
 
 #[test]
 fn basic_parsing_e() {
     assert_eq!(parse_top(&AnyToken, &tokens!("asdf")), Ok(ast!("asdf")));
 
-    assert_eq!(parse_top(&Anyways(ast!("asdf")), &tokens!()), Ok(ast!("asdf")));
+    assert_eq!(
+        parse_top(&Anyways(ast!("asdf")), &tokens!()),
+        Ok(ast!("asdf"))
+    );
 
-    assert_eq!(parse_top(&Biased(Rc::new(Anyways(ast!("A"))), Rc::new(Anyways(ast!("B")))),
-                         &tokens!()),
-               Ok(ast!("A")));
+    assert_eq!(
+        parse_top(
+            &Biased(Rc::new(Anyways(ast!("A"))), Rc::new(Anyways(ast!("B")))),
+            &tokens!()
+        ),
+        Ok(ast!("A"))
+    );
 
-    assert_eq!(parse_top(&Named(n("c"), Rc::new(Anyways(ast!("asdf")))), &tokens!()),
-               Ok(ast!({- "c" => "asdf"})));
+    assert_eq!(
+        parse_top(&Named(n("c"), Rc::new(Anyways(ast!("asdf")))), &tokens!()),
+        Ok(ast!({- "c" => "asdf"}))
+    );
 
+    assert_eq!(
+        parse_top(&Seq(vec![Rc::new(AnyToken)]), &tokens!("asdf")),
+        Ok(ast_shape!("asdf"))
+    );
 
-    assert_eq!(parse_top(&Seq(vec![Rc::new(AnyToken)]), &tokens!("asdf")), Ok(ast_shape!("asdf")));
+    assert_eq!(
+        parse_top(
+            &Seq(vec![
+                Rc::new(AnyToken),
+                Rc::new(Literal(n("fork"))),
+                Rc::new(AnyToken)
+            ]),
+            &tokens!("asdf" "fork" "asdf")
+        ),
+        Ok(ast_shape!("asdf" "fork" "asdf"))
+    );
 
-    assert_eq!(parse_top(&Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
-               &tokens!("asdf" "fork" "asdf")),
-               Ok(ast_shape!("asdf" "fork" "asdf")));
+    assert_eq!(
+        parse_top(
+            &Seq(vec![
+                Rc::new(Seq(vec![
+                    Rc::new(Literal(n("aa"))),
+                    Rc::new(Literal(n("ab")))
+                ])),
+                Rc::new(Seq(vec![
+                    Rc::new(Literal(n("ba"))),
+                    Rc::new(Literal(n("bb")))
+                ]))
+            ]),
+            &tokens!("aa" "ab" "ba" "bb")
+        ),
+        Ok(ast_shape!(("aa" "ab") ("ba" "bb")))
+    );
 
-    assert_eq!(parse_top(
-        &Seq(vec![Rc::new(Seq(vec![Rc::new(Literal(n("aa"))), Rc::new(Literal(n("ab")))])),
-                  Rc::new(Seq(vec![Rc::new(Literal(n("ba"))), Rc::new(Literal(n("bb")))]))]),
-               &tokens!("aa" "ab" "ba" "bb")),
-               Ok(ast_shape!(("aa" "ab") ("ba" "bb"))));
+    parse_top(
+        &Seq(vec![
+            Rc::new(AnyToken),
+            Rc::new(Literal(n("fork"))),
+            Rc::new(AnyToken),
+        ]),
+        &tokens!("asdf" "knife" "asdf"),
+    )
+    .unwrap_err();
 
-    parse_top(&Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
-          &tokens!("asdf" "knife" "asdf")).unwrap_err();
+    assert_eq!(
+        parse_top(
+            &form_pat!([(star (named "c", (alt (lit "X"), (lit "O")))), (lit "!")]),
+            &tokens!("X" "O" "O" "O" "X" "X" "!")
+        )
+        .unwrap(),
+        ast_shape!({- "c" => ["X", "O", "O", "O", "X", "X"]} "!")
+    );
 
-    assert_eq!(parse_top(&form_pat!([(star (named "c", (alt (lit "X"), (lit "O")))), (lit "!")]),
-                         &tokens!("X" "O" "O" "O" "X" "X" "!")).unwrap(),
-               ast_shape!({- "c" => ["X", "O", "O", "O", "X", "X"]} "!"));
+    assert_eq!(
+        parse_top(
+            &Seq(vec![
+                Rc::new(Star(Rc::new(Named(n("c"), Rc::new(Literal(n("*"))))))),
+                Rc::new(Literal(n("X")))
+            ]),
+            &tokens!("*" "*" "*" "*" "*" "X")
+        ),
+        Ok(ast_shape!({- "c" => ["*", "*", "*", "*", "*"] } "X"))
+    );
 
+    assert_m!(
+        parse_top(
+            &form_pat!([(star (biased (lit "a"), (lit "b"))), (lit "b")]),
+            &tokens!["a" "a" "b"]
+        ),
+        Ok(_)
+    );
 
-    assert_eq!(parse_top(&Seq(vec![Rc::new(Star(Rc::new(Named(n("c"), Rc::new(Literal(n("*"))))))),
-                                   Rc::new(Literal(n("X")))]),
-                     &tokens!("*" "*" "*" "*" "*" "X")),
-               Ok(ast_shape!({- "c" => ["*", "*", "*", "*", "*"] } "X")));
-
-    assert_m!(parse_top(&form_pat!([(star (biased (lit "a"), (lit "b"))), (lit "b")]),
-                        &tokens!["a" "a" "b"]),
-              Ok(_));
-
-    assert_m!(parse_top(&form_pat!([(star (biased (lit "b"), (lit "a"))), (lit "b")]),
-                        &tokens!["a" "a" "b"]),
-              Ok(_));
+    assert_m!(
+        parse_top(
+            &form_pat!([(star (biased (lit "b"), (lit "a"))), (lit "b")]),
+            &tokens!["a" "a" "b"]
+        ),
+        Ok(_)
+    );
 }
 
 #[test]
 fn parse_ddd() {
-
     let env = assoc_n!(
         "dotdotdot" => Rc::new(form_pat!([(delim "...(", "(", (call "body"))])),
         "some_toks" => Rc::new(form_pat!((star (named "p", aat)))));
 
-    assert_eq!(plug_hole(&env.find(&n("dotdotdot")).unwrap(),
-                         n("body"), &Rc::new(form_pat!((named "p", aat)))),
-        Rc::new(form_pat!([(delim "...(", "(", (named "p", aat))])));
+    assert_eq!(
+        plug_hole(
+            &env.find(&n("dotdotdot")).unwrap(),
+            n("body"),
+            &Rc::new(form_pat!((named "p", aat)))
+        ),
+        Rc::new(form_pat!([(delim "...(", "(", (named "p", aat))]))
+    );
 
-    assert_eq!(parse(&form_pat!([(delim "...(", "(", (named "p", aat))]),
-                     &env, &tokens!(("..." ; "b"))),
-               Ok(ast!(({- "p" => "b"}))));
+    assert_eq!(
+        parse(
+            &form_pat!([(delim "...(", "(", (named "p", aat))]),
+            &env,
+            &tokens!(("..." ; "b"))
+        ),
+        Ok(ast!(({- "p" => "b"})))
+    );
 
-    assert_eq!(parse(&Call(n("some_toks")), &env, &tokens!("a" "b" "c")),
-        Ok(ast!({- "p" => ["a", "b", "c"]})));
+    assert_eq!(
+        parse(&Call(n("some_toks")), &env, &tokens!("a" "b" "c")),
+        Ok(ast!({- "p" => ["a", "b", "c"]}))
+    );
 
-    assert_eq!(parse(&Call(n("some_toks")), &env, &tokens!("a" ("..." ; "b" ) "c")),
-        Ok(ast!({- "p" => ["a" ...("b")..., "c"]})));
-
+    assert_eq!(
+        parse(
+            &Call(n("some_toks")),
+            &env,
+            &tokens!("a" ("..." ; "b" ) "c")
+        ),
+        Ok(ast!({- "p" => ["a" ...("b")..., "c"]}))
+    );
 }
