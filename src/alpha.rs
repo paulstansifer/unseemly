@@ -106,7 +106,7 @@ fn mentioned_in_import(parts: &EnvMBE<Ast>) -> Vec<Name> {
             // TODO: does it make sense to mention a name underneath a quotation?
             QuoteMore(ref body, _) | QuoteLess(ref body, _) => process_ast(body, v),
             Trivial | Atom(_) | VariableReference(_) => {} // no beta
-            Shape(_) | IncompleteNode(_) => panic!("ICE: shouldn't be needed"),
+            Shape(_) | IncompleteNode(_) => panic!("ICP: shouldn't be needed"),
         }
     }
 
@@ -268,7 +268,7 @@ pub fn freshen_binders(a: &Ast) -> (Ast, Ren) {
 
             (Node(f.clone(), fresh_ast, export.clone()), renaming)
         }
-        IncompleteNode(_) | Shape(_) => panic!("ICE: didn't think this was needed"),
+        IncompleteNode(_) | Shape(_) => panic!("ICP: didn't think this was needed"),
         QuoteMore(ref body, pos) => {
             let (a, r) = freshen_binders(body);
             (QuoteMore(Box::new(a), pos), r.q_less(1))
@@ -355,7 +355,7 @@ pub fn freshen_binders_with(lhs: &Ast, rhs: &Ast) -> Option<(Ast, Ren, Ast, Ren)
                 None => None,
             }
         }
-        (&IncompleteNode(_), _) | (&Shape(_), _) => panic!("ICE: didn't think this was needed"),
+        (&IncompleteNode(_), _) | (&Shape(_), _) => panic!("ICP: didn't think this was needed"),
         (&ExtendEnv(ref sub_lhs, ref beta), &ExtendEnv(ref sub_rhs, ref beta_rhs)) => {
             if beta != beta_rhs {
                 return None;

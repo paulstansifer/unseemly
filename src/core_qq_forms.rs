@@ -75,7 +75,7 @@ fn adjust_opacity(t: &Ty, env: Assoc<Name, Ty>, delta: i32) -> Ty {
 
 fn remove_opacity(t: &Ty, delta: i32) -> Ty {
     if delta > 0 {
-        panic!("ICE")
+        panic!("ICP")
     }
     // The environment doesn't matter when removing opacity
     adjust_opacity(t, Assoc::new(), delta)
@@ -100,14 +100,14 @@ fn change_mu_opacity(parts: ::ast_walk::LazyWalkReses<MuProtect>) -> Result<Ty, 
 
     if let Some(opacity) = opacity {
         if opacity + delta < 0 {
-            panic!("ICE: unwrapped too far")
+            panic!("ICP: unwrapped too far")
         }
 
         if opacity + delta == 0 {
             if let ::ast::ExtendEnv(node, _) = parts.get_term(n("body")) {
                 return Ok(Ty(*node));
             } else {
-                panic!("ICE: mal-formed mu_type")
+                panic!("ICP: mal-formed mu_type")
             }
         }
     }
@@ -121,7 +121,7 @@ fn change_mu_opacity(parts: ::ast_walk::LazyWalkReses<MuProtect>) -> Result<Ty, 
             }
             Ok(Ty(Ast::Node(f, mu_parts, export)))
         }
-        _ => panic!("ICE"),
+        _ => panic!("ICP"),
     }
 }
 
@@ -161,8 +161,8 @@ impl WalkMode for UnusedNegativeMuProtect {
     type Err = ();
     type D = ::walk_mode::Positive<UnusedNegativeMuProtect>;
     type ExtraInfo = i32;
-    fn get_walk_rule(_: &Form) -> ::ast_walk::WalkRule<UnusedNegativeMuProtect> { panic!("ICE") }
-    fn automatically_extend_env() -> bool { panic!("ICE") }
+    fn get_walk_rule(_: &Form) -> ::ast_walk::WalkRule<UnusedNegativeMuProtect> { panic!("ICP") }
+    fn automatically_extend_env() -> bool { panic!("ICP") }
 }
 
 // Technically, we could have the parser decide whether `unquote` is allowed.
@@ -363,7 +363,7 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
             let count =
                 match *ddd_parts_uq.env.find_or_panic(&::core_forms::vr_to_name(&drivers[0])) {
                     Sequence(ref contents) => contents.len(),
-                    _ => panic!("ICE: type error"),
+                    _ => panic!("ICP: type error"),
                 };
             let mut reps = vec![];
 
@@ -373,7 +373,7 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
                     let walked_val = if drivers.contains(&::ast::VariableReference(*n)) {
                         match *val {
                             Sequence(ref contents) => (*contents[i]).clone(),
-                            _ => panic!("ICE: type error"),
+                            _ => panic!("ICP: type error"),
                         }
                     } else {
                         val.clone()
@@ -411,7 +411,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
     let perform_quotation = move |se: SynEnv, starter_info: Ast| -> SynEnv {
         let starter_nt = match starter_info {
             ::ast::IncompleteNode(ref parts) => vr_to_name(&parts.get_leaf_or_panic(&n("nt"))),
-            _ => panic!("ICE: malformed quotation"),
+            _ => panic!("ICP: malformed quotation"),
         };
         fn already_has_unquote(fp: &FormPat) -> bool {
             match *fp {
@@ -513,7 +513,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
                 match mq_parts.get_term_ref(n("body")) {
                     // Strip the `QuoteMore`:
                     ::ast::QuoteMore(ref a, _) => ::ast_walk::walk::<QQuote>(&*a, &mq_parts),
-                    _ => panic!("ICE"),
+                    _ => panic!("ICP"),
                 }
             }))
         } else {
@@ -527,7 +527,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
                     ::ast::QuoteMore(ref body, _) => {
                         ::ast_walk::walk::<QQuoteDestr>(&*body, &mq_parts)
                     }
-                    _ => panic!("ICE"),
+                    _ => panic!("ICP"),
                 }
             }))
         },

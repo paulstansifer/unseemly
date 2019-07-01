@@ -144,7 +144,7 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(
 ) -> Result<Assoc<Name, Mode::Elt>, Mode::Err>
 {
     // TODO: figure out why we *do* get called (during subtyping, apparently)
-    // if !Mode::D::is_positive() { panic!("ICE: e_f_b on {:#?} in {} (negative)", b, Mode::name())}
+    // if !Mode::D::is_positive() { panic!("ICP: e_f_b on {:#?} in {} (negative)", b, Mode::name())}
     match *b {
         Nothing => Ok(Assoc::new()),
         Shadow(ref lhs, ref rhs) => {
@@ -350,7 +350,7 @@ fn names_exported_by(ast: &Ast, quote_depth: i16) -> Vec<Name> {
         Ast::QuoteMore(ref body, _) => names_exported_by(body, quote_depth + 1),
         Ast::QuoteLess(ref body, _) => names_exported_by(body, quote_depth - 1),
         ref ast if quote_depth <= 0 => {
-            panic!("ICE: beta SameAs refers to an invalid AST node: {}", ast)
+            panic!("ICP: beta SameAs refers to an invalid AST node: {}", ast)
         }
         _ => vec![],
     }

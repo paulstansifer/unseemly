@@ -288,7 +288,7 @@ macro_rules! make_enum_reflect {
         }
     };
     ($choice_name:ident; $parts_name:ident; $name:ident$(<$($ty_param:tt),*>)*/**/ { } ) => {
-        panic!("ICE: invalid enum choice: {:#?}", $choice_name)
+        panic!("ICP: invalid enum choice: {:#?}", $choice_name)
     }
 }
 

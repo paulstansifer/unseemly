@@ -463,8 +463,8 @@ macro_rules! bind_patterns {
             Some($p_car) => {
                 bind_patterns!($iter; ($( $p_cdr, )*) => $body)
             }
-            None => { panic!("ICE: too few arguments"); }
-            Some(ref other) => { panic!("Type ICE in argument: {:#?}", other); }
+            None => { panic!("ICP: too few arguments"); }
+            Some(ref other) => { panic!("Type ICP in argument: {:#?}", other); }
         }
     }
 }
@@ -507,13 +507,13 @@ macro_rules! expect_node {
             } else {
                 // TODO: make it possible to specify which one
                 panic!(
-                    "ICE or type error: Expected a {:#?} node, got {:#?}, which is {:#?}.",
+                    "ICP or type error: Expected a {:#?} node, got {:#?}, which is {:#?}.",
                     $form, $node, *f
                 )
             }
         } else {
             panic!(
-                "ICE or type error: Expected a {:#?} node, got {:#?}, which isn't a node.",
+                "ICP or type error: Expected a {:#?} node, got {:#?}, which isn't a node.",
                 $form, $node
             )
         }
@@ -556,7 +556,7 @@ macro_rules! extract {
     (($v:expr) $( $expected:path = ( $( $sub:pat ),* ) => $body:expr);* ) => {
         match * $v {
             $( $expected ( $($sub),* ) => { $body } )*
-            _ => { panic!("ICE: {:#?} isn't a {:#?}", $v, stringify!( $($expected),* )) }
+            _ => { panic!("ICP: {:#?} isn't a {:#?}", $v, stringify!( $($expected),* )) }
         }
     }
 }

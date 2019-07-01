@@ -14,7 +14,7 @@ use util::assoc::Assoc;
 ///  with the Unseemly code that actually gets evaluated.
 /// This is where the magic happens.
 ///
-/// This is also where ICEs can happen, so make sure that ::ty() is consistent with ::reify().
+/// This is also where ICPs can happen, so make sure that ::ty() is consistent with ::reify().
 
 pub trait Reifiable {
     /// TODO: I think that `ty`/`ty_name`/`ty_invocation` doesn't make sense.

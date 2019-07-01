@@ -152,10 +152,10 @@ pub fn walk<Mode: WalkMode>(
                     Custom(ref ts_fn) =>  ts_fn(new_walk_ctxt),
                     Body(n) =>            walk(parts.get_leaf(n).unwrap(), &new_walk_ctxt),
                     LiteralLike =>        Mode::walk_quasi_literally(a.clone(), &new_walk_ctxt),
-                    NotWalked =>          panic!("ICE: {:#?} should not be walked at all!", a)
+                    NotWalked =>          panic!("ICP: {:#?} should not be walked at all!", a)
                 }
             }
-            IncompleteNode(ref parts) => { panic!("ICE: {:#?} isn't a complete node", parts)}
+            IncompleteNode(ref parts) => { panic!("ICP: {:#?} isn't a complete node", parts)}
 
             VariableReference(n) => { Mode::walk_var(n, &walk_ctxt) }
             Atom(n) => { Mode::walk_atom(n, &walk_ctxt) }
@@ -224,7 +224,7 @@ pub fn walk<Mode: WalkMode>(
             }
 
             Trivial | Shape(_) => {
-                panic!("ICE: {:#?} is not a walkable AST", a);
+                panic!("ICP: {:#?} is not a walkable AST", a);
             }
 
             // TODO: `env_from_beta` only works in positive modes... what should we do otherwise?
@@ -279,7 +279,7 @@ fn maybe_literally__walk<Mode: WalkMode>(
         None => walk_ctxt,
     };
     // It might be right to assume that it's true if the mode is quasiquotation
-    if literally.expect("ICE: unable to determine literalness") {
+    if literally.expect("ICP: unable to determine literalness") {
         Mode::walk_quasi_literally(a.clone(), &walk_ctxt)
     } else {
         walk(&*body, &walk_ctxt)
@@ -339,7 +339,7 @@ impl<Mode: WalkMode + Copy + 'static> reify::Reifiable for WalkRule<Mode> {
         } else if choice.is("LiteralLike") {
             WalkRule::LiteralLike
         } else {
-            panic!("ICE in WalkRule reflection")
+            panic!("ICP in WalkRule reflection")
         })
     }
 }
@@ -540,7 +540,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     pub fn this_form(&self) -> Rc<::form::Form> {
         match self.this_ast {
             Node(ref f, _, _) => f.clone(),
-            _ => panic!("ICE"),
+            _ => panic!("ICP"),
         }
     }
 

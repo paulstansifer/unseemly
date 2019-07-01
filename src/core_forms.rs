@@ -24,13 +24,13 @@ use util::assoc::Assoc; // type forms are kinda bulky
 pub fn ast_to_name(ast: &Ast) -> Name {
     match *ast {
         Atom(n) => n,
-        _ => panic!("ICE: {:#?} is not an atom", ast),
+        _ => panic!("ICP: {:#?} is not an atom", ast),
     }
 }
 pub fn vr_to_name(ast: &Ast) -> Name {
     match *ast {
         VariableReference(n) => n,
-        _ => panic!("ICE: {:#?} is not a vr", ast),
+        _ => panic!("ICP: {:#?} is not a vr", ast),
     }
 }
 
@@ -40,7 +40,7 @@ pub fn vr_to_name(ast: &Ast) -> Name {
 pub fn strip_ee(a: &Ast) -> &Ast {
     match *a {
         ExtendEnv(ref body, _) => (&**body),
-        _ => panic!("ICE: malformed thing"),
+        _ => panic!("ICP: malformed thing"),
     }
 }
 
@@ -283,7 +283,7 @@ pub fn make_core_syn_env() -> SynEnv {
                         // This acts like the `mu` was never there (and hiding the binding)
                         if let ExtendEnv(ref body, _) = *mu_parts.get_leaf_or_panic(&n("body")) {
                             synth_type(body, unfold_parts.env.clone())
-                        } else { panic!("ICE: no protection to remove!"); }
+                        } else { panic!("ICP: no protection to remove!"); }
                     })
             }),
             Body(n("body"))),
@@ -302,7 +302,7 @@ pub fn make_core_syn_env() -> SynEnv {
                         // This acts like the `mu` was never there (and hiding the binding)
                         if let ExtendEnv(ref body, _) = *mu_parts.get_leaf_or_panic(&n("body")) {
                             synth_type(body, fold_parts.env.clone())?
-                        } else { panic!("ICE: no protection to remove!"); }
+                        } else { panic!("ICP: no protection to remove!"); }
                     });
 
                 ty_exp!(&fold_parts.get_res(n("body"))?, &folded_goal,
@@ -376,7 +376,7 @@ pub fn make_core_syn_env() -> SynEnv {
 
                         Ok(res)
                     }
-                    _ => panic!("Type ICE: non-enum")
+                    _ => panic!("Type ICP: non-enum")
                 }
             })) => [* ["component"]],
         negative_typed_form!("struct_pat",
@@ -433,7 +433,7 @@ pub fn make_core_syn_env() -> SynEnv {
 
                         Ok(res)
                     }
-                    _ => panic!("Type ICE: non-struct")
+                    _ => panic!("Type ICP: non-struct")
                 }
             }))  => [* ["component"]],
 

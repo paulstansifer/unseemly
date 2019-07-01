@@ -287,7 +287,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     let (p_r, p_l) = if let (ExtendEnv(r, _), ExtendEnv(l, _)) = (ee_r, ee_l) {
                         (&**r, &**l)
                     } else {
-                        panic!("ICE: ill-formed mu_type")
+                        panic!("ICP: ill-formed mu_type")
                     };
                     if p_r == p_l // short-circuit if the names are the same...
                         || mu_parts.env.find(&vr_to_name(&*p_r)) // ...or Amber assumed so already
@@ -368,7 +368,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     if let Node(ref f, _, ref exp) = tapp_parts.this_ast {
                         Ok(Ty::new(Node(/* forall */ f.clone(), new__tapp_parts, exp.clone())))
                     } else {
-                        panic!("ICE")
+                        panic!("ICP")
                     }
                 }
                 Node(ref got_f, ref lhs_parts, ref exports)
@@ -389,7 +389,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     if let Node(ref f, _, ref exp) = tapp_parts.this_ast {
                         Ok(Ty::new(Node(/* forall */ f.clone(), new__tapp_parts, exp.clone())))
                     } else {
-                        panic!("ICE")
+                        panic!("ICP")
                     }
                 }
                 Node(ref got_f, ref forall_type__parts, _) if got_f == &forall_type_0 => {
@@ -441,7 +441,7 @@ pub fn nt_to_type(nt: Name) -> Ty {
         let nt_sp = &nt.sp();
         ty!({get__abstract_parametric_type(); "name" => nt_sp})
     } else {
-        panic!("ICE: unknown NT {}", nt)
+        panic!("ICP: unknown NT {}", nt)
     }
 }
 
@@ -454,7 +454,7 @@ pub fn nt_is_positive(nt: Name) -> bool {
         // HACK: "Ident" is just not walked; this should probably be three-armed
         false
     } else {
-        panic!("ICE: unknown NT {}", nt)
+        panic!("ICP: unknown NT {}", nt)
     }
 }
 

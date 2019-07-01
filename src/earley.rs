@@ -736,7 +736,7 @@ impl Item {
             | (0, &QuoteEscape(ref body, _)) => self.start(&body, cur_idx, false),
             // Rust rightly complains that this is unreachable; yay!
             // But how do I avoid a catch-all pattern for the pos > 0 case?
-            //(0, _) =>  { panic!("ICE: unhandled FormPat") },
+            //(0, _) =>  { panic!("ICP: unhandled FormPat") },
             _ => vec![], // end of a rule
         }
     }
@@ -759,7 +759,7 @@ impl Item {
 
                 panic!("Ambiguity! \n{:#?}\n{:#?}\n", l_res, r_res)
             }
-            _ => panic!("ICE: tried to parse unjustified item: {:#?} ", self),
+            _ => panic!("ICP: tried to parse unjustified item: {:#?} ", self),
         };
         log!("We are {:#?} at {}...\n", self, done_tok);
 
@@ -771,12 +771,12 @@ impl Item {
                     None => {
                         first_found = Some(i);
                     }
-                    Some(_) => panic!("ICE: unacknowledged ambiguity!"),
+                    Some(_) => panic!("ICP: unacknowledged ambiguity!"),
                 }
             }
         }
 
-        first_found.expect("ICE: no parse after successful recognition")
+        first_found.expect("ICP: no parse after successful recognition")
     }
 
     /// After the chart is built, we parse...
@@ -789,7 +789,7 @@ impl Item {
             Literal(_) | AnyToken | AnyAtomicToken | VarRef => {
                 match self.local_parse.borrow().clone() {
                     ParsedAtom(a) => Ok(a),
-                    _ => panic!("ICE: no simple parse saved"),
+                    _ => panic!("ICP: no simple parse saved"),
                 }
             }
             Delimited(_, _, _) => {
@@ -835,7 +835,7 @@ impl Item {
                             }
                         }
                         if !found {
-                            panic!("ICE: Can't find item previous to {:#?}", step)
+                            panic!("ICP: Can't find item previous to {:#?}", step)
                         }
                     }
                 }
@@ -862,7 +862,7 @@ impl Item {
                             ddd_pos,
                         )))
                     }
-                    _ => panic!("ICE: seriously, this can't happen"),
+                    _ => panic!("ICP: seriously, this can't happen"),
                 }
             }
             ComputeSyntax(_, _) => panic!("TODO"),

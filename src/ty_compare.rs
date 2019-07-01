@@ -321,7 +321,7 @@ fn match_dotdotdot<'a>(
                 Some(sub_parts) => {
                     // Uh-oh, maybe we're comparing two dotdotdots?
                     match sub_parts.get_leaf_or_panic(&n("body")).destructure(ddd_form) {
-                        Some(_) => panic!("ICE: TODO: count up the stacks of :::[]:::"),
+                        Some(_) => panic!("ICP: TODO: count up the stacks of :::[]:::"),
                         None => {
                             return None;
                         } // :::[]::: is a subtype of :::[]:::
