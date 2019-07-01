@@ -146,13 +146,13 @@ impl Ast {
     pub fn node_parts(&self) -> &EnvMBE<Ast> {
         match *self {
             Node(_, ref body, _) => body,
-            _ => panic!("ICP"),
+            _ => icp!(),
         }
     }
     pub fn node_form(&self) -> &::form::Form {
         match *self {
             Node(ref form, _, _) => form,
-            _ => panic!("ICP"),
+            _ => icp!(),
         }
     }
 }

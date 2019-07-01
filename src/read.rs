@@ -120,7 +120,7 @@ pub fn read_tokens(s: &str) -> Result<TokenTree, String> {
                             Some((delim(c_del.as_str()), main.as_str())),
                         ));
                     } else {
-                        panic!("ICP")
+                        icp!()
                     }
                 }
             }

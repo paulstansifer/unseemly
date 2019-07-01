@@ -89,14 +89,14 @@ pub trait WalkMode: Debug + Copy + Reifiable {
 
     /// When a DDDed subterm is matched, it matches against multiple `Elt`s.
     /// How should we represent that?
-    fn collapse_repetition(_: Vec<Res<Self>>) -> Res<Self> { panic!("ICP: unexpected repetition") }
+    fn collapse_repetition(_: Vec<Res<Self>>) -> Res<Self> { icp!("unexpected repetition") }
 
     /// Make up a special `Elt` that is currently "underspecified",
     ///  but which can be "unified" with some other `Elt`.
     /// If that happens, all copies of this `Elt` will act like that other one.
     ///
     /// Side-effects under the covers make this work.
-    fn underspecified(Name) -> Self::Elt { panic!("ICP: no underspecified_elt") }
+    fn underspecified(Name) -> Self::Elt { icp!("no underspecified_elt") }
 
     fn name() -> &'static str;
 }
@@ -186,7 +186,7 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
 
                 let body = match orig {
                     ExtendEnv(ref b, _) | QuoteMore(ref b, _) | QuoteLess(ref b, _) => b,
-                    _ => panic!("ICP"),
+                    _ => icp!(),
                 };
                 let sub_result = Mode::Elt::to_ast(&walk(&**body, cnc)?);
 
@@ -197,7 +197,7 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
                         ExtendEnv(_, beta) => ExtendEnv(boxed, beta.clone()),
                         QuoteMore(_, pos) => QuoteMore(boxed, *pos),
                         QuoteLess(_, depth) => QuoteLess(boxed, *depth),
-                        _ => panic!("ICP"),
+                        _ => icp!(),
                     }
                 }
 
@@ -221,16 +221,12 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
     }
 
     fn walk_atom(_: Name, _: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode> {
-        panic!("ICP: Atoms are positively unwalkable");
+        icp!("Atoms are positively unwalkable");
     }
 
     fn out_as_elt(o: Self::Out) -> <Self::Mode as WalkMode>::Elt { o }
-    fn out_as_env(_: Self::Out) -> Assoc<Name, <Self::Mode as WalkMode>::Elt> {
-        panic!("ICP: out_as_env")
-    }
-    fn env_as_out(_: Assoc<Name, <Self::Mode as WalkMode>::Elt>) -> Self::Out {
-        panic!("ICP: env_as_out")
-    }
+    fn out_as_env(_: Self::Out) -> Assoc<Name, <Self::Mode as WalkMode>::Elt> { icp!("out_as_env") }
+    fn env_as_out(_: Assoc<Name, <Self::Mode as WalkMode>::Elt>) -> Self::Out { icp!("env_as_out") }
 
     fn oeh_if_negative() -> Option<OutEnvHandle<Mode>> { None }
     fn is_positive() -> bool { true }
@@ -298,7 +294,7 @@ impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
     }
 
     fn walk_var(n: Name, _: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode> {
-        panic!("{} is a VarRef, which is negatively unwalkable", n);
+        icp!("{} is a VarRef, which is negatively unwalkable", n)
     }
 
     /// Bind atom to the context!
@@ -306,7 +302,7 @@ impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
         Ok(Assoc::new().set(n, cnc.context_elt().clone()))
     }
 
-    fn out_as_elt(_: Self::Out) -> <Self::Mode as WalkMode>::Elt { panic!("ICP: out_as_elt") }
+    fn out_as_elt(_: Self::Out) -> <Self::Mode as WalkMode>::Elt { icp!("out_as_elt") }
     fn out_as_env(o: Self::Out) -> Assoc<Name, <Self::Mode as WalkMode>::Elt> { o }
     fn env_as_out(e: Assoc<Name, <Self::Mode as WalkMode>::Elt>) -> Self::Out { e }
 

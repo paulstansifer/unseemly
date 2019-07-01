@@ -493,8 +493,8 @@ impl WalkMode for UnusedNegativeExpandMacros {
     type Err = ();
     type D = ::walk_mode::Positive<UnusedNegativeExpandMacros>;
     type ExtraInfo = ();
-    fn get_walk_rule(_: &Form) -> ::ast_walk::WalkRule<UnusedNegativeExpandMacros> { panic!("ICP") }
-    fn automatically_extend_env() -> bool { panic!("ICP") }
+    fn get_walk_rule(_: &Form) -> ::ast_walk::WalkRule<UnusedNegativeExpandMacros> { icp!() }
+    fn automatically_extend_env() -> bool { icp!() }
 }
 
 pub fn expand(ast: &Ast, env: Assoc<Name, Ast>) -> Result<Ast, ()> {

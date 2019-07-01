@@ -152,10 +152,10 @@ pub fn walk<Mode: WalkMode>(
                     Custom(ref ts_fn) =>  ts_fn(new_walk_ctxt),
                     Body(n) =>            walk(parts.get_leaf(n).unwrap(), &new_walk_ctxt),
                     LiteralLike =>        Mode::walk_quasi_literally(a.clone(), &new_walk_ctxt),
-                    NotWalked =>          panic!("ICP: {:#?} should not be walked at all!", a)
+                    NotWalked =>          icp!("{:#?} should not be walked at all!", a)
                 }
             }
-            IncompleteNode(ref parts) => { panic!("ICP: {:#?} isn't a complete node", parts)}
+            IncompleteNode(ref parts) => { icp!("{:#?} isn't a complete node", parts)}
 
             VariableReference(n) => { Mode::walk_var(n, &walk_ctxt) }
             Atom(n) => { Mode::walk_atom(n, &walk_ctxt) }
@@ -224,7 +224,7 @@ pub fn walk<Mode: WalkMode>(
             }
 
             Trivial | Shape(_) => {
-                panic!("ICP: {:#?} is not a walkable AST", a);
+                icp!("{:#?} is not a walkable AST", a);
             }
 
             // TODO: `env_from_beta` only works in positive modes... what should we do otherwise?
@@ -339,7 +339,7 @@ impl<Mode: WalkMode + Copy + 'static> reify::Reifiable for WalkRule<Mode> {
         } else if choice.is("LiteralLike") {
             WalkRule::LiteralLike
         } else {
-            panic!("ICP in WalkRule reflection")
+            icp!()
         })
     }
 }
@@ -540,7 +540,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     pub fn this_form(&self) -> Rc<::form::Form> {
         match self.this_ast {
             Node(ref f, _, _) => f.clone(),
-            _ => panic!("ICP"),
+            _ => icp!(),
         }
     }
 
@@ -747,7 +747,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             }
             Ok(res)
         } else {
-            panic!("Type error: Length mismatch")
+            icp!("[type error] Length mismatch")
             // Err(()) // TODO: Generate a mode-appropriate error
         }
     }

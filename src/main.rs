@@ -6,6 +6,7 @@
 // dead_code and unused_macros are hopefully temporary allowances
 // non_snake_case is stylistic, unused_imports is inaccurate for `cargo check`
 // non_upper_case_globals is stylistic; I like my thread_local!s lowercase.
+#![recursion_limit = "128"] // Yikes.
 
 // unstable; only for testing
 // #![feature(log_syntax,trace_macros)]

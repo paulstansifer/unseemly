@@ -182,7 +182,7 @@ impl PartialOrd for LocalParse {
             (&JustifiedByItem(_), &JustifiedByItemPlanB(_)) => Some(Greater),
             (&JustifiedByItem(_), &JustifiedByItem(_)) => None,
             // semantically, this ought to be `None`, but that would be a hard-to-debug logic error
-            _ => panic!("Attempted to compare {:#?} and {:#?}", self, other),
+            _ => icp!("Attempted to compare {:#?} and {:#?}", self, other),
         }
     }
 }
@@ -498,7 +498,7 @@ impl Item {
                     let mut more = match *waiting_item.rule {
                         Anyways(_) | Impossible | Literal(_) | AnyToken | AnyAtomicToken
                         | VarRef => {
-                            panic!("{:#?} should not be waiting for anything!", waiting_item)
+                            icp!("{:#?} should not be waiting for anything!", waiting_item)
                         }
                         Seq(ref subs) => {
                             if (waiting_item.pos) as usize == subs.len() {
@@ -736,7 +736,7 @@ impl Item {
             | (0, &QuoteEscape(ref body, _)) => self.start(&body, cur_idx, false),
             // Rust rightly complains that this is unreachable; yay!
             // But how do I avoid a catch-all pattern for the pos > 0 case?
-            //(0, _) =>  { panic!("ICP: unhandled FormPat") },
+            //(0, _) =>  { icp!("unhandled FormPat") },
             _ => vec![], // end of a rule
         }
     }
@@ -759,7 +759,7 @@ impl Item {
 
                 panic!("Ambiguity! \n{:#?}\n{:#?}\n", l_res, r_res)
             }
-            _ => panic!("ICP: tried to parse unjustified item: {:#?} ", self),
+            _ => icp!("tried to parse unjustified item: {:#?} ", self),
         };
         log!("We are {:#?} at {}...\n", self, done_tok);
 
@@ -771,7 +771,7 @@ impl Item {
                     None => {
                         first_found = Some(i);
                     }
-                    Some(_) => panic!("ICP: unacknowledged ambiguity!"),
+                    Some(_) => icp!("unacknowledged ambiguity!"),
                 }
             }
         }
@@ -785,11 +785,11 @@ impl Item {
         // assert!(*self.done.borrow()); // false during ambiguity reporting
         let res = match *self.rule {
             Anyways(ref a) => Ok(a.clone()),
-            Impossible => panic!("Impossible!"),
+            Impossible => icp!("Parser parsed the impossible!"),
             Literal(_) | AnyToken | AnyAtomicToken | VarRef => {
                 match self.local_parse.borrow().clone() {
                     ParsedAtom(a) => Ok(a),
-                    _ => panic!("ICP: no simple parse saved"),
+                    _ => icp!("no simple parse saved"),
                 }
             }
             Delimited(_, _, _) => {
@@ -835,7 +835,7 @@ impl Item {
                             }
                         }
                         if !found {
-                            panic!("ICP: Can't find item previous to {:#?}", step)
+                            icp!("Can't find item previous to {:#?}", step)
                         }
                     }
                 }
@@ -862,7 +862,7 @@ impl Item {
                             ddd_pos,
                         )))
                     }
-                    _ => panic!("ICP: seriously, this can't happen"),
+                    _ => icp!("seriously, this can't happen"),
                 }
             }
             ComputeSyntax(_, _) => panic!("TODO"),

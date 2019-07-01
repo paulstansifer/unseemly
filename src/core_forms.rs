@@ -24,13 +24,13 @@ use util::assoc::Assoc; // type forms are kinda bulky
 pub fn ast_to_name(ast: &Ast) -> Name {
     match *ast {
         Atom(n) => n,
-        _ => panic!("ICP: {:#?} is not an atom", ast),
+        _ => icp!("{:#?} is not an atom", ast),
     }
 }
 pub fn vr_to_name(ast: &Ast) -> Name {
     match *ast {
         VariableReference(n) => n,
-        _ => panic!("ICP: {:#?} is not a vr", ast),
+        _ => icp!("{:#?} is not a vr", ast),
     }
 }
 
@@ -40,7 +40,7 @@ pub fn vr_to_name(ast: &Ast) -> Name {
 pub fn strip_ee(a: &Ast) -> &Ast {
     match *a {
         ExtendEnv(ref body, _) => (&**body),
-        _ => panic!("ICP: malformed thing"),
+        _ => icp!("malformed thing"),
     }
 }
 
@@ -131,8 +131,7 @@ pub fn make_core_syn_env() -> SynEnv {
                     Ok(f(part_values.get_rep_res(n("rand"))?))
                 }
                 other => {
-                    panic!("Type soundness bug: attempted to invoke {:#?}
-                    as if it were a function", other)
+                    icp!("[type error] invoked {:#?} as if it were a function", other)
                 }
             }
         })),
@@ -176,7 +175,7 @@ pub fn make_core_syn_env() -> SynEnv {
                         Err(()) => { /* try the next one */ }
                     }
                 }
-                panic!("No arms matched! This ought to be a type error, but isn't.");
+                panic!("No arms matched! TODO #2");
             })
         ),
         // Note that we inconveniently require the user to specify the type.
@@ -283,7 +282,7 @@ pub fn make_core_syn_env() -> SynEnv {
                         // This acts like the `mu` was never there (and hiding the binding)
                         if let ExtendEnv(ref body, _) = *mu_parts.get_leaf_or_panic(&n("body")) {
                             synth_type(body, unfold_parts.env.clone())
-                        } else { panic!("ICP: no protection to remove!"); }
+                        } else { icp!("no protection to remove!"); }
                     })
             }),
             Body(n("body"))),
@@ -302,7 +301,7 @@ pub fn make_core_syn_env() -> SynEnv {
                         // This acts like the `mu` was never there (and hiding the binding)
                         if let ExtendEnv(ref body, _) = *mu_parts.get_leaf_or_panic(&n("body")) {
                             synth_type(body, fold_parts.env.clone())?
-                        } else { panic!("ICP: no protection to remove!"); }
+                        } else { icp!("no protection to remove!"); }
                     });
 
                 ty_exp!(&fold_parts.get_res(n("body"))?, &folded_goal,
@@ -376,7 +375,7 @@ pub fn make_core_syn_env() -> SynEnv {
 
                         Ok(res)
                     }
-                    _ => panic!("Type ICP: non-enum")
+                    _ => icp!("[type error] non-enum")
                 }
             })) => [* ["component"]],
         negative_typed_form!("struct_pat",
@@ -433,7 +432,7 @@ pub fn make_core_syn_env() -> SynEnv {
 
                         Ok(res)
                     }
-                    _ => panic!("Type ICP: non-struct")
+                    _ => icp!("[type error] non-struct")
                 }
             }))  => [* ["component"]],
 
@@ -485,7 +484,7 @@ pub fn find_form(se: &SynEnv, nt: &str, form_name: &str) -> Rc<Form> {
     let pat = se.find_or_panic(&n(nt));
 
     find_form_rec(pat, form_name)
-        .unwrap_or_else(|| panic!(format!("{:#?} not found in {:#?}", form_name, pat)))
+        .unwrap_or_else(|| icp!("{:#?} not found in {:#?}", form_name, pat))
 }
 
 // Inserts a new form into a grammar in the "sensible" place

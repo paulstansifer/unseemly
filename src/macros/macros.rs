@@ -7,6 +7,15 @@ macro_rules! log {
     };
 }
 
+macro_rules! icp {
+    () => {
+        panic!("ICP: can't happen")
+    };
+    ( $($arg:expr),* ) => {
+        panic!("ICP: {}", format!( $($arg),* ) )
+    };
+}
+
 // Assoc
 
 macro_rules! expr_ify {
@@ -463,8 +472,8 @@ macro_rules! bind_patterns {
             Some($p_car) => {
                 bind_patterns!($iter; ($( $p_cdr, )*) => $body)
             }
-            None => { panic!("ICP: too few arguments"); }
-            Some(ref other) => { panic!("Type ICP in argument: {:#?}", other); }
+            None => { icp!("too few arguments"); }
+            Some(ref other) => { icp!("[type error] in argument: {:#?}", other); }
         }
     }
 }
@@ -556,7 +565,7 @@ macro_rules! extract {
     (($v:expr) $( $expected:path = ( $( $sub:pat ),* ) => $body:expr);* ) => {
         match * $v {
             $( $expected ( $($sub),* ) => { $body } )*
-            _ => { panic!("ICP: {:#?} isn't a {:#?}", $v, stringify!( $($expected),* )) }
+            _ => { icp!("{:#?} isn't a {:#?}", $v, stringify!( $($expected),* )) }
         }
     }
 }

@@ -84,7 +84,7 @@ impl ::walk_mode::WalkElt for Value {
     fn to_ast(&self) -> Ast {
         match *self {
             AbstractSyntax(ref a) => a.clone(),
-            _ => panic!("Type error: {} is not syntax", self),
+            _ => icp!("[type error] {} is not syntax", self),
         }
     }
 
