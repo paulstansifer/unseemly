@@ -349,9 +349,7 @@ fn names_exported_by(ast: &Ast, quote_depth: i16) -> Vec<Name> {
         }
         Ast::QuoteMore(ref body, _) => names_exported_by(body, quote_depth + 1),
         Ast::QuoteLess(ref body, _) => names_exported_by(body, quote_depth - 1),
-        ref ast if quote_depth <= 0 => {
-            icp!("beta SameAs refers to an invalid AST node: {}", ast)
-        }
+        ref ast if quote_depth <= 0 => icp!("beta SameAs refers to an invalid AST node: {}", ast),
         _ => vec![],
     }
 }

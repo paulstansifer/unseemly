@@ -9,7 +9,7 @@
 #![recursion_limit = "128"] // Yikes.
 
 // unstable; only for testing
-// #![feature(log_syntax,trace_macros)]
+// #![feature(log_syntax, trace_macros)]
 // trace_macros!(true);
 
 // unstable; only for testing
@@ -145,6 +145,7 @@ fn main() {
         rl.set_helper(Some(LineHelper::new()));
 
         let just_parse = regex::Regex::new("^:p (.*)$").unwrap();
+
         let just_type = regex::Regex::new("^:t (.*)$").unwrap();
         let just_eval = regex::Regex::new("^:e (.*)$").unwrap();
         let canon_type = regex::Regex::new("^:tt (.*)$").unwrap();

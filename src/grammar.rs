@@ -21,7 +21,7 @@ impl Token {
 
 custom_derive! {
     /**
-      `FormPat` is a grammar. Think EBNF, but more extended.
+      `FormPat` is a grammar. TODO: rename to `Grammar`. Think EBNF, but more extended.
 
       Most kinds of grammar nodes produce an `Ast` of either `Shape` or `Env`,
        but `Named` and `Scope` are special:

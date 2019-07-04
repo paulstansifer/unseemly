@@ -566,31 +566,19 @@ fn form_expect_node() {
 #[test]
 fn form_type() {
     let simple_ty_env = assoc_n!(
-        "X" => ty!({ find_core_form("Type", "Int") ; }),
-        "N" => ty!({ find_core_form("Type", "Nat") ; }));
-
-    let lam = find_core_form("Expr", "lambda");
-    let fun = find_core_form("Type", "fn");
+        "x" => ty!({ find_core_form("Type", "Int") ; }),
+        "n" => ty!({ find_core_form("Type", "Nat") ; }));
 
     assert_eq!(
-        synth_type(&ast!( (vr "X") ), simple_ty_env.clone()),
+        synth_type(&ast!( (vr "x") ), simple_ty_env.clone()),
         Ok(ty!({
             find_core_form("Type", "Int");
         }))
     );
 
     assert_eq!(
-        synth_type(
-            &ast!(
-        { lam.clone() ;
-            "param" => [@"p" "y"],
-            "p_t" => [@"p" { find_core_form("Type", "Nat") ; }],
-            "body" => (import [* [ "param" : "p_t" ]] (vr "X"))}),
-            simple_ty_env.clone()
-        ),
-        Ok(ty!({ fun.clone() ;
-            "param" => [{ find_core_form("Type", "Nat") ; }],
-            "ret" => { find_core_form("Type", "Int") ; }}))
+        synth_type(&u!({lambda : [y {Type Nat :}] x}), simple_ty_env.clone()),
+        Ok(Ty(u!({Type fn : [{Type Nat :}] {Type Int :}})))
     );
 }
 
@@ -1078,4 +1066,20 @@ fn use_insert_form_pat() {
                      (biased (biased aat, aat),
                              (biased (alt (lit "a"), (lit "b"), (lit "c")), aat)))))
     );
+}
+
+// This belongs in `flimsy_syntax.rs`, except that `ast!` is not available there
+#[test]
+fn generate_flimsy_syntax() {
+    assert_eq!(
+        u!({Expr apply : nat_to_nat [x]}),
+        ast!({ "Expr" "apply" : "rator" => (vr "nat_to_nat") , "rand" => [ (vr "x") ]})
+    );
+    assert_eq!(
+        u!({Expr lambda : [y {Type Nat :}; z T] body}),
+        ast!({ "Expr" "lambda" :
+            "param" => [@"p" "y", "z"],
+            "p_t" => [@"p" {"Type" "Nat" :}, (vr "T")],
+            "body" => (import [* [ "param" : "p_t" ]]  (vr "body"))})
+    )
 }

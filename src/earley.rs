@@ -497,9 +497,7 @@ impl Item {
                     // Except for `Seq`. TODO: why?
                     let mut more = match *waiting_item.rule {
                         Anyways(_) | Impossible | Literal(_) | AnyToken | AnyAtomicToken
-                        | VarRef => {
-                            icp!("{:#?} should not be waiting for anything!", waiting_item)
-                        }
+                        | VarRef => icp!("{:#?} should not be waiting for anything!", waiting_item),
                         Seq(ref subs) => {
                             if (waiting_item.pos) as usize == subs.len() {
                                 vec![]
