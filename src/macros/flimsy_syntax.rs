@@ -14,8 +14,8 @@ use util::mbe::EnvMBE;
 //   to get around a Rust macro parsing restriction,
 //  then makes a REP flimsy shape for it.
 macro_rules! u_rep {
-    ([; $( $ts:tt )*]  [ $( $acc_cur:tt )* ] { $( $acc_rest:tt )* }) => {
-        u_rep!( [ $( $ts )* ] [] {  $( $acc_rest:tt )* [ $($acc_cur)* ] })
+    ([; $( $ts:tt )*]   $acc_cur:tt { $( $acc_rest:tt )* }) => {
+        u_rep!( [ $( $ts )* ] [] {  $( $acc_rest )*  $acc_cur })
     };
     ([$t:tt $( $ts:tt )*]  [ $( $acc_cur:tt )* ] { $( $acc_rest:tt )* }) => {
         u_rep!( [ $( $ts )* ] [$($acc_cur)* $t] { $( $acc_rest )* })
@@ -48,7 +48,6 @@ macro_rules! u {
     };
     ( { $nt:ident $form:ident : $( $ts:tt )*} ) => {
         {
-
             let f = ::core_forms::find_core_form(stringify!($nt), stringify!($form));
             ::ast::Node(f.clone(),
                 ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( $($ts)* ), &f.grammar)
@@ -56,14 +55,44 @@ macro_rules! u {
                 ::beta::ExportBeta::Nothing)
         }
     };
+    // The need for explicit exports is unfortunate;
+    //  that information is part of `Scope`, not `Form` (maybe we should change that?)
+    ( { $nt:ident $form:ident => $ebeta:tt : $( $ts:tt )*} ) => {
+        {
+            let f = ::core_forms::find_core_form(stringify!($nt), stringify!($form));
+            ::ast::Node(f.clone(),
+                ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( $($ts)* ), &f.grammar)
+                    .unwrap_or_else(::util::mbe::EnvMBE::new),
+                ebeta!($ebeta))
+        }
+    };
     ({ $( $anything:tt )* }) => {
         panic!("Needed a : in u!");
+    };
+    // Currently, nested `Seq`s need to correspond to nested `SEQ`s, so this creates one explicitly:
+    ((~ $($ts:tt)*)) => {
+        ::ast::Shape(vec![
+            ::ast::Atom(n("SEQ")),
+            $( u!( $ts ) ),*
+        ])
+    };
+    ((at $t:tt)) => {
+        ::ast::Atom(n(stringify!($t)))
+    };
+    ((, $interpolate:expr)) => {
+        $interpolate
     };
     ( $( $t:tt )* ) => {
         ::ast::Shape(vec![
             ::ast::Atom(n("SEQ")),
             $( u!( $t ) ),*
         ])
+    };
+}
+
+macro_rules! uty {
+    ($( $ts:tt )*) => {
+        Ty(u!( $($ts)* ))
     };
 }
 
@@ -76,7 +105,7 @@ pub fn parse_flimsy_mbe(flimsy: &Ast, grammar: &FormPat) -> Option<EnvMBE<Ast>> 
         Seq(ref grammar_parts) => match flimsy {
             Shape(flimsy_parts) => {
                 if flimsy_parts[0] != Atom(n("SEQ")) {
-                    panic!("Needed a SEQ")
+                    panic!("Needed a SEQ, got {}", flimsy)
                 }
 
                 let mut result = EnvMBE::new();
@@ -94,12 +123,12 @@ pub fn parse_flimsy_mbe(flimsy: &Ast, grammar: &FormPat) -> Option<EnvMBE<Ast>> 
                 }
                 Some(result)
             }
-            _ => panic!("Needed a SEQ shape, got {:?}", flimsy),
+            _ => panic!("Needed a SEQ shape, got {}", flimsy),
         },
         Star(ref body) | Plus(ref body) => match flimsy {
             Shape(flimsy_parts) => {
                 if flimsy_parts[0] != Atom(n("REP")) {
-                    panic!("Need a REQ")
+                    panic!("Need a REP")
                 }
 
                 let mut reps = vec![];

@@ -552,13 +552,12 @@ fn form_grammar() {
 
 #[test]
 fn form_expect_node() {
-    let ast = ast!({ find_core_form("Expr", "apply");
-        ["rand" => [(vr "f")], "rator" => (vr "x")]});
+    let ast = u!({apply : f [x]});
     let _: Result<(), ()> = expect_node!(
-    ( ast ; find_core_form("Expr", "apply")) env; //expect_f = "rand", expect_x = "rator";
+    ( ast ; find_core_form("Expr", "apply")) env;
     {
-        assert_eq!(env.get_rep_leaf_or_panic(n("rand")), vec![&ast!((vr "f"))]);
-        assert_eq!(env.get_leaf_or_panic(&n("rator")), &ast!((vr "x")));
+        assert_eq!(env.get_leaf_or_panic(&n("rator")), &ast!((vr "f")));
+        assert_eq!(env.get_rep_leaf_or_panic(n("rand")), vec![&ast!((vr "x"))]);
         Ok(())
     });
 }
@@ -566,15 +565,10 @@ fn form_expect_node() {
 #[test]
 fn form_type() {
     let simple_ty_env = assoc_n!(
-        "x" => ty!({ find_core_form("Type", "Int") ; }),
-        "n" => ty!({ find_core_form("Type", "Nat") ; }));
+        "x" => uty!({Type Int :}),
+        "n" => uty!({Type Nat :}));
 
-    assert_eq!(
-        synth_type(&ast!( (vr "x") ), simple_ty_env.clone()),
-        Ok(ty!({
-            find_core_form("Type", "Int");
-        }))
-    );
+    assert_eq!(synth_type(&ast!( (vr "x") ), simple_ty_env.clone()), Ok(uty!({Type Int :})));
 
     assert_eq!(
         synth_type(&u!({lambda : [y {Type Nat :}] x}), simple_ty_env.clone()),
@@ -589,34 +583,13 @@ fn type_apply_with_subtype() {
     let nat_ty = ty!({ "Type" "Nat" : });
 
     let ty_env = assoc_n!(
-        "N" => nat_ty.clone(),
-        "nat_to_nat" => ty!({ "Type" "fn" :
-            "param" => [ (, nat_ty.concrete() ) ],
-            "ret" => (, nat_ty.concrete() )}),
-        "∀t_t_to_t" => ty!({ "Type" "forall_type" :
-            "param" => ["T"],
-            "body" => (import [* [forall "param"]]
-                { "Type" "fn" :
-                    "param" => [ (vr "T") ],
-                    "ret" => (vr "T") })}));
+        "N" => uty!({Type Nat :}),
+        "nat_to_nat" => uty!({Type fn : [{Type Nat :}] {Type Nat :}}),
+        "forall_t_t_to_t" => uty!({Type forall_type : [T] {Type fn : [T] T}}));
 
-    assert_eq!(
-        synth_type(
-            &ast!(
-            { "Expr" "apply" : "rator" => (vr "nat_to_nat") , "rand" => [ (vr "N") ]}),
-            ty_env.clone()
-        ),
-        Ok(nat_ty.clone())
-    );
+    assert_eq!(synth_type(&u!({apply : nat_to_nat [N]}), ty_env.clone()), Ok(nat_ty.clone()));
 
-    assert_eq!(
-        synth_type(
-            &ast!(
-            { "Expr" "apply" : "rator" => (vr "∀t_t_to_t") , "rand" => [ (vr "N") ]}),
-            ty_env.clone()
-        ),
-        Ok(nat_ty.clone())
-    );
+    assert_eq!(synth_type(&u!({apply : forall_t_t_to_t [N]}), ty_env.clone()), Ok(nat_ty.clone()));
 }
 
 #[test]
@@ -629,35 +602,13 @@ fn form_eval() {
 
     // (λy.w) x
     assert_eq!(
-        eval(
-            &ast!(
-            { "Expr" "apply" :
-                 "rator" =>
-                    { "Expr" "lambda" :
-                        "param" => [@"p" "y"],
-                        "p_t" => [@"p" "Int"],
-                        "body" => (import [* [ "param" : "p_t" ]]  (vr "w"))},
-                 "rand" => [(vr "x")]
-                }),
-            simple_env.clone()
-        ),
+        eval(&u!({apply : {lambda : [y {Type Int :}] w} [x]}), simple_env.clone()),
         Ok(Int(99.to_bigint().unwrap()))
     );
 
     // (λy.y) x
     assert_eq!(
-        eval(
-            &ast!(
-            { "Expr" "apply" :
-                 "rator" =>
-                    { "Expr" "lambda" :
-                        "param" => [@"p" "y"],
-                        "p_t" => [@"p" "Int"],
-                        "body" => (import [* [ "param" : "p_t" ]]  (vr "y"))},
-                 "rand" => [(vr "x")]
-                }),
-            simple_env.clone()
-        ),
+        eval(&u!({apply : {lambda : [y {Type Int :}] y} [x]}), simple_env.clone()),
         Ok(Int(18.to_bigint().unwrap()))
     );
 }
@@ -666,7 +617,7 @@ fn form_eval() {
 fn alg_type() {
     let mt_ty_env = Assoc::new();
     let simple_ty_env = assoc_n!(
-        "x" => ty!({"Type" "Int":}), "n" => ty!({"Type" "Nat":}), "f" => ty!({"Type" "Float" :}));
+        "x" => uty!({Type Int :}), "n" => uty!({Type Nat :}), "f" => uty!({Type Float :}));
 
     let my_enum = ty!({ "Type" "enum" :
         "name" => [@"c" "Adams", "Jefferson", "Burr"],
@@ -678,11 +629,7 @@ fn alg_type() {
     // Typecheck enum pattern
     assert_eq!(
         neg_synth_type(
-            &ast!(
-            { "Pat" "enum_pat" :
-                "name" => "Jefferson",
-                "component" => ["abc", "def"]
-            }),
+            &u!({Pat enum_pat : Jefferson [(at abc) ; (at def)]}),
             mt_ty_env.set(negative_ret_val(), my_enum.clone())
         ),
         Ok(Assoc::new().set(n("abc"), ty!({"Type" "Int":})).set(n("def"), ty!({"Type" "Nat":})))
@@ -691,12 +638,7 @@ fn alg_type() {
     // Typecheck enum expression
     assert_eq!(
         synth_type(
-            &ast!(
-            { "Expr" "enum_expr" :
-                "name" => "Jefferson",
-                "component" => [(vr "x"), (vr "n")],
-                "t" => (, my_enum.concrete() )
-            }),
+            &u!({enum_expr : (~ Jefferson [x ; n]) (, my_enum.concrete())}),
             simple_ty_env.clone()
         ),
         Ok(my_enum.clone())
@@ -740,12 +682,7 @@ fn alg_type() {
 
     assert_eq!(
         synth_type(
-            &ast!({ "Expr" "match" :
-                "scrutinee" => (vr "f"),
-                "p" => [@"arm" "my_new_name", "unreachable"],
-                "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")),
-                                 (import ["p" = "scrutinee"] (vr "f"))]
-            }),
+            &u!({Expr match : f [(at my_new_name) my_new_name; (at unreachable) f]}),
             simple_ty_env.clone()
         ),
         Ok(ty!({"Type" "Float" :}))
@@ -753,12 +690,7 @@ fn alg_type() {
 
     assert_m!(
         synth_type(
-            &ast!({ "Expr" "match" :
-                "scrutinee" => (vr "n"),
-                "p" => [@"arm" "my_new_name", "unreachable"],
-                "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")),
-                                 (import ["p" = "scrutinee"] (vr "f"))]
-            }),
+            &u!({Expr match : n [(at my_new_name) my_new_name; (at unreachable) f]}),
             simple_ty_env.clone()
         ),
         ty_err_p!(Mismatch(_, _))
@@ -766,36 +698,19 @@ fn alg_type() {
 
     assert_m!(
         synth_type(
-            &ast!({ "Expr" "match" :
-                    "scrutinee" => (vr "my_enum"),
-                    "p" => [@"arm" { "Pat" "enum_pat" :
-                        "name" => "Hamilton", "component" => ["ii"] // Never gonna be president...
-                    }],
-                    "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "ii"))]
-            }),
+            &u!({Expr match : my_enum
+                    [{Pat enum_pat => [* ["component"]] : Hamilton [(at ii)]} ii]}),
             simple_ty_env.set(n("my_enum"), my_enum.clone())
         ),
-        ty_err_p!(NonexistentEnumArm(_, _))
+        ty_err_p!(NonexistentEnumArm(_, _)) // Never gonna be president...
     );
 
     assert_eq!(
         synth_type(
-            &ast!({ "Expr" "match" :
-                    "scrutinee" => (vr "my_enum"),
-                    "p" => [@"arm"
-                    { "Pat" "enum_pat" => [* ["component"]] :
-                        "name" => "Adams", "component" => ["ii"]
-                    },
-                    { "Pat" "enum_pat" => [* ["component"]] :
-                        "name" => "Jefferson", "component" => ["ii", "bb"]
-                    },
-                    { "Pat" "enum_pat" => [* ["component"]] :
-                        "name" => "Burr", "component" => ["xx", "yy"]
-                    }],
-                    "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "ii")),
-                                     (import ["p" = "scrutinee"] (vr "ii")),
-                                     (import ["p" = "scrutinee"] (vr "x"))]
-            }),
+            &u!({Expr match : my_enum
+                    [{Pat enum_pat => [* ["component"]] : Adams [(at ii)]} ii;
+                     {Pat enum_pat => [* ["component"]] : Jefferson [(at ii) ; (at bb)]} ii;
+                     {Pat enum_pat => [* ["component"]] : Burr [(at xx) ; (at yy)]} x]}),
             simple_ty_env.set(n("my_enum"), my_enum.clone())
         ),
         Ok(ty!({"Type" "Int":}))
@@ -804,19 +719,13 @@ fn alg_type() {
 
 #[test]
 fn alg_eval() {
-    let cse = make_core_syn_env();
-
     let mt_env = Assoc::new();
     let simple_env = assoc_n!("x" => val!(i 18), "w" => val!(i 99), "b" => val!(b false));
 
     // Evaluate enum pattern
     assert_eq!(
         neg_eval(
-            &ast!(
-            { "Pat" "enum_pat" => [* ["component"]] :
-                "name" => "choice1",
-                "component" => ["abc", "def"]
-            }),
+            &u!({Pat enum_pat => [* ["component"]] : choice1 [(at abc); (at def)]}),
             mt_env.set(negative_ret_val(), val!(enum "choice1", (i 9006), (b true)))
         ),
         Ok(assoc_n!("abc" => val!(i 9006), "def" => val!(b true)))
@@ -824,11 +733,7 @@ fn alg_eval() {
 
     assert_eq!(
         neg_eval(
-            &ast!(
-            { "Pat" "enum_pat" => [* ["component"]] :
-                "name" => "choice1",
-                "component" => ["abc", "def"]
-            }),
+            &u!({Pat enum_pat => [* ["component"]] : choice1 [(at abc); (at def)]}),
             mt_env.set(negative_ret_val(), val!(enum "choice0", (i 12321)))
         ),
         Err(())
@@ -836,21 +741,11 @@ fn alg_eval() {
 
     // Evaluate enum expression
 
-    let enum_t = find_form(&cse, "Type", "enum");
+    let my_enum_t = u!({Type enum : (~ [choice0 [{Type Int :}];
+                                        choice1 [{Type Int :}; {Type Nat :}];
+                                        choice2 [{Type Float :}; {Type Float :}]])});
 
-    let my_enum_t = ast!({ enum_t.clone() ;
-        "name" => [@"c" "choice0", "choice1", "choice2"],
-        "component" => [@"c" ["Int"], ["Int", "Bool"], ["Float", "Float"]]
-    });
-
-    let enum_e = find_form(&cse, "Expr", "enum_expr");
-
-    let choice1_e = ast!(
-    { enum_e.clone() ;
-        "name" => "choice1",
-        "component" => [(vr "x"), (vr "b")],
-        "t" => (, my_enum_t.clone())
-    });
+    let choice1_e = u!({enum_expr : (~ choice1 [x; b]) (, my_enum_t.clone())});
 
     assert_eq!(eval(&choice1_e, simple_env.clone()), Ok(val!(enum "choice1", (i 18), (b false))));
 
@@ -858,11 +753,7 @@ fn alg_eval() {
 
     assert_eq!(
         neg_eval(
-            &ast!(
-            {  "Pat" "struct_pat" => [* ["component"]] :
-                "component_name" => [@"c" "x", "y"],
-                "component" => [@"c" "xx", "yy"]
-            }),
+            &u!({Pat struct_pat => [* ["component"]] : (~ [x (at xx); y (at yy)])}),
             mt_env.set(negative_ret_val(), Struct(assoc_n!("x" => val!(i 0), "y" => val!(b true))))
         ),
         Ok(assoc_n!("xx" => val!(i 0), "yy" => val!(b true)))
@@ -872,12 +763,7 @@ fn alg_eval() {
 
     assert_eq!(
         eval(
-            &ast!({ "Expr" "match" :
-                    "scrutinee" => (vr "x"),
-                    "p" => [@"arm" "my_new_name", "unreachable"],
-                    "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "my_new_name")),
-                                     (import ["p" = "scrutinee"] (vr "x"))]
-            }),
+            &u!({Expr match : x [(at my_new_name) my_new_name; (at unreachable) x]}),
             simple_env.clone()
         ),
         Ok(val!(i 18))
@@ -885,22 +771,10 @@ fn alg_eval() {
 
     assert_eq!(
         eval(
-            &ast!({ "Expr" "match" :
-                    "scrutinee" => (, choice1_e),
-                    "p" => [@"arm"
-                    { "Pat" "enum_pat" => [* ["component"]] :
-                        "name" => "choice2", "component" => ["xx", "yy"]
-                    },
-                    { "Pat" "enum_pat" => [* ["component"]] :
-                        "name" => "choice1", "component" => ["ii", "bb"]
-                    },
-                    { "Pat" "enum_pat" => [* ["component"]] :
-                        "name" => "choice0", "component" => ["ii"]
-                    }],
-                    "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "yy")),
-                                     (import ["p" = "scrutinee"] (vr "bb")),
-                                     (import ["p" = "scrutinee"] (vr "ii"))]
-            }),
+            &u!({Expr match : (, choice1_e)
+                    [{Pat enum_pat => [* ["component"]] : choice2 [(at xx) ; (at yy)]} yy;
+                     {Pat enum_pat => [* ["component"]] : choice1 [(at ii) ; (at bb)]} bb;
+                     {Pat enum_pat => [* ["component"]] : choice0 [(at ii)]} ii]}),
             simple_env.clone()
         ),
         Ok(val!(b false))
