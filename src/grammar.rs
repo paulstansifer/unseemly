@@ -4,7 +4,7 @@ use ast::Ast::{self, *};
 use beta::{Beta, ExportBeta};
 use form::{simple_form, Form};
 use name::*;
-use read::{DelimChar, Group, Simple, Token, TokenTree};
+use read::{DelimChar, Simple, Token, TokenTree};
 use std::{boxed::Box, clone::Clone, rc::Rc};
 use util::assoc::Assoc;
 
@@ -12,9 +12,6 @@ impl Token {
     fn to_ast(&self) -> Ast {
         match *self {
             Simple(ref s) => Atom(*s),
-            Group(ref _s, ref _delim, ref body) => {
-                Shape(body.t.iter().map(|t| t.to_ast()).collect())
-            }
         }
     }
 }
@@ -38,7 +35,6 @@ custom_derive! {
         AnyToken,
         AnyAtomicToken,
         VarRef,
-        Delimited(Name, DelimChar, Rc<FormPat>),
         Seq(Vec<Rc<FormPat>>),
         Star(Rc<FormPat>),
         Plus(Rc<FormPat>),
@@ -95,8 +91,7 @@ impl FormPat {
             Star(ref body) | Plus(ref body) => {
                 body.binders().into_iter().map(|(n, depth)| (n, depth + 1)).collect()
             }
-            Delimited(_, _, ref body)
-            | ComputeSyntax(_, ref body)
+            ComputeSyntax(_, ref body)
             | SynImport(ref body, _, _)
             | NameImport(ref body, _)
             | QuoteDeepen(ref body, _)
@@ -130,8 +125,7 @@ impl FormPat {
             Call(_) => None,
             Scope(_, _) => None, // Only look in the current scope
             Anyways(_) | Impossible | Literal(_) | AnyToken | AnyAtomicToken | VarRef => None,
-            Delimited(_, _, ref body)
-            | Star(ref body)
+            Star(ref body)
             | Plus(ref body)
             | ComputeSyntax(_, ref body)
             | SynImport(ref body, _, _)
@@ -198,7 +192,6 @@ pub fn plug_hole(outer: &Rc<FormPat>, hole: Name, inner: &Rc<FormPat>) -> Rc<For
         }
         Anyways(_) | Impossible | Literal(_) | AnyToken | AnyAtomicToken | VarRef => outer.clone(),
         Seq(ref subs) => Rc::new(Seq(subs.iter().map(|sub| plug_hole(sub, hole, inner)).collect())),
-        Delimited(n, ch, ref body) => Rc::new(Delimited(n, ch, plug_hole(&body, hole, inner))),
         _ => panic!("What are you doing? What do you even think will happen?"),
     }
 }

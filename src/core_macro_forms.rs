@@ -260,24 +260,6 @@ pub fn make_core_macro_forms() -> SynEnv {
         syntax_syntax!( ((lit "any_token")) AnyToken ) => [],
         syntax_syntax!( ((lit "atom")) AnyToken ) => [],
         syntax_syntax!( ((lit "vr")) VarRef ) => [],
-        syntax_syntax!( ([(lit "delim"), (named "name", aat), (named "br", (anyways "[")),
-                          (delim "[", "[", (named "body", (call "Syntax"))) ]  ) Delimited (
-            name => n(&format!("{}[", ::name::Name::reflect(&name))),
-            br => ::read::delim(&::name::Name::reflect(&br).sp()),
-            body => Rc::new(FormPat::reflect(&body))
-        )) => ["body"],
-        syntax_syntax!( ([(lit "delim"), (named "name", aat), (named "br", (anyways "(")),
-                          (delim "(", "(", (named "body", (call "Syntax"))) ]  ) Delimited (
-            name => n(&format!("{}(", ::name::Name::reflect(&name))),
-            br => ::read::delim(&::name::Name::reflect(&br).sp()),
-            body => Rc::new(FormPat::reflect(&body))
-        )) => ["body"],
-        syntax_syntax!( ([(lit "delim"), (named "name", aat), (named "br", (anyways "{")),
-                          (delim "{", "{", (named "body", (call "Syntax"))) ]  ) Delimited (
-            name => n(&format!("{}{{", ::name::Name::reflect(&name))),
-            br => ::read::delim(&::name::Name::reflect(&br).sp()),
-            body => Rc::new(FormPat::reflect(&body))
-        )) => ["body"],
         // TODO: split out a separate SyntaxSeq, so that we can get rid of the [ ] delimiters
         syntax_syntax!( ( (delim "[", "[", (star (named "elt", (call "Syntax"))))) Seq {
             |parts| {

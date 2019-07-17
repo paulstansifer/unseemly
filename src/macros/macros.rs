@@ -89,20 +89,41 @@ macro_rules! ebeta {
 // Read
 
 macro_rules! tokens {
-    ($($contents:tt)*) => { TokenTree{t: vec![ $(  t_elt!($contents) ),* ] }}
+    () => { TokenTree{t: vec![] }}; // To suppress a warning
+    ($($contents:tt)*) => { TokenTree{t: {
+            let mut tokens = vec![];
+            $(tokens.append(&mut t_elt!($contents)); )*
+            tokens
+        }
+    }};
 }
 
 macro_rules! t_elt {
     ( [ $e:expr ;  $( $list:tt )* ] ) => {
-        Group(::name::n(concat!($e,"[")), ::read::DelimChar::SquareBracket, tokens!($($list)*))
+        {
+            let mut toks = vec![Simple(::name::n(concat!($e,"[")))];
+            toks.append(&mut tokens!($($list)*).t);
+            toks.push(Simple(::name::n(concat!("]", $e))));
+            toks
+        }
     };
     ( { $e:expr ;  $( $list:tt )* } ) => {
-        Group(::name::n(concat!($e,"{")), ::read::DelimChar::CurlyBracket, tokens!($($list)*))
+        {
+            let mut toks = vec![Simple(::name::n(concat!($e,"{")))];
+            toks.append(&mut tokens!($($list)*).t);
+            toks.push(Simple(::name::n(concat!("}", $e))));
+            toks
+        }
     };
     ( ( $e:expr ;  $( $list:tt )* ) ) => {
-        Group(::name::n(concat!($e,"(")), ::read::DelimChar::Paren, tokens!($($list)*))
+        {
+            let mut toks = vec![Simple(::name::n(concat!($e,"(")))];
+            toks.append(&mut tokens!($($list)*).t);
+            toks.push(Simple(::name::n(concat!(")", $e))));
+            toks
+        }
     };
-    ($e:expr) => { Simple(::name::n($e)) }
+    ($e:expr) => { vec![Simple(::name::n($e))] }
 }
 
 // Ast
@@ -307,8 +328,15 @@ macro_rules! form_pat {
     (aat) => { ::grammar::FormPat::AnyAtomicToken };
     (varref) => { ::grammar::FormPat::VarRef };
     ((delim $n:expr, $d:expr, $body:tt)) => {
-        ::grammar::FormPat::Delimited(::name::n($n), ::read::delim($d),
-                          ::std::rc::Rc::new(form_pat!($body)))
+        ::grammar::FormPat::Seq(vec![
+            ::std::rc::Rc::new(::grammar::FormPat::Literal(::name::n($n))),
+            ::std::rc::Rc::new(form_pat!($body)),
+            {
+                let mut main_tok = $n.to_owned();
+                main_tok.pop();
+                ::std::rc::Rc::new(::grammar::FormPat::Literal(::name::n(
+                    &format!("{}{}", ::read::delim($d).close(), main_tok))))
+            }])
     };
     ((star $body:tt)) => { ::grammar::FormPat::Star(::std::rc::Rc::new(form_pat!($body))) };
     ((plus $body:tt)) => { ::grammar::FormPat::Plus(::std::rc::Rc::new(form_pat!($body))) };

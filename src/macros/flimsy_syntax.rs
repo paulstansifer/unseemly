@@ -8,6 +8,7 @@
 use ast::Ast::{self, *};
 use grammar::FormPat;
 use name::*;
+use std::iter::{Iterator, Peekable};
 use util::mbe::EnvMBE;
 
 // First, transforms from `[a b c; d e f; g h i]` to `[g h i] {[a b c] [d e f]}`
@@ -41,7 +42,7 @@ macro_rules! u {
         {
             let f = ::core_forms::find_core_form("Expr", stringify!($form));
             ::ast::Node(f.clone(),
-                ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( $($ts)* ), &f.grammar)
+                ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
                     .unwrap_or_else(::util::mbe::EnvMBE::new),
                 ::beta::ExportBeta::Nothing)
         }
@@ -50,7 +51,7 @@ macro_rules! u {
         {
             let f = ::core_forms::find_core_form(stringify!($nt), stringify!($form));
             ::ast::Node(f.clone(),
-                ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( $($ts)* ), &f.grammar)
+                ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
                     .unwrap_or_else(::util::mbe::EnvMBE::new),
                 ::beta::ExportBeta::Nothing)
         }
@@ -61,7 +62,7 @@ macro_rules! u {
         {
             let f = ::core_forms::find_core_form(stringify!($nt), stringify!($form));
             ::ast::Node(f.clone(),
-                ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( $($ts)* ), &f.grammar)
+                ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
                     .unwrap_or_else(::util::mbe::EnvMBE::new),
                 ebeta!($ebeta))
         }
@@ -96,32 +97,48 @@ macro_rules! uty {
     };
 }
 
+fn parse_flimsy_seq<'a, I>(flimsy_seq: &mut Peekable<I>, grammar: &FormPat) -> EnvMBE<Ast>
+where I: Iterator<Item = &'a Ast> {
+    use grammar::FormPat::*;
+
+    match grammar {
+        Seq(ref grammar_parts) => {
+            let mut result = EnvMBE::new();
+
+            for grammar_part in grammar_parts {
+                result = result.combine_overriding(&parse_flimsy_seq(flimsy_seq, grammar_part));
+            }
+            result
+        }
+        _ => {
+            let flimsy = match flimsy_seq.peek() {
+                None => return EnvMBE::new(), // Or is this an error?
+                Some(f) => f,
+            };
+            match parse_flimsy_mbe(flimsy, grammar) {
+                None => EnvMBE::new(),
+                Some(res) => {
+                    let _ = flimsy_seq.next();
+                    res
+                }
+            }
+        }
+    }
+}
+
 pub fn parse_flimsy_mbe(flimsy: &Ast, grammar: &FormPat) -> Option<EnvMBE<Ast>> {
     use grammar::FormPat::*;
 
     match grammar {
-        Delimited(_, _, ref body) => parse_flimsy_mbe(flimsy, &*body),
         Literal(_) => None,
-        Seq(ref grammar_parts) => match flimsy {
+        Seq(_) => match flimsy {
             Shape(flimsy_parts) => {
                 if flimsy_parts[0] != Atom(n("SEQ")) {
                     panic!("Needed a SEQ, got {}", flimsy)
                 }
+                let mut fpi = flimsy_parts[1..].iter().peekable();
 
-                let mut result = EnvMBE::new();
-
-                let mut grammar_i = 0;
-                for flimsy_part in flimsy_parts[1..].iter() {
-                    let mut rec = None;
-                    // Skip past literals, etc:
-                    while rec == None {
-                        rec = parse_flimsy_mbe(flimsy_part, &*grammar_parts[grammar_i]);
-                        grammar_i += 1;
-                    }
-
-                    result = result.combine_overriding(&rec.unwrap());
-                }
-                Some(result)
+                Some(parse_flimsy_seq(&mut fpi, grammar))
             }
             _ => panic!("Needed a SEQ shape, got {}", flimsy),
         },
@@ -162,7 +179,6 @@ fn parse_flimsy_ast(flimsy: &Ast, grammar: &FormPat) -> Ast {
             VariableReference(a) => VariableReference(*a),
             non_atom => panic!("Needed an atom, got {}", non_atom),
         },
-        Delimited(_, _, body) => parse_flimsy_ast(flimsy, &*body),
         NameImport(body, beta) => {
             ExtendEnv(Box::new(parse_flimsy_ast(flimsy, &*body)), beta.clone())
         }

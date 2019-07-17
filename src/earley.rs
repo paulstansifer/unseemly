@@ -29,8 +29,6 @@ use read::{
 };
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-pub fn end_of_delim() -> Token { Token::Simple(n("☾end delimiter☽")) }
-
 // TODO: This UniqueId stuff is great, but we could make things faster
 //  by storing array indices instead
 
@@ -74,10 +72,6 @@ impl ::std::fmt::Debug for UniqueIdRef {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result { write!(f, "{}", self.0) }
 }
 
-/// Hardcoded `nt` name for the dotdotdot form; it can be used anywhere under a + or *.
-/// TODO: this shouldn't be hardcoded!
-pub fn special_ddd_nt() -> Name { n("dotdotdot") }
-
 /// Used as a HACK to mark nodes that should be DDDed when put into an MBE
 fn ddd_ast_marker() -> Name { n("⌜⋯⌟") } // TODO: gensym
 
@@ -96,17 +90,40 @@ fn ddd_unwrap(a: &Ast) -> Option<Ast> {
 // TODO: this shouldn't be hardcoded into the parser; it should be ... how should it work?
 // (Maybe the `Biased`s in the grammar take care of this now?)
 fn reserved(nm: Name) -> bool {
-    Simple(nm) == end_of_delim()
-        || nm == n("forall")
-        || nm == n("mu_type")
-        || nm == n("Int")
-        || nm == n("Ident")
-        || nm == n("Float")
-        || nm == n("match")
-        || nm == n("enum")
-        || nm == n("struct")
-        || nm == n("fold")
-        || nm == n("unfold")
+    [
+        n("forall"),
+        n("mu_type"),
+        n("Int"),
+        n("Ident"),
+        n("Float"),
+        n("match"),
+        n("enum"),
+        n("struct"),
+        n("fold"),
+        n("unfold"),
+        n("("),
+        n(")"),
+        n("{"),
+        n("}"),
+        n("<["),
+        n("]<"),
+        n(".["),
+        n("]."),
+        n("'["),
+        n("]'"),
+        n(",["),
+        n("],"),
+        n("+["),
+        n("]+"),
+        n("*["),
+        n("]*"),
+        n("|"),
+        n("."),
+        n(":"),
+        n("=>"),
+        n("->"),
+    ]
+    .contains(&nm)
 }
 
 // Hey, this doesn't need to be Reifiable!
@@ -248,12 +265,6 @@ fn walk_tt(chart: &mut Vec<Vec<Item>>, t: &Token, cur_tok: &mut usize) {
     *cur_tok += 1;
     match *t {
         Simple(_) => {}
-        Group(_, _, ref tree) => {
-            for sub_tok in &tree.t {
-                walk_tt(chart, sub_tok, cur_tok);
-            }
-            walk_tt(chart, &end_of_delim(), cur_tok);
-        }
     }
 }
 
@@ -421,9 +432,10 @@ impl Item {
         )]
     }
 
-    fn start(&self, rule: &Rc<FormPat>, cur_idx: usize, allow_ddd: bool) -> Vec<(Item, bool)> {
+    // CLEANUP TODO: remove `_allow_ddd` entirely
+    fn start(&self, rule: &Rc<FormPat>, cur_idx: usize, _allow_ddd: bool) -> Vec<(Item, bool)> {
         log!("[start ({})]", self.id.0);
-        let mut res = vec![(
+        vec![(
             Item {
                 start_idx: cur_idx,
                 rule: rule.clone(),
@@ -436,37 +448,7 @@ impl Item {
                 wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()])),
             },
             false,
-        )];
-        if allow_ddd {
-            if let Some(ref ddd_grammar) = self.grammar.find(&special_ddd_nt()) {
-                // memoize the plugging process for speed,
-                //  and because we need the results to be pointer-equal
-                let ddd_rule = all_plugged_ddds.with(|plugged_ddds| {
-                    // (keyed on ID rather than grammars because grammars aren't `Eq`)
-                    let mut mut__plugged_ddds = plugged_ddds.borrow_mut();
-                    mut__plugged_ddds
-                        .entry(self.id.get_ref())
-                        .or_insert_with(|| plug_hole(ddd_grammar, n("body"), &rule))
-                        .clone()
-                });
-
-                res.push((
-                    Item {
-                        start_idx: cur_idx,
-                        rule: ddd_rule,
-                        pos: 0,
-                        done: RefCell::new(false),
-                        grammar: self.grammar.clone(),
-                        ddd: true,
-                        local_parse: RefCell::new(LocalParse::NothingYet),
-                        id: get_next_id(),
-                        wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()])),
-                    },
-                    false,
-                ))
-            }
-        }
-        res
+        )]
     }
 
     // -----------------------------------------------------------
@@ -513,17 +495,6 @@ impl Item {
                                 )]
                             }
                         }
-                        Delimited(_, _, _) => {
-                            // Like `waiting_item.advance` (etc.)
-                            vec![(
-                                Item {
-                                    pos: waiting_item.pos + 1,
-                                    local_parse: RefCell::new(me_justif),
-                                    ..waiting_item.clone()
-                                },
-                                false,
-                            )]
-                        }
                         Plus(_) | Star(_) => {
                             // It'll also keep going, though!
                             waiting_item.finish_with(me_justif, false)
@@ -567,7 +538,6 @@ impl Item {
             if let Some(tok) = cur {
                 let n = match tok {
                     Simple(x) => x,
-                    Group(x, _, _) => x,
                 };
                 best_token.with(|bt| {
                     *bt.borrow_mut() = (cur_idx, *n, res[0].0.rule.clone(), res[0].0.pos)
@@ -598,19 +568,12 @@ impl Item {
                 }
                 _ => vec![],
             },
-            // TODO: without checking for `end_of_delim()`, `(plus (plus (plus one one) one) one)`
-            //  parses incorrectly (one of the `end_of_delim()`s winds up in a VarRef).
-            // But this should just be an optimization...
-            // Maybe it has something to do with how we handle end-of-file?
-            (0, &AnyToken) => {
-                match cur {
-                    Some(&Simple(n)) if !reserved(n) => {
-                        self.finish_with(ParsedAtom(::ast::Atom(n)), true)
-                    }
-                    Some(&Group(_, _, _)) => self.finish_with(ParsedAtom(::ast::Trivial), true), /* TODO */
-                    _ => vec![],
+            (0, &AnyToken) => match cur {
+                Some(&Simple(n)) if !reserved(n) => {
+                    self.finish_with(ParsedAtom(::ast::Atom(n)), true)
                 }
-            }
+                _ => vec![],
+            },
             (0, &AnyAtomicToken) => match cur {
                 Some(&Simple(n)) if !reserved(n) => {
                     self.finish_with(ParsedAtom(::ast::Atom(n)), true)
@@ -623,31 +586,6 @@ impl Item {
                 }
                 _ => vec![],
             },
-            // TODO: does `advance_one_token == true` just work to mean "descend here"?
-            (0, &Delimited(ref xptd_n, ref xptd_delim, _)) => match cur {
-                Some(&Group(ref n, ref delim, _)) if n == xptd_n && delim == xptd_delim => {
-                    self.advance(true)
-                }
-                _ => vec![],
-            },
-            (1, &Delimited(_, _, ref xptd_body)) => self.start(&xptd_body, cur_idx, false),
-            (2, &Delimited(_, _, _)) => {
-                match cur {
-                    Some(t) if t == &end_of_delim() => {
-                        // like `.finish`, but keeping local_parse
-                        vec![(
-                            Item {
-                                done: RefCell::new(true),
-                                pos: self.pos + 1,
-                                local_parse: RefCell::new(self.local_parse.borrow().clone()),
-                                ..self.clone()
-                            },
-                            true,
-                        )]
-                    }
-                    _ => vec![],
-                }
-            }
             (pos, &Seq(ref subs)) => {
                 if pos < subs.len() {
                     self.start(&subs[pos as usize], cur_idx, false)
@@ -789,10 +727,6 @@ impl Item {
                     ParsedAtom(a) => Ok(a),
                     _ => icp!("no simple parse saved"),
                 }
-            }
-            Delimited(_, _, _) => {
-                // HACK: the wanted item is misaligned by a token because of the close delimiter
-                self.find_wanted(chart, done_tok - 1).c_parse(chart, done_tok - 1)
             }
             Alt(_) | Biased(_, _) | Call(_) | SynImport(_, _, _) => {
                 self.find_wanted(chart, done_tok).c_parse(chart, done_tok)
@@ -1340,36 +1274,5 @@ fn basic_parsing_e() {
             &tokens!["a" "a" "b"]
         ),
         Ok(_)
-    );
-}
-
-#[test]
-fn parse_ddd() {
-    let env = assoc_n!(
-        "dotdotdot" => Rc::new(form_pat!([(delim "...(", "(", (call "body"))])),
-        "some_toks" => Rc::new(form_pat!((star (named "p", aat)))));
-
-    assert_eq!(
-        plug_hole(
-            &env.find(&n("dotdotdot")).unwrap(),
-            n("body"),
-            &Rc::new(form_pat!((named "p", aat)))
-        ),
-        Rc::new(form_pat!([(delim "...(", "(", (named "p", aat))]))
-    );
-
-    assert_eq!(
-        parse(&form_pat!([(delim "...(", "(", (named "p", aat))]), &env, &tokens!(("..." ; "b"))),
-        Ok(ast!(({- "p" => "b"})))
-    );
-
-    assert_eq!(
-        parse(&Call(n("some_toks")), &env, &tokens!("a" "b" "c")),
-        Ok(ast!({- "p" => ["a", "b", "c"]}))
-    );
-
-    assert_eq!(
-        parse(&Call(n("some_toks")), &env, &tokens!("a" ("..." ; "b" ) "c")),
-        Ok(ast!({- "p" => ["a" ...("b")..., "c"]}))
     );
 }

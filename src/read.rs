@@ -39,7 +39,6 @@ pub struct TokenTree {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Token {
     Simple(Name),
-    Group(Name, DelimChar, TokenTree),
 }
 
 impl Token {
@@ -91,15 +90,17 @@ pub fn read_tokens(s: &str) -> Result<TokenTree, String> {
                     } else if let (Some(_main), Some(o_del), Some(all)) =
                         (c.name("main_o"), c.name("open"), c.name("open_all"))
                     {
-                        let (inside, last) = read_token_tree(flat_tokens)?;
+                        let (mut inside, last) = read_token_tree(flat_tokens)?;
 
                         if let Some(last) = last {
                             if format!("{}{}", last.1, o_del.as_str()) == all.as_str() {
-                                this_level.push(Group(
-                                    n(all.as_str()),
-                                    delim(o_del.as_str()),
-                                    inside,
-                                ));
+                                this_level.push(Simple(n(all.as_str())));
+                                this_level.append(&mut inside.t);
+                                this_level.push(Simple(n(&format!(
+                                    "{}{}",
+                                    delim(o_del.as_str()).close(),
+                                    last.1
+                                ))));
                             } else {
                                 return Err(format!(
                                     "Unmatched delimiter names: \"{}\" is closed by \"{}\". \

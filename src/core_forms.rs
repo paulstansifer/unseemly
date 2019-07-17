@@ -638,7 +638,7 @@ fn alg_type() {
     // Typecheck enum expression
     assert_eq!(
         synth_type(
-            &u!({enum_expr : (~ Jefferson [x ; n]) (, my_enum.concrete())}),
+            &u!({enum_expr : Jefferson [x ; n] (, my_enum.concrete())}),
             simple_ty_env.clone()
         ),
         Ok(my_enum.clone())
@@ -741,11 +741,11 @@ fn alg_eval() {
 
     // Evaluate enum expression
 
-    let my_enum_t = u!({Type enum : (~ [choice0 [{Type Int :}];
-                                        choice1 [{Type Int :}; {Type Nat :}];
-                                        choice2 [{Type Float :}; {Type Float :}]])});
+    let my_enum_t = u!({Type enum : [choice0 [{Type Int :}];
+                                     choice1 [{Type Int :}; {Type Nat :}];
+                                     choice2 [{Type Float :}; {Type Float :}]]});
 
-    let choice1_e = u!({enum_expr : (~ choice1 [x; b]) (, my_enum_t.clone())});
+    let choice1_e = u!({enum_expr : choice1 [x; b] (, my_enum_t.clone())});
 
     assert_eq!(eval(&choice1_e, simple_env.clone()), Ok(val!(enum "choice1", (i 18), (b false))));
 
@@ -753,7 +753,7 @@ fn alg_eval() {
 
     assert_eq!(
         neg_eval(
-            &u!({Pat struct_pat => [* ["component"]] : (~ [x (at xx); y (at yy)])}),
+            &u!({Pat struct_pat => [* ["component"]] : [x (at xx); y (at yy)]}),
             mt_env.set(negative_ret_val(), Struct(assoc_n!("x" => val!(i 0), "y" => val!(b true))))
         ),
         Ok(assoc_n!("xx" => val!(i 0), "yy" => val!(b true)))

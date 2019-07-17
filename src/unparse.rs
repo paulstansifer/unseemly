@@ -14,8 +14,7 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
             res
         }
         Scope(_, _) => vec![],
-        Delimited(_, _, ref body)
-        | Star(ref body)
+        Star(ref body)
         | Plus(ref body)
         | ComputeSyntax(_, ref body)
         | NameImport(ref body, _)
@@ -79,17 +78,6 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
         (&AnyAtomicToken, _) => "".to_string(), // HACK for `Alt`
         (&VarRef, &VariableReference(n)) => n.print(),
         (&VarRef, _) => "".to_string(), // HACK for `Alt`
-        (&Delimited(opener, delim, ref body), _) => {
-            let mut closer = opener.print();
-            closer.pop();
-            format!(
-                "{}{}{}{}",
-                opener.print(),
-                unparse_mbe(&*body, actl, context, s),
-                delim.close(),
-                closer
-            )
-        }
         (&Seq(ref sub_pats), _) => {
             let mut prev_empty = true;
             let mut res = String::new();
