@@ -111,7 +111,7 @@ where I: Iterator<Item = &'a Ast> {
             result
         }
         _ => {
-            let flimsy = match flimsy_seq.peek() {
+            let flimsy = *match flimsy_seq.peek() {
                 None => return EnvMBE::new(), // Or is this an error?
                 Some(f) => f,
             };
