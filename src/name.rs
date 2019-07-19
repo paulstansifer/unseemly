@@ -149,6 +149,7 @@ pub fn n(s: &str) -> Name { Name::global(s) }
 
 #[test]
 fn name_interning() {
+    // This test fails under tarpaulin; why? It must be related to `thread_local!` somehow...
     let a = n("a");
     assert_eq!(a, a);
     assert_eq!(a, n("a"));

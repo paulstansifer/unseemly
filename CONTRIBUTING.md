@@ -8,8 +8,13 @@ If you want to contribute...
    refactorings, some are self-contained design issues, others are more complex.
  * You can file a bug. If you find a problem or want a feature, the [issue tracker] the place to
    go. Many of the TODOs should be given associated issues (i.e. `// TODO #7832`).
+ * You can write tests. [Test coverage] is decent, but could be better. (You can get the list of all
+   files sorted by number of missed lines to look for low-hanging fruit.) Even writing tests for
+   low-priority things (like `impl Debug`s) to get the numbers up helps focus attention on existing
+   gaps. Also of interest: what's test coverage without end-to-end tests?
 
 
 [issue tracker]: https://github.com/paulstansifer/unseemly/issues
 ["good first issue"]: https://github.com/paulstansifer/unseemly/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22
 [a lot of TODOs]: https://github.com/paulstansifer/unseemly/search?q=TODO&unscoped_q=TODO
+[Test coverage]: https://coveralls.io/github/paulstansifer/unseemly
