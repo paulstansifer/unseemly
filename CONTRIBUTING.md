@@ -12,7 +12,7 @@ If you want to contribute...
    files sorted by number of missed lines to look for low-hanging fruit.) Even writing tests for
    low-priority things (like `impl Debug`s) to get the numbers up helps focus attention on existing
    gaps. Also of interest: what's test coverage without end-to-end tests?
-
+ * If you're ambitious, you can pick something in MISTAKES.md and fix it!
 
 [issue tracker]: https://github.com/paulstansifer/unseemly/issues
 ["good first issue"]: https://github.com/paulstansifer/unseemly/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22
