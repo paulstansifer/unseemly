@@ -220,7 +220,10 @@ impl Clone for Item {
 /// Progress through the state sets
 // TODO: this ought to produce an Option<ParseError>, not a bool!
 fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, tt: &TokenTree) -> (UniqueId, Vec<Vec<Item>>) {
-    let mut chart = vec![vec![]];
+    let toks = tt.splay().t;
+
+    let mut chart: Vec<Vec<Item>> = vec![];
+    chart.resize_with(toks.len() + 1, ::std::default::Default::default);
 
     let start_but_startier = get_next_id();
 
@@ -238,11 +241,11 @@ fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, tt: &TokenTree) -> (UniqueId
 
     chart[0].push(start_item);
 
-    for cur_tok in 0..tt.t.len() {
-        walk_tt(&mut chart, &tt.t, cur_tok)
+    for cur_tok in 0..toks.len() {
+        walk_tt(&mut chart, &toks, cur_tok)
     }
 
-    examine_state_set(&mut chart, &tt.t, tt.t.len()); // One last time, for nullable rules at the end
+    examine_state_set(&mut chart, &toks, toks.len()); // One last time, for nullable rules at the end
 
     (start_but_startier, chart)
 }
@@ -257,7 +260,6 @@ fn recognize(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> bool {
 }
 
 fn walk_tt(chart: &mut Vec<Vec<Item>>, toks: &[Token], cur_tok: usize) {
-    chart.push(vec![]);
     examine_state_set(chart, toks, cur_tok);
     // log!("\n  {:#?}\n->{:#?}\n", chart[*cur_tok], chart[*cur_tok + 1]);
 }
@@ -274,8 +276,7 @@ fn new_items_from_state_set(chart: &mut Vec<Vec<Item>>, toks: &[Token], cur_tok:
     let mut effect = false;
     for idx in 0..chart[cur_tok].len() {
         for (new_item, adv) in chart[cur_tok][idx].examine(toks, cur_tok, chart) {
-            effect = merge_into_state_set(new_item, &mut chart[cur_tok + adv])
-                || effect;
+            effect = merge_into_state_set(new_item, &mut chart[cur_tok + adv]) || effect;
         }
     }
     effect
@@ -480,8 +481,7 @@ impl Item {
                         | QuoteEscape(_, _) => waiting_item.finish_with(me_justif, 0),
                         Biased(ref _plan_a, ref plan_b) => {
                             if &*self.rule as *const FormPat == &**plan_b as *const FormPat {
-                                waiting_item
-                                    .finish_with(JustifiedByItemPlanB(self.id.get_ref()), 0)
+                                waiting_item.finish_with(JustifiedByItemPlanB(self.id.get_ref()), 0)
                             } else {
                                 waiting_item.finish_with(me_justif, 0)
                             }
@@ -517,7 +517,7 @@ impl Item {
     ) -> Vec<(Item, usize)>
     {
         let cur = toks.get(cur_idx);
-        let shift_by = 1;
+        let shift_by = cur.map(|c| c.orig_sp().len()).unwrap_or(0);
         // Try to shift (bump `pos`, or set `done`) or predict (`start` a new item)
         match (self.pos, &*(self.rule.clone())) {
             // TODO: is there a better way to match in `Rc`?

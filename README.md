@@ -1,4 +1,4 @@
-# ≉ [![Build Status](https://travis-ci.com/paulstansifer/unseemly.svg?branch=master)](https://travis-ci.com/paulstansifer/unseemly)
+# ≉ [![Build Status](https://travis-ci.com/paulstansifer/unseemly.svg?branch=master)](https://travis-ci.com/paulstansifer/unseemly) [![Coverage Status](https://coveralls.io/repos/github/paulstansifer/unseemly/badge.svg)](https://coveralls.io/github/paulstansifer/unseemly)
 
 Unseemly typechecks the code that you wrote, not the code your macros wrote.
 This makes macros feel like part of the language, not something tacked-on.
