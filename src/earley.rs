@@ -386,30 +386,12 @@ impl Item {
     // These methods all make a (singleton) set of items after progressing `self` somehow
     // TODO: I have a lot of "like <one of these>, but" comments around this file...
 
-    fn advance(&self, consume_tok: bool) -> Vec<(Item, bool)> {
-        log!("[adv ({})]", self.id.0);
-        vec![(Item { pos: self.pos + 1, ..self.clone() }, consume_tok)]
-    }
-
     fn finish_with(&self, lp: LocalParse, consume_tok: bool) -> Vec<(Item, bool)> {
         log!("[fin_w/ ({})]", self.id.0);
         vec![(
             Item {
                 done: RefCell::new(true),
                 local_parse: RefCell::new(lp),
-                pos: self.pos + 1,
-                ..self.clone()
-            },
-            consume_tok,
-        )]
-    }
-
-    fn finish(&self, consume_tok: bool) -> Vec<(Item, bool)> {
-        log!("[finish ({})]", self.id.0);
-        vec![(
-            Item {
-                done: RefCell::new(true),
-                local_parse: RefCell::new(LocalParse::NothingYet),
                 pos: self.pos + 1,
                 ..self.clone()
             },

@@ -135,6 +135,7 @@ impl rustyline::highlight::Highlighter for LineHelper {
 
 impl rustyline::Helper for LineHelper {}
 
+#[cfg_attr(tarpaulin, skip)]
 fn main() {
     let arguments: Vec<String> = std::env::args().collect();
     let prelude_filename = format!("{}/.unseemly_prelude", dirs::home_dir().unwrap().display());
