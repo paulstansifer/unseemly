@@ -23,10 +23,7 @@ use grammar::{
     SynEnv,
 };
 use name::*;
-use read::{
-    Token::{self, *},
-    TokenTree,
-};
+use read::{Token, TokenTree};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 // TODO: This UniqueId stuff is great, but we could make things faster
@@ -224,7 +221,6 @@ impl Clone for Item {
 // TODO: this ought to produce an Option<ParseError>, not a bool!
 fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, tt: &TokenTree) -> (UniqueId, Vec<Vec<Item>>) {
     let mut chart = vec![vec![]];
-    let mut cur_tok = 0;
 
     let start_but_startier = get_next_id();
 
@@ -241,10 +237,12 @@ fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, tt: &TokenTree) -> (UniqueId
     };
 
     chart[0].push(start_item);
-    for t in &tt.t {
-        walk_tt(&mut chart, t, &mut cur_tok);
+
+    for cur_tok in 0..tt.t.len() {
+        walk_tt(&mut chart, &tt.t, cur_tok)
     }
-    examine_state_set(&mut chart, None, cur_tok); // One last time, for nullable rules at the end
+
+    examine_state_set(&mut chart, &tt.t, tt.t.len()); // One last time, for nullable rules at the end
 
     (start_but_startier, chart)
 }
@@ -258,37 +256,24 @@ fn recognize(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> bool {
     })
 }
 
-fn walk_tt(chart: &mut Vec<Vec<Item>>, t: &Token, cur_tok: &mut usize) {
+fn walk_tt(chart: &mut Vec<Vec<Item>>, toks: &[Token], cur_tok: usize) {
     chart.push(vec![]);
-    examine_state_set(chart, Some(t), *cur_tok);
+    examine_state_set(chart, toks, cur_tok);
     // log!("\n  {:#?}\n->{:#?}\n", chart[*cur_tok], chart[*cur_tok + 1]);
-    *cur_tok += 1;
-    match *t {
-        Simple(_) => {}
-    }
 }
 
 /// Progresses a state set until it won't go any further.
 /// Returns the state set for the next token.
-fn examine_state_set(chart: &mut Vec<Vec<Item>>, tok: Option<&Token>, cur_tok: usize) {
+fn examine_state_set(chart: &mut Vec<Vec<Item>>, toks: &[Token], cur_tok: usize) {
     // If nullable items are statically identified, I think there's an optimization
     //  where we don't re-walk old items
-    loop {
-        if !new_items_from_state_set(chart, tok, cur_tok) {
-            break;
-        } // reached the fixpoint?
-    }
+    while new_items_from_state_set(chart, toks, cur_tok) {} // Until a fixpoint is reached
 }
 
-fn new_items_from_state_set(
-    chart: &mut Vec<Vec<Item>>,
-    tok: Option<&Token>,
-    cur_tok: usize,
-) -> bool
-{
+fn new_items_from_state_set(chart: &mut Vec<Vec<Item>>, toks: &[Token], cur_tok: usize) -> bool {
     let mut effect = false;
     for idx in 0..chart[cur_tok].len() {
-        for (new_item, next) in chart[cur_tok][idx].examine(tok, cur_tok, chart) {
+        for (new_item, next) in chart[cur_tok][idx].examine(toks, cur_tok, chart) {
             effect = merge_into_state_set(new_item, &mut chart[cur_tok + if next { 1 } else { 0 }])
                 || effect;
         }
@@ -454,13 +439,7 @@ impl Item {
     // -----------------------------------------------------------
 
     /// See what new items this item justifies
-    fn examine(
-        &self,
-        cur: Option<&Token>,
-        cur_idx: usize,
-        chart: &[Vec<Item>],
-    ) -> Vec<(Item, bool)>
-    {
+    fn examine(&self, toks: &[Token], cur_idx: usize, chart: &[Vec<Item>]) -> Vec<(Item, bool)> {
         let mut res = if *self.done.borrow() {
             let mut waiting_satisfied = vec![];
 
@@ -535,53 +514,45 @@ impl Item {
         };
 
         if !res.is_empty() {
-            if let Some(tok) = cur {
-                let n = match tok {
-                    Simple(x) => x,
-                };
+            if let Some(tok) = toks.get(cur_idx) {
                 best_token.with(|bt| {
-                    *bt.borrow_mut() = (cur_idx, *n, res[0].0.rule.clone(), res[0].0.pos)
+                    *bt.borrow_mut() = (cur_idx, *tok, res[0].0.rule.clone(), res[0].0.pos)
                 });
             }
         }
 
-        res.append(&mut self.shift_or_predict(cur, cur_idx, chart));
+        res.append(&mut self.shift_or_predict(toks, cur_idx, chart));
 
         res
     }
 
     fn shift_or_predict(
         &self,
-        cur: Option<&Token>,
+        toks: &[Token],
         cur_idx: usize,
         chart: &[Vec<Item>],
     ) -> Vec<(Item, bool)>
     {
+        let cur = toks.get(cur_idx);
         // Try to shift (bump `pos`, or set `done`) or predict (`start` a new item)
         match (self.pos, &*(self.rule.clone())) {
             // TODO: is there a better way to match in `Rc`?
             (0, &Anyways(ref a)) => self.finish_with(ParsedAtom(a.clone()), false),
             (_, &Impossible) => vec![],
             (0, &Literal(xptd_n)) => match cur {
-                Some(&Simple(n)) if xptd_n == n => {
-                    self.finish_with(ParsedAtom(::ast::Atom(n)), true)
-                }
+                Some(&n) if xptd_n == n => self.finish_with(ParsedAtom(::ast::Atom(n)), true),
                 _ => vec![],
             },
             (0, &AnyToken) => match cur {
-                Some(&Simple(n)) if !reserved(n) => {
-                    self.finish_with(ParsedAtom(::ast::Atom(n)), true)
-                }
+                Some(&n) if !reserved(n) => self.finish_with(ParsedAtom(::ast::Atom(n)), true),
                 _ => vec![],
             },
             (0, &AnyAtomicToken) => match cur {
-                Some(&Simple(n)) if !reserved(n) => {
-                    self.finish_with(ParsedAtom(::ast::Atom(n)), true)
-                }
+                Some(&n) if !reserved(n) => self.finish_with(ParsedAtom(::ast::Atom(n)), true),
                 _ => vec![],
             },
             (0, &VarRef) => match cur {
-                Some(&Simple(n)) if !reserved(n) => {
+                Some(&n) if !reserved(n) => {
                     self.finish_with(ParsedAtom(::ast::VariableReference(n)), true)
                 }
                 _ => vec![],

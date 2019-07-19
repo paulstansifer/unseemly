@@ -4,16 +4,12 @@ use ast::Ast::{self, *};
 use beta::{Beta, ExportBeta};
 use form::{simple_form, Form};
 use name::*;
-use read::{DelimChar, Simple, Token, TokenTree};
+use read::{DelimChar, Token, TokenTree};
 use std::{boxed::Box, clone::Clone, rc::Rc};
 use util::assoc::Assoc;
 
 impl Token {
-    fn to_ast(&self) -> Ast {
-        match *self {
-            Simple(ref s) => Atom(*s),
-        }
-    }
+    fn to_ast(&self) -> Ast { Atom(*self) }
 }
 
 custom_derive! {
@@ -99,9 +95,7 @@ impl FormPat {
             Biased(ref body_a, ref body_b) => {
                 body_a.binders().tap(|v| v.append(&mut body_b.binders()))
             }
-            Anyways(_) | Impossible | Literal(_) | AnyToken | AnyAtomicToken | VarRef | Call(_) => {
-                vec![]
-            }
+            Anyways(_) | Impossible | Literal(_) | AnyToken | AnyAtomicToken | VarRef | Call(_) => vec![],
         }
     }
 

@@ -36,21 +36,26 @@ pub struct TokenTree {
     pub t: Vec<Token>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum Token {
-    Simple(Name),
-}
+pub type Token = Name;
 
 impl Token {
-    pub fn is_just(&self, s: &str) -> bool {
-        match *self {
-            Simple(ref x) if x.is(s) => true,
-            _ => false,
-        }
-    }
+    pub fn is_just(&self, s: &str) -> bool { self.is(s) }
 }
 
-pub use self::Token::*;
+impl TokenTree {
+    pub fn splay(&self) -> TokenTree {
+        let mut res = vec![];
+        for t in &self.t {
+            res.push(*t);
+
+            for _ in 1..t.orig_sp().len() {
+                res.push(n("🚫"));
+            }
+        }
+
+        TokenTree { t: res }
+    }
+}
 
 // A token may start with an open delimiter, or end with a close delmiter,
 // but otherwise may not contain delimiters
@@ -86,7 +91,7 @@ pub fn read_tokens(s: &str) -> Result<TokenTree, String> {
                 None => return Ok((TokenTree { t: this_level }, None)),
                 Some(c) => {
                     if let Some(normal) = c.name("normal") {
-                        this_level.push(Simple(n(normal.as_str())));
+                        this_level.push(n(normal.as_str()));
                     } else if let (Some(_main), Some(o_del), Some(all)) =
                         (c.name("main_o"), c.name("open"), c.name("open_all"))
                     {
@@ -94,13 +99,13 @@ pub fn read_tokens(s: &str) -> Result<TokenTree, String> {
 
                         if let Some(last) = last {
                             if format!("{}{}", last.1, o_del.as_str()) == all.as_str() {
-                                this_level.push(Simple(n(all.as_str())));
+                                this_level.push(n(all.as_str()));
                                 this_level.append(&mut inside.t);
-                                this_level.push(Simple(n(&format!(
+                                this_level.push(n(&format!(
                                     "{}{}",
                                     delim(o_del.as_str()).close(),
                                     last.1
-                                ))));
+                                )));
                             } else {
                                 return Err(format!(
                                     "Unmatched delimiter names: \"{}\" is closed by \"{}\". \

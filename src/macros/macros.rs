@@ -101,29 +101,29 @@ macro_rules! tokens {
 macro_rules! t_elt {
     ( [ $e:expr ;  $( $list:tt )* ] ) => {
         {
-            let mut toks = vec![Simple(::name::n(concat!($e,"[")))];
+            let mut toks = vec![::name::n(concat!($e,"["))];
             toks.append(&mut tokens!($($list)*).t);
-            toks.push(Simple(::name::n(concat!("]", $e))));
+            toks.push(::name::n(concat!("]", $e)));
             toks
         }
     };
     ( { $e:expr ;  $( $list:tt )* } ) => {
         {
-            let mut toks = vec![Simple(::name::n(concat!($e,"{")))];
+            let mut toks = vec![::name::n(concat!($e,"{"))];
             toks.append(&mut tokens!($($list)*).t);
-            toks.push(Simple(::name::n(concat!("}", $e))));
+            toks.push(::name::n(concat!("}", $e)));
             toks
         }
     };
     ( ( $e:expr ;  $( $list:tt )* ) ) => {
         {
-            let mut toks = vec![Simple(::name::n(concat!($e,"(")))];
+            let mut toks = vec![::name::n(concat!($e,"("))];
             toks.append(&mut tokens!($($list)*).t);
-            toks.push(Simple(::name::n(concat!(")", $e))));
+            toks.push(::name::n(concat!(")", $e)));
             toks
         }
     };
-    ($e:expr) => { vec![Simple(::name::n($e))] }
+    ($e:expr) => { vec![::name::n($e)] }
 }
 
 // Ast
