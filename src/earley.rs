@@ -273,8 +273,8 @@ fn examine_state_set(chart: &mut Vec<Vec<Item>>, toks: &[Token], cur_tok: usize)
 fn new_items_from_state_set(chart: &mut Vec<Vec<Item>>, toks: &[Token], cur_tok: usize) -> bool {
     let mut effect = false;
     for idx in 0..chart[cur_tok].len() {
-        for (new_item, next) in chart[cur_tok][idx].examine(toks, cur_tok, chart) {
-            effect = merge_into_state_set(new_item, &mut chart[cur_tok + if next { 1 } else { 0 }])
+        for (new_item, adv) in chart[cur_tok][idx].examine(toks, cur_tok, chart) {
+            effect = merge_into_state_set(new_item, &mut chart[cur_tok + adv])
                 || effect;
         }
     }
@@ -385,8 +385,9 @@ impl Item {
     // -----------------------------------------------------------
     // These methods all make a (singleton) set of items after progressing `self` somehow
     // TODO: I have a lot of "like <one of these>, but" comments around this file...
+    //
 
-    fn finish_with(&self, lp: LocalParse, consume_tok: bool) -> Vec<(Item, bool)> {
+    fn finish_with(&self, lp: LocalParse, toks_consumed: usize) -> Vec<(Item, usize)> {
         log!("[fin_w/ ({})]", self.id.0);
         vec![(
             Item {
@@ -395,12 +396,12 @@ impl Item {
                 pos: self.pos + 1,
                 ..self.clone()
             },
-            consume_tok,
+            toks_consumed,
         )]
     }
 
     // CLEANUP TODO: remove `_allow_ddd` entirely
-    fn start(&self, rule: &Rc<FormPat>, cur_idx: usize, _allow_ddd: bool) -> Vec<(Item, bool)> {
+    fn start(&self, rule: &Rc<FormPat>, cur_idx: usize, _allow_ddd: bool) -> Vec<(Item, usize)> {
         log!("[start ({})]", self.id.0);
         vec![(
             Item {
@@ -414,14 +415,14 @@ impl Item {
                 id: get_next_id(),
                 wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()])),
             },
-            false,
+            0,
         )]
     }
 
     // -----------------------------------------------------------
 
     /// See what new items this item justifies
-    fn examine(&self, toks: &[Token], cur_idx: usize, chart: &[Vec<Item>]) -> Vec<(Item, bool)> {
+    fn examine(&self, toks: &[Token], cur_idx: usize, chart: &[Vec<Item>]) -> Vec<(Item, usize)> {
         let mut res = if *self.done.borrow() {
             let mut waiting_satisfied = vec![];
 
@@ -452,13 +453,13 @@ impl Item {
                                         local_parse: RefCell::new(me_justif),
                                         ..waiting_item.clone()
                                     },
-                                    false,
+                                    0,
                                 )]
                             }
                         }
                         Plus(_) | Star(_) => {
                             // It'll also keep going, though!
-                            waiting_item.finish_with(me_justif, false)
+                            waiting_item.finish_with(me_justif, 0)
                         }
                         SynImport(_, _, _) if waiting_item.pos == 0 => vec![(
                             Item {
@@ -466,7 +467,7 @@ impl Item {
                                 local_parse: RefCell::new(me_justif),
                                 ..waiting_item.clone()
                             },
-                            false,
+                            0,
                         )],
                         Alt(_)
                         | Call(_)
@@ -476,13 +477,13 @@ impl Item {
                         | SynImport(_, _, _)
                         | NameImport(_, _)
                         | QuoteDeepen(_, _)
-                        | QuoteEscape(_, _) => waiting_item.finish_with(me_justif, false),
+                        | QuoteEscape(_, _) => waiting_item.finish_with(me_justif, 0),
                         Biased(ref _plan_a, ref plan_b) => {
                             if &*self.rule as *const FormPat == &**plan_b as *const FormPat {
                                 waiting_item
-                                    .finish_with(JustifiedByItemPlanB(self.id.get_ref()), false)
+                                    .finish_with(JustifiedByItemPlanB(self.id.get_ref()), 0)
                             } else {
-                                waiting_item.finish_with(me_justif, false)
+                                waiting_item.finish_with(me_justif, 0)
                             }
                         }
                     };
@@ -513,29 +514,30 @@ impl Item {
         toks: &[Token],
         cur_idx: usize,
         chart: &[Vec<Item>],
-    ) -> Vec<(Item, bool)>
+    ) -> Vec<(Item, usize)>
     {
         let cur = toks.get(cur_idx);
+        let shift_by = 1;
         // Try to shift (bump `pos`, or set `done`) or predict (`start` a new item)
         match (self.pos, &*(self.rule.clone())) {
             // TODO: is there a better way to match in `Rc`?
-            (0, &Anyways(ref a)) => self.finish_with(ParsedAtom(a.clone()), false),
+            (0, &Anyways(ref a)) => self.finish_with(ParsedAtom(a.clone()), 0),
             (_, &Impossible) => vec![],
             (0, &Literal(xptd_n)) => match cur {
-                Some(&n) if xptd_n == n => self.finish_with(ParsedAtom(::ast::Atom(n)), true),
+                Some(&n) if xptd_n == n => self.finish_with(ParsedAtom(::ast::Atom(n)), shift_by),
                 _ => vec![],
             },
             (0, &AnyToken) => match cur {
-                Some(&n) if !reserved(n) => self.finish_with(ParsedAtom(::ast::Atom(n)), true),
+                Some(&n) if !reserved(n) => self.finish_with(ParsedAtom(::ast::Atom(n)), shift_by),
                 _ => vec![],
             },
             (0, &AnyAtomicToken) => match cur {
-                Some(&n) if !reserved(n) => self.finish_with(ParsedAtom(::ast::Atom(n)), true),
+                Some(&n) if !reserved(n) => self.finish_with(ParsedAtom(::ast::Atom(n)), shift_by),
                 _ => vec![],
             },
             (0, &VarRef) => match cur {
                 Some(&n) if !reserved(n) => {
-                    self.finish_with(ParsedAtom(::ast::VariableReference(n)), true)
+                    self.finish_with(ParsedAtom(::ast::VariableReference(n)), shift_by)
                 }
                 _ => vec![],
             },
@@ -544,7 +546,7 @@ impl Item {
                     self.start(&subs[pos as usize], cur_idx, false)
                 } else if pos == subs.len() {
                     // a little like `.finish`, but without advancing
-                    vec![(Item { done: RefCell::new(true), ..self.clone() }, false)]
+                    vec![(Item { done: RefCell::new(true), ..self.clone() }, 0)]
                 } else {
                     vec![]
                 }
@@ -553,7 +555,7 @@ impl Item {
                 // Special case: the elegant thing would be to create `Star` pre-`done`
                 let mut res = if self.pos == 0 {
                     // Like `.finish`, but without advancing
-                    vec![(Item { done: RefCell::new(true), ..self.clone() }, false)]
+                    vec![(Item { done: RefCell::new(true), ..self.clone() }, 0)]
                 } else {
                     vec![]
                 };
@@ -615,7 +617,7 @@ impl Item {
                         id: get_next_id(),
                         wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()])),
                     },
-                    false,
+                    0,
                 )]
             }
             (0, &ComputeSyntax(_, _)) => panic!("TODO"),
