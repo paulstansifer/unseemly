@@ -479,6 +479,17 @@ impl Item {
                         | NameImport(_, _)
                         | QuoteDeepen(_, _)
                         | QuoteEscape(_, _) => waiting_item.finish_with(me_justif, 0),
+                        Reserved(_, ref name_list) => match *self.local_parse.borrow() {
+                            ParsedAtom(::ast::Atom(name))
+                            | ParsedAtom(::ast::VariableReference(name)) => {
+                                if name_list.contains(&name) {
+                                    vec![]
+                                } else {
+                                    waiting_item.finish_with(me_justif, 0)
+                                }
+                            }
+                            _ => vec![],
+                        },
                         Biased(ref _plan_a, ref plan_b) => {
                             if &*self.rule as *const FormPat == &**plan_b as *const FormPat {
                                 waiting_item.finish_with(JustifiedByItemPlanB(self.id.get_ref()), 0)
@@ -624,7 +635,8 @@ impl Item {
             (0, &Named(_, ref body))
             | (0, &NameImport(ref body, _))
             | (0, &QuoteDeepen(ref body, _))
-            | (0, &QuoteEscape(ref body, _)) => self.start(&body, cur_idx, false),
+            | (0, &QuoteEscape(ref body, _))
+            | (0, &Reserved(ref body, _)) => self.start(&body, cur_idx, false),
             // Rust rightly complains that this is unreachable; yay!
             // But how do I avoid a catch-all pattern for the pos > 0 case?
             //(0, _) =>  { icp!("unhandled FormPat") },
@@ -683,7 +695,7 @@ impl Item {
                     _ => icp!("no simple parse saved"),
                 }
             }
-            Alt(_) | Biased(_, _) | Call(_) | SynImport(_, _, _) => {
+            Alt(_) | Biased(_, _) | Call(_) | SynImport(_, _, _) | Reserved(_, _) => {
                 self.find_wanted(chart, done_tok).c_parse(chart, done_tok)
             }
             Seq(_) | Star(_) | Plus(_) => {
@@ -795,6 +807,8 @@ pub struct ParseError {
 }
 
 pub fn parse(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> ParseResult {
+    best_token.with(|bt| *bt.borrow_mut() = (0, n("[nothing parsed]"), Rc::new(Impossible), 0));
+
     let (start_but_startier, chart) = create_chart(Rc::new(rule.clone()), grammar.clone(), tt);
     let final_item = chart[chart.len() - 1].iter().find(|item| {
         (*item.wanted_by.borrow()).iter().any(|idr| start_but_startier.is(*idr))
@@ -1189,19 +1203,18 @@ fn basic_parsing_e() {
         Ok(ast_shape!(("aa" "ab") ("ba" "bb")))
     );
 
-    parse_top(
+    assert!(!parse_top(
         &Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
         &tokens!("asdf" "knife" "asdf"),
     )
-    .unwrap_err();
+    .is_ok());
 
     assert_eq!(
         parse_top(
             &form_pat!([(star (named "c", (alt (lit "X"), (lit "O")))), (lit "!")]),
             &tokens!("X" "O" "O" "O" "X" "X" "!")
-        )
-        .unwrap(),
-        ast_shape!({- "c" => ["X", "O", "O", "O", "X", "X"]} "!")
+        ),
+        Ok(ast_shape!({- "c" => ["X", "O", "O", "O", "X", "X"]} "!"))
     );
 
     assert_eq!(
@@ -1229,5 +1242,17 @@ fn basic_parsing_e() {
             &tokens!["a" "a" "b"]
         ),
         Ok(_)
+    );
+
+    assert_eq!(parse_top(&form_pat!([(lit "b")]), &tokens!["b"]), Ok(ast_shape!("b")));
+
+    assert_eq!(
+        parse_top(&form_pat!((alt (lit "Moon"), (reserved varref, "Moon"))), &tokens!("Spoon")),
+        Ok(ast!((vr "Spoon")))
+    );
+
+    assert_eq!(
+        parse_top(&form_pat!((alt (lit "Moon"), (reserved aat, "Moon"))), &tokens!("Moon")),
+        Ok(ast!("Moon")) // Not a varref, so it's the literal instead
     );
 }

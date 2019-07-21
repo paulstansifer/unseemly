@@ -322,6 +322,9 @@ macro_rules! mbe {
 macro_rules! form_pat {
     ((lit $e:expr)) => { ::grammar::FormPat::Literal(::name::n($e)) };
     ((lit_by_name $e:expr)) => { ::grammar::FormPat::Literal($e) };
+    ((reserved $body:tt, $( $res:tt )*)) => {
+        ::grammar::FormPat::Reserved(::std::rc::Rc::new(form_pat!($body)), vec![$( n($res) ),*])
+    };
     ((anyways $a:tt)) => { ::grammar::FormPat::Anyways(ast!($a)) };
     ((impossible)) => { ::grammar::FormPat::Impossible };
     (at) => { ::grammar::FormPat::AnyToken };

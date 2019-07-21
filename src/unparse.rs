@@ -19,7 +19,8 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
         | ComputeSyntax(_, ref body)
         | NameImport(ref body, _)
         | QuoteDeepen(ref body, _)
-        | QuoteEscape(ref body, _) => node_names_mentioned(&*body),
+        | QuoteEscape(ref body, _)
+        | Reserved(ref body, _) => node_names_mentioned(&*body),
         Seq(ref sub_pats) | Alt(ref sub_pats) => {
             let mut res = vec![];
             for pat in sub_pats {
@@ -162,6 +163,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
             format!("?synax import? {:#?} ?si?", actl)
         }
         (&SynImport(_, _, _), _) => "".to_string(),
+        (&Reserved(ref body, _), _) => unparse_mbe(body, actl, context, s),
     }
 }
 

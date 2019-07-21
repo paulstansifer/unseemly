@@ -27,6 +27,7 @@ custom_derive! {
         Anyways(Ast),
         /// Never matches
         Impossible,
+        Reserved(Rc<FormPat>, Vec<Name>),
         Literal(Name),
         AnyToken,
         AnyAtomicToken,
@@ -91,7 +92,8 @@ impl FormPat {
             | SynImport(ref body, _, _)
             | NameImport(ref body, _)
             | QuoteDeepen(ref body, _)
-            | QuoteEscape(ref body, _) => body.binders(),
+            | QuoteEscape(ref body, _)
+            | Reserved(ref body, _) => body.binders(),
             Biased(ref body_a, ref body_b) => {
                 body_a.binders().tap(|v| v.append(&mut body_b.binders()))
             }
@@ -125,7 +127,8 @@ impl FormPat {
             | SynImport(ref body, _, _)
             | NameImport(ref body, _)
             | QuoteDeepen(ref body, _)
-            | QuoteEscape(ref body, _) => body.find_named_call(n),
+            | QuoteEscape(ref body, _)
+            | Reserved(ref body, _) => body.find_named_call(n),
             Seq(ref bodies) | Alt(ref bodies) => {
                 for body in bodies {
                     let sub_fnc = body.find_named_call(n);
