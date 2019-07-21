@@ -13,59 +13,60 @@ impl Token {
 }
 
 custom_derive! {
-    /**
-      `FormPat` is a grammar. TODO: rename to `Grammar`. Think EBNF, but more extended.
+    /// `FormPat` defines a pattern in a grammar. Think EBNF, but more extended.
 
-      Most kinds of grammar nodes produce an `Ast` of either `Shape` or `Env`,
-       but `Named` and `Scope` are special:
-       everything outside of a `Named` (up to a `Scope`, if any) is discarded,
-        and `Scope` produces a `Node`, which maps names to what they got.
-     */
+    /// Most kinds of grammar nodes produce an `Ast` of either `Shape` or `Env`,
+    ///  but `Named` and `Scope` are special:
+    ///  everything outside of a `Named` (up to a `Scope`, if any) is discarded,
+    ///   and `Scope` produces a `Node`, which maps names to what they got.
     #[derive(Debug, Clone, Reifiable, PartialEq)]
     pub enum FormPat {
         /// Matches 0 tokens, produces the argument
         Anyways(Ast),
         /// Never matches
         Impossible,
+        /// Matches an atom or varref, but not if it's on the list of reserved words
         Reserved(Rc<FormPat>, Vec<Name>),
+        /// Matches the given name as a literal
         Literal(Name),
+        /// cleanup TODO: remove, now that tokens are always atomic
         AnyToken,
+        /// Matches any token, as an `Atom`. (TODO: rename)
         AnyAtomicToken,
+        /// Matches any token, as a `VariableReference`
         VarRef,
+        /// Matches an ordered sequence of patterns.
         Seq(Vec<Rc<FormPat>>),
+        /// Matches zero or more occurrences of a pattern.
         Star(Rc<FormPat>),
+        /// Matches one or more occurrences of a pattern.
         Plus(Rc<FormPat>),
+        /// Matches any of the sub-pattersn.
         Alt(Vec<Rc<FormPat>>),
+        /// Matches the LHS pattern, or, failing that, the RHS pattern.
         Biased(Rc<FormPat>, Rc<FormPat>),
 
         /// Lookup a nonterminal in the current syntactic environment.
         Call(Name),
-        /**
-         * This is where syntax gets reflective.
-         * Evaluates its body (one phase up)
-         *  as a function from the current `SynEnv` to a new one,
-         *  and names the result in the current scope.
-         */
+        /// cleanup TODO: remove this; `SynImport` obsoletes this
         ComputeSyntax(Name, Rc<FormPat>),
 
         /// Makes a node and limits the region where names are meaningful. `Beta` defines export.
         Scope(Rc<Form>, ExportBeta),
+        /// Matches a pattern and gives it a name (inside the current `Scope`)
         Named(Name, Rc<FormPat>),
 
-        /**
-         * This is where syntax gets extensible.
-         * Parses its body in the named NT of the syntax environment computed from
-         *  the LHS and the current syntax environment.
-         * TODO: I think this obviates `ComputeSyntax`
-         */
+        /// This is where syntax gets extensible.
+        /// Parses its body in the named NT of the syntax environment computed from
+        ///  the LHS and the current syntax environment.
         SynImport(Rc<FormPat>, Name, SyntaxExtension),
-        /**
-         * FOOTGUN:  NameImport(Named(...), ...) is almost always wrong.
-         * (write Named(NameImport(..., ...)) instead)
-         * TODO: make this better
-         */
+        /// FOOTGUN:  NameImport(Named(...), ...) is almost always wrong.
+        ///  (write Named(NameImport(..., ...)) instead)
+        /// TODO: make this better
         NameImport(Rc<FormPat>, Beta),
+        /// Quote syntax (the boolean indicates whether it's positive or negative)
         QuoteDeepen(Rc<FormPat>, bool),
+        /// Escape syntax quotation (by some number of levels)
         QuoteEscape(Rc<FormPat>, u8)
     }
 }
