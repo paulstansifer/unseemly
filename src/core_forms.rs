@@ -439,8 +439,6 @@ pub fn make_core_syn_env() -> SynEnv {
             ::core_qq_forms::quote(/*positive=*/false) => ["body"]];
 
     assoc_n!(
-        // special case; allow repetition (defined in earley.rs):
-        "dotdotdot" => Rc::new(form_pat!([(delim "...(", "(", (call "body"))])),
         "Pat" => Rc::new(Biased(Rc::new(main_pat_forms), Rc::new(AnyAtomicToken))),
         "Expr" => Rc::new(Biased(Rc::new(main_expr_forms), Rc::new(VarRef))),
         "Ident" => Rc::new(AnyAtomicToken)

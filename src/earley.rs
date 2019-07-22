@@ -18,7 +18,6 @@
 
 use ast::Ast;
 use grammar::{
-    plug_hole,
     FormPat::{self, *},
     SynEnv,
 };
@@ -32,8 +31,6 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 thread_local! {
     static next_id: RefCell<u32> = RefCell::new(0);
     static all_grammars: RefCell<HashMap<UniqueIdRef, SynEnv>>
-        = RefCell::new(HashMap::new());
-    static all_plugged_ddds: RefCell<HashMap<UniqueIdRef, Rc<FormPat>>>
         = RefCell::new(HashMap::new());
 
     static best_token: RefCell<(usize, Name, Rc<FormPat>, usize)>
@@ -67,21 +64,6 @@ impl UniqueId {
 
 impl ::std::fmt::Debug for UniqueIdRef {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result { write!(f, "{}", self.0) }
-}
-
-/// Used as a HACK to mark nodes that should be DDDed when put into an MBE
-fn ddd_ast_marker() -> Name { n("⌜⋯⌟") } // TODO: gensym
-
-fn ddd_wrap(a: Ast) -> Ast { Ast::Shape(vec![a, Ast::Atom(ddd_ast_marker())]) }
-
-/// If `a` is a specially-marked DDD node, remove the special marker (and return true)
-fn ddd_unwrap(a: &Ast) -> Option<Ast> {
-    match a {
-        Ast::Shape(ref subs) if subs.len() == 2 && subs[1] == Ast::Atom(ddd_ast_marker()) => {
-            Some(subs[0].clone())
-        }
-        _ => None,
-    }
 }
 
 // TODO: this shouldn't be hardcoded into the parser; it should be ... how should it work?
@@ -133,8 +115,6 @@ pub struct Item {
     pos: usize,
     /// The current grammar, so we can interperate `Call` rules
     grammar: SynEnv,
-    /// Is this a dot-dot-dot wrapped node? If so, mark it as such when assembling the MBE.
-    ddd: bool,
 
     // Everything after this line is nonstandard, and is just here as an optimization
     /// Identity for the purposes of `wanted_by` and `local_parse`
@@ -208,7 +188,6 @@ impl Clone for Item {
             rule: self.rule.clone(),
             pos: self.pos,
             grammar: self.grammar.clone(),
-            ddd: self.ddd,
             id: get_next_id(),
             done: self.done.clone(),
             local_parse: RefCell::new(LocalParse::NothingYet),
@@ -232,7 +211,6 @@ fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, tt: &TokenTree) -> (UniqueId
         rule: rule,
         pos: 0,
         grammar: grammar,
-        ddd: false,
         id: get_next_id(),
         done: RefCell::new(false),
         local_parse: RefCell::new(LocalParse::NothingYet),
@@ -325,7 +303,6 @@ impl Item {
             && &*self.rule as *const FormPat == &*other.rule as *const FormPat
             && self.pos == other.pos
             && self.grammar.almost_ptr_eq(&other.grammar)
-            && self.ddd == other.ddd
     }
 
     /// `false` if `other` might provide new information
@@ -401,8 +378,7 @@ impl Item {
         )]
     }
 
-    // CLEANUP TODO: remove `_allow_ddd` entirely
-    fn start(&self, rule: &Rc<FormPat>, cur_idx: usize, _allow_ddd: bool) -> Vec<(Item, usize)> {
+    fn start(&self, rule: &Rc<FormPat>, cur_idx: usize) -> Vec<(Item, usize)> {
         log!("[start ({})]", self.id.0);
         vec![(
             Item {
@@ -411,7 +387,6 @@ impl Item {
                 pos: 0,
                 done: RefCell::new(false),
                 grammar: self.grammar.clone(),
-                ddd: false,
                 local_parse: RefCell::new(LocalParse::NothingYet),
                 id: get_next_id(),
                 wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()])),
@@ -554,7 +529,7 @@ impl Item {
             },
             (pos, &Seq(ref subs)) => {
                 if pos < subs.len() {
-                    self.start(&subs[pos as usize], cur_idx, false)
+                    self.start(&subs[pos as usize], cur_idx)
                 } else if pos == subs.len() {
                     // a little like `.finish`, but without advancing
                     vec![(Item { done: RefCell::new(true), ..self.clone() }, 0)]
@@ -570,29 +545,29 @@ impl Item {
                 } else {
                     vec![]
                 };
-                res.append(&mut self.start(&sub, cur_idx, true)); // But we can take more!
+                res.append(&mut self.start(&sub, cur_idx)); // But we can take more!
                 res
             }
-            (_, &Plus(ref sub)) => self.start(&sub, cur_idx, true),
+            (_, &Plus(ref sub)) => self.start(&sub, cur_idx),
             (0, &Alt(ref subs)) => {
                 let mut res = vec![];
                 for sub in subs {
-                    res.append(&mut self.start(&(*sub), cur_idx, false));
+                    res.append(&mut self.start(&(*sub), cur_idx));
                 }
                 res
             }
             // Needs special handling elsewhere!
             (0, &Biased(ref plan_a, ref plan_b)) => {
-                let mut res = self.start(&plan_a, cur_idx, false);
-                res.append(&mut self.start(&plan_b, cur_idx, false));
+                let mut res = self.start(&plan_a, cur_idx);
+                res.append(&mut self.start(&plan_b, cur_idx));
                 res
             }
-            (0, &Call(n)) => self.start(&self.grammar.find_or_panic(&n), cur_idx, false),
+            (0, &Call(n)) => self.start(&self.grammar.find_or_panic(&n), cur_idx),
             (0, &Scope(ref f, _)) => {
                 // form.grammar is a FormPat. Confusing!
-                self.start(&f.grammar, cur_idx, false)
+                self.start(&f.grammar, cur_idx)
             }
-            (0, &SynImport(ref lhs, _, _)) => self.start(&lhs, cur_idx, false),
+            (0, &SynImport(ref lhs, _, _)) => self.start(&lhs, cur_idx),
             (1, &SynImport(_, ref name, ref f)) => {
                 // TODO: handle errors properly! Probably need to memoize, also!
                 let partial_parse = match *self.local_parse.borrow() {
@@ -624,7 +599,6 @@ impl Item {
                         done: RefCell::new(false),
                         grammar: new_se,
                         local_parse: RefCell::new(LocalParse::NothingYet),
-                        ddd: false,
                         id: get_next_id(),
                         wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()])),
                     },
@@ -636,7 +610,7 @@ impl Item {
             | (0, &NameImport(ref body, _))
             | (0, &QuoteDeepen(ref body, _))
             | (0, &QuoteEscape(ref body, _))
-            | (0, &Reserved(ref body, _)) => self.start(&body, cur_idx, false),
+            | (0, &Reserved(ref body, _)) => self.start(&body, cur_idx),
             // Rust rightly complains that this is unreachable; yay!
             // But how do I avoid a catch-all pattern for the pos > 0 case?
             //(0, _) =>  { icp!("unhandled FormPat") },
@@ -740,26 +714,11 @@ impl Item {
                 }
                 subtrees.reverse();
 
-                let mut ddd_pos: Option<usize> = None;
-                for (i, subtree) in subtrees.iter_mut().enumerate() {
-                    if let Some(unwrapped) = ddd_unwrap(&subtree) {
-                        if ddd_pos != None {
-                            return Err(ParseError {
-                                msg: format!("Found two DDDs at {}", unwrapped),
-                            });
-                        }
-                        *subtree = unwrapped;
-                        ddd_pos = Some(i);
-                    }
-                }
-
                 match *self.rule {
                     Seq(_) => Ok(Ast::Shape(subtrees)),
                     Star(_) | Plus(_) => {
-                        Ok(Ast::IncompleteNode(::util::mbe::EnvMBE::new_from_anon_repeat_ddd(
-                            subtrees.into_iter().map(|a| a.flatten()).collect(),
-                            ddd_pos,
-                        )))
+                        Ok(Ast::IncompleteNode(::util::mbe::EnvMBE::new_from_anon_repeat(
+                            subtrees.into_iter().map(|a| a.flatten()).collect())))
                     }
                     _ => icp!("seriously, this can't happen"),
                 }
@@ -791,11 +750,7 @@ impl Item {
         };
         log!(">>>{:#?}<<<\n", res);
 
-        if self.ddd {
-            res.map(ddd_wrap)
-        } else {
-            res
-        }
+        res
     }
 }
 
@@ -843,7 +798,6 @@ fn earley_merging() {
         rule: Rc::new(one_rule),
         pos: 0,
         grammar: main_grammar.clone(),
-        ddd: false,
         id: get_next_id(),
         done: RefCell::new(false),
         local_parse: RefCell::new(LocalParse::NothingYet),
