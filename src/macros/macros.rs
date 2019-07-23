@@ -320,25 +320,48 @@ macro_rules! mbe {
 
 // TODO #8: `ast!` and `form_pat!` are inconsistent with each other.
 macro_rules! form_pat {
-    ((lit $e:expr)) => { ::grammar::FormPat::Literal(::name::n($e)) };
-    ((lit_by_name $e:expr)) => { ::grammar::FormPat::Literal($e) };
+    ((lit $e:expr)) => {
+        ::grammar::FormPat::Literal(
+            ::std::rc::Rc::new(::grammar::FormPat::Call(::name::n("DefaultToken"))),
+            ::name::n($e))
+    };
+    ((lit_aat $e:expr)) => {
+        ::grammar::FormPat::Literal(::std::rc::Rc::new(AnyAtomicToken), ::name::n($e))
+    };
+    ((lit_by_name $e:expr)) => {
+        ::grammar::FormPat::Literal(
+            ::std::rc::Rc::new(::grammar::FormPat::Call(::name::n("DefaultToken"))),
+            $e)
+    };
     ((reserved $body:tt, $( $res:tt )*)) => {
         ::grammar::FormPat::Reserved(::std::rc::Rc::new(form_pat!($body)), vec![$( n($res) ),*])
+    };
+    ((reserved_by_name_vec $body:tt, $names:expr)) => {
+        ::grammar::FormPat::Reserved(::std::rc::Rc::new(form_pat!($body)), $names)
     };
     ((anyways $a:tt)) => { ::grammar::FormPat::Anyways(ast!($a)) };
     ((impossible)) => { ::grammar::FormPat::Impossible };
     (at) => { ::grammar::FormPat::AnyToken };
     (aat) => { ::grammar::FormPat::AnyAtomicToken };
-    (varref) => { ::grammar::FormPat::VarRef };
+    (atom) => { ::grammar::FormPat::Call(::name::n("DefaultName")) };
+    (varref) => { ::grammar::FormPat::VarRef(
+        ::std::rc::Rc::new(::grammar::FormPat::Call(::name::n("DefaultName")))
+    ) };
+    (varref_aat) => { ::grammar::FormPat::VarRef(
+        ::std::rc::Rc::new(AnyAtomicToken)
+    ) };
     ((delim $n:expr, $d:expr, $body:tt)) => {
         ::grammar::FormPat::Seq(vec![
-            ::std::rc::Rc::new(::grammar::FormPat::Literal(::name::n($n))),
+            ::std::rc::Rc::new(::grammar::FormPat::Literal(
+                ::std::rc::Rc::new(::grammar::FormPat::Call(::name::n("DefaultToken"))),
+                ::name::n($n))),
             ::std::rc::Rc::new(form_pat!($body)),
             {
                 let mut main_tok = $n.to_owned();
                 main_tok.pop();
-                ::std::rc::Rc::new(::grammar::FormPat::Literal(::name::n(
-                    &format!("{}{}", ::read::delim($d).close(), main_tok))))
+                ::std::rc::Rc::new(::grammar::FormPat::Literal(
+                    ::std::rc::Rc::new(::grammar::FormPat::Call(::name::n("DefaultToken"))),
+                    ::name::n(&format!("{}{}", ::read::delim($d).close(), main_tok))))
             }])
     };
     ((star $body:tt)) => { ::grammar::FormPat::Star(::std::rc::Rc::new(form_pat!($body))) };

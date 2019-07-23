@@ -66,45 +66,6 @@ impl ::std::fmt::Debug for UniqueIdRef {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result { write!(f, "{}", self.0) }
 }
 
-// TODO: this shouldn't be hardcoded into the parser; it should be ... how should it work?
-// (Maybe the `Biased`s in the grammar take care of this now?)
-fn reserved(nm: Name) -> bool {
-    [
-        n("forall"),
-        n("mu_type"),
-        n("Int"),
-        n("Ident"),
-        n("Float"),
-        n("match"),
-        n("enum"),
-        n("struct"),
-        n("fold"),
-        n("unfold"),
-        n("("),
-        n(")"),
-        n("{"),
-        n("}"),
-        n("<["),
-        n("]<"),
-        n(".["),
-        n("]."),
-        n("'["),
-        n("]'"),
-        n(",["),
-        n("],"),
-        n("+["),
-        n("]+"),
-        n("*["),
-        n("]*"),
-        n("|"),
-        n("."),
-        n(":"),
-        n("=>"),
-        n("->"),
-    ]
-    .contains(&nm)
-}
-
 // Hey, this doesn't need to be Reifiable!
 pub struct Item {
     /// Where (in the token input stream) this rule tried to start matching
@@ -416,8 +377,9 @@ impl Item {
                     //  in `shift_or_predict` for leaves.
                     // Except for `Seq`. TODO: why?
                     let mut more = match *waiting_item.rule {
-                        Anyways(_) | Impossible | Literal(_) | AnyToken | AnyAtomicToken
-                        | VarRef => icp!("{:#?} should not be waiting for anything!", waiting_item),
+                        Anyways(_) | Impossible | AnyToken | AnyAtomicToken => {
+                            icp!("{:#?} should not be waiting for anything!", waiting_item)
+                        }
                         Seq(ref subs) => {
                             if (waiting_item.pos) as usize == subs.len() {
                                 vec![]
@@ -445,7 +407,8 @@ impl Item {
                             },
                             0,
                         )],
-                        Alt(_)
+                        VarRef(_)
+                        | Alt(_)
                         | Call(_)
                         | ComputeSyntax(_, _)
                         | Scope(_, _)
@@ -454,16 +417,33 @@ impl Item {
                         | NameImport(_, _)
                         | QuoteDeepen(_, _)
                         | QuoteEscape(_, _) => waiting_item.finish_with(me_justif, 0),
-                        Reserved(_, ref name_list) => match *self.local_parse.borrow() {
-                            ParsedAtom(::ast::Atom(name))
-                            | ParsedAtom(::ast::VariableReference(name)) => {
+                        // Using `c_parse` instead of `local_parse` here is weird,
+                        //  but probably necessary to allow `Call` under `Reserved`.
+                        Reserved(_, ref name_list) => match self.c_parse(chart, cur_idx) {
+                            Ok(::ast::Atom(name)) | Ok(::ast::VariableReference(name)) => {
                                 if name_list.contains(&name) {
                                     vec![]
                                 } else {
                                     waiting_item.finish_with(me_justif, 0)
                                 }
                             }
-                            _ => vec![],
+                            _ => {
+                                log!("found something unusual {:?}", other);
+                                vec![]
+                            }
+                        },
+                        Literal(_, expected) => match self.c_parse(chart, cur_idx) {
+                            Ok(::ast::Atom(name)) => {
+                                if name == expected {
+                                    waiting_item.finish_with(me_justif, 0)
+                                } else {
+                                    vec![]
+                                }
+                            }
+                            _ => {
+                                log!("found something unusual {:?}", other);
+                                vec![]
+                            }
                         },
                         Biased(ref _plan_a, ref plan_b) => {
                             if &*self.rule as *const FormPat == &**plan_b as *const FormPat {
@@ -509,24 +489,16 @@ impl Item {
             // TODO: is there a better way to match in `Rc`?
             (0, &Anyways(ref a)) => self.finish_with(ParsedAtom(a.clone()), 0),
             (_, &Impossible) => vec![],
-            (0, &Literal(xptd_n)) => match cur {
-                Some(&n) if xptd_n == n => self.finish_with(ParsedAtom(::ast::Atom(n)), shift_by),
-                _ => vec![],
-            },
+            (0, &Literal(ref sub, _)) => self.start(sub, cur_idx),
             (0, &AnyToken) => match cur {
-                Some(&n) if !reserved(n) => self.finish_with(ParsedAtom(::ast::Atom(n)), shift_by),
+                Some(&n) => self.finish_with(ParsedAtom(::ast::Atom(n)), shift_by),
                 _ => vec![],
             },
             (0, &AnyAtomicToken) => match cur {
-                Some(&n) if !reserved(n) => self.finish_with(ParsedAtom(::ast::Atom(n)), shift_by),
+                Some(&n) => self.finish_with(ParsedAtom(::ast::Atom(n)), shift_by),
                 _ => vec![],
             },
-            (0, &VarRef) => match cur {
-                Some(&n) if !reserved(n) => {
-                    self.finish_with(ParsedAtom(::ast::VariableReference(n)), shift_by)
-                }
-                _ => vec![],
-            },
+            (0, &VarRef(ref sub)) => self.start(sub, cur_idx),
             (pos, &Seq(ref subs)) => {
                 if pos < subs.len() {
                     self.start(&subs[pos as usize], cur_idx)
@@ -663,15 +635,20 @@ impl Item {
         let res = match *self.rule {
             Anyways(ref a) => Ok(a.clone()),
             Impossible => icp!("Parser parsed the impossible!"),
-            Literal(_) | AnyToken | AnyAtomicToken | VarRef => {
-                match self.local_parse.borrow().clone() {
-                    ParsedAtom(a) => Ok(a),
-                    _ => icp!("no simple parse saved"),
-                }
-            }
-            Alt(_) | Biased(_, _) | Call(_) | SynImport(_, _, _) | Reserved(_, _) => {
-                self.find_wanted(chart, done_tok).c_parse(chart, done_tok)
-            }
+            AnyToken | AnyAtomicToken => match self.local_parse.borrow().clone() {
+                ParsedAtom(a) => Ok(a),
+                _ => icp!("no simple parse saved"),
+            },
+            VarRef(_) => match self.find_wanted(chart, done_tok).c_parse(chart, done_tok)? {
+                ::ast::Atom(a) => Ok(::ast::VariableReference(a)),
+                _ => icp!("no atom saved"),
+            },
+            Literal(_, _)
+            | Alt(_)
+            | Biased(_, _)
+            | Call(_)
+            | SynImport(_, _, _)
+            | Reserved(_, _) => self.find_wanted(chart, done_tok).c_parse(chart, done_tok),
             Seq(_) | Star(_) | Plus(_) => {
                 let mut step = self;
                 let mut subtrees: Vec<Ast> = vec![];
@@ -718,7 +695,8 @@ impl Item {
                     Seq(_) => Ok(Ast::Shape(subtrees)),
                     Star(_) | Plus(_) => {
                         Ok(Ast::IncompleteNode(::util::mbe::EnvMBE::new_from_anon_repeat(
-                            subtrees.into_iter().map(|a| a.flatten()).collect())))
+                            subtrees.into_iter().map(|a| a.flatten()).collect(),
+                        )))
                     }
                     _ => icp!("seriously, this can't happen"),
                 }
@@ -934,11 +912,22 @@ fn earley_simple_recognition() {
     assert_eq!(recognize(&Impossible, &main_grammar, &tokens!("Pierre Menard")), false);
 
     assert_eq!(
-        recognize(&Literal(n("Cervantes")), &main_grammar, &tokens!("Pierre Menard")),
+        recognize(
+            &Literal(Rc::new(AnyAtomicToken), n("Cervantes")),
+            &main_grammar,
+            &tokens!("Pierre Menard")
+        ),
         false
     );
 
-    assert_eq!(recognize(&Literal(n("Cervantes")), &main_grammar, &tokens!("Cervantes")), true);
+    assert_eq!(
+        recognize(
+            &Literal(Rc::new(AnyAtomicToken), n("Cervantes")),
+            &main_grammar,
+            &tokens!("Cervantes")
+        ),
+        true
+    );
 
     assert_eq!(
         recognize(&Seq(vec![Rc::new(AnyAtomicToken)]), &main_grammar, &tokens!("P.M.")),
@@ -958,7 +947,10 @@ fn earley_simple_recognition() {
 
     assert_eq!(
         recognize(
-            &Alt(vec![Rc::new(Impossible), Rc::new(Literal(n("Cervantes")))]),
+            &Alt(vec![
+                Rc::new(Impossible),
+                Rc::new(Literal(Rc::new(AnyAtomicToken), n("Cervantes")))
+            ]),
             &main_grammar,
             &tokens!("Pierre Menard")
         ),
@@ -1053,37 +1045,38 @@ fn earley_simple_recognition() {
 
 #[test]
 fn earley_env_recognition() {
+    fn mk_lt(s: &str) -> Rc<FormPat> { Rc::new(Literal(Rc::new(AnyAtomicToken), n(s))) }
     let env = assoc_n!(
         "empty" => Rc::new(Seq(vec![])),
         "empty_indirect" => Rc::new(Call(n("empty"))),
         "impossible" => Rc::new(Impossible),
-        "a" => Rc::new(Literal(n("a"))),
-        "aaa" => Rc::new(Star(Rc::new(Literal(n("a"))))),
+        "a" => mk_lt("a"),
+        "aaa" => Rc::new(Star(mk_lt("a"))),
         "aaa_indirect" => Rc::new(Star(Rc::new(Call(n("a"))))),
-        "aaaa" => Rc::new(Plus(Rc::new(Literal(n("a"))))),
-        "xxx" => Rc::new(Star(Rc::new(Literal(n("x"))))),
+        "aaaa" => Rc::new(Plus(mk_lt("a"))),
+        "xxx" => Rc::new(Star(mk_lt("x"))),
         "l_rec_axxx" => Rc::new(Alt(vec![Rc::new(Seq(vec![Rc::new(Call(n("l_rec_axxx"))),
-                                                  Rc::new(Literal(n("x")))])),
-                                 Rc::new(Literal(n("a")))])),
+                                                          mk_lt("x")])),
+                                         mk_lt("a")])),
         "l_rec_axxx_hard" => Rc::new(
             Alt(vec![Rc::new(Seq(vec![Rc::new(Call(n("l_rec_axxx_hard"))),
-                                      Rc::new(Alt(vec![Rc::new(Literal(n("x"))),
+                                      Rc::new(Alt(vec![mk_lt("x"),
                                                        Rc::new(Call(n("impossible"))),
                                                        Rc::new(Call(n("empty_indirect")))]))])),
                                       Rc::new(Call(n("impossible"))),
-                                      Rc::new(Literal(n("a")))])),
-        "r_rec_xxxa" => Rc::new(Alt(vec![Rc::new(Seq(vec![Rc::new(Literal(n("x"))),
+                                      mk_lt("a")])),
+        "r_rec_xxxa" => Rc::new(Alt(vec![Rc::new(Seq(vec![mk_lt("x"),
                                                   Rc::new(Call(n("r_rec_xxxa")))])),
-                                 Rc::new(Literal(n("a")))])),
+                                 mk_lt("a")])),
         "l_rec_aaaa" => Rc::new(Alt(vec![Rc::new(Seq(vec![Rc::new(Call(n("l_rec_aaaa"))),
-                                                  Rc::new(Literal(n("a")))])),
-                                 Rc::new(Literal(n("a")))])),
-        "r_rec_aaaa" => Rc::new(Alt(vec![Rc::new(Seq(vec![Rc::new(Literal(n("a"))),
-                                                  Rc::new(Call(n("r_rec_aaaa")))])),
-                                 Rc::new(Literal(n("a")))])));
+                                                          mk_lt("a")])),
+                                 mk_lt("a")])),
+        "r_rec_aaaa" => Rc::new(Alt(vec![Rc::new(Seq(vec![mk_lt("a"),
+                                                          Rc::new(Call(n("r_rec_aaaa")))])),
+                                 mk_lt("a")])));
 
-    assert_eq!(recognize(&Literal(n("a")), &env, &tokens!("a")), true);
-    assert_eq!(recognize(&Literal(n("a")), &env, &tokens!("b")), false);
+    assert_eq!(recognize(&*mk_lt("a"), &env, &tokens!("a")), true);
+    assert_eq!(recognize(&*mk_lt("a"), &env, &tokens!("b")), false);
 
     assert_eq!(recognize(&Call(n("empty")), &env, &tokens!()), true);
     assert_eq!(recognize(&Call(n("empty")), &env, &tokens!("not empty!")), false);
@@ -1122,6 +1115,8 @@ fn earley_env_recognition() {
 
 #[test]
 fn basic_parsing_e() {
+    fn mk_lt(s: &str) -> Rc<FormPat> { Rc::new(Literal(Rc::new(AnyAtomicToken), n(s))) }
+
     assert_eq!(parse_top(&AnyToken, &tokens!("asdf")), Ok(ast!("asdf")));
 
     assert_eq!(parse_top(&Anyways(ast!("asdf")), &tokens!()), Ok(ast!("asdf")));
@@ -1140,7 +1135,7 @@ fn basic_parsing_e() {
 
     assert_eq!(
         parse_top(
-            &Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
+            &Seq(vec![Rc::new(AnyToken), mk_lt("fork"), Rc::new(AnyToken)]),
             &tokens!("asdf" "fork" "asdf")
         ),
         Ok(ast_shape!("asdf" "fork" "asdf"))
@@ -1149,8 +1144,8 @@ fn basic_parsing_e() {
     assert_eq!(
         parse_top(
             &Seq(vec![
-                Rc::new(Seq(vec![Rc::new(Literal(n("aa"))), Rc::new(Literal(n("ab")))])),
-                Rc::new(Seq(vec![Rc::new(Literal(n("ba"))), Rc::new(Literal(n("bb")))]))
+                Rc::new(Seq(vec![mk_lt("aa"), mk_lt("ab")])),
+                Rc::new(Seq(vec![mk_lt("ba"), mk_lt("bb")]))
             ]),
             &tokens!("aa" "ab" "ba" "bb")
         ),
@@ -1158,14 +1153,14 @@ fn basic_parsing_e() {
     );
 
     assert!(!parse_top(
-        &Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
+        &Seq(vec![Rc::new(AnyToken), mk_lt("fork"), Rc::new(AnyToken)]),
         &tokens!("asdf" "knife" "asdf"),
     )
     .is_ok());
 
     assert_eq!(
         parse_top(
-            &form_pat!([(star (named "c", (alt (lit "X"), (lit "O")))), (lit "!")]),
+            &form_pat!([(star (named "c", (alt (lit_aat "X"), (lit_aat "O")))), (lit_aat "!")]),
             &tokens!("X" "O" "O" "O" "X" "X" "!")
         ),
         Ok(ast_shape!({- "c" => ["X", "O", "O", "O", "X", "X"]} "!"))
@@ -1173,10 +1168,7 @@ fn basic_parsing_e() {
 
     assert_eq!(
         parse_top(
-            &Seq(vec![
-                Rc::new(Star(Rc::new(Named(n("c"), Rc::new(Literal(n("*"))))))),
-                Rc::new(Literal(n("X")))
-            ]),
+            &Seq(vec![Rc::new(Star(Rc::new(Named(n("c"), mk_lt("*"))))), mk_lt("X")]),
             &tokens!("*" "*" "*" "*" "*" "X")
         ),
         Ok(ast_shape!({- "c" => ["*", "*", "*", "*", "*"] } "X"))
@@ -1184,7 +1176,7 @@ fn basic_parsing_e() {
 
     assert_m!(
         parse_top(
-            &form_pat!([(star (biased (lit "a"), (lit "b"))), (lit "b")]),
+            &form_pat!([(star (biased (lit_aat "a"), (lit_aat "b"))), (lit_aat "b")]),
             &tokens!["a" "a" "b"]
         ),
         Ok(_)
@@ -1192,21 +1184,41 @@ fn basic_parsing_e() {
 
     assert_m!(
         parse_top(
-            &form_pat!([(star (biased (lit "b"), (lit "a"))), (lit "b")]),
+            &form_pat!([(star (biased (lit_aat "b"), (lit_aat "a"))), (lit_aat "b")]),
             &tokens!["a" "a" "b"]
         ),
         Ok(_)
     );
 
-    assert_eq!(parse_top(&form_pat!([(lit "b")]), &tokens!["b"]), Ok(ast_shape!("b")));
+    assert_eq!(parse_top(&form_pat!([(lit_aat "b")]), &tokens!["b"]), Ok(ast_shape!("b")));
+
+    assert_eq!(parse_top(&form_pat!(varref_aat), &tokens!("Spoon")), Ok(ast!((vr "Spoon"))));
 
     assert_eq!(
-        parse_top(&form_pat!((alt (lit "Moon"), (reserved varref, "Moon"))), &tokens!("Spoon")),
+        parse_top(&form_pat!((reserved varref_aat, "Moon")), &tokens!("Spoon")),
         Ok(ast!((vr "Spoon")))
     );
 
     assert_eq!(
-        parse_top(&form_pat!((alt (lit "Moon"), (reserved aat, "Moon"))), &tokens!("Moon")),
+        parse_top(
+            &form_pat!((alt (lit_aat "Moon"), (reserved varref_aat, "Moon"))),
+            &tokens!("Spoon")
+        ),
+        Ok(ast!((vr "Spoon")))
+    );
+
+    assert_eq!(
+        parse_top(&form_pat!((alt (lit_aat "Moon"), (reserved aat, "Moon"))), &tokens!("Moon")),
         Ok(ast!("Moon")) // Not a varref, so it's the literal instead
+    );
+
+    let env = assoc_n!(
+        "DefaultToken" => Rc::new(AnyAtomicToken)
+    );
+
+    assert_eq!(
+        // `lit` calls "DefaultToken"
+        parse(&form_pat!((lit "Moon")), &env, &tokens!("Moon")),
+        Ok(ast!("Moon"))
     );
 }

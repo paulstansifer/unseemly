@@ -18,6 +18,8 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
         | Plus(ref body)
         | ComputeSyntax(_, ref body)
         | NameImport(ref body, _)
+        | VarRef(ref body)
+        | Literal(ref body, _)
         | QuoteDeepen(ref body, _)
         | QuoteEscape(ref body, _)
         | Reserved(ref body, _) => node_names_mentioned(&*body),
@@ -33,14 +35,7 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
             res.append(&mut node_names_mentioned(&*rhs));
             res
         }
-        Anyways(_)
-        | Impossible
-        | Literal(_)
-        | AnyToken
-        | AnyAtomicToken
-        | VarRef
-        | Call(_)
-        | SynImport(_, _, _) => vec![],
+        Anyways(_) | Impossible | AnyToken | AnyAtomicToken | Call(_) | SynImport(_, _, _) => vec![],
     }
 }
 
@@ -72,13 +67,14 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
         //=> unparse_mbe(&*body, context.get_leaf(name).unwrap_or(&Atom(n("<MISSING>"))), context, s),
         (&Call(sub_form), _) => unparse_mbe(s.find_or_panic(&sub_form), actl, context, s),
         (&Anyways(_), _) | (&Impossible, _) => "".to_string(),
-        (&Literal(n), _) => n.print(),
-        (&AnyToken, &Atom(n)) => n.print(),
+        (&Literal(ref sub_form, _), _) => unparse_mbe(&*sub_form, &actl, context, s),
         (&AnyToken, _) => panic!("TODO: pretty print arbitrary token trees"),
         (&AnyAtomicToken, &Atom(n)) => n.print(),
         (&AnyAtomicToken, _) => "".to_string(), // HACK for `Alt`
-        (&VarRef, &VariableReference(n)) => n.print(),
-        (&VarRef, _) => "".to_string(), // HACK for `Alt`
+        (&VarRef(ref sub_form), &VariableReference(n)) => {
+            unparse_mbe(&*sub_form, &Atom(n), context, s)
+        }
+        (&VarRef(_), _) => "".to_string(), // HACK for `Alt`
         (&Seq(ref sub_pats), _) => {
             let mut prev_empty = true;
             let mut res = String::new();

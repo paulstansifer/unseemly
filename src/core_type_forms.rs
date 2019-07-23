@@ -161,7 +161,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
     let enum_type = type_defn(
         "enum",
         form_pat!([(lit "enum"),
-            (delim "{", "{", (star [(named "name", aat),
+            (delim "{", "{", (star [(named "name", atom),
                 (delim "(", "(", (star (named "component", (call "Type"))))]))]),
     );
 
@@ -169,7 +169,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         "struct",
         form_pat!(
             [(lit "struct"),
-             (delim "{", "{", (star [(named "component_name", aat), (lit ":"),
+             (delim "{", "{", (star [(named "component_name", atom), (lit ":"),
                                      (named "component", (call "Type"))]))]),
         LiteralLike, // synth is normal
         Both(
@@ -221,7 +221,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
 
     let forall_type = type_defn_complex(
         "forall_type",
-        form_pat!([(lit "forall"), (star (named "param", aat)), (lit "."),
+        form_pat!([(lit "forall"), (star (named "param", atom)), (lit "."),
                        (named "body", (import [* [forall "param"]], (call "Type")))]),
         LiteralLike, // synth is normal
         Both(
@@ -431,7 +431,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         dotdotdot_type.clone(),
         mu_type.clone(),
         type_apply.clone()
-        ]), Rc::new(VarRef))))
+        ]), Rc::new(VarRef(Rc::new(Call(n("DefaultName"))))))))
 }
 
 // TODO #4: this should be extensible for when the syntax environment is extended...

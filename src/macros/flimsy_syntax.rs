@@ -130,7 +130,7 @@ pub fn parse_flimsy_mbe(flimsy: &Ast, grammar: &FormPat) -> Option<EnvMBE<Ast>> 
     use grammar::FormPat::*;
 
     match grammar {
-        Literal(_) => None,
+        Literal(_, _) => None,
         Seq(_) => match flimsy {
             Shape(flimsy_parts) => {
                 if flimsy_parts[0] != Atom(n("SEQ")) {
@@ -169,13 +169,13 @@ fn parse_flimsy_ast(flimsy: &Ast, grammar: &FormPat) -> Ast {
     match grammar {
         Anyways(ref a) => a.clone(),
         Impossible => unimplemented!(),
-        Literal(_) => Trivial,
+        Literal(_, _) => Trivial,
         AnyToken => unimplemented!(),
         AnyAtomicToken => match flimsy {
             VariableReference(a) => Atom(*a),
             non_atom => panic!("Needed an atom, got {}", non_atom),
         },
-        VarRef => match flimsy {
+        VarRef(_) => match flimsy {
             VariableReference(a) => VariableReference(*a),
             non_atom => panic!("Needed an atom, got {}", non_atom),
         },
@@ -187,7 +187,17 @@ fn parse_flimsy_ast(flimsy: &Ast, grammar: &FormPat) -> Ast {
 
         // Lookup is faked by the flimsy macros, so we don't need to do anything:
         ComputeSyntax(_, body) | SynImport(body, _, _) => parse_flimsy_ast(flimsy, &*body),
-        Call(_) => flimsy.clone(),
+        Call(name) => {
+            // HACK: don't descend into `Call(n("DefaultName")); treat it like `AnyAtomicToken`
+            if *name == n("DefaultName") {
+                match flimsy {
+                    VariableReference(a) => Atom(*a),
+                    non_atom => panic!("Needed an atom, got {}", non_atom),
+                }
+            } else {
+                flimsy.clone()
+            }
+        }
         _ => unimplemented!(),
     }
 }

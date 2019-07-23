@@ -254,12 +254,17 @@ pub fn make_core_macro_forms() -> SynEnv {
             body => ::ast::Ast::reflect(&body)
         )) => ["body"],
         syntax_syntax!( ((lit "impossible")) Impossible ) => [],
-        syntax_syntax!( ((delim "{", "{", [(lit "lit"), (named "body", aat)]) ) Literal (
-            body => ::name::Name::reflect(&body)
-        )) => ["body"],
+        syntax_syntax!( ((delim "{", "{",
+            [(lit "lit"), (named "body", (call "Syntax")),
+             (lit "="), (named "expected", atom)]) ) Literal (
+            body => Rc::new(FormPat::reflect(&body)),
+            expected => ::name::Name::reflect(&expected)
+        )) => [],
         syntax_syntax!( ((lit "any_token")) AnyToken ) => [],
         syntax_syntax!( ((lit "atom")) AnyToken ) => [],
-        syntax_syntax!( ((lit "vr")) VarRef ) => [],
+        syntax_syntax!( ([(lit "vr"), (named "body", (call "Syntax"))]) VarRef (
+            body =>  Rc::new(FormPat::reflect(&body))
+        )) => [],
         // TODO: split out a separate SyntaxSeq, so that we can get rid of the [ ] delimiters
         syntax_syntax!( ( (delim "[", "[", (star (named "elt", (call "Syntax"))))) Seq {
             |parts| {
@@ -323,7 +328,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         //   TODO: replace `binder` with a `Pat`, and make the following true:
         //     This has to have the same named parts as `unquote`, because it reuses its typechecker
         //     But the type walk (as an overall quotation and locally) is always negative.
-        syntax_syntax!( ([(named "part_name", aat), (lit "="), (named "body", (call "Syntax"))])
+        syntax_syntax!( ([(named "part_name", atom), (lit "="), (named "body", (call "Syntax"))])
         Named {
             |parts| {
                 let binder = ast_to_name(&parts.get_term(n("part_name")));
@@ -341,7 +346,7 @@ pub fn make_core_macro_forms() -> SynEnv {
             name: n("call"),
             grammar: Rc::new(form_pat!(
                 (delim ",{", "{",
-                    [(named "nt", aat), (delim "<[", "[", (named "ty_annot", (call "Type")))]))),
+                    [(named "nt", atom), (delim "<[", "[", (named "ty_annot", (call "Type")))]))),
             type_compare: ::form::Both(NotWalked,NotWalked), // Not a type
             synth_type: Both(cust_rc_box!(|parts| {
                 let expected_type = parts.get_res(n("ty_annot"))?;
@@ -350,7 +355,8 @@ pub fn make_core_macro_forms() -> SynEnv {
                 Ok(more_quoted_ty(&expected_type, nt))
             }), NotWalked),
             eval: ::form::Positive(cust_rc_box!(|parts| {
-                Ok(Rc::new(Call(::name::Name::reflect(&parts.get_res(n("nt"))?))).reify())
+                let nt = ast_to_name(&parts.get_term(n("nt")));
+                Ok(Rc::new(Call(nt)).reify())
             })),
             quasiquote: ::form::Both(LiteralLike, LiteralLike)
         }) => [],
@@ -359,7 +365,7 @@ pub fn make_core_macro_forms() -> SynEnv {
             name: n("import"),
             grammar: Rc::new(form_pat!(
                 (delim ",{", "{",
-                    [(named "nt", aat), (delim "<[", "[", (named "ty_annot", (call "Type")))]))),
+                    [(named "nt", atom), (delim "<[", "[", (named "ty_annot", (call "Type")))]))),
             type_compare: ::form::Both(NotWalked,NotWalked), // Not a type
             synth_type: Both(cust_rc_box!(|parts| {
                 let expected_type = parts.get_res(n("ty_annot"))?;
@@ -374,18 +380,18 @@ pub fn make_core_macro_forms() -> SynEnv {
         }) => [],
         // TODO: implement syntax for ComputeSyntax
         // Not sure if `Scope` syntax should be positive or negative.
-        syntax_syntax!( ([(lit "forall"), (star (named "param", aat)), (lit "."),
+        syntax_syntax!( ([(lit "forall"), (star (named "param", atom)), (lit "."),
                           (delim "'{", "{",
                               (import [* [forall "param"]], (named "syntax", (call "Syntax")))),
                           // We need an arbitrary negative_ret_val:
                           (named "unused_type", (anyways {trivial_type_form ; } )),
-                          (named "macro_name", aat), (lit "->"),
+                          (named "macro_name", atom), (lit "->"),
                           (delim ".{", "{", (named "implementation",
                               // TODO `beta!` needs `Shadow` so we can combine these `import`s:
                               (import [* [forall "param"]],
                                   (import ["syntax" = "unused_type"], (call "Expr"))))),
                           (alt [], // TODO: needs proper `beta` structure, not just a name list:
-                               [(lit "=>"), (star (named "export", aat))])])
+                               [(lit "=>"), (star (named "export", atom))])])
         Scope {
             |parts| {
                 let return_ty = parts.switch_mode::<::ty::SynthTy>().get_res(n("implementation"))?;
@@ -498,15 +504,16 @@ fn formpat_reflection() {
         ),
         Impossible
     );
-
     assert_eq!(
         FormPat::reflect(
-            &eval_top(&ast!({find_form(&macro_forms, "Syntax", "literal"); "body" =>
-               {"Expr" "quote_expr" : "nt" => "Expr", "body" => (++ true "<--->")}
-            }))
+            &eval_top(&ast!({find_form(&macro_forms, "Syntax", "literal");
+                "expected" => {"Expr" "quote_expr" : "nt" => "Expr", "body" => (++ true "<--->")},
+                "body" => {find_form(&macro_forms, "Syntax", "call");
+                    "nt" => "DefaultToken"
+            }}))
             .unwrap()
         ),
-        Literal(n("<--->"))
+        Literal(std::rc::Rc::new(Call(n("DefaultToken"))), n("<--->"))
     );
 }
 

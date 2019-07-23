@@ -27,14 +27,14 @@ custom_derive! {
         Impossible,
         /// Matches an atom or varref, but not if it's on the list of reserved words
         Reserved(Rc<FormPat>, Vec<Name>),
-        /// Matches the given name as a literal
-        Literal(Name),
+        /// Matches if the sub-pattern equals the given name
+        Literal(Rc<FormPat>, Name),
         /// cleanup TODO: remove, now that tokens are always atomic
         AnyToken,
-        /// Matches any token, as an `Atom`. (TODO: rename)
+        /// Matches any token, as an `Atom`. (TODO: remove, when scannerlessness lands)
         AnyAtomicToken,
-        /// Matches any token, as a `VariableReference`
-        VarRef,
+        /// Matches an atom, turns it into a `VariableReference`
+        VarRef(Rc<FormPat>),
         /// Matches an ordered sequence of patterns.
         Seq(Vec<Rc<FormPat>>),
         /// Matches zero or more occurrences of a pattern.
@@ -89,6 +89,7 @@ impl FormPat {
             Star(ref body) | Plus(ref body) => {
                 body.binders().into_iter().map(|(n, depth)| (n, depth + 1)).collect()
             }
+            // TODO: since these belong under `Named`, I suspect they ought to return an empty Vec.
             ComputeSyntax(_, ref body)
             | SynImport(ref body, _, _)
             | NameImport(ref body, _)
@@ -98,7 +99,13 @@ impl FormPat {
             Biased(ref body_a, ref body_b) => {
                 body_a.binders().tap(|v| v.append(&mut body_b.binders()))
             }
-            Anyways(_) | Impossible | Literal(_) | AnyToken | AnyAtomicToken | VarRef | Call(_) => vec![],
+            Anyways(_)
+            | Impossible
+            | Literal(_, _)
+            | AnyToken
+            | AnyAtomicToken
+            | VarRef(_)
+            | Call(_) => vec![],
         }
     }
 
@@ -121,12 +128,14 @@ impl FormPat {
             Named(_, _) => None, // Otherwise, skip
             Call(_) => None,
             Scope(_, _) => None, // Only look in the current scope
-            Anyways(_) | Impossible | Literal(_) | AnyToken | AnyAtomicToken | VarRef => None,
+            Anyways(_) | Impossible | AnyToken | AnyAtomicToken => None,
             Star(ref body)
             | Plus(ref body)
             | ComputeSyntax(_, ref body)
             | SynImport(ref body, _, _)
             | NameImport(ref body, _)
+            | Literal(ref body, _)
+            | VarRef(ref body)
             | QuoteDeepen(ref body, _)
             | QuoteEscape(ref body, _)
             | Reserved(ref body, _) => body.find_named_call(n),
@@ -178,22 +187,6 @@ impl ::std::fmt::Debug for SyntaxExtension {
 
 pub type SynEnv = Assoc<Name, Rc<FormPat>>;
 
-/// Currently only used for DDDs
-pub fn plug_hole(outer: &Rc<FormPat>, hole: Name, inner: &Rc<FormPat>) -> Rc<FormPat> {
-    match **outer {
-        Call(n) => {
-            if n == hole {
-                inner.clone()
-            } else {
-                outer.clone()
-            }
-        }
-        Anyways(_) | Impossible | Literal(_) | AnyToken | AnyAtomicToken | VarRef => outer.clone(),
-        Seq(ref subs) => Rc::new(Seq(subs.iter().map(|sub| plug_hole(sub, hole, inner)).collect())),
-        _ => panic!("What are you doing? What do you even think will happen?"),
-    }
-}
-
 pub use earley::parse;
 
 /// Parse `tt` with the grammar `f` in an empty syntactic environment.
@@ -210,6 +203,8 @@ use self::FormPat::*;
 
 #[test]
 fn basic_parsing() {
+    fn mk_lt(s: &str) -> Rc<FormPat> { Rc::new(Literal(Rc::new(AnyAtomicToken), n(s))) }
+
     assert_eq!(
         parse_top(&Seq(vec![Rc::new(AnyToken)]), &tokens!("asdf")).unwrap(),
         ast_shape!("asdf")
@@ -217,7 +212,7 @@ fn basic_parsing() {
 
     assert_eq!(
         parse_top(
-            &Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
+            &Seq(vec![Rc::new(AnyToken), mk_lt("fork"), Rc::new(AnyToken)]),
             &tokens!("asdf" "fork" "asdf")
         )
         .unwrap(),
@@ -226,7 +221,7 @@ fn basic_parsing() {
 
     assert_eq!(
         parse_top(
-            &Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
+            &Seq(vec![Rc::new(AnyToken), mk_lt("fork"), Rc::new(AnyToken)]),
             &tokens!("asdf" "fork" "asdf")
         )
         .unwrap(),
@@ -234,17 +229,14 @@ fn basic_parsing() {
     );
 
     parse_top(
-        &Seq(vec![Rc::new(AnyToken), Rc::new(Literal(n("fork"))), Rc::new(AnyToken)]),
+        &Seq(vec![Rc::new(AnyToken), mk_lt("fork"), Rc::new(AnyToken)]),
         &tokens!("asdf" "knife" "asdf"),
     )
     .unwrap_err();
 
     assert_eq!(
         parse_top(
-            &Seq(vec![
-                Rc::new(Star(Rc::new(Named(n("c"), Rc::new(Literal(n("*"))))))),
-                Rc::new(Literal(n("X")))
-            ]),
+            &Seq(vec![Rc::new(Star(Rc::new(Named(n("c"), mk_lt("*"))))), mk_lt("X")]),
             &tokens!("*" "*" "*" "*" "*" "X")
         )
         .unwrap(),
@@ -254,12 +246,18 @@ fn basic_parsing() {
 
 #[test]
 fn alternation() {
-    assert_eq!(parse_top(&form_pat!((alt (lit "A"), (lit "B"))), &tokens!("A")), Ok(ast!("A")));
-    assert_eq!(parse_top(&form_pat!((alt (lit "A"), (lit "B"))), &tokens!("B")), Ok(ast!("B")));
+    assert_eq!(
+        parse_top(&form_pat!((alt (lit_aat "A"), (lit_aat "B"))), &tokens!("A")),
+        Ok(ast!("A"))
+    );
+    assert_eq!(
+        parse_top(&form_pat!((alt (lit_aat "A"), (lit_aat "B"))), &tokens!("B")),
+        Ok(ast!("B"))
+    );
 
     assert_eq!(
         parse_top(
-            &form_pat!((alt (lit "A"), (lit "B"), [(lit "X"), (lit "B")])),
+            &form_pat!((alt (lit_aat "A"), (lit_aat "B"), [(lit_aat "X"), (lit_aat "B")])),
             &tokens!("X" "B")
         ),
         Ok(ast!(("X" "B")))
@@ -267,7 +265,7 @@ fn alternation() {
 
     assert_eq!(
         parse_top(
-            &form_pat!((alt [(lit "A"), (lit "X")], (lit "B"), [(lit "A"), (lit "B")])),
+            &form_pat!((alt [(lit_aat "A"), (lit_aat "X")], (lit_aat "B"), [(lit_aat "A"), (lit_aat "B")])),
             &tokens!("A" "B")
         ),
         Ok(ast!(("A" "B")))
@@ -275,7 +273,7 @@ fn alternation() {
 
     assert_eq!(
         parse_top(
-            &form_pat!((alt (lit "A"), (lit "B"), [(lit "A"), (lit "B")])),
+            &form_pat!((alt (lit_aat "A"), (lit_aat "B"), [(lit_aat "A"), (lit_aat "B")])),
             &tokens!("A" "B")
         ),
         Ok(ast!(("A" "B")))
@@ -286,7 +284,7 @@ fn alternation() {
 fn advanced_parsing() {
     assert_eq!(
         parse_top(
-            &form_pat!([(star (named "c", (alt (lit "X"), (lit "O")))), (lit "!")]),
+            &form_pat!([(star (named "c", (alt (lit_aat "X"), (lit_aat "O")))), (lit_aat "!")]),
             &tokens!("X" "O" "O" "O" "X" "X" "!")
         )
         .unwrap(),
@@ -297,16 +295,18 @@ fn advanced_parsing() {
 
     assert_eq!(
         parse_top(
-            &form_pat!((star (biased [(named "c", (anyways "ttt")), (alt (lit "X"), (lit "O"))],
-                                     [(named "c", (anyways "igi")), (alt (lit "O"), (lit "H"))]))),
+            &form_pat!(
+                (star (biased [(named "c", (anyways "ttt")), (alt (lit_aat "X"), (lit_aat "O"))],
+                              [(named "c", (anyways "igi")), (alt (lit_aat "O"), (lit_aat "H"))]))),
             &tokens!("X" "O" "H" "O" "X" "H" "O")
         )
         .unwrap(),
         ast!({ - "c" => ["ttt", "ttt", "igi", "ttt", "ttt", "igi", "ttt"]})
     );
 
-    let ttt = simple_form("tictactoe", form_pat!( [(named "c", (alt (lit "X"), (lit "O")))]));
-    let igi = simple_form("igetit", form_pat!( [(named "c", (alt (lit "O"), (lit "H")))]));
+    let ttt =
+        simple_form("tictactoe", form_pat!( [(named "c", (alt (lit_aat "X"), (lit_aat "O")))]));
+    let igi = simple_form("igetit", form_pat!( [(named "c", (alt (lit_aat "O"), (lit_aat "H")))]));
 
     assert_eq!(
         parse_top(
@@ -323,19 +323,19 @@ fn advanced_parsing() {
 
     let pair_form = simple_form(
         "pair",
-        form_pat!([(named "lhs", (lit "a")),
-                                                   (named "rhs", (lit "b"))]),
+        form_pat!([(named "lhs", (lit_aat "a")),
+                                                   (named "rhs", (lit_aat "b"))]),
     );
     let toks_a_b = tokens!("a" "b");
     assert_eq!(
         parse(
             &form_pat!((call "Expr")),
             &assoc_n!(
-                         "other_1" => Rc::new(Scope(simple_form("o", form_pat!((lit "other"))),
+                         "other_1" => Rc::new(Scope(simple_form("o", form_pat!((lit_aat "other"))),
                                                     ::beta::ExportBeta::Nothing)),
                          "Expr" => Rc::new(Scope(pair_form.clone(), ::beta::ExportBeta::Nothing)),
                          "other_2" =>
-                             Rc::new(Scope(simple_form("o", form_pat!((lit "otherother"))),
+                             Rc::new(Scope(simple_form("o", form_pat!((lit_aat "otherother"))),
                                            ::beta::ExportBeta::Nothing))),
             &toks_a_b
         )
@@ -355,8 +355,9 @@ fn extensible_parsing() {
     fn static_synex(s: SynEnv, _: Ast) -> SynEnv {
         assoc_n!(
             "a" => Rc::new(form_pat!(
-                (star (named "c", (alt (lit "AA"), [(lit "Back"), (call "o"), (lit ".")]))))),
-            "b" => Rc::new(form_pat!((lit "BB")))
+                (star (named "c", (alt (lit_aat "AA"),
+                                       [(lit_aat "Back"), (call "o"), (lit_aat "#")]))))),
+            "b" => Rc::new(form_pat!((lit_aat "BB")))
         )
         .set_assoc(&s)
     }
@@ -369,30 +370,31 @@ fn extensible_parsing() {
     let orig = Rc::new(assoc_n!(
         "o" => Rc::new(form_pat!(
             (star (named "c",
-                (alt (lit "O"), [(lit "Extend"), (extend [], "a", static_synex), (lit ".")])))))));
+                (alt (lit_aat "O"), [(lit_aat "Extend"),
+                                     (extend [], "a", static_synex), (lit_aat "#")])))))));
 
     assert_eq!(
         parse(
             &form_pat!((call "o")),
             &orig,
-            &tokens!("O" "O" "Extend" "AA" "AA" "Back" "O" "." "AA" "." "O")
+            &tokens!("O" "O" "Extend" "AA" "AA" "Back" "O" "#" "AA" "#" "O")
         )
         .unwrap(),
-        ast!({- "c" => ["O", "O", ("Extend" {- "c" => ["AA", "AA", ("Back" {- "c" => ["O"]} "."), "AA"]} "."), "O"]})
+        ast!({- "c" => ["O", "O", ("Extend" {- "c" => ["AA", "AA", ("Back" {- "c" => ["O"]} "#"), "AA"]} "#"), "O"]})
     );
 
     assert_eq!(
         parse(
             &form_pat!((call "o")),
             &orig,
-            &tokens!("O" "O" "Extend" "AA" "AA" "Back" "AA" "." "AA" "." "O")
+            &tokens!("O" "O" "Extend" "AA" "AA" "Back" "AA" "#" "AA" "#" "O")
         )
         .is_err(),
         true
     );
 
     assert_eq!(
-        parse(&form_pat!((call "o")), &orig, &tokens!("O" "O" "Extend" "O" "." "O")).is_err(),
+        parse(&form_pat!((call "o")), &orig, &tokens!("O" "O" "Extend" "O" "#" "O")).is_err(),
         true
     );
 
@@ -406,12 +408,12 @@ fn extensible_parsing() {
         .get_rep_leaf_or_panic(n("n"))
         .len();
 
-        assoc_n!("count" => Rc::new(Literal(n(&count.to_string()))))
+        assoc_n!("count" => Rc::new(Literal(Rc::new(AnyAtomicToken), n(&count.to_string()))))
     }
 
     assert_m!(
         parse(
-            &form_pat!((extend (star (named "n", (lit "X"))), "count", counter_synex)),
+            &form_pat!((extend (star (named "n", (lit_aat "X"))), "count", counter_synex)),
             &mt_syn_env,
             &tokens!("X" "X" "X" "4")
         ),
@@ -420,7 +422,7 @@ fn extensible_parsing() {
 
     assert_eq!(
         parse(
-            &form_pat!((extend (star (named "n", (lit "X"))), "count", counter_synex)),
+            &form_pat!((extend (star (named "n", (lit_aat "X"))), "count", counter_synex)),
             &mt_syn_env,
             &tokens!("X" "X" "X" "X" "4")
         ),
@@ -429,7 +431,7 @@ fn extensible_parsing() {
 
     assert_m!(
         parse(
-            &form_pat!((extend (star (named "n", (lit "X"))), "count", counter_synex)),
+            &form_pat!((extend (star (named "n", (lit_aat "X"))), "count", counter_synex)),
             &mt_syn_env,
             &tokens!("X" "X" "X" "X" "X" "4")
         ),
@@ -440,6 +442,6 @@ fn extensible_parsing() {
 // #[test]
 // fn test_syn_env_parsing() as{
 // let mut se = Assoc::new();
-// se = se.set(n("xes"), Box::new(Form { grammar: form_pat!((star (lit "X")),
+// se = se.set(n("xes"), Box::new(Form { grammar: form_pat!((star (lit_aat "X")),
 // relative_phase)}))
 // }

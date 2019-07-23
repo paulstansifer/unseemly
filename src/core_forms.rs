@@ -65,7 +65,7 @@ pub fn make_core_syn_env() -> SynEnv {
         typed_form!("lambda",
         /* syntax */ /* TODO: add comma separators to the syntax! */
         (delim ".[", "[", [
-                           (star [(named "param", aat), (lit ":"),
+                           (star [(named "param", atom), (lit ":"),
                                   (named "p_t", (call "Type"))]), (lit "."),
             (named "body",
                 (import [* ["param" : "p_t"]], (call "Expr")))]),
@@ -182,7 +182,7 @@ pub fn make_core_syn_env() -> SynEnv {
         // "real" languages infer the type from the (required-to-be-unique)
         // component name.
         typed_form!("enum_expr",
-         [(delim "+[", "[", [(named "name", aat),
+         [(delim "+[", "[", [(named "name", atom),
                              (star (named "component", (call "Expr")))]),
           (lit ":"), (named "t", (call "Type"))],
         /* Typesynth: */
@@ -223,7 +223,7 @@ pub fn make_core_syn_env() -> SynEnv {
         })),
         typed_form!("struct_expr",
         (delim "*[", "[",
-            (star [(named "component_name", aat), (lit ":"),
+            (star [(named "component_name", atom), (lit ":"),
                    (named "component", (call "Expr"))])),
         cust_rc_box!( move | part_types | {
             Ok(ty!({ find_type(&ctf_3, "struct") ;
@@ -250,7 +250,7 @@ pub fn make_core_syn_env() -> SynEnv {
         typed_form!("let_type",
         [(lit "let_type"),
          (named "type_kind_stx", (anyways "*")),
-         (star [(named "type_name", aat),
+         (star [(named "type_name", atom),
                 (lit "="),
                 (named "type_def", (import [* ["type_name" = "type_def"]], (call "Type")))]),
          (lit "in"),
@@ -310,7 +310,7 @@ pub fn make_core_syn_env() -> SynEnv {
             }),
             Body(n("body"))),
         typed_form!("forall_expr",
-            [(lit "forall"), (star (named "param", aat)), (lit "."),
+            [(lit "forall"), (star (named "param", atom)), (lit "."),
              (named "body", (import [* [forall "param"]], (call "Expr")))],
             cust_rc_box!( move |forall_parts| {
                 Ok(ty!({"Type" "forall_type" :
@@ -325,7 +325,7 @@ pub fn make_core_syn_env() -> SynEnv {
 
     let main_pat_forms = forms_to_form_pat_export![
         negative_typed_form!("enum_pat",
-            (delim "+[", "[", [(named "name", aat),
+            (delim "+[", "[", [(named "name", atom),
                                (star (named "component", (call "Pat")))]),
             /* (Negatively) Typecheck: */
             cust_rc_box!( move | part_types |
@@ -380,7 +380,7 @@ pub fn make_core_syn_env() -> SynEnv {
             })) => [* ["component"]],
         negative_typed_form!("struct_pat",
             [(delim "*[", "[",
-                 (star [(named "component_name", aat), (lit ":"),
+                 (star [(named "component_name", atom), (lit ":"),
                         (named "component", (call "Pat"))]))],
             /* (Negatively) typesynth: */
             cust_rc_box!( move | part_types |
@@ -438,10 +438,47 @@ pub fn make_core_syn_env() -> SynEnv {
 
             ::core_qq_forms::quote(/*positive=*/false) => ["body"]];
 
+    let reserved_names = vec![
+        n("forall"),
+        n("mu_type"),
+        n("Int"),
+        n("Ident"),
+        n("Float"),
+        n("match"),
+        n("enum"),
+        n("struct"),
+        n("fold"),
+        n("unfold"),
+        n("("),
+        n(")"),
+        n("{"),
+        n("}"),
+        n("<["),
+        n("]<"),
+        n(".["),
+        n("]."),
+        n("'["),
+        n("]'"),
+        n(",["),
+        n("],"),
+        n("+["),
+        n("]+"),
+        n("*["),
+        n("]*"),
+        n("|"),
+        n("."),
+        n(":"),
+        n("=>"),
+        n("->"),
+    ];
+
     assoc_n!(
-        "Pat" => Rc::new(Biased(Rc::new(main_pat_forms), Rc::new(AnyAtomicToken))),
-        "Expr" => Rc::new(Biased(Rc::new(main_expr_forms), Rc::new(VarRef))),
-        "Ident" => Rc::new(AnyAtomicToken)
+        "Pat" => Rc::new(Biased(Rc::new(main_pat_forms), Rc::new(Call(n("DefaultName"))))),
+        "Expr" => Rc::new(Biased(Rc::new(main_expr_forms),
+                                 Rc::new(VarRef(Rc::new(Call(n("DefaultName"))))))),
+        "Ident" => Rc::new(AnyAtomicToken),
+        "DefaultName" => Rc::new(form_pat!((reserved_by_name_vec (call "DefaultToken"), reserved_names))),
+        "DefaultToken" => Rc::new(AnyAtomicToken)
     )
     .set_assoc(&ctf)
     .set_assoc(&cmf) // throw in the types and macros!
