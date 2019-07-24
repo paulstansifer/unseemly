@@ -26,6 +26,11 @@ custom_derive! {
         /// Never matches
         Impossible,
 
+        /// Matches actual text!
+        /// The regex must have a single capturing group.
+        /// The contents of the capturing group are
+        Scan(Scanner),
+
         /// Matches an atom or varref, but not if it's on the list of reserved words
         Reserved(Rc<FormPat>, Vec<Name>),
         /// Matches if the sub-pattern equals the given name
@@ -73,7 +78,6 @@ custom_derive! {
         QuoteEscape(Rc<FormPat>, u8)
     }
 }
-pub struct SyntaxExtension(pub Rc<Box<(dyn Fn(SynEnv, Ast) -> SynEnv)>>);
 
 impl FormPat {
     // Finds all `Named` nodes, and how many layers of repetition they are underneath.
@@ -107,6 +111,7 @@ impl FormPat {
             | Literal(_, _)
             | AnyToken
             | AnyAtomicToken
+            | Scan(_)
             | VarRef(_)
             | Call(_) => vec![],
         }
@@ -131,7 +136,7 @@ impl FormPat {
             Named(_, _) => None, // Otherwise, skip
             Call(_) => None,
             Scope(_, _) => None, // Only look in the current scope
-            Anyways(_) | Impossible | AnyToken | AnyAtomicToken => None,
+            Anyways(_) | Impossible | AnyToken | AnyAtomicToken | Scan(_) => None,
             Star(ref body)
             | Plus(ref body)
             | ComputeSyntax(_, ref body)
@@ -158,9 +163,9 @@ impl FormPat {
     }
 }
 
-impl Clone for SyntaxExtension {
-    fn clone(&self) -> SyntaxExtension { SyntaxExtension(self.0.clone()) }
-}
+#[derive(Clone)]
+pub struct SyntaxExtension(pub Rc<Box<(dyn Fn(SynEnv, Ast) -> SynEnv)>>);
+
 impl PartialEq for SyntaxExtension {
     /// pointer equality! (for testing)
     fn eq(&self, other: &SyntaxExtension) -> bool {
@@ -188,6 +193,35 @@ impl ::std::fmt::Debug for SyntaxExtension {
     }
 }
 
+pub fn new_scan(regex: &str) -> FormPat {
+    Scan(Scanner(regex::Regex::new(&format!("^{}", regex)).unwrap()))
+}
+
+#[derive(Clone)]
+pub struct Scanner(pub regex::Regex);
+
+impl PartialEq for Scanner {
+    fn eq(&self, other: &Scanner) -> bool { self.0.as_str() == other.0.as_str() }
+}
+
+impl ::runtime::reify::Reifiable for Scanner {
+    fn ty_name() -> Name { n("Scanner") }
+
+    fn reify(&self) -> ::runtime::eval::Value {
+        <String as ::runtime::reify::Reifiable>::reify(&self.0.as_str().to_owned())
+    }
+
+    fn reflect(v: &::runtime::eval::Value) -> Self {
+        Scanner(regex::Regex::new(&<String as ::runtime::reify::Reifiable>::reflect(v)).unwrap())
+    }
+}
+
+impl ::std::fmt::Debug for Scanner {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
+        write!(f, "[scanner {:?}]", self.0.as_str())
+    }
+}
+
 pub type SynEnv = Assoc<Name, Rc<FormPat>>;
 
 pub use earley::parse;
@@ -206,16 +240,16 @@ use self::FormPat::*;
 
 #[test]
 fn basic_parsing() {
-    fn mk_lt(s: &str) -> Rc<FormPat> { Rc::new(Literal(Rc::new(AnyAtomicToken), n(s))) }
+    fn mk_lt(s: &str) -> Rc<FormPat> {
+        Rc::new(Literal(Rc::new(::grammar::new_scan(r"\s*(\S+)")), n(s)))
+    }
+    let atom = Rc::new(::grammar::new_scan(r"\s*(\S+)"));
 
-    assert_eq!(
-        parse_top(&Seq(vec![Rc::new(AnyToken)]), &tokens!("asdf")).unwrap(),
-        ast_shape!("asdf")
-    );
+    assert_eq!(parse_top(&Seq(vec![atom.clone()]), &tokens!("asdf")).unwrap(), ast_shape!("asdf"));
 
     assert_eq!(
         parse_top(
-            &Seq(vec![Rc::new(AnyToken), mk_lt("fork"), Rc::new(AnyToken)]),
+            &Seq(vec![atom.clone(), mk_lt("fork"), atom.clone()]),
             &tokens!("asdf" "fork" "asdf")
         )
         .unwrap(),
@@ -224,7 +258,7 @@ fn basic_parsing() {
 
     assert_eq!(
         parse_top(
-            &Seq(vec![Rc::new(AnyToken), mk_lt("fork"), Rc::new(AnyToken)]),
+            &Seq(vec![atom.clone(), mk_lt("fork"), atom.clone()]),
             &tokens!("asdf" "fork" "asdf")
         )
         .unwrap(),
@@ -232,7 +266,7 @@ fn basic_parsing() {
     );
 
     parse_top(
-        &Seq(vec![Rc::new(AnyToken), mk_lt("fork"), Rc::new(AnyToken)]),
+        &Seq(vec![atom.clone(), mk_lt("fork"), atom.clone()]),
         &tokens!("asdf" "knife" "asdf"),
     )
     .unwrap_err();
@@ -411,7 +445,8 @@ fn extensible_parsing() {
         .get_rep_leaf_or_panic(n("n"))
         .len();
 
-        assoc_n!("count" => Rc::new(Literal(Rc::new(AnyAtomicToken), n(&count.to_string()))))
+        assoc_n!("count" => Rc::new(Literal(Rc::new(::grammar::new_scan(r"\s*(\S+)")),
+                                            n(&count.to_string()))))
     }
 
     assert_m!(

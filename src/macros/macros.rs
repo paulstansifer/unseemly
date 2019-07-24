@@ -123,7 +123,7 @@ macro_rules! t_elt {
             toks
         }
     };
-    ($e:expr) => { vec![::name::n($e)] }
+    ($e:expr) => { vec![::name::n(& $e.replace(" ", "_"))] }
 }
 
 // Ast
@@ -326,12 +326,16 @@ macro_rules! form_pat {
             ::name::n($e))
     };
     ((lit_aat $e:expr)) => {
-        ::grammar::FormPat::Literal(::std::rc::Rc::new(AnyAtomicToken), ::name::n($e))
+        ::grammar::FormPat::Literal(::std::rc::Rc::new(::grammar::new_scan(r"\s*(\S+)")),
+                                    ::name::n($e))
     };
     ((lit_by_name $e:expr)) => {
         ::grammar::FormPat::Literal(
             ::std::rc::Rc::new(::grammar::FormPat::Call(::name::n("DefaultToken"))),
             $e)
+    };
+    ((scan $e:expr)) => {
+        ::grammar::new_scan($e)
     };
     ((reserved $body:tt, $( $res:tt )*)) => {
         ::grammar::FormPat::Reserved(::std::rc::Rc::new(form_pat!($body)), vec![$( n($res) ),*])
@@ -348,7 +352,7 @@ macro_rules! form_pat {
         ::std::rc::Rc::new(::grammar::FormPat::Call(::name::n("DefaultName")))
     ) };
     (varref_aat) => { ::grammar::FormPat::VarRef(
-        ::std::rc::Rc::new(AnyAtomicToken)
+        ::std::rc::Rc::new(::grammar::new_scan(r"\s*(\S+)"))
     ) };
     ((delim $n:expr, $d:expr, $body:tt)) => {
         ::grammar::FormPat::Seq(vec![

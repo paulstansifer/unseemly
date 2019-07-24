@@ -478,7 +478,7 @@ pub fn make_core_syn_env() -> SynEnv {
                                  Rc::new(VarRef(Rc::new(Call(n("DefaultName"))))))),
         "Ident" => Rc::new(AnyAtomicToken),
         "DefaultName" => Rc::new(form_pat!((reserved_by_name_vec (call "DefaultToken"), reserved_names))),
-        "DefaultToken" => Rc::new(AnyAtomicToken)
+        "DefaultToken" => Rc::new(::grammar::new_scan(r"\s*([\]\)\}][^\[\]\(\)\{\}\s]*|[^\[\]\(\)\{\}\s]*[\[\(\{]|[^\[\]\(\)\{\}\s]+)"))
     )
     .set_assoc(&ctf)
     .set_assoc(&cmf) // throw in the types and macros!

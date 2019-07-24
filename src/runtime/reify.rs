@@ -135,6 +135,19 @@ impl Reifiable for () {
     fn reflect(_: &Value) -> Self { () }
 }
 
+impl Reifiable for String {
+    fn ty_name() -> Name { n("Rust_str") }
+
+    fn reify(&self) -> Value { Value::AbstractSyntax(::ast::Atom(n(self))) }
+
+    fn reflect(v: &Value) -> Self {
+        match v {
+            ::runtime::eval::AbstractSyntax(::ast::Atom(name)) => name.orig_sp(),
+            _ => icp!(),
+        }
+    }
+}
+
 // This is right, right?
 impl Reifiable for Value {
     fn ty_name() -> Name { n("any") }

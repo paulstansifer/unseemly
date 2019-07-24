@@ -160,7 +160,11 @@ impl Clone for Item {
 /// Progress through the state sets
 // TODO: this ought to produce an Option<ParseError>, not a bool!
 fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, tt: &TokenTree) -> (UniqueId, Vec<Vec<Item>>) {
-    let toks = tt.splay().t;
+    let mut toks = "".to_owned();
+    for t in &tt.t {
+        toks += " ";
+        toks += &t.orig_sp();
+    }
 
     let mut chart: Vec<Vec<Item>> = vec![];
     chart.resize_with(toks.len() + 1, ::std::default::Default::default);
@@ -198,20 +202,20 @@ fn recognize(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> bool {
     })
 }
 
-fn walk_tt(chart: &mut Vec<Vec<Item>>, toks: &[Token], cur_tok: usize) {
+fn walk_tt(chart: &mut Vec<Vec<Item>>, toks: &str, cur_tok: usize) {
     examine_state_set(chart, toks, cur_tok);
     // log!("\n  {:#?}\n->{:#?}\n", chart[*cur_tok], chart[*cur_tok + 1]);
 }
 
 /// Progresses a state set until it won't go any further.
 /// Returns the state set for the next token.
-fn examine_state_set(chart: &mut Vec<Vec<Item>>, toks: &[Token], cur_tok: usize) {
+fn examine_state_set(chart: &mut Vec<Vec<Item>>, toks: &str, cur_tok: usize) {
     // If nullable items are statically identified, I think there's an optimization
     //  where we don't re-walk old items
     while new_items_from_state_set(chart, toks, cur_tok) {} // Until a fixpoint is reached
 }
 
-fn new_items_from_state_set(chart: &mut Vec<Vec<Item>>, toks: &[Token], cur_tok: usize) -> bool {
+fn new_items_from_state_set(chart: &mut Vec<Vec<Item>>, toks: &str, cur_tok: usize) -> bool {
     let mut effect = false;
     for idx in 0..chart[cur_tok].len() {
         for (new_item, adv) in chart[cur_tok][idx].examine(toks, cur_tok, chart) {
@@ -359,7 +363,7 @@ impl Item {
     // -----------------------------------------------------------
 
     /// See what new items this item justifies
-    fn examine(&self, toks: &[Token], cur_idx: usize, chart: &[Vec<Item>]) -> Vec<(Item, usize)> {
+    fn examine(&self, toks: &str, cur_idx: usize, chart: &[Vec<Item>]) -> Vec<(Item, usize)> {
         let mut res = if *self.done.borrow() {
             let mut waiting_satisfied = vec![];
 
@@ -377,7 +381,7 @@ impl Item {
                     //  in `shift_or_predict` for leaves.
                     // Except for `Seq`. TODO: why?
                     let mut more = match *waiting_item.rule {
-                        Anyways(_) | Impossible | AnyToken | AnyAtomicToken => {
+                        Anyways(_) | Impossible | AnyToken | AnyAtomicToken | Scan(_) => {
                             icp!("{:#?} should not be waiting for anything!", waiting_item)
                         }
                         Seq(ref subs) => {
@@ -463,9 +467,9 @@ impl Item {
         };
 
         if !res.is_empty() {
-            if let Some(tok) = toks.get(cur_idx) {
+            if let Some(tok) = &toks.get(cur_idx..cur_idx + 1) {
                 best_token.with(|bt| {
-                    *bt.borrow_mut() = (cur_idx, *tok, res[0].0.rule.clone(), res[0].0.pos)
+                    *bt.borrow_mut() = (cur_idx, n(tok), res[0].0.rule.clone(), res[0].0.pos)
                 });
             }
         }
@@ -477,27 +481,36 @@ impl Item {
 
     fn shift_or_predict(
         &self,
-        toks: &[Token],
+        toks: &str,
         cur_idx: usize,
         chart: &[Vec<Item>],
     ) -> Vec<(Item, usize)>
     {
-        let cur = toks.get(cur_idx);
-        let shift_by = cur.map(|c| c.orig_sp().len()).unwrap_or(0);
         // Try to shift (bump `pos`, or set `done`) or predict (`start` a new item)
         match (self.pos, &*(self.rule.clone())) {
             // TODO: is there a better way to match in `Rc`?
             (0, &Anyways(ref a)) => self.finish_with(ParsedAtom(a.clone()), 0),
             (_, &Impossible) => vec![],
             (0, &Literal(ref sub, _)) => self.start(sub, cur_idx),
-            (0, &AnyToken) => match cur {
-                Some(&n) => self.finish_with(ParsedAtom(::ast::Atom(n)), shift_by),
-                _ => vec![],
-            },
-            (0, &AnyAtomicToken) => match cur {
-                Some(&n) => self.finish_with(ParsedAtom(::ast::Atom(n)), shift_by),
-                _ => vec![],
-            },
+            (0, &AnyToken) => panic!("AnyToken"),
+            (0, &AnyAtomicToken) => panic!("AnyAtomicToken"),
+            (0, &Scan(::grammar::Scanner(ref regex))) => {
+                let mut caps = regex.capture_locations();
+                if regex.captures_read(&mut caps, &toks[cur_idx..]).is_some() {
+                    match caps.get(1) {
+                        Some((start, end)) => {
+                            // These are byte indices!
+                            self.finish_with(
+                                ParsedAtom(::ast::Atom(n(&toks[cur_idx + start..cur_idx + end]))),
+                                end,
+                            )
+                        }
+                        None => panic!("`Scan` must have one capture group"),
+                    }
+                } else {
+                    vec![]
+                }
+            }
             (0, &VarRef(ref sub)) => self.start(sub, cur_idx),
             (pos, &Seq(ref subs)) => {
                 if pos < subs.len() {
@@ -635,7 +648,7 @@ impl Item {
         let res = match *self.rule {
             Anyways(ref a) => Ok(a.clone()),
             Impossible => icp!("Parser parsed the impossible!"),
-            AnyToken | AnyAtomicToken => match self.local_parse.borrow().clone() {
+            AnyToken | AnyAtomicToken | Scan(_) => match self.local_parse.borrow().clone() {
                 ParsedAtom(a) => Ok(a),
                 _ => icp!("no simple parse saved"),
             },
@@ -891,29 +904,54 @@ fn earley_merging() {
 fn earley_simple_recognition() {
     let main_grammar = ::util::assoc::Assoc::new();
 
+    let atom = Rc::new(::grammar::new_scan(r"\s*(\S+)"));
+
     // 0-length strings
 
-    assert_eq!(recognize(&AnyAtomicToken, &main_grammar, &tokens!()), false);
+    assert_eq!(recognize(&*atom, &main_grammar, &tokens!()), false);
 
     assert_eq!(recognize(&Anyways(::ast::Trivial), &main_grammar, &tokens!()), true);
 
     assert_eq!(recognize(&Seq(vec![]), &main_grammar, &tokens!()), true);
 
-    assert_eq!(recognize(&Seq(vec![Rc::new(AnyAtomicToken)]), &main_grammar, &tokens!()), false);
+    assert_eq!(recognize(&Seq(vec![atom.clone()]), &main_grammar, &tokens!()), false);
 
     assert_eq!(recognize(&Star(Rc::new(Impossible)), &main_grammar, &tokens!()), true);
 
-    assert_eq!(recognize(&Star(Rc::new(AnyAtomicToken)), &main_grammar, &tokens!()), true);
+    assert_eq!(recognize(&Star(atom.clone()), &main_grammar, &tokens!()), true);
 
     // 1-length strings
 
-    assert_eq!(recognize(&AnyAtomicToken, &main_grammar, &tokens!("Pierre Menard")), true);
+    assert_eq!(recognize(&*atom, &main_grammar, &tokens!("Pierre Menard")), true);
 
     assert_eq!(recognize(&Impossible, &main_grammar, &tokens!("Pierre Menard")), false);
 
     assert_eq!(
+        recognize(&Literal(atom.clone(), n("Cervantes")), &main_grammar, &tokens!("Pierre Menard")),
+        false
+    );
+
+    assert_eq!(
+        recognize(&Literal(atom.clone(), n("Cervantes")), &main_grammar, &tokens!("Cervantes")),
+        true
+    );
+
+    assert_eq!(recognize(&Seq(vec![atom.clone()]), &main_grammar, &tokens!("P.M.")), true);
+
+    assert_eq!(recognize(&Star(atom.clone()), &main_grammar, &tokens!("PM")), true);
+
+    assert_eq!(
         recognize(
-            &Literal(Rc::new(AnyAtomicToken), n("Cervantes")),
+            &Alt(vec![Rc::new(Impossible), atom.clone()]),
+            &main_grammar,
+            &tokens!("Pierre Menard")
+        ),
+        true
+    );
+
+    assert_eq!(
+        recognize(
+            &Alt(vec![Rc::new(Impossible), Rc::new(Literal(atom.clone(), n("Cervantes")))]),
             &main_grammar,
             &tokens!("Pierre Menard")
         ),
@@ -922,23 +960,7 @@ fn earley_simple_recognition() {
 
     assert_eq!(
         recognize(
-            &Literal(Rc::new(AnyAtomicToken), n("Cervantes")),
-            &main_grammar,
-            &tokens!("Cervantes")
-        ),
-        true
-    );
-
-    assert_eq!(
-        recognize(&Seq(vec![Rc::new(AnyAtomicToken)]), &main_grammar, &tokens!("P.M.")),
-        true
-    );
-
-    assert_eq!(recognize(&Star(Rc::new(AnyAtomicToken)), &main_grammar, &tokens!("PM")), true);
-
-    assert_eq!(
-        recognize(
-            &Alt(vec![Rc::new(Impossible), Rc::new(AnyAtomicToken)]),
+            &Biased(Rc::new(Impossible), atom.clone()),
             &main_grammar,
             &tokens!("Pierre Menard")
         ),
@@ -947,28 +969,7 @@ fn earley_simple_recognition() {
 
     assert_eq!(
         recognize(
-            &Alt(vec![
-                Rc::new(Impossible),
-                Rc::new(Literal(Rc::new(AnyAtomicToken), n("Cervantes")))
-            ]),
-            &main_grammar,
-            &tokens!("Pierre Menard")
-        ),
-        false
-    );
-
-    assert_eq!(
-        recognize(
-            &Biased(Rc::new(Impossible), Rc::new(AnyAtomicToken)),
-            &main_grammar,
-            &tokens!("Pierre Menard")
-        ),
-        true
-    );
-
-    assert_eq!(
-        recognize(
-            &Biased(Rc::new(AnyAtomicToken), Rc::new(Impossible)),
+            &Biased(atom.clone(), Rc::new(Impossible)),
             &main_grammar,
             &tokens!("Pierre Menard")
         ),
@@ -979,7 +980,7 @@ fn earley_simple_recognition() {
 
     assert_eq!(
         recognize(
-            &Seq(vec![Rc::new(Seq(vec![Rc::new(Seq(vec![Rc::new(AnyAtomicToken)]))]))]),
+            &Seq(vec![Rc::new(Seq(vec![Rc::new(Seq(vec![atom.clone()]))]))]),
             &main_grammar,
             &tokens!("Frustrated Novelist No Good At Describing Hands")
         ),
@@ -988,7 +989,7 @@ fn earley_simple_recognition() {
 
     assert_eq!(
         recognize(
-            &Alt(vec![Rc::new(Alt(vec![Rc::new(Alt(vec![Rc::new(AnyAtomicToken)]))]))]),
+            &Alt(vec![Rc::new(Alt(vec![Rc::new(Alt(vec![atom.clone()]))]))]),
             &main_grammar,
             &tokens!("(no pun intended, by the way)")
         ),
@@ -997,7 +998,7 @@ fn earley_simple_recognition() {
 
     assert_eq!(
         recognize(
-            &Plus(Rc::new(Plus(Rc::new(Plus(Rc::new(AnyAtomicToken)))))),
+            &Plus(Rc::new(Plus(Rc::new(Plus(atom.clone()))))),
             &main_grammar,
             &tokens!("(except I might've changed it otherwise)")
         ),
@@ -1008,7 +1009,7 @@ fn earley_simple_recognition() {
 
     assert_eq!(
         recognize(
-            &Seq(vec![Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken)]),
+            &Seq(vec![atom.clone(), atom.clone(), atom.clone()]),
             &main_grammar,
             &tokens!("Author" "of the" "Quixote")
         ),
@@ -1017,7 +1018,7 @@ fn earley_simple_recognition() {
 
     assert_eq!(
         recognize(
-            &Seq(vec![Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken)]),
+            &Seq(vec![atom.clone(), atom.clone(), atom.clone()]),
             &main_grammar,
             &tokens!("Author" "of" "the" "Quixote")
         ),
@@ -1026,7 +1027,7 @@ fn earley_simple_recognition() {
 
     assert_eq!(
         recognize(
-            &Seq(vec![Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken), Rc::new(AnyAtomicToken)]),
+            &Seq(vec![atom.clone(), atom.clone(), atom.clone()]),
             &main_grammar,
             &tokens!("Author of" "the Quixote")
         ),
@@ -1035,7 +1036,7 @@ fn earley_simple_recognition() {
 
     assert_eq!(
         recognize(
-            &Plus(Rc::new(Plus(Rc::new(Plus(Rc::new(AnyAtomicToken)))))),
+            &Plus(Rc::new(Plus(Rc::new(Plus(atom.clone()))))),
             &main_grammar,
             &tokens!("Author" "of" "the" "Quixote")
         ),
@@ -1045,7 +1046,9 @@ fn earley_simple_recognition() {
 
 #[test]
 fn earley_env_recognition() {
-    fn mk_lt(s: &str) -> Rc<FormPat> { Rc::new(Literal(Rc::new(AnyAtomicToken), n(s))) }
+    fn mk_lt(s: &str) -> Rc<FormPat> {
+        Rc::new(Literal(Rc::new(::grammar::new_scan(r"\s*(\S+)")), n(s)))
+    }
     let env = assoc_n!(
         "empty" => Rc::new(Seq(vec![])),
         "empty_indirect" => Rc::new(Call(n("empty"))),
@@ -1115,9 +1118,13 @@ fn earley_env_recognition() {
 
 #[test]
 fn basic_parsing_e() {
-    fn mk_lt(s: &str) -> Rc<FormPat> { Rc::new(Literal(Rc::new(AnyAtomicToken), n(s))) }
+    fn mk_lt(s: &str) -> Rc<FormPat> {
+        Rc::new(Literal(Rc::new(::grammar::new_scan(r"\s*(\S+)")), n(s)))
+    }
 
-    assert_eq!(parse_top(&AnyToken, &tokens!("asdf")), Ok(ast!("asdf")));
+    let atom = Rc::new(::grammar::new_scan(r"\s*(\S+)"));
+
+    assert_eq!(parse_top(&*atom, &tokens!("asdf")), Ok(ast!("asdf")));
 
     assert_eq!(parse_top(&Anyways(ast!("asdf")), &tokens!()), Ok(ast!("asdf")));
 
@@ -1131,11 +1138,11 @@ fn basic_parsing_e() {
         Ok(ast!({- "c" => "asdf"}))
     );
 
-    assert_eq!(parse_top(&Seq(vec![Rc::new(AnyToken)]), &tokens!("asdf")), Ok(ast_shape!("asdf")));
+    assert_eq!(parse_top(&Seq(vec![atom.clone()]), &tokens!("asdf")), Ok(ast_shape!("asdf")));
 
     assert_eq!(
         parse_top(
-            &Seq(vec![Rc::new(AnyToken), mk_lt("fork"), Rc::new(AnyToken)]),
+            &Seq(vec![atom.clone(), mk_lt("fork"), atom.clone()]),
             &tokens!("asdf" "fork" "asdf")
         ),
         Ok(ast_shape!("asdf" "fork" "asdf"))
@@ -1153,7 +1160,7 @@ fn basic_parsing_e() {
     );
 
     assert!(!parse_top(
-        &Seq(vec![Rc::new(AnyToken), mk_lt("fork"), Rc::new(AnyToken)]),
+        &Seq(vec![atom.clone(), mk_lt("fork"), atom.clone()]),
         &tokens!("asdf" "knife" "asdf"),
     )
     .is_ok());
@@ -1207,13 +1214,17 @@ fn basic_parsing_e() {
         Ok(ast!((vr "Spoon")))
     );
 
-    assert_eq!(
-        parse_top(&form_pat!((alt (lit_aat "Moon"), (reserved aat, "Moon"))), &tokens!("Moon")),
-        Ok(ast!("Moon")) // Not a varref, so it's the literal instead
+    let env = assoc_n!(
+        "DefaultToken" => atom.clone()
     );
 
-    let env = assoc_n!(
-        "DefaultToken" => Rc::new(AnyAtomicToken)
+    assert_eq!(
+        parse(
+            &form_pat!((alt (lit_aat "Moon"), (reserved (scan r"\s*(\S+)"), "Moon"))),
+            &env,
+            &tokens!("Moon")
+        ),
+        Ok(ast!("Moon")) // Not a varref, so it's the literal instead
     );
 
     assert_eq!(
