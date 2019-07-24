@@ -25,16 +25,19 @@ custom_derive! {
         Anyways(Ast),
         /// Never matches
         Impossible,
+
         /// Matches an atom or varref, but not if it's on the list of reserved words
         Reserved(Rc<FormPat>, Vec<Name>),
         /// Matches if the sub-pattern equals the given name
         Literal(Rc<FormPat>, Name),
+
         /// cleanup TODO: remove, now that tokens are always atomic
         AnyToken,
         /// Matches any token, as an `Atom`. (TODO: remove, when scannerlessness lands)
         AnyAtomicToken,
         /// Matches an atom, turns it into a `VariableReference`
         VarRef(Rc<FormPat>),
+
         /// Matches an ordered sequence of patterns.
         Seq(Vec<Rc<FormPat>>),
         /// Matches zero or more occurrences of a pattern.
@@ -48,6 +51,10 @@ custom_derive! {
 
         /// Lookup a nonterminal in the current syntactic environment.
         Call(Name),
+        /// This is where syntax gets extensible.
+        /// Parses its body in the named NT of the syntax environment computed from
+        ///  the LHS and the current syntax environment.
+        SynImport(Rc<FormPat>, Name, SyntaxExtension),
         /// cleanup TODO: remove this; `SynImport` obsoletes this
         ComputeSyntax(Name, Rc<FormPat>),
 
@@ -56,10 +63,6 @@ custom_derive! {
         /// Matches a pattern and gives it a name (inside the current `Scope`)
         Named(Name, Rc<FormPat>),
 
-        /// This is where syntax gets extensible.
-        /// Parses its body in the named NT of the syntax environment computed from
-        ///  the LHS and the current syntax environment.
-        SynImport(Rc<FormPat>, Name, SyntaxExtension),
         /// FOOTGUN:  NameImport(Named(...), ...) is almost always wrong.
         ///  (write Named(NameImport(..., ...)) instead)
         /// TODO: make this better
