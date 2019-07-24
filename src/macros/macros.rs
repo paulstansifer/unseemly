@@ -88,6 +88,15 @@ macro_rules! ebeta {
 
 // Read
 
+macro_rules! tokens_s {
+    () => {
+        ""
+    };
+    ($($contents:tt)*) => {
+        &tokens!( $( $contents )* ).to_string()
+    }
+}
+
 macro_rules! tokens {
     () => { TokenTree{t: vec![] }}; // To suppress a warning
     ($($contents:tt)*) => { TokenTree{t: {

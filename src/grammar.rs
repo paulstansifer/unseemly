@@ -228,12 +228,8 @@ pub use earley::parse;
 
 /// Parse `tt` with the grammar `f` in an empty syntactic environment.
 /// `Call` patterns are errors.
-pub fn parse_top<'fun>(
-    f: &'fun FormPat,
-    tt: &'fun TokenTree,
-) -> Result<Ast, /* ParseError<SliceStream<'fun, Token>> */ ::earley::ParseError>
-{
-    parse(f, &Assoc::new(), tt)
+pub fn parse_top(f: &FormPat, toks: &str) -> Result<Ast, ::earley::ParseError> {
+    parse(f, &Assoc::new(), toks)
 }
 
 use self::FormPat::*;
@@ -245,12 +241,12 @@ fn basic_parsing() {
     }
     let atom = Rc::new(::grammar::new_scan(r"\s*(\S+)"));
 
-    assert_eq!(parse_top(&Seq(vec![atom.clone()]), &tokens!("asdf")).unwrap(), ast_shape!("asdf"));
+    assert_eq!(parse_top(&Seq(vec![atom.clone()]), tokens_s!("asdf")).unwrap(), ast_shape!("asdf"));
 
     assert_eq!(
         parse_top(
             &Seq(vec![atom.clone(), mk_lt("fork"), atom.clone()]),
-            &tokens!("asdf" "fork" "asdf")
+            tokens_s!("asdf" "fork" "asdf")
         )
         .unwrap(),
         ast_shape!("asdf" "fork" "asdf")
@@ -259,7 +255,7 @@ fn basic_parsing() {
     assert_eq!(
         parse_top(
             &Seq(vec![atom.clone(), mk_lt("fork"), atom.clone()]),
-            &tokens!("asdf" "fork" "asdf")
+            tokens_s!("asdf" "fork" "asdf")
         )
         .unwrap(),
         ast_shape!("asdf" "fork" "asdf")
@@ -267,14 +263,14 @@ fn basic_parsing() {
 
     parse_top(
         &Seq(vec![atom.clone(), mk_lt("fork"), atom.clone()]),
-        &tokens!("asdf" "knife" "asdf"),
+        tokens_s!("asdf" "knife" "asdf"),
     )
     .unwrap_err();
 
     assert_eq!(
         parse_top(
             &Seq(vec![Rc::new(Star(Rc::new(Named(n("c"), mk_lt("*"))))), mk_lt("X")]),
-            &tokens!("*" "*" "*" "*" "*" "X")
+            tokens_s!("*" "*" "*" "*" "*" "X")
         )
         .unwrap(),
         ast_shape!({- "c" => ["*", "*", "*", "*", "*"] } "X")
@@ -284,18 +280,18 @@ fn basic_parsing() {
 #[test]
 fn alternation() {
     assert_eq!(
-        parse_top(&form_pat!((alt (lit_aat "A"), (lit_aat "B"))), &tokens!("A")),
+        parse_top(&form_pat!((alt (lit_aat "A"), (lit_aat "B"))), tokens_s!("A")),
         Ok(ast!("A"))
     );
     assert_eq!(
-        parse_top(&form_pat!((alt (lit_aat "A"), (lit_aat "B"))), &tokens!("B")),
+        parse_top(&form_pat!((alt (lit_aat "A"), (lit_aat "B"))), tokens_s!("B")),
         Ok(ast!("B"))
     );
 
     assert_eq!(
         parse_top(
             &form_pat!((alt (lit_aat "A"), (lit_aat "B"), [(lit_aat "X"), (lit_aat "B")])),
-            &tokens!("X" "B")
+            tokens_s!("X" "B")
         ),
         Ok(ast!(("X" "B")))
     );
@@ -303,7 +299,7 @@ fn alternation() {
     assert_eq!(
         parse_top(
             &form_pat!((alt [(lit_aat "A"), (lit_aat "X")], (lit_aat "B"), [(lit_aat "A"), (lit_aat "B")])),
-            &tokens!("A" "B")
+            tokens_s!("A" "B")
         ),
         Ok(ast!(("A" "B")))
     );
@@ -311,7 +307,7 @@ fn alternation() {
     assert_eq!(
         parse_top(
             &form_pat!((alt (lit_aat "A"), (lit_aat "B"), [(lit_aat "A"), (lit_aat "B")])),
-            &tokens!("A" "B")
+            tokens_s!("A" "B")
         ),
         Ok(ast!(("A" "B")))
     );
@@ -322,7 +318,7 @@ fn advanced_parsing() {
     assert_eq!(
         parse_top(
             &form_pat!([(star (named "c", (alt (lit_aat "X"), (lit_aat "O")))), (lit_aat "!")]),
-            &tokens!("X" "O" "O" "O" "X" "X" "!")
+            tokens_s!("X" "O" "O" "O" "X" "X" "!")
         )
         .unwrap(),
         ast_shape!({- "c" => ["X", "O", "O", "O", "X", "X"]} "!")
@@ -335,7 +331,7 @@ fn advanced_parsing() {
             &form_pat!(
                 (star (biased [(named "c", (anyways "ttt")), (alt (lit_aat "X"), (lit_aat "O"))],
                               [(named "c", (anyways "igi")), (alt (lit_aat "O"), (lit_aat "H"))]))),
-            &tokens!("X" "O" "H" "O" "X" "H" "O")
+            tokens_s!("X" "O" "H" "O" "X" "H" "O")
         )
         .unwrap(),
         ast!({ - "c" => ["ttt", "ttt", "igi", "ttt", "ttt", "igi", "ttt"]})
@@ -348,7 +344,7 @@ fn advanced_parsing() {
     assert_eq!(
         parse_top(
             &form_pat!((star (named "outer", (biased (scope ttt.clone()), (scope igi.clone()))))),
-            &tokens!("X" "O" "H" "O" "X" "H" "O")
+            tokens_s!("X" "O" "H" "O" "X" "H" "O")
         )
         .unwrap(),
         ast!({ - "outer" =>
@@ -363,7 +359,7 @@ fn advanced_parsing() {
         form_pat!([(named "lhs", (lit_aat "a")),
                                                    (named "rhs", (lit_aat "b"))]),
     );
-    let toks_a_b = tokens!("a" "b");
+    let toks_a_b = tokens_s!("a" "b");
     assert_eq!(
         parse(
             &form_pat!((call "Expr")),
@@ -400,7 +396,7 @@ fn extensible_parsing() {
     }
 
     assert_eq!(
-        parse_top(&form_pat!((extend [], "b", static_synex)), &tokens!("BB")),
+        parse_top(&form_pat!((extend [], "b", static_synex)), tokens_s!("BB")),
         Ok(ast!("BB"))
     );
 
@@ -414,7 +410,7 @@ fn extensible_parsing() {
         parse(
             &form_pat!((call "o")),
             &orig,
-            &tokens!("O" "O" "Extend" "AA" "AA" "Back" "O" "#" "AA" "#" "O")
+            tokens_s!("O" "O" "Extend" "AA" "AA" "Back" "O" "#" "AA" "#" "O")
         )
         .unwrap(),
         ast!({- "c" => ["O", "O", ("Extend" {- "c" => ["AA", "AA", ("Back" {- "c" => ["O"]} "#"), "AA"]} "#"), "O"]})
@@ -424,14 +420,14 @@ fn extensible_parsing() {
         parse(
             &form_pat!((call "o")),
             &orig,
-            &tokens!("O" "O" "Extend" "AA" "AA" "Back" "AA" "#" "AA" "#" "O")
+            tokens_s!("O" "O" "Extend" "AA" "AA" "Back" "AA" "#" "AA" "#" "O")
         )
         .is_err(),
         true
     );
 
     assert_eq!(
-        parse(&form_pat!((call "o")), &orig, &tokens!("O" "O" "Extend" "O" "#" "O")).is_err(),
+        parse(&form_pat!((call "o")), &orig, tokens_s!("O" "O" "Extend" "O" "#" "O")).is_err(),
         true
     );
 
@@ -453,7 +449,7 @@ fn extensible_parsing() {
         parse(
             &form_pat!((extend (star (named "n", (lit_aat "X"))), "count", counter_synex)),
             &mt_syn_env,
-            &tokens!("X" "X" "X" "4")
+            tokens_s!("X" "X" "X" "4")
         ),
         Err(_)
     );
@@ -462,7 +458,7 @@ fn extensible_parsing() {
         parse(
             &form_pat!((extend (star (named "n", (lit_aat "X"))), "count", counter_synex)),
             &mt_syn_env,
-            &tokens!("X" "X" "X" "X" "4")
+            tokens_s!("X" "X" "X" "X" "4")
         ),
         Ok(ast!("4"))
     );
@@ -471,7 +467,7 @@ fn extensible_parsing() {
         parse(
             &form_pat!((extend (star (named "n", (lit_aat "X"))), "count", counter_synex)),
             &mt_syn_env,
-            &tokens!("X" "X" "X" "X" "X" "4")
+            tokens_s!("X" "X" "X" "X" "X" "4")
         ),
         Err(_)
     );

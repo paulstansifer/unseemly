@@ -281,11 +281,8 @@ fn assign_variable(name: &str, expr: &str) -> Result<Value, String> {
 }
 
 fn assign_t_var(name: &str, t: &str) -> Result<ty::Ty, String> {
-    let tokens = read::read_tokens(t)?;
-
-    let ast =
-        grammar::parse(&grammar::FormPat::Call(n("Type")), &core_forms::get_core_forms(), &tokens)
-            .map_err(|e| e.msg)?;
+    let ast = grammar::parse(&grammar::FormPat::Call(n("Type")), &core_forms::get_core_forms(), t)
+        .map_err(|e| e.msg)?;
 
     let res = ty_env
         .with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e)));
@@ -301,48 +298,37 @@ fn assign_t_var(name: &str, t: &str) -> Result<ty::Ty, String> {
 }
 
 fn canonicalize_type(t: &str) -> Result<ty::Ty, String> {
-    let tokens = read::read_tokens(t)?;
-
-    let ast =
-        grammar::parse(&grammar::FormPat::Call(n("Type")), &core_forms::get_core_forms(), &tokens)
-            .map_err(|e| e.msg)?;
+    let ast = grammar::parse(&grammar::FormPat::Call(n("Type")), &core_forms::get_core_forms(), t)
+        .map_err(|e| e.msg)?;
 
     ty_env.with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e)))
 }
 
 fn parse_unseemly_program(program: &str) -> Result<String, String> {
-    let tokens = read::read_tokens(program)?;
-
-    let ast = grammar::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
+    let ast = grammar::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), program)
         .map_err(|e| e.msg)?;
 
     Ok(format!("▵ {:#?}\n∴ {}\n", ast, ast))
 }
 
 fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
-    let tokens = read::read_tokens(program)?;
-
-    let ast = grammar::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
+    let ast = grammar::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), program)
         .map_err(|e| e.msg)?;
 
     ty_env.with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e)))
 }
 
 fn eval_unseemly_program_without_typechecking(program: &str) -> Result<Value, String> {
-    let tokens = read::read_tokens(program)?;
-
     let ast: ::ast::Ast =
-        grammar::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
+        grammar::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), program)
             .map_err(|e| e.msg)?;
 
     val_env.with(|vals| eval(&ast, vals.borrow().clone()).map_err(|_| "???".to_string()))
 }
 
 fn eval_unseemly_program(program: &str) -> Result<Value, String> {
-    let tokens = read::read_tokens(program)?;
-
     let ast: ::ast::Ast =
-        grammar::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), &tokens)
+        grammar::parse(&core_forms::outermost_form(), &core_forms::get_core_forms(), program)
             .map_err(|e| e.msg)?;
 
     let _type = ty_env

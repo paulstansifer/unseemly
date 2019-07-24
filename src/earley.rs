@@ -159,13 +159,7 @@ impl Clone for Item {
 
 /// Progress through the state sets
 // TODO: this ought to produce an Option<ParseError>, not a bool!
-fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, tt: &TokenTree) -> (UniqueId, Vec<Vec<Item>>) {
-    let mut toks = "".to_owned();
-    for t in &tt.t {
-        toks += " ";
-        toks += &t.orig_sp();
-    }
-
+fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, toks: &str) -> (UniqueId, Vec<Vec<Item>>) {
     let mut chart: Vec<Vec<Item>> = vec![];
     chart.resize_with(toks.len() + 1, ::std::default::Default::default);
 
@@ -193,8 +187,8 @@ fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, tt: &TokenTree) -> (UniqueId
     (start_but_startier, chart)
 }
 
-fn recognize(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> bool {
-    let (start_but_startier, chart) = create_chart(Rc::new(rule.clone()), grammar.clone(), tt);
+fn recognize(rule: &FormPat, grammar: &SynEnv, toks: &str) -> bool {
+    let (start_but_startier, chart) = create_chart(Rc::new(rule.clone()), grammar.clone(), toks);
 
     chart[chart.len() - 1].iter().any(|item| {
         (*item.wanted_by.borrow()).iter().any(|idr| start_but_startier.is(*idr))
@@ -752,10 +746,10 @@ pub struct ParseError {
     pub msg: String,
 }
 
-pub fn parse(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> ParseResult {
+pub fn parse(rule: &FormPat, grammar: &SynEnv, toks: &str) -> ParseResult {
     best_token.with(|bt| *bt.borrow_mut() = (0, n("[nothing parsed]"), Rc::new(Impossible), 0));
 
-    let (start_but_startier, chart) = create_chart(Rc::new(rule.clone()), grammar.clone(), tt);
+    let (start_but_startier, chart) = create_chart(Rc::new(rule.clone()), grammar.clone(), toks);
     let final_item = chart[chart.len() - 1].iter().find(|item| {
         (*item.wanted_by.borrow()).iter().any(|idr| start_but_startier.is(*idr))
             && *item.done.borrow()
@@ -772,8 +766,8 @@ pub fn parse(rule: &FormPat, grammar: &SynEnv, tt: &TokenTree) -> ParseResult {
     }
 }
 
-fn parse_top(rule: &FormPat, tt: &TokenTree) -> ParseResult {
-    parse(rule, &::util::assoc::Assoc::new(), tt)
+fn parse_top(rule: &FormPat, toks: &str) -> ParseResult {
+    parse(rule, &::util::assoc::Assoc::new(), toks)
 }
 
 #[test]
@@ -908,43 +902,47 @@ fn earley_simple_recognition() {
 
     // 0-length strings
 
-    assert_eq!(recognize(&*atom, &main_grammar, &tokens!()), false);
+    assert_eq!(recognize(&*atom, &main_grammar, tokens_s!()), false);
 
-    assert_eq!(recognize(&Anyways(::ast::Trivial), &main_grammar, &tokens!()), true);
+    assert_eq!(recognize(&Anyways(::ast::Trivial), &main_grammar, tokens_s!()), true);
 
-    assert_eq!(recognize(&Seq(vec![]), &main_grammar, &tokens!()), true);
+    assert_eq!(recognize(&Seq(vec![]), &main_grammar, tokens_s!()), true);
 
-    assert_eq!(recognize(&Seq(vec![atom.clone()]), &main_grammar, &tokens!()), false);
+    assert_eq!(recognize(&Seq(vec![atom.clone()]), &main_grammar, tokens_s!()), false);
 
-    assert_eq!(recognize(&Star(Rc::new(Impossible)), &main_grammar, &tokens!()), true);
+    assert_eq!(recognize(&Star(Rc::new(Impossible)), &main_grammar, tokens_s!()), true);
 
-    assert_eq!(recognize(&Star(atom.clone()), &main_grammar, &tokens!()), true);
+    assert_eq!(recognize(&Star(atom.clone()), &main_grammar, tokens_s!()), true);
 
     // 1-length strings
 
-    assert_eq!(recognize(&*atom, &main_grammar, &tokens!("Pierre Menard")), true);
+    assert_eq!(recognize(&*atom, &main_grammar, tokens_s!("Pierre Menard")), true);
 
-    assert_eq!(recognize(&Impossible, &main_grammar, &tokens!("Pierre Menard")), false);
+    assert_eq!(recognize(&Impossible, &main_grammar, tokens_s!("Pierre Menard")), false);
 
     assert_eq!(
-        recognize(&Literal(atom.clone(), n("Cervantes")), &main_grammar, &tokens!("Pierre Menard")),
+        recognize(
+            &Literal(atom.clone(), n("Cervantes")),
+            &main_grammar,
+            tokens_s!("Pierre Menard")
+        ),
         false
     );
 
     assert_eq!(
-        recognize(&Literal(atom.clone(), n("Cervantes")), &main_grammar, &tokens!("Cervantes")),
+        recognize(&Literal(atom.clone(), n("Cervantes")), &main_grammar, tokens_s!("Cervantes")),
         true
     );
 
-    assert_eq!(recognize(&Seq(vec![atom.clone()]), &main_grammar, &tokens!("P.M.")), true);
+    assert_eq!(recognize(&Seq(vec![atom.clone()]), &main_grammar, tokens_s!("P.M.")), true);
 
-    assert_eq!(recognize(&Star(atom.clone()), &main_grammar, &tokens!("PM")), true);
+    assert_eq!(recognize(&Star(atom.clone()), &main_grammar, tokens_s!("PM")), true);
 
     assert_eq!(
         recognize(
             &Alt(vec![Rc::new(Impossible), atom.clone()]),
             &main_grammar,
-            &tokens!("Pierre Menard")
+            tokens_s!("Pierre Menard")
         ),
         true
     );
@@ -953,7 +951,7 @@ fn earley_simple_recognition() {
         recognize(
             &Alt(vec![Rc::new(Impossible), Rc::new(Literal(atom.clone(), n("Cervantes")))]),
             &main_grammar,
-            &tokens!("Pierre Menard")
+            tokens_s!("Pierre Menard")
         ),
         false
     );
@@ -962,7 +960,7 @@ fn earley_simple_recognition() {
         recognize(
             &Biased(Rc::new(Impossible), atom.clone()),
             &main_grammar,
-            &tokens!("Pierre Menard")
+            tokens_s!("Pierre Menard")
         ),
         true
     );
@@ -971,7 +969,7 @@ fn earley_simple_recognition() {
         recognize(
             &Biased(atom.clone(), Rc::new(Impossible)),
             &main_grammar,
-            &tokens!("Pierre Menard")
+            tokens_s!("Pierre Menard")
         ),
         true
     );
@@ -982,7 +980,7 @@ fn earley_simple_recognition() {
         recognize(
             &Seq(vec![Rc::new(Seq(vec![Rc::new(Seq(vec![atom.clone()]))]))]),
             &main_grammar,
-            &tokens!("Frustrated Novelist No Good At Describing Hands")
+            tokens_s!("Frustrated Novelist No Good At Describing Hands")
         ),
         true
     );
@@ -991,7 +989,7 @@ fn earley_simple_recognition() {
         recognize(
             &Alt(vec![Rc::new(Alt(vec![Rc::new(Alt(vec![atom.clone()]))]))]),
             &main_grammar,
-            &tokens!("(no pun intended, by the way)")
+            tokens_s!("(no pun intended, by the way)")
         ),
         true
     );
@@ -1000,7 +998,7 @@ fn earley_simple_recognition() {
         recognize(
             &Plus(Rc::new(Plus(Rc::new(Plus(atom.clone()))))),
             &main_grammar,
-            &tokens!("(except I might've changed it otherwise)")
+            tokens_s!("(except I might've changed it otherwise)")
         ),
         true
     );
@@ -1011,7 +1009,7 @@ fn earley_simple_recognition() {
         recognize(
             &Seq(vec![atom.clone(), atom.clone(), atom.clone()]),
             &main_grammar,
-            &tokens!("Author" "of the" "Quixote")
+            tokens_s!("Author" "of the" "Quixote")
         ),
         true
     );
@@ -1020,7 +1018,7 @@ fn earley_simple_recognition() {
         recognize(
             &Seq(vec![atom.clone(), atom.clone(), atom.clone()]),
             &main_grammar,
-            &tokens!("Author" "of" "the" "Quixote")
+            tokens_s!("Author" "of" "the" "Quixote")
         ),
         false
     );
@@ -1029,7 +1027,7 @@ fn earley_simple_recognition() {
         recognize(
             &Seq(vec![atom.clone(), atom.clone(), atom.clone()]),
             &main_grammar,
-            &tokens!("Author of" "the Quixote")
+            tokens_s!("Author of" "the Quixote")
         ),
         false
     );
@@ -1038,7 +1036,7 @@ fn earley_simple_recognition() {
         recognize(
             &Plus(Rc::new(Plus(Rc::new(Plus(atom.clone()))))),
             &main_grammar,
-            &tokens!("Author" "of" "the" "Quixote")
+            tokens_s!("Author" "of" "the" "Quixote")
         ),
         true
     );
@@ -1078,41 +1076,41 @@ fn earley_env_recognition() {
                                                           Rc::new(Call(n("r_rec_aaaa")))])),
                                  mk_lt("a")])));
 
-    assert_eq!(recognize(&*mk_lt("a"), &env, &tokens!("a")), true);
-    assert_eq!(recognize(&*mk_lt("a"), &env, &tokens!("b")), false);
+    assert_eq!(recognize(&*mk_lt("a"), &env, tokens_s!("a")), true);
+    assert_eq!(recognize(&*mk_lt("a"), &env, tokens_s!("b")), false);
 
-    assert_eq!(recognize(&Call(n("empty")), &env, &tokens!()), true);
-    assert_eq!(recognize(&Call(n("empty")), &env, &tokens!("not empty!")), false);
+    assert_eq!(recognize(&Call(n("empty")), &env, tokens_s!()), true);
+    assert_eq!(recognize(&Call(n("empty")), &env, tokens_s!("not empty!")), false);
 
-    assert_eq!(recognize(&Call(n("empty_indirect")), &env, &tokens!()), true);
-    assert_eq!(recognize(&Call(n("empty_indirect")), &env, &tokens!("not empty!")), false);
+    assert_eq!(recognize(&Call(n("empty_indirect")), &env, tokens_s!()), true);
+    assert_eq!(recognize(&Call(n("empty_indirect")), &env, tokens_s!("not empty!")), false);
 
-    assert_eq!(recognize(&Call(n("aaa")), &env, &tokens!()), true);
-    assert_eq!(recognize(&Call(n("aaa")), &env, &tokens!("a")), true);
-    assert_eq!(recognize(&Call(n("aaa")), &env, &tokens!("a" "a")), true);
-    assert_eq!(recognize(&Call(n("aaa")), &env, &tokens!("a" "a" "a")), true);
-    assert_eq!(recognize(&Call(n("aaa")), &env, &tokens!("a" "x" "a")), false);
+    assert_eq!(recognize(&Call(n("aaa")), &env, tokens_s!()), true);
+    assert_eq!(recognize(&Call(n("aaa")), &env, tokens_s!("a")), true);
+    assert_eq!(recognize(&Call(n("aaa")), &env, tokens_s!("a" "a")), true);
+    assert_eq!(recognize(&Call(n("aaa")), &env, tokens_s!("a" "a" "a")), true);
+    assert_eq!(recognize(&Call(n("aaa")), &env, tokens_s!("a" "x" "a")), false);
 
-    assert_eq!(recognize(&Call(n("aaaa")), &env, &tokens!()), false);
-    assert_eq!(recognize(&Call(n("aaaa")), &env, &tokens!("a")), true);
-    assert_eq!(recognize(&Call(n("aaaa")), &env, &tokens!("a" "a")), true);
-    assert_eq!(recognize(&Call(n("aaaa")), &env, &tokens!("a" "a" "a")), true);
-    assert_eq!(recognize(&Call(n("aaaa")), &env, &tokens!("a" "x" "a")), false);
+    assert_eq!(recognize(&Call(n("aaaa")), &env, tokens_s!()), false);
+    assert_eq!(recognize(&Call(n("aaaa")), &env, tokens_s!("a")), true);
+    assert_eq!(recognize(&Call(n("aaaa")), &env, tokens_s!("a" "a")), true);
+    assert_eq!(recognize(&Call(n("aaaa")), &env, tokens_s!("a" "a" "a")), true);
+    assert_eq!(recognize(&Call(n("aaaa")), &env, tokens_s!("a" "x" "a")), false);
 
-    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, &tokens!()), true);
-    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, &tokens!("a")), true);
-    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, &tokens!("a" "a")), true);
-    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, &tokens!("a" "a" "a")), true);
-    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, &tokens!("a" "x" "a")), false);
+    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, tokens_s!()), true);
+    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, tokens_s!("a")), true);
+    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, tokens_s!("a" "a")), true);
+    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, tokens_s!("a" "a" "a")), true);
+    assert_eq!(recognize(&Call(n("aaa_indirect")), &env, tokens_s!("a" "x" "a")), false);
 
     for l_rec in vec!["l_rec_axxx", "l_rec_axxx_hard"] {
-        assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a")), true);
-        assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a" "x")), true);
-        assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a" "x" "x")), true);
-        assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a" "x" "x" "x")), true);
-        assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a" "a" "x" "x")), false);
-        assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!()), false);
-        assert_eq!(recognize(&Call(n(l_rec)), &env, &tokens!("a" "x" "a" "x")), false);
+        assert_eq!(recognize(&Call(n(l_rec)), &env, tokens_s!("a")), true);
+        assert_eq!(recognize(&Call(n(l_rec)), &env, tokens_s!("a" "x")), true);
+        assert_eq!(recognize(&Call(n(l_rec)), &env, tokens_s!("a" "x" "x")), true);
+        assert_eq!(recognize(&Call(n(l_rec)), &env, tokens_s!("a" "x" "x" "x")), true);
+        assert_eq!(recognize(&Call(n(l_rec)), &env, tokens_s!("a" "a" "x" "x")), false);
+        assert_eq!(recognize(&Call(n(l_rec)), &env, tokens_s!()), false);
+        assert_eq!(recognize(&Call(n(l_rec)), &env, tokens_s!("a" "x" "a" "x")), false);
     }
 }
 
@@ -1124,26 +1122,26 @@ fn basic_parsing_e() {
 
     let atom = Rc::new(::grammar::new_scan(r"\s*(\S+)"));
 
-    assert_eq!(parse_top(&*atom, &tokens!("asdf")), Ok(ast!("asdf")));
+    assert_eq!(parse_top(&*atom, tokens_s!("asdf")), Ok(ast!("asdf")));
 
-    assert_eq!(parse_top(&Anyways(ast!("asdf")), &tokens!()), Ok(ast!("asdf")));
+    assert_eq!(parse_top(&Anyways(ast!("asdf")), tokens_s!()), Ok(ast!("asdf")));
 
     assert_eq!(
-        parse_top(&Biased(Rc::new(Anyways(ast!("A"))), Rc::new(Anyways(ast!("B")))), &tokens!()),
+        parse_top(&Biased(Rc::new(Anyways(ast!("A"))), Rc::new(Anyways(ast!("B")))), tokens_s!()),
         Ok(ast!("A"))
     );
 
     assert_eq!(
-        parse_top(&Named(n("c"), Rc::new(Anyways(ast!("asdf")))), &tokens!()),
+        parse_top(&Named(n("c"), Rc::new(Anyways(ast!("asdf")))), tokens_s!()),
         Ok(ast!({- "c" => "asdf"}))
     );
 
-    assert_eq!(parse_top(&Seq(vec![atom.clone()]), &tokens!("asdf")), Ok(ast_shape!("asdf")));
+    assert_eq!(parse_top(&Seq(vec![atom.clone()]), tokens_s!("asdf")), Ok(ast_shape!("asdf")));
 
     assert_eq!(
         parse_top(
             &Seq(vec![atom.clone(), mk_lt("fork"), atom.clone()]),
-            &tokens!("asdf" "fork" "asdf")
+            tokens_s!("asdf" "fork" "asdf")
         ),
         Ok(ast_shape!("asdf" "fork" "asdf"))
     );
@@ -1154,21 +1152,21 @@ fn basic_parsing_e() {
                 Rc::new(Seq(vec![mk_lt("aa"), mk_lt("ab")])),
                 Rc::new(Seq(vec![mk_lt("ba"), mk_lt("bb")]))
             ]),
-            &tokens!("aa" "ab" "ba" "bb")
+            tokens_s!("aa" "ab" "ba" "bb")
         ),
         Ok(ast_shape!(("aa" "ab") ("ba" "bb")))
     );
 
     assert!(!parse_top(
         &Seq(vec![atom.clone(), mk_lt("fork"), atom.clone()]),
-        &tokens!("asdf" "knife" "asdf"),
+        tokens_s!("asdf" "knife" "asdf"),
     )
     .is_ok());
 
     assert_eq!(
         parse_top(
             &form_pat!([(star (named "c", (alt (lit_aat "X"), (lit_aat "O")))), (lit_aat "!")]),
-            &tokens!("X" "O" "O" "O" "X" "X" "!")
+            tokens_s!("X" "O" "O" "O" "X" "X" "!")
         ),
         Ok(ast_shape!({- "c" => ["X", "O", "O", "O", "X", "X"]} "!"))
     );
@@ -1176,7 +1174,7 @@ fn basic_parsing_e() {
     assert_eq!(
         parse_top(
             &Seq(vec![Rc::new(Star(Rc::new(Named(n("c"), mk_lt("*"))))), mk_lt("X")]),
-            &tokens!("*" "*" "*" "*" "*" "X")
+            tokens_s!("*" "*" "*" "*" "*" "X")
         ),
         Ok(ast_shape!({- "c" => ["*", "*", "*", "*", "*"] } "X"))
     );
@@ -1184,7 +1182,7 @@ fn basic_parsing_e() {
     assert_m!(
         parse_top(
             &form_pat!([(star (biased (lit_aat "a"), (lit_aat "b"))), (lit_aat "b")]),
-            &tokens!["a" "a" "b"]
+            tokens_s!["a" "a" "b"]
         ),
         Ok(_)
     );
@@ -1192,24 +1190,24 @@ fn basic_parsing_e() {
     assert_m!(
         parse_top(
             &form_pat!([(star (biased (lit_aat "b"), (lit_aat "a"))), (lit_aat "b")]),
-            &tokens!["a" "a" "b"]
+            tokens_s!["a" "a" "b"]
         ),
         Ok(_)
     );
 
-    assert_eq!(parse_top(&form_pat!([(lit_aat "b")]), &tokens!["b"]), Ok(ast_shape!("b")));
+    assert_eq!(parse_top(&form_pat!([(lit_aat "b")]), tokens_s!["b"]), Ok(ast_shape!("b")));
 
-    assert_eq!(parse_top(&form_pat!(varref_aat), &tokens!("Spoon")), Ok(ast!((vr "Spoon"))));
+    assert_eq!(parse_top(&form_pat!(varref_aat), tokens_s!("Spoon")), Ok(ast!((vr "Spoon"))));
 
     assert_eq!(
-        parse_top(&form_pat!((reserved varref_aat, "Moon")), &tokens!("Spoon")),
+        parse_top(&form_pat!((reserved varref_aat, "Moon")), tokens_s!("Spoon")),
         Ok(ast!((vr "Spoon")))
     );
 
     assert_eq!(
         parse_top(
             &form_pat!((alt (lit_aat "Moon"), (reserved varref_aat, "Moon"))),
-            &tokens!("Spoon")
+            tokens_s!("Spoon")
         ),
         Ok(ast!((vr "Spoon")))
     );
@@ -1222,14 +1220,14 @@ fn basic_parsing_e() {
         parse(
             &form_pat!((alt (lit_aat "Moon"), (reserved (scan r"\s*(\S+)"), "Moon"))),
             &env,
-            &tokens!("Moon")
+            tokens_s!("Moon")
         ),
         Ok(ast!("Moon")) // Not a varref, so it's the literal instead
     );
 
     assert_eq!(
         // `lit` calls "DefaultToken"
-        parse(&form_pat!((lit "Moon")), &env, &tokens!("Moon")),
+        parse(&form_pat!((lit "Moon")), &env, tokens_s!("Moon")),
         Ok(ast!("Moon"))
     );
 }

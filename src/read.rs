@@ -1,7 +1,4 @@
 // The tokenizer ("reader", in Scheme parlance) for Unseemly.
-//
-// TODO: Make tokenization lazy...
-// TODO #6: ...so that it's possible to switch tokenizers mid-file.
 
 extern crate regex;
 
@@ -43,17 +40,13 @@ impl Token {
 }
 
 impl TokenTree {
-    pub fn splay(&self) -> TokenTree {
-        let mut res = vec![];
+    pub fn to_string(&self) -> String {
+        let mut result = "".to_owned();
         for t in &self.t {
-            res.push(*t);
-
-            for _ in 1..t.orig_sp().len() {
-                res.push(n("🚫"));
-            }
+            result += " ";
+            result += &t.orig_sp();
         }
-
-        TokenTree { t: res }
+        result
     }
 }
 
