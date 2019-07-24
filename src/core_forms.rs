@@ -557,9 +557,7 @@ thread_local! {
     pub static core_forms: SynEnv = make_core_syn_env();
 }
 
-pub fn outermost_form() -> FormPat {
-    Call(n("Expr")) // `n` isn't static
-}
+pub fn outermost_form() -> FormPat { Call(n("Expr")) }
 
 pub fn find(nt: &str, name: &str) -> Rc<Form> { core_forms.with(|cf| find_form(cf, nt, name)) }
 

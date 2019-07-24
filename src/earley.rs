@@ -160,6 +160,7 @@ impl Clone for Item {
 /// Progress through the state sets
 // TODO: this ought to produce an Option<ParseError>, not a bool!
 fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, toks: &str) -> (UniqueId, Vec<Vec<Item>>) {
+    let toks = toks.trim(); // HACK: tokens don't consume trailing whitespace
     let mut chart: Vec<Vec<Item>> = vec![];
     chart.resize_with(toks.len() + 1, ::std::default::Default::default);
 
