@@ -181,7 +181,7 @@ fn parse_flimsy_ast(flimsy: &Ast, grammar: &FormPat) -> Ast {
         QuoteEscape(body, depth) => QuoteLess(Box::new(parse_flimsy_ast(flimsy, &*body)), *depth),
 
         // Lookup is faked by the flimsy macros, so we don't need to do anything:
-        ComputeSyntax(_, body) | SynImport(body, _, _) => parse_flimsy_ast(flimsy, &*body),
+        SynImport(body, _, _) => parse_flimsy_ast(flimsy, &*body),
         Call(name) => {
             // HACK: don't descend into `Call(n("DefaultName"))
             if *name == n("DefaultName") {

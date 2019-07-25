@@ -16,7 +16,6 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
         Scope(_, _) => vec![],
         Star(ref body)
         | Plus(ref body)
-        | ComputeSyntax(_, ref body)
         | NameImport(ref body, _)
         | VarRef(ref body)
         | Literal(ref body, _)
@@ -132,7 +131,6 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
             }
             res
         }
-        (&ComputeSyntax(_, _), _) => format!("?compute syntax? {:#?} ?cs?", actl),
         (&Scope(ref form, _), &Node(ref form_actual, ref body, _)) => {
             if form == form_actual {
                 unparse_mbe(&*form.grammar, actl, body, s)

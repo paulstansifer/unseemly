@@ -56,8 +56,6 @@ custom_derive! {
         /// Parses its body in the named NT of the syntax environment computed from
         ///  the LHS and the current syntax environment.
         SynImport(Rc<FormPat>, Name, SyntaxExtension),
-        /// cleanup TODO: remove this; `SynImport` obsoletes this
-        ComputeSyntax(Name, Rc<FormPat>),
 
         /// Makes a node and limits the region where names are meaningful. `Beta` defines export.
         Scope(Rc<Form>, ExportBeta),
@@ -93,8 +91,7 @@ impl FormPat {
                 body.binders().into_iter().map(|(n, depth)| (n, depth + 1)).collect()
             }
             // TODO: since these belong under `Named`, I suspect they ought to return an empty Vec.
-            ComputeSyntax(_, ref body)
-            | SynImport(ref body, _, _)
+            SynImport(ref body, _, _)
             | NameImport(ref body, _)
             | QuoteDeepen(ref body, _)
             | QuoteEscape(ref body, _)
@@ -126,7 +123,6 @@ impl FormPat {
             Anyways(_) | Impossible | Scan(_) => None,
             Star(ref body)
             | Plus(ref body)
-            | ComputeSyntax(_, ref body)
             | SynImport(ref body, _, _)
             | NameImport(ref body, _)
             | Literal(ref body, _)

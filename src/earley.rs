@@ -409,7 +409,6 @@ impl Item {
                         VarRef(_)
                         | Alt(_)
                         | Call(_)
-                        | ComputeSyntax(_, _)
                         | Scope(_, _)
                         | Named(_, _)
                         | SynImport(_, _, _)
@@ -583,7 +582,6 @@ impl Item {
                     0,
                 )]
             }
-            (0, &ComputeSyntax(_, _)) => panic!("TODO"),
             (0, &Named(_, ref body))
             | (0, &NameImport(ref body, _))
             | (0, &QuoteDeepen(ref body, _))
@@ -707,7 +705,6 @@ impl Item {
                     _ => icp!("seriously, this can't happen"),
                 }
             }
-            ComputeSyntax(_, _) => panic!("TODO"),
             Named(name, _) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
                 Ok(Ast::IncompleteNode(::util::mbe::EnvMBE::new_from_leaves(
