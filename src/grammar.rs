@@ -36,10 +36,6 @@ custom_derive! {
         /// Matches if the sub-pattern equals the given name
         Literal(Rc<FormPat>, Name),
 
-        /// cleanup TODO: remove, now that tokens are always atomic
-        AnyToken,
-        /// Matches any token, as an `Atom`. (TODO: remove, when scannerlessness lands)
-        AnyAtomicToken,
         /// Matches an atom, turns it into a `VariableReference`
         VarRef(Rc<FormPat>),
 
@@ -106,20 +102,12 @@ impl FormPat {
             Biased(ref body_a, ref body_b) => {
                 body_a.binders().tap(|v| v.append(&mut body_b.binders()))
             }
-            Anyways(_)
-            | Impossible
-            | Literal(_, _)
-            | AnyToken
-            | AnyAtomicToken
-            | Scan(_)
-            | VarRef(_)
-            | Call(_) => vec![],
+            Anyways(_) | Impossible | Literal(_, _) | Scan(_) | VarRef(_) | Call(_) => vec![],
         }
     }
 
-    // In this grammar, what kind of thing is `n`? Outer `None` means "not found",
-    // inner means "not a call".
-    pub fn find_named_call(&self, n: Name) -> Option<Option<Name>> {
+    // In this grammar, what kind of thing is `n` (if it's present at all)?
+    pub fn find_named_call(&self, n: Name) -> Option<Name> {
         match *self {
             Named(this_n, ref sub) if this_n == n => {
                 // Pass though any number of `Import`s:
@@ -128,15 +116,14 @@ impl FormPat {
                     sub = new_sub;
                 }
                 match **sub {
-                    Call(nt) => Some(Some(nt)),
-                    AnyAtomicToken => Some(None),
+                    Call(nt) => Some(nt),
                     _ => None,
                 }
             }
             Named(_, _) => None, // Otherwise, skip
             Call(_) => None,
             Scope(_, _) => None, // Only look in the current scope
-            Anyways(_) | Impossible | AnyToken | AnyAtomicToken | Scan(_) => None,
+            Anyways(_) | Impossible | Scan(_) => None,
             Star(ref body)
             | Plus(ref body)
             | ComputeSyntax(_, ref body)

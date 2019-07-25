@@ -37,8 +37,6 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
         }
         Anyways(_)
         | Impossible
-        | AnyToken
-        | AnyAtomicToken
         | Scan(_)
         | Call(_)
         | SynImport(_, _, _) => vec![],
@@ -74,9 +72,6 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
         (&Call(sub_form), _) => unparse_mbe(s.find_or_panic(&sub_form), actl, context, s),
         (&Anyways(_), _) | (&Impossible, _) => "".to_string(),
         (&Literal(ref sub_form, _), _) => unparse_mbe(&*sub_form, &actl, context, s),
-        (&AnyToken, _) => panic!("TODO: pretty print arbitrary token trees"),
-        (&AnyAtomicToken, &Atom(n)) => n.print(),
-        (&AnyAtomicToken, _) => "".to_string(), // HACK for `Alt`
         (&Scan(_), &Atom(n)) => n.print(),
         (&Scan(_), _) => "".to_string(), // HACK for `Alt`
         (&VarRef(ref sub_form), &VariableReference(n)) => {

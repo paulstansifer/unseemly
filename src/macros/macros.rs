@@ -354,8 +354,6 @@ macro_rules! form_pat {
     };
     ((anyways $a:tt)) => { ::grammar::FormPat::Anyways(ast!($a)) };
     ((impossible)) => { ::grammar::FormPat::Impossible };
-    (at) => { ::grammar::FormPat::AnyToken };
-    (aat) => { ::grammar::FormPat::AnyAtomicToken };
     (atom) => { ::grammar::FormPat::Call(::name::n("DefaultName")) };
     (varref) => { ::grammar::FormPat::VarRef(
         ::std::rc::Rc::new(::grammar::FormPat::Call(::name::n("DefaultName")))

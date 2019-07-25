@@ -141,18 +141,17 @@ fn type_macro_invocation(
     let mut q_arguments = Assoc::new();
 
     for (binder, depth) in grammar.binders() {
-        if let Some(nt) = grammar.find_named_call(binder).unwrap() {
-            let term_ty = if ::core_type_forms::nt_is_positive(nt) {
-                parts.flatten_res_at_depth(binder, depth, &|ty_vec: Vec<Ty>| {
-                    ty!({"Type" "tuple" :
-                        "component" => (,seq ty_vec.iter().map(|ty| ty.concrete()))
-                    })
-                })?
-            } else {
-                ::ty_compare::Subtype::underspecified(binder)
-            };
-            q_arguments = q_arguments.set(binder, more_quoted_ty(&term_ty, nt));
-        } // Otherwise, it's not a call (should we treat this more like `Pat`?)
+        let nt = grammar.find_named_call(binder).unwrap();
+        let term_ty = if ::core_type_forms::nt_is_positive(nt) {
+            parts.flatten_res_at_depth(binder, depth, &|ty_vec: Vec<Ty>| {
+                ty!({"Type" "tuple" :
+                    "component" => (,seq ty_vec.iter().map(|ty| ty.concrete()))
+                })
+            })?
+        } else {
+            ::ty_compare::Subtype::underspecified(binder)
+        };
+        q_arguments = q_arguments.set(binder, more_quoted_ty(&term_ty, nt));
     }
 
     // This is lifted almost verbatim from "Expr" "apply". Maybe they should be unified?
@@ -260,8 +259,6 @@ pub fn make_core_macro_forms() -> SynEnv {
             body => Rc::new(FormPat::reflect(&body)),
             expected => ::name::Name::reflect(&expected)
         )) => [],
-        syntax_syntax!( ((lit "any_token")) AnyToken ) => [],
-        syntax_syntax!( ((lit "atom")) AnyToken ) => [],
         syntax_syntax!( ([(lit "vr"), (named "body", (call "Syntax"))]) VarRef (
             body =>  Rc::new(FormPat::reflect(&body))
         )) => [],
@@ -447,9 +444,10 @@ fn expand_macro(parts: ::ast_walk::LazyWalkReses<ExpandMacros>) -> Result<Ast, (
 
     // Turn the subterms into values
     for (binder, _depth) in macro_form.grammar.binders() {
-        if let Some(_nt) = macro_form.grammar.find_named_call(binder).unwrap() {
+        let nt = macro_form.grammar.find_named_call(binder).unwrap();
+        if nt != n("DefaultName") && nt != n("Ident") { // TODO: why not?
             env = env.set(binder, ::runtime::eval::Value::from_ast(&parts.get_term(binder)));
-        } // Otherwise, it's not a call (presumably a binder)
+        }
     }
 
     let expanded = ::runtime::eval::eval(&parts.get_term(n("implementation")), env)?.to_ast();

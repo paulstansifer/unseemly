@@ -209,7 +209,7 @@ thread_local! {
         = RefCell::new(HashMap::new());
     pub static underdetermined_form : ::std::rc::Rc<Form> = ::std::rc::Rc::new(Form {
         name: n("<underdetermined>"),
-        grammar: ::std::rc::Rc::new(form_pat!((named "id", aat))),
+        grammar: ::std::rc::Rc::new(form_pat!((named "id", atom))),
         type_compare: ::form::Both(
             // pre-match handles the negative case; we need to do the positive case manually:
             cust_rc_box!(|udet_parts| {

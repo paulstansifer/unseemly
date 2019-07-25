@@ -476,7 +476,7 @@ pub fn make_core_syn_env() -> SynEnv {
         "Pat" => Rc::new(Biased(Rc::new(main_pat_forms), Rc::new(Call(n("DefaultName"))))),
         "Expr" => Rc::new(Biased(Rc::new(main_expr_forms),
                                  Rc::new(VarRef(Rc::new(Call(n("DefaultName"))))))),
-        "Ident" => Rc::new(AnyAtomicToken),
+        "Ident" => Rc::new(Call(n("DefaultName"))),
         "DefaultName" => Rc::new(form_pat!((reserved_by_name_vec (call "DefaultToken"), reserved_names))),
         "DefaultToken" => Rc::new(::grammar::new_scan(r"\s*([\]\)\}][^\[\]\(\)\{\}\s]*|[^\[\]\(\)\{\}\s]*[\[\(\{]|[^\[\]\(\)\{\}\s]+)"))
     )
@@ -964,14 +964,14 @@ fn use__let_type() {
 fn use_insert_form_pat() {
     let se = assoc_n!("Pat" => Rc::new(form_pat!((impossible))),
                       "Expr" => Rc::new(form_pat!(
-                          (biased (biased aat, aat),
-                                  (biased (alt (lit "a"), (lit "b")), aat)))));
+                          (biased (biased atom, atom),
+                                  (biased (alt (lit "a"), (lit "b")), atom)))));
     assert_eq!(
         insert_form_pat(&se, n("Expr"), &form_pat!((lit "c"))),
         assoc_n!("Pat" => Rc::new(form_pat!((impossible))),
                  "Expr" => Rc::new(form_pat!(
-                     (biased (biased aat, aat),
-                             (biased (alt (lit "a"), (lit "b"), (lit "c")), aat)))))
+                     (biased (biased atom, atom),
+                             (biased (alt (lit "a"), (lit "b"), (lit "c")), atom)))))
     );
 }
 

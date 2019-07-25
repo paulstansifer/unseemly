@@ -94,7 +94,7 @@ thread_local! {
     // An internal type to keep the compiler from trying to dig into the `Expr` in `Expr <[X]<`.
     pub static abstract_parametric_type : Rc<Form> = Rc::new(Form {
         name: n("abstract_parametric_type"),
-        grammar: Rc::new(form_pat!([(named "name", aat)])),
+        grammar: Rc::new(form_pat!([(named "name", atom)])),
         type_compare: Both(LiteralLike, LiteralLike),
         synth_type: Positive(LiteralLike),
         quasiquote: Both(LiteralLike, LiteralLike),
@@ -450,8 +450,9 @@ pub fn nt_to_type(nt: Name) -> Ty {
 pub fn nt_is_positive(nt: Name) -> bool {
     if nt == n("Type") || nt == n("Expr") {
         true
-    } else if nt == n("Pat") || nt == n("Ident") {
-        // HACK: "Ident" is just not walked; this should probably be three-armed
+    } else if nt == n("Pat") || nt == n("Ident") || nt == n("DefaultName") {
+        // TODO: Rename "DefaultName" to "Ident" globally.
+        // HACK: "Ident" and "DefaultName" are just not walked; this should probably be three-armed
         false
     } else {
         icp!("unknown NT {}", nt)

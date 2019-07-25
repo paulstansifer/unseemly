@@ -170,11 +170,6 @@ fn parse_flimsy_ast(flimsy: &Ast, grammar: &FormPat) -> Ast {
         Anyways(ref a) => a.clone(),
         Impossible => unimplemented!(),
         Literal(_, _) => Trivial,
-        AnyToken => unimplemented!(),
-        AnyAtomicToken => match flimsy {
-            VariableReference(a) => Atom(*a),
-            non_atom => panic!("Needed an atom, got {}", non_atom),
-        },
         VarRef(_) => match flimsy {
             VariableReference(a) => VariableReference(*a),
             non_atom => panic!("Needed an atom, got {}", non_atom),
@@ -188,7 +183,7 @@ fn parse_flimsy_ast(flimsy: &Ast, grammar: &FormPat) -> Ast {
         // Lookup is faked by the flimsy macros, so we don't need to do anything:
         ComputeSyntax(_, body) | SynImport(body, _, _) => parse_flimsy_ast(flimsy, &*body),
         Call(name) => {
-            // HACK: don't descend into `Call(n("DefaultName")); treat it like `AnyAtomicToken`
+            // HACK: don't descend into `Call(n("DefaultName"))
             if *name == n("DefaultName") {
                 match flimsy {
                     VariableReference(a) => Atom(*a),

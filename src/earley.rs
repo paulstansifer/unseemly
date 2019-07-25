@@ -376,7 +376,7 @@ impl Item {
                     //  in `shift_or_predict` for leaves.
                     // Except for `Seq`. TODO: why?
                     let mut more = match *waiting_item.rule {
-                        Anyways(_) | Impossible | AnyToken | AnyAtomicToken | Scan(_) => {
+                        Anyways(_) | Impossible | Scan(_) => {
                             icp!("{:#?} should not be waiting for anything!", waiting_item)
                         }
                         Seq(ref subs) => {
@@ -487,8 +487,6 @@ impl Item {
             (0, &Anyways(ref a)) => self.finish_with(ParsedAtom(a.clone()), 0),
             (_, &Impossible) => vec![],
             (0, &Literal(ref sub, _)) => self.start(sub, cur_idx),
-            (0, &AnyToken) => panic!("AnyToken"),
-            (0, &AnyAtomicToken) => panic!("AnyAtomicToken"),
             (0, &Scan(::grammar::Scanner(ref regex))) => {
                 let mut caps = regex.capture_locations();
                 if regex.captures_read(&mut caps, &toks[cur_idx..]).is_some() {
@@ -643,7 +641,7 @@ impl Item {
         let res = match *self.rule {
             Anyways(ref a) => Ok(a.clone()),
             Impossible => icp!("Parser parsed the impossible!"),
-            AnyToken | AnyAtomicToken | Scan(_) => match self.local_parse.borrow().clone() {
+            Scan(_) => match self.local_parse.borrow().clone() {
                 ParsedAtom(a) => Ok(a),
                 _ => icp!("no simple parse saved"),
             },
@@ -773,10 +771,10 @@ fn parse_top(rule: &FormPat, toks: &str) -> ParseResult {
 
 #[test]
 fn earley_merging() {
-    let one_rule = AnyToken;
+    let one_rule = ::grammar::new_scan("whatever");
     let another_rule = Impossible;
-    let main_grammar = assoc_n!("a" => Rc::new(form_pat!(aat)));
-    let another_grammar = assoc_n!("a" => Rc::new(form_pat!(aat)));
+    let main_grammar = assoc_n!("a" => Rc::new(form_pat!((scan "irrelevant"))));
+    let another_grammar = assoc_n!("a" => Rc::new(form_pat!((scan "irrelevant"))));
     let mut state_set = vec![];
 
     let basic_item = Item {
