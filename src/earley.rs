@@ -33,8 +33,8 @@ thread_local! {
     static all_grammars: RefCell<HashMap<UniqueIdRef, SynEnv>>
         = RefCell::new(HashMap::new());
 
-    static best_token: RefCell<(usize, Name, Rc<FormPat>, usize)>
-        = RefCell::new((0, n("[nothing parsed]"), Rc::new(Impossible), 0));
+    static best_token: RefCell<(usize, Rc<FormPat>, usize)>
+        = RefCell::new((0, Rc::new(Impossible), 0));
 }
 
 fn get_next_id() -> UniqueId {
@@ -461,9 +461,11 @@ impl Item {
         };
 
         if !res.is_empty() {
-            if let Some(tok) = &toks.get(cur_idx..cur_idx + 1) {
+            if let Call(_) = *res[0].0.rule {
+                // HACK: I think that `Call` is uninformative
+            } else {
                 best_token.with(|bt| {
-                    *bt.borrow_mut() = (cur_idx, n(tok), res[0].0.rule.clone(), res[0].0.pos)
+                    *bt.borrow_mut() = (cur_idx, res[0].0.rule.clone(), res[0].0.pos)
                 });
             }
         }
@@ -743,7 +745,7 @@ pub struct ParseError {
 }
 
 pub fn parse(rule: &FormPat, grammar: &SynEnv, toks: &str) -> ParseResult {
-    best_token.with(|bt| *bt.borrow_mut() = (0, n("[nothing parsed]"), Rc::new(Impossible), 0));
+    best_token.with(|bt| *bt.borrow_mut() = (0, Rc::new(rule.clone()), 0));
 
     let (start_but_startier, chart) = create_chart(Rc::new(rule.clone()), grammar.clone(), toks);
     let final_item = chart[chart.len() - 1].iter().find(|item| {
@@ -754,9 +756,17 @@ pub fn parse(rule: &FormPat, grammar: &SynEnv, toks: &str) -> ParseResult {
     match final_item {
         Some(i) => i.c_parse(&chart, chart.len() - 1),
         None => best_token.with(|bt| {
-            let (idx, tok, ref grammar, pos) = *bt.borrow();
+            let (idx, ref grammar, pos) = *bt.borrow();
+
             Err(ParseError {
-                msg: format!("Could not parse past token {} ({}) {:#?} {}", idx, tok, grammar, pos),
+                msg: format!(
+                    "Could not parse past token {} ({}•{}) {:?} {}",
+                    idx,
+                    &toks[0..idx],
+                    &toks[idx..toks.len()],
+                    grammar,
+                    pos
+                ),
             })
         }),
     }
