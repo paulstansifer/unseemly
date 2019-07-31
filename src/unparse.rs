@@ -34,11 +34,7 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
             res.append(&mut node_names_mentioned(&*rhs));
             res
         }
-        Anyways(_)
-        | Impossible
-        | Scan(_)
-        | Call(_)
-        | SynImport(_, _, _) => vec![],
+        Anyways(_) | Impossible | Scan(_) | Call(_) | SynImport(_, _, _) => vec![],
     }
 }
 

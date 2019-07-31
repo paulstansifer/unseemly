@@ -464,9 +464,8 @@ impl Item {
             if let Call(_) = *res[0].0.rule {
                 // HACK: I think that `Call` is uninformative
             } else {
-                best_token.with(|bt| {
-                    *bt.borrow_mut() = (cur_idx, res[0].0.rule.clone(), res[0].0.pos)
-                });
+                best_token
+                    .with(|bt| *bt.borrow_mut() = (cur_idx, res[0].0.rule.clone(), res[0].0.pos));
             }
         }
 
@@ -760,7 +759,7 @@ pub fn parse(rule: &FormPat, grammar: &SynEnv, toks: &str) -> ParseResult {
 
             Err(ParseError {
                 msg: format!(
-                    "Could not parse past token {} ({}•{}) {:?} {}",
+                    "Could not parse past token {}  “{}•{}” {:?} at {}",
                     idx,
                     &toks[0..idx],
                     &toks[idx..toks.len()],

@@ -253,12 +253,26 @@ pub fn make_core_macro_forms() -> SynEnv {
             body => ::ast::Ast::reflect(&body)
         )) => ["body"],
         syntax_syntax!( ((lit "impossible")) Impossible ) => [],
-        syntax_syntax!( ((delim "{", "{",
+        syntax_syntax!( (  // TODO: this might have to be both positive and negative
             [(lit "lit"), (named "body", (call "Syntax")),
-             (lit "="), (named "expected", atom)]) ) Literal (
-            body => Rc::new(FormPat::reflect(&body)),
-            expected => ::name::Name::reflect(&expected)
-        )) => [],
+             (lit "="), (named "expected", atom)] ) Literal {
+            |parts| {
+                parts.get_res(n("body"))
+            }
+        } {
+            |parts| {
+                Ok(FormPat::Literal(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?)),
+                                    ast_to_name(&parts.get_term(n("expected")))).reify())
+            }
+        }) => [],
+        syntax_syntax!( ([(scan r"(\s*/)"), (named "pat", (scan r"([^/]*)")), (scan r"(/)")]) Scan {
+            |_| { icp!("not walked") }
+        } {
+            |parts| {
+                Ok(::grammar::new_scan(
+                    &::core_forms::ast_to_name(&parts.get_term(n("pat"))).orig_sp()).reify())
+            }
+        }) => [],
         syntax_syntax!( ([(lit "vr"), (named "body", (call "Syntax"))]) VarRef (
             body =>  Rc::new(FormPat::reflect(&body))
         )) => [],
@@ -361,17 +375,15 @@ pub fn make_core_macro_forms() -> SynEnv {
         Rc::new(Form {
             name: n("import"),
             grammar: Rc::new(form_pat!(
-                (delim ",{", "{",
-                    [(named "nt", atom), (delim "<[", "[", (named "ty_annot", (call "Type")))]))),
+                // TODO: we need syntax for a full-on beta
+                [(named "body", (call "Syntax")), (lit "<--"), (named "imported", varref)])),
             type_compare: ::form::Both(NotWalked,NotWalked), // Not a type
             synth_type: Both(cust_rc_box!(|parts| {
-                let expected_type = parts.get_res(n("ty_annot"))?;
-                let nt = ast_to_name(&parts.get_term(n("nt")));
-
-                Ok(more_quoted_ty(&expected_type, nt))
+                parts.get_res(n("body"))
             }), NotWalked),
             eval: ::form::Positive(cust_rc_box!(|parts| {
-                Ok(Rc::new(Call(::name::Name::reflect(&parts.get_res(n("nt"))?))).reify())
+                Ok(NameImport(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?)),
+                              ::beta::Beta::Nothing).reify())
             })),
             quasiquote: ::form::Both(LiteralLike, LiteralLike)
         }) => [],
@@ -445,7 +457,8 @@ fn expand_macro(parts: ::ast_walk::LazyWalkReses<ExpandMacros>) -> Result<Ast, (
     // Turn the subterms into values
     for (binder, _depth) in macro_form.grammar.binders() {
         let nt = macro_form.grammar.find_named_call(binder).unwrap();
-        if nt != n("DefaultName") && nt != n("Ident") { // TODO: why not?
+        if nt != n("DefaultName") && nt != n("Ident") {
+            // TODO: why not?
             env = env.set(binder, ::runtime::eval::Value::from_ast(&parts.get_term(binder)));
         }
     }
@@ -491,27 +504,37 @@ pub fn expand(ast: &Ast, env: Assoc<Name, Ast>) -> Result<Ast, ()> {
 fn formpat_reflection() {
     use core_forms::find_form;
     use runtime::eval::eval_top;
-    let macro_forms = make_core_macro_forms();
+    let macro_forms = make_core_macro_forms()
+        .set(n("DefaultToken"), Rc::new(::grammar::new_scan(r"\s*(\S+)")))
+        .set(n("DefaultName"), Rc::new(FormPat::Call(n("DefaultToken"))))
+        .set(n("Type"), Rc::new(FormPat::Call(n("DefaultToken"))));
+
+    fn syntax_to_form_pat(a: Ast) -> FormPat { FormPat::reflect(&eval_top(&a).unwrap()) }
 
     assert_eq!(
-        FormPat::reflect(
-            &eval_top(&ast!({
-                find_form(&macro_forms, "Syntax", "impossible");
-            }))
-            .unwrap()
-        ),
+        syntax_to_form_pat(ast!({
+            find_form(&macro_forms, "Syntax", "impossible");
+        })),
         Impossible
     );
     assert_eq!(
-        FormPat::reflect(
-            &eval_top(&ast!({find_form(&macro_forms, "Syntax", "literal");
-                "expected" => {"Expr" "quote_expr" : "nt" => "Expr", "body" => (++ true "<--->")},
-                "body" => {find_form(&macro_forms, "Syntax", "call");
-                    "nt" => "DefaultToken"
-            }}))
-            .unwrap()
-        ),
+        syntax_to_form_pat(ast!({find_form(&macro_forms, "Syntax", "literal");
+            "expected" => "<--->",
+            "body" => {find_form(&macro_forms, "Syntax", "call");
+                "nt" => "DefaultToken"
+        }})),
         Literal(std::rc::Rc::new(Call(n("DefaultToken"))), n("<--->"))
+    );
+
+    let string_to_form_pat = |s: &str| -> FormPat {
+        syntax_to_form_pat(::earley::parse(&form_pat!((call "Syntax")), &macro_forms, s).unwrap())
+    };
+
+    assert_eq!(string_to_form_pat(r"/\s*(\S+)/"), ::grammar::new_scan(r"\s*(\S+)"));
+    assert_eq!(string_to_form_pat(r"lit /\s*(\S+)/ = x"), form_pat!((lit_aat "x")));
+    assert_eq!(
+        string_to_form_pat(r"[ lit /\s*(\S+)/ = write_this ,{ Expr <[ Int ]< }, <-- a ]"),
+        form_pat!([(lit_aat "write_this"), (import [], (call "Expr"))])
     );
 }
 
