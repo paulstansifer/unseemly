@@ -62,6 +62,10 @@ macro_rules! beta {
         ::beta::Shadow(Box::new(::beta::Protected(     ::name::n(expr_ify!($name)))),
                Box::new(beta!( [ $( $rest )* ] )))
     };
+    // Just makes things prettier by not ending everything in " ▷ ∅":
+    ( [ $name:tt $connector:tt $t:tt ] ) => {
+        beta_connector!($connector)(::name::n(expr_ify!($name)), ::name::n(expr_ify!($t)))
+    };
     ( [ $name:tt $connector:tt $t:tt
         $( $rest:tt )*
          ] ) => {

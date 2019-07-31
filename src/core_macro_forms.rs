@@ -3,6 +3,7 @@ use ast_walk::{
     LazyWalkReses,
     WalkRule::{Custom, LiteralLike, NotWalked},
 };
+use beta::Beta::*;
 use core_forms::ast_to_name;
 use core_type_forms::{less_quoted_ty, more_quoted_ty};
 use form::{EitherPN::Both, Form};
@@ -62,7 +63,7 @@ macro_rules! syntax_syntax {
             // Binds nothing
             synth_type: ::form::Both(NotWalked, cust_rc_box!(|_parts| { Ok(Assoc::new())}) ),
             eval: ::form::Positive(cust_rc_box!(|_parts| {
-                Ok(::grammar::FormPat::$syntax_name.reify())}
+                Ok($syntax_name.reify())}
             )),
             quasiquote: ::form::Both(LiteralLike, LiteralLike)
         })
@@ -82,7 +83,7 @@ macro_rules! syntax_syntax {
                 Ok(out)
             })),
             eval: ::form::Positive(cust_rc_box!(|parts| {
-                Ok(::grammar::FormPat::$syntax_name(
+                Ok($syntax_name(
                     $( { let $arg = parts.get_res(n(&stringify!($arg)))?; $e } ),*
                 ).reify())}
             )),
@@ -246,6 +247,20 @@ fn macro_invocation(grammar: FormPat, macro_name: Name, export_names: Vec<Name>)
 pub fn make_core_macro_forms() -> SynEnv {
     let trivial_type_form = ::core_type_forms::type_defn("unused", form_pat!((impossible)));
 
+    let beta_grammar = forms_to_form_pat_export![
+        syntax_syntax!( ((lit "nothing")) Nothing ) => [],
+        syntax_syntax!(
+            ([(named "name", (call "DefaultName")),
+              (lit ":"), (named "type", (call "DefaultName"))]) Basic {
+            |_| icp!("Betas are not typed")
+        } {
+            |parts| {
+                Ok(Basic(ast_to_name(&parts.get_term(n("name"))),
+                        ast_to_name(&parts.get_term(n("type")))).reify())
+            }
+        }) => []
+    ];
+
     // Most of "Syntax" is a negative walk (because it produces an environment),
     //  but lacking a `negative_ret_val`.
     let grammar_grammar = forms_to_form_pat_export![
@@ -376,14 +391,14 @@ pub fn make_core_macro_forms() -> SynEnv {
             name: n("import"),
             grammar: Rc::new(form_pat!(
                 // TODO: we need syntax for a full-on beta
-                [(named "body", (call "Syntax")), (lit "<--"), (named "imported", varref)])),
+                [(named "body", (call "Syntax")), (lit "<--"), (named "imported", (call "Beta"))])),
             type_compare: ::form::Both(NotWalked,NotWalked), // Not a type
             synth_type: Both(cust_rc_box!(|parts| {
                 parts.get_res(n("body"))
             }), NotWalked),
             eval: ::form::Positive(cust_rc_box!(|parts| {
                 Ok(NameImport(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?)),
-                              ::beta::Beta::Nothing).reify())
+                              ::beta::Beta::reflect(&parts.get_res(n("imported"))?)).reify())
             })),
             quasiquote: ::form::Both(LiteralLike, LiteralLike)
         }) => [],
@@ -437,7 +452,9 @@ pub fn make_core_macro_forms() -> SynEnv {
 
     ];
 
-    assoc_n!("Syntax" => Rc::new(grammar_grammar))
+    assoc_n!(
+        "Syntax" => Rc::new(grammar_grammar),
+        "Beta" => Rc::new(beta_grammar))
 }
 
 custom_derive! {
@@ -533,8 +550,13 @@ fn formpat_reflection() {
     assert_eq!(string_to_form_pat(r"/\s*(\S+)/"), ::grammar::new_scan(r"\s*(\S+)"));
     assert_eq!(string_to_form_pat(r"lit /\s*(\S+)/ = x"), form_pat!((lit_aat "x")));
     assert_eq!(
-        string_to_form_pat(r"[ lit /\s*(\S+)/ = write_this ,{ Expr <[ Int ]< }, <-- a ]"),
+        string_to_form_pat(r"[ lit /\s*(\S+)/ = write_this ,{ Expr <[ Int ]< }, <-- nothing ]"),
         form_pat!([(lit_aat "write_this"), (import [], (call "Expr"))])
+    );
+
+    assert_eq!(
+        string_to_form_pat(r"[ lit /\s*(\S+)/ = write_this ,{ Expr <[ Int ]< }, <-- a : b ]"),
+        form_pat!([(lit_aat "write_this"), (import ["a" : "b"], (call "Expr"))])
     );
 }
 
