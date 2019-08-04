@@ -256,7 +256,54 @@ pub fn make_core_macro_forms() -> SynEnv {
         } {
             |parts| {
                 Ok(Basic(ast_to_name(&parts.get_term(n("name"))),
-                        ast_to_name(&parts.get_term(n("type")))).reify())
+                         ast_to_name(&parts.get_term(n("type")))).reify())
+            }
+        }) => [],
+        syntax_syntax!(
+            ([(named "name", (call "DefaultName")),
+              (lit "="), (named "type", (call "DefaultName"))]) SameAs {
+            |_| icp!("Betas are not typed")
+        } {
+            |parts| {
+                Ok(SameAs(ast_to_name(&parts.get_term(n("name"))),
+                          ast_to_name(&parts.get_term(n("type")))).reify())
+            }
+        }) => [],
+        syntax_syntax!(
+            ([(lit "prot"), (named "name", (call "DefaultName"))]) Protected {
+            |_| icp!("Betas are not typed")
+        } {
+            |parts| {
+                Ok(Protected(ast_to_name(&parts.get_term(n("name")))).reify())
+            }
+        }) => [],
+        syntax_syntax!(
+            ([(lit "forall"), (named "name", (call "DefaultName"))]) Underspecified {
+            |_| icp!("Betas are not typed")
+        } {
+            |parts| {
+                Ok(Underspecified(ast_to_name(&parts.get_term(n("name")))).reify())
+            }
+        }) => [],
+        syntax_syntax!(
+            ((delim "...[", "[", (named "sub", (call "Beta")))) ShadowAll {
+            |_| icp!("Betas are not typed")
+        } {
+            |parts| {
+                let sub = ::beta::Beta::reflect(&parts.get_res(n("sub"))?);
+                let drivers = sub.names_mentioned();
+                Ok(ShadowAll(Box::new(sub), drivers).reify())
+            }
+        }) => [],
+        syntax_syntax!(
+            ((delim "[", "[",
+              [(named "over", (call "Beta")), (lit "o>"), (named "under", (call "Beta"))])) Shadow {
+            |_| icp!("Betas are not typed")
+        } {
+            |parts| {
+                Ok(::beta::Beta::Shadow(
+                    Box::new(::beta::Beta::reflect(&parts.get_res(n("over"))?)),
+                    Box::new(::beta::Beta::reflect(&parts.get_res(n("under"))?))).reify())
             }
         }) => []
     ];
@@ -557,6 +604,10 @@ fn formpat_reflection() {
     assert_eq!(
         string_to_form_pat(r"[ lit /\s*(\S+)/ = write_this ,{ Expr <[ Int ]< }, <-- a : b ]"),
         form_pat!([(lit_aat "write_this"), (import ["a" : "b"], (call "Expr"))])
+    );
+    assert_eq!(
+        string_to_form_pat(r",{ Expr <[ Int ]< }, <-- [ forall thing o> a = b ]"),
+        form_pat!((import [forall "thing" "a" = "b"], (call "Expr")))
     );
 }
 
