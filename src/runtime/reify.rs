@@ -16,7 +16,7 @@ use util::assoc::Assoc;
 ///
 /// Suppose that `T` is a two-argument generic type.
 /// Generally, we plan on executing code in an environment in which
-///  `T::<(),()>::name()` is bound to `T::<(),()>::ty()`.
+///  `T::<Irr,Irr>::name()` is bound to `T::<Irr,Irr>::ty()`.
 ///   (The type arguments do not affect `name` and `ty`; `()` is convention.)
 /// Then, we can use `T::<SomeActualArg, OtherActualArg>::ty_invocation()` in that environment.
 ///
@@ -24,7 +24,7 @@ use util::assoc::Assoc;
 
 pub trait Reifiable {
     /// The Unseemly type that corresponds to to the `Reifiable` type.
-    /// This leaves abstract the type parameters of `Self`; invoke like `Self::<(),()>::ty()`.
+    /// This leaves abstract the type parameters of `Self`; invoke like `Self::<Irr,Irr>::ty()`.
     /// e.g. `∀ A. Pair <[A int]<`
     /// TODO: this should return `Ty`
     /// TODO: rename to `generic_ty`
@@ -34,7 +34,7 @@ pub trait Reifiable {
     }
 
     /// A name for that type, so that recursive types are okay.
-    /// Ignore the type parameters of `Self`; invoke like `Self::<(),()>::ty_name()`.
+    /// Ignore the type parameters of `Self`; invoke like `Self::<Irr,Irr>::ty_name()`.
     /// e.g. `WithInteger`
     fn ty_name() -> Name;
 
@@ -81,6 +81,45 @@ macro_rules! basic_reifiability {
             }
         }
     }
+}
+
+custom_derive! {
+    /// The irrelevant type (like `!`).
+    #[derive(Copy,Clone,PartialEq,Eq,Debug)]
+    pub enum Irr {} // No values can be created.
+}
+
+impl ::std::fmt::Display for Irr {
+    fn fmt(&self, _: &mut std::fmt::Formatter) -> std::fmt::Result { icp!() }
+}
+
+impl Default for Irr {
+    fn default() -> Irr { icp!() }
+}
+
+impl Reifiable for Irr {
+    fn ty_name() -> Name { icp!() }
+    fn reify(&self) -> Value { icp!() }
+    fn reflect(_: &Value) -> Self { icp!() }
+}
+
+impl ::walk_mode::WalkElt for Irr {
+    fn from_ast(_: &Ast) -> Self { icp!() }
+    fn to_ast(&self) -> Ast { icp!() }
+}
+
+impl ::walk_mode::WalkMode for Irr {
+    fn name() -> &'static str { icp!() }
+    type Elt = Irr;
+    type Negated = Irr;
+    type Err = Irr;
+    type D = ::walk_mode::Positive<Irr>;
+    type ExtraInfo = Irr;
+
+    fn get_walk_rule(_: &::form::Form) -> ::ast_walk::WalkRule<Irr> { icp!() }
+    fn automatically_extend_env() -> bool { icp!() }
+
+    fn underspecified(_: Name) -> Irr { icp!() }
 }
 
 basic_reifiability!(BigInt, "Int", Int);
