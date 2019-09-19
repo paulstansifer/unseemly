@@ -79,8 +79,16 @@ pub fn core_typed_values() -> Assoc<Name, TypedValue> {
 
 pub fn core_values() -> Assoc<Name, Value> { core_typed_values().map(&erase_type) }
 
+// Helper for building an environment by reifying a bunch of Rust types
+macro_rules! reified_ty_env {
+    ( $($t:ty),* ) => {
+        Assoc::new() $( .set(<$t>::ty_name(), Ty(<$t>::ty())))*
+    };
+}
+
 pub fn core_types() -> Assoc<Name, Ty> {
     use core_type_forms::get__abstract_parametric_type;
+    use runtime::reify::Reifiable;
     core_typed_values()
         .map(&erase_value)
         .set(
@@ -108,6 +116,20 @@ pub fn core_types() -> Assoc<Name, Ty> {
             n("Sequence"),
             ty!({get__abstract_parametric_type() ; "name" => "Sequence" }),
         )
+        // This is no good, we gotta reify generic types:
+        /*
+        .set_assoc(&reified_ty_env!(
+            Name, ::grammar::FormPat, u8, ::beta::Beta, ::form::Form,
+            ::ast_walk::WalkRule<::ty::SynthTy>, ::ast_walk::WalkRule<::runtime::eval::QQuote>, 
+            ::ast_walk::WalkRule<::runtime::eval::QQuoteDestr>))
+            */
+}
+
+pub fn get_core_envs() -> ::earley::CodeEnvs {
+    (
+        ::ast_walk::LazyWalkReses::new_wrapper(core_types()),
+        ::ast_walk::LazyWalkReses::new_wrapper(core_values()),
+    )
 }
 
 #[test]

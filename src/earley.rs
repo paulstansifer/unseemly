@@ -30,7 +30,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 thread_local! {
     static next_id: RefCell<u32> = RefCell::new(0);
-    static all_grammars: RefCell<HashMap<UniqueIdRef, SynEnv>>
+    static all_parse_contexts: RefCell<HashMap<UniqueIdRef, ParseContext>>
         = RefCell::new(HashMap::new());
 
     static best_token: RefCell<(usize, Rc<FormPat>, usize)>
@@ -66,6 +66,42 @@ impl ::std::fmt::Debug for UniqueIdRef {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result { write!(f, "{}", self.0) }
 }
 
+// TODO: eliminate this; just use `ParseContext` everwhere
+pub type CodeEnvs =
+    (::ast_walk::LazyWalkReses<::ty::SynthTy>, ::ast_walk::LazyWalkReses<::runtime::eval::Eval>);
+
+pub fn empty__code_envs() -> CodeEnvs {
+    (
+        ::ast_walk::LazyWalkReses::<::ty::SynthTy>::new_empty(),
+        ::ast_walk::LazyWalkReses::<::runtime::eval::Eval>::new_empty(),
+    )
+}
+
+// TODO: We should probably refactor to use `ParseContext`
+//  everywhere we currently use these two things together (particularly `earley.rs`).
+custom_derive! {
+    #[derive(Clone, Reifiable)]
+    pub struct ParseContext {
+        pub grammar: SynEnv,
+        pub type_ctxt: ::ast_walk::LazyWalkReses<::ty::SynthTy>,
+        pub eval_ctxt: ::ast_walk::LazyWalkReses<::runtime::eval::Eval>
+    }
+}
+
+impl ParseContext {
+    pub fn new(se: SynEnv, ce: CodeEnvs) -> ParseContext {
+        ParseContext { grammar: se, type_ctxt: ce.0, eval_ctxt: ce.1 }
+    }
+    pub fn new_from_grammar(se: SynEnv) -> ParseContext {
+        ParseContext {
+            grammar: se,
+            type_ctxt: ::ast_walk::LazyWalkReses::<::ty::SynthTy>::new_empty(),
+            eval_ctxt: ::ast_walk::LazyWalkReses::<::runtime::eval::Eval>::new_empty(),
+        }
+    }
+    pub fn with_grammar(self, se: SynEnv) -> ParseContext { ParseContext { grammar: se, ..self } }
+}
+
 // Hey, this doesn't need to be Reifiable!
 pub struct Item {
     /// Where (in the token input stream) this rule tried to start matching
@@ -76,6 +112,9 @@ pub struct Item {
     pos: usize,
     /// The current grammar, so we can interperate `Call` rules
     grammar: SynEnv,
+
+    /// Environments, for typing/evaluating syntax extensions
+    envs: Rc<CodeEnvs>,
 
     // Everything after this line is nonstandard, and is just here as an optimization
     /// Identity for the purposes of `wanted_by` and `local_parse`
@@ -149,6 +188,7 @@ impl Clone for Item {
             rule: self.rule.clone(),
             pos: self.pos,
             grammar: self.grammar.clone(),
+            envs: self.envs.clone(),
             id: get_next_id(),
             done: self.done.clone(),
             local_parse: RefCell::new(LocalParse::NothingYet),
@@ -159,7 +199,13 @@ impl Clone for Item {
 
 /// Progress through the state sets
 // TODO: this ought to produce an Option<ParseError>, not a bool!
-fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, toks: &str) -> (UniqueId, Vec<Vec<Item>>) {
+fn create_chart(
+    rule: Rc<FormPat>,
+    grammar: SynEnv,
+    envs: CodeEnvs,
+    toks: &str,
+) -> (UniqueId, Vec<Vec<Item>>)
+{
     let toks = toks.trim(); // HACK: tokens don't consume trailing whitespace
     let mut chart: Vec<Vec<Item>> = vec![];
     chart.resize_with(toks.len() + 1, ::std::default::Default::default);
@@ -171,6 +217,7 @@ fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, toks: &str) -> (UniqueId, Ve
         rule: rule,
         pos: 0,
         grammar: grammar,
+        envs: Rc::new(envs),
         id: get_next_id(),
         done: RefCell::new(false),
         local_parse: RefCell::new(LocalParse::NothingYet),
@@ -188,8 +235,10 @@ fn create_chart(rule: Rc<FormPat>, grammar: SynEnv, toks: &str) -> (UniqueId, Ve
     (start_but_startier, chart)
 }
 
+/// Recognize `rule` in `grammar` (but assume no code will need to be executed)
 fn recognize(rule: &FormPat, grammar: &SynEnv, toks: &str) -> bool {
-    let (start_but_startier, chart) = create_chart(Rc::new(rule.clone()), grammar.clone(), toks);
+    let (start_but_startier, chart) =
+        create_chart(Rc::new(rule.clone()), grammar.clone(), empty__code_envs(), toks);
 
     chart[chart.len() - 1].iter().any(|item| {
         (*item.wanted_by.borrow()).iter().any(|idr| start_but_startier.is(*idr))
@@ -347,6 +396,7 @@ impl Item {
                 pos: 0,
                 done: RefCell::new(false),
                 grammar: self.grammar.clone(),
+                envs: self.envs.clone(),
                 local_parse: RefCell::new(LocalParse::NothingYet),
                 id: get_next_id(),
                 wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()])),
@@ -561,21 +611,24 @@ impl Item {
                     }
                 };
 
-                let new_se = all_grammars.with(|grammars| {
+                let new_ctxt = all_parse_contexts.with(|grammars| {
                     let mut mut_grammars = grammars.borrow_mut();
                     mut_grammars
                         .entry(self.id.get_ref()) // memoize
-                        .or_insert_with(|| f.0(self.grammar.clone(), partial_parse))
+                        .or_insert_with(||
+                            f.0(ParseContext::new(
+                                self.grammar.clone(), (*self.envs).clone()), partial_parse))
                         .clone()
                 });
 
                 vec![(
                     Item {
                         start_idx: cur_idx,
-                        rule: new_se.find_or_panic(name).clone(),
+                        rule: new_ctxt.grammar.find_or_panic(name).clone(),
                         pos: 0,
                         done: RefCell::new(false),
-                        grammar: new_se,
+                        grammar: new_ctxt.grammar.clone(),
+                        envs: Rc::new((new_ctxt.type_ctxt.clone(), new_ctxt.eval_ctxt.clone())),
                         local_parse: RefCell::new(LocalParse::NothingYet),
                         id: get_next_id(),
                         wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()])),
@@ -743,10 +796,11 @@ pub struct ParseError {
     pub msg: String,
 }
 
-pub fn parse(rule: &FormPat, grammar: &SynEnv, toks: &str) -> ParseResult {
+pub fn parse(rule: &FormPat, grammar: &SynEnv, envs: CodeEnvs, toks: &str) -> ParseResult {
     best_token.with(|bt| *bt.borrow_mut() = (0, Rc::new(rule.clone()), 0));
 
-    let (start_but_startier, chart) = create_chart(Rc::new(rule.clone()), grammar.clone(), toks);
+    let (start_but_startier, chart) =
+        create_chart(Rc::new(rule.clone()), grammar.clone(), envs, toks);
     let final_item = chart[chart.len() - 1].iter().find(|item| {
         (*item.wanted_by.borrow()).iter().any(|idr| start_but_startier.is(*idr))
             && *item.done.borrow()
@@ -772,7 +826,7 @@ pub fn parse(rule: &FormPat, grammar: &SynEnv, toks: &str) -> ParseResult {
 }
 
 fn parse_top(rule: &FormPat, toks: &str) -> ParseResult {
-    parse(rule, &::util::assoc::Assoc::new(), toks)
+    parse(rule, &::util::assoc::Assoc::new(), empty__code_envs(), toks)
 }
 
 #[test]
@@ -788,6 +842,10 @@ fn earley_merging() {
         rule: Rc::new(one_rule),
         pos: 0,
         grammar: main_grammar.clone(),
+        envs: Rc::new((
+            ::ast_walk::LazyWalkReses::new_empty(),
+            ::ast_walk::LazyWalkReses::new_empty(),
+        )),
         id: get_next_id(),
         done: RefCell::new(false),
         local_parse: RefCell::new(LocalParse::NothingYet),
@@ -1217,6 +1275,11 @@ fn basic_parsing_e() {
         Ok(ast!((vr "Spoon")))
     );
 
+    let code_envs = (
+        ::ast_walk::LazyWalkReses::<::ty::SynthTy>::new_empty(),
+        ::ast_walk::LazyWalkReses::<::runtime::eval::Eval>::new_empty(),
+    );
+
     let env = assoc_n!(
         "DefaultToken" => atom.clone()
     );
@@ -1225,6 +1288,7 @@ fn basic_parsing_e() {
         parse(
             &form_pat!((alt (lit_aat "Moon"), (reserved (scan r"\s*(\S+)"), "Moon"))),
             &env,
+            code_envs.clone(),
             tokens_s!("Moon")
         ),
         Ok(ast!("Moon")) // Not a varref, so it's the literal instead
@@ -1232,7 +1296,7 @@ fn basic_parsing_e() {
 
     assert_eq!(
         // `lit` calls "DefaultToken"
-        parse(&form_pat!((lit "Moon")), &env, tokens_s!("Moon")),
+        parse(&form_pat!((lit "Moon")), &env, code_envs.clone(), tokens_s!("Moon")),
         Ok(ast!("Moon"))
     );
 }

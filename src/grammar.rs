@@ -147,7 +147,9 @@ impl FormPat {
 }
 
 #[derive(Clone)]
-pub struct SyntaxExtension(pub Rc<Box<(dyn Fn(SynEnv, Ast) -> SynEnv)>>);
+pub struct SyntaxExtension(
+    pub Rc<Box<(dyn Fn(::earley::ParseContext, Ast) -> ::earley::ParseContext)>>,
+);
 
 impl PartialEq for SyntaxExtension {
     /// pointer equality! (for testing)
@@ -212,7 +214,7 @@ pub use earley::parse;
 /// Parse `tt` with the grammar `f` in an empty syntactic environment.
 /// `Call` patterns are errors.
 pub fn parse_top(f: &FormPat, toks: &str) -> Result<Ast, ::earley::ParseError> {
-    parse(f, &Assoc::new(), toks)
+    parse(f, &Assoc::new(), ::earley::empty__code_envs(), toks)
 }
 
 use self::FormPat::*;
@@ -353,6 +355,7 @@ fn advanced_parsing() {
                          "other_2" =>
                              Rc::new(Scope(simple_form("o", form_pat!((lit_aat "otherother"))),
                                            ::beta::ExportBeta::Nothing))),
+            ::earley::empty__code_envs(),
             &toks_a_b
         )
         .unwrap(),
@@ -368,14 +371,18 @@ fn advanced_parsing() {
 
 #[test]
 fn extensible_parsing() {
-    fn static_synex(s: SynEnv, _: Ast) -> SynEnv {
-        assoc_n!(
-            "a" => Rc::new(form_pat!(
-                (star (named "c", (alt (lit_aat "AA"),
-                                       [(lit_aat "Back"), (call "o"), (lit_aat "#")]))))),
-            "b" => Rc::new(form_pat!((lit_aat "BB")))
-        )
-        .set_assoc(&s)
+    use earley::ParseContext;
+    fn static_synex(pc: ParseContext, _: Ast) -> ParseContext {
+        ParseContext {
+            grammar: assoc_n!(
+                "a" => Rc::new(form_pat!(
+                    (star (named "c", (alt (lit_aat "AA"),
+                                           [(lit_aat "Back"), (call "o"), (lit_aat "#")]))))),
+                "b" => Rc::new(form_pat!((lit_aat "BB")))
+            )
+            .set_assoc(&pc.grammar),
+            ..pc
+        }
     }
 
     assert_eq!(
@@ -393,6 +400,7 @@ fn extensible_parsing() {
         parse(
             &form_pat!((call "o")),
             &orig,
+            ::earley::empty__code_envs(),
             tokens_s!("O" "O" "Extend" "AA" "AA" "Back" "O" "#" "AA" "#" "O")
         )
         .unwrap(),
@@ -403,6 +411,7 @@ fn extensible_parsing() {
         parse(
             &form_pat!((call "o")),
             &orig,
+            ::earley::empty__code_envs(),
             tokens_s!("O" "O" "Extend" "AA" "AA" "Back" "AA" "#" "AA" "#" "O")
         )
         .is_err(),
@@ -410,13 +419,19 @@ fn extensible_parsing() {
     );
 
     assert_eq!(
-        parse(&form_pat!((call "o")), &orig, tokens_s!("O" "O" "Extend" "O" "#" "O")).is_err(),
+        parse(
+            &form_pat!((call "o")),
+            &orig,
+            ::earley::empty__code_envs(),
+            tokens_s!("O" "O" "Extend" "O" "#" "O")
+        )
+        .is_err(),
         true
     );
 
     let mt_syn_env = Rc::new(Assoc::new());
 
-    fn counter_synex(_: SynEnv, a: Ast) -> SynEnv {
+    fn counter_synex(_: ParseContext, a: Ast) -> ParseContext {
         let count = match a {
             IncompleteNode(mbe) => mbe,
             _ => panic!(),
@@ -424,14 +439,17 @@ fn extensible_parsing() {
         .get_rep_leaf_or_panic(n("n"))
         .len();
 
-        assoc_n!("count" => Rc::new(Literal(Rc::new(::grammar::new_scan(r"\s*(\S+)")),
-                                            n(&count.to_string()))))
+        ParseContext::new_from_grammar(
+            assoc_n!("count" => Rc::new(Literal(Rc::new(::grammar::new_scan(r"\s*(\S+)")),
+                                            n(&count.to_string())))),
+        )
     }
 
     assert_m!(
         parse(
             &form_pat!((extend (star (named "n", (lit_aat "X"))), "count", counter_synex)),
             &mt_syn_env,
+            ::earley::empty__code_envs(),
             tokens_s!("X" "X" "X" "4")
         ),
         Err(_)
@@ -441,6 +459,7 @@ fn extensible_parsing() {
         parse(
             &form_pat!((extend (star (named "n", (lit_aat "X"))), "count", counter_synex)),
             &mt_syn_env,
+            ::earley::empty__code_envs(),
             tokens_s!("X" "X" "X" "X" "4")
         ),
         Ok(ast!("4"))
@@ -450,6 +469,7 @@ fn extensible_parsing() {
         parse(
             &form_pat!((extend (star (named "n", (lit_aat "X"))), "count", counter_synex)),
             &mt_syn_env,
+            ::earley::empty__code_envs(),
             tokens_s!("X" "X" "X" "X" "X" "4")
         ),
         Err(_)

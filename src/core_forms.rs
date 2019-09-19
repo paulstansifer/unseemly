@@ -320,7 +320,8 @@ pub fn make_core_syn_env() -> SynEnv {
                 }))
             }),
             Body(n("body"))),
-        ::core_qq_forms::quote(/* positive= */ true)
+        ::core_qq_forms::quote(/* positive= */ true),
+        ::core_macro_forms::extend_syntax()
     ];
 
     let main_pat_forms = forms_to_form_pat_export![
@@ -575,6 +576,7 @@ fn form_grammar() {
         ::grammar::parse(
             &form_pat!((call "Type")),
             &cse.clone(),
+            ::runtime::core_values::get_core_envs(),
             tokens_s!([""; "Ident" "->" "Ident"])
         ),
         Ok(ast!({ find_form(&cse, "Type", "fn");

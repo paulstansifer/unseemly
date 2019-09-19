@@ -316,7 +316,7 @@ impl<Mode: WalkMode> WalkRule<Mode> {
 // trait bounds on parameters and functions are not yet supported by `Reifiable!`
 impl<Mode: WalkMode + Copy + 'static> reify::Reifiable for WalkRule<Mode> {
     // doesn't need to be parameterized because it will be opaque. I think!?
-    fn ty_name() -> Name { n("walk_rule") }
+    fn ty_name() -> Name { n(&format!("WalkRule_{}", Mode::ty_name())) }
 
     fn reify(&self) -> eval::Value {
         match *self {
@@ -532,6 +532,8 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             extra_info: ::std::default::Default::default(),
         }
     }
+
+    pub fn new_empty() -> LazyWalkReses<Mode> { Self::new_wrapper(Assoc::new()) }
 
     pub fn switch_ast(self, parts: &EnvMBE<Ast>, this_ast: Ast) -> LazyWalkReses<Mode> {
         LazyWalkReses { parts: parts.map(&mut LazilyWalkedTerm::new), this_ast: this_ast, ..self }

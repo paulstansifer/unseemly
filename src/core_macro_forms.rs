@@ -1,7 +1,7 @@
 use ast::{Ast, Atom, Node};
 use ast_walk::{
     LazyWalkReses,
-    WalkRule::{Custom, LiteralLike, NotWalked},
+    WalkRule::{Body, Custom, LiteralLike, NotWalked},
 };
 use beta::Beta::*;
 use core_forms::ast_to_name;
@@ -24,14 +24,18 @@ use walk_mode::{WalkElt, WalkMode};
 // You'd think I'd remember that better, what with that being the whole point of Unseemly, but nope.
 // Here's how macros work:
 // The programmer writes a macro definition, e.g.:
-// forall T . '{ (lit if) ,{Expr <[Bool]< | cond},
-//               (lit then) ,{Expr <[T]< | then_e},
-//               (lit else) ,{Expr <[T]< | else_e}, }'
-//  conditional -> .{ '[Expr | match ,[Expr | cond], {
-//                                 +[True]+ => ,[Expr | then_e],
-//                                 +[False]+ => ,[Expr | else_e], } ]' }.
-// ...which can be added to the `SynEnv` in order to make the following valid:
-//   if (zero? five) then three else eight
+//
+// extend_syntax macro
+//     Expr :+:=
+//         forall T . '{ (lit if) ,{Expr <[Bool]< | cond},
+//             (lit then) ,{Expr <[T]< | then_e},
+//             (lit else) ,{Expr <[T]< | else_e}, }'
+//         conditional ->
+//         '[Expr | match ,[Expr | cond], {
+//             +[True]+ => ,[Expr | then_e],
+//             +[False]+ => ,[Expr | else_e], } ]'
+//     in
+//         if (zero? five) then three else eight
 //
 // The parser parses the `if` as a macro invocation, but doesn't lose the '{…}'!
 //  It spits out an `Ast` in which the `extend` binds `conditional` and `if ⋯` references it.
@@ -504,6 +508,71 @@ pub fn make_core_macro_forms() -> SynEnv {
         "Beta" => Rc::new(beta_grammar))
 }
 
+pub fn extend_syntax() -> Rc<Form> {
+    // TODO: this is `Expr`-specific
+    let perform_extension = move |pc: ::earley::ParseContext,
+                                  extension_info: Ast|
+          -> ::earley::ParseContext {
+        let actual_extension =
+            // TODO: getting a `Shape` (the second element is the `(lit "in")`) must be a parser bug
+            extract!((&extension_info) ::ast::Shape = (ref subs) =>
+                extract!((&subs[0]) ::ast::IncompleteNode = (ref parts) =>
+                    extract!((parts.get_leaf_or_panic(&n("extension")))
+                        // It makes sense to strip the `QuoteLess`, right?
+                        // But should we shift the whole environment instead?
+                        ::ast::QuoteLess = (ref expr, 1) => (**expr).clone())));
+
+        let calculate_extension = u!({apply : (, actual_extension) [original_grammar]});
+
+        // TODO: change signature and thread this error through the parser
+        ::ast_walk::walk(
+            &calculate_extension,
+            &pc.type_ctxt
+                .with_environment(pc.type_ctxt.env.set(n("original_grammar"), Ty(SynEnv::ty()))),
+        )
+        .unwrap();
+
+        let new__syn_env = SynEnv::reflect(
+            &::ast_walk::walk::<::runtime::eval::Eval>(
+                &calculate_extension,
+                &pc.eval_ctxt.with_environment(
+                    pc.eval_ctxt.env.set(n("original_grammar"), pc.grammar.reify()),
+                ),
+            )
+            .unwrap(),
+        );
+
+        pc.with_grammar(
+            new__syn_env
+                .set(n("SyntaxExtensionBody"), Rc::new(form_pat!([(named "body", (call "Expr"))]))),
+        )
+    };
+
+    Rc::new(Form {
+        name: n("extend_syntax"),
+        grammar: Rc::new(form_pat!(
+            [(lit "extend_syntax"),
+             (extend
+                [(named "extension", (-- 1 (call "Expr"))), (lit "in")],
+                "SyntaxExtensionBody", // just `(named "body", (call "Expr"))`
+                perform_extension)])),
+        type_compare: ::form::Both(NotWalked, NotWalked),
+        synth_type: ::form::Positive(cust_rc_box!(|extend_syntax_parts| {
+            // Demand a SynEnv -> SynEnv function:
+            let se_name = ::ast::VariableReference(SynEnv::ty_name());
+            ty_exp!(
+                &extend_syntax_parts.get_res(n("extension"))?,
+                &uty!({Type fn : [(, se_name.clone())] (, se_name.clone())}),
+                extend_syntax_parts.this_ast
+            );
+
+            extend_syntax_parts.get_res(n("body"))
+        })),
+        eval: ::form::Positive(Body(n("body"))),
+        quasiquote: ::form::Both(LiteralLike, LiteralLike),
+    })
+}
+
 custom_derive! {
     #[derive(Copy, Clone, Debug, Reifiable)]
     pub struct ExpandMacros {}
@@ -591,7 +660,15 @@ fn formpat_reflection() {
     );
 
     let string_to_form_pat = |s: &str| -> FormPat {
-        syntax_to_form_pat(::earley::parse(&form_pat!((call "Syntax")), &macro_forms, s).unwrap())
+        syntax_to_form_pat(
+            ::earley::parse(
+                &form_pat!((call "Syntax")),
+                &macro_forms,
+                ::earley::empty__code_envs(),
+                s,
+            )
+            .unwrap(),
+        )
     };
 
     assert_eq!(string_to_form_pat(r"/\s*(\S+)/"), ::grammar::new_scan(r"\s*(\S+)"));
@@ -884,6 +961,29 @@ fn type_ddd_macro() {
         Ok(ty!({ "Type" "Nat" :}))
     );
 }
-
+#[test]
+fn perform_syntax_extension() {
+    let _ty_ctxt = ::ast_walk::LazyWalkReses::<::ty::SynthTy>::new_wrapper(
+        ::runtime::core_values::core_types()
+            .set(n("gimme_syntax"), uty!({Type fn: [(, SynEnv::ty())] (, SynEnv::ty())})),
+    );
+    let _ev_ctxt = ::ast_walk::LazyWalkReses::<::runtime::eval::Eval>::new_wrapper(
+        ::runtime::core_values::core_values().set(n("gimmie_syntax"), val!(i 5)),
+    );
+/*
+    assert_m!(
+        ::grammar::parse(
+            &*extend_syntax().grammar,
+            &assoc_n!(
+                "DefaultToken" => Rc::new(::grammar::new_scan(r"\s*(\S+)")),
+                "Expr" => Rc::new(form_pat!(varref_aat))
+            ),
+            (ty_ctxt, ev_ctxt),
+            "extend_syntax gimme_syntax in ( ( ( 1 ) ) )",
+        ),
+        Ok(_)
+    );
+    */
+}
 #[test]
 fn expand_basic_macros() {}

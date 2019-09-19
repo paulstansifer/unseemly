@@ -83,10 +83,11 @@ macro_rules! u {
     ((, $interpolate:expr)) => {
         $interpolate
     };
-    ( $( $t:tt )* ) => {
+    // Two or more token trees (avoid infinite regress)
+    ( $t_first:tt $t_second:tt $( $t:tt )* ) => {
         ::ast::Shape(vec![
             ::ast::Atom(n("SEQ")),
-            $( u!( $t ) ),*
+            u!( $t_first ), u!( $t_second ), $( u!( $t ) ),*
         ])
     };
 }

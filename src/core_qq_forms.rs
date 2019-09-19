@@ -408,52 +408,60 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
 
 pub fn quote(pos: bool) -> Rc<Form> {
     use grammar::FormPat::{self, *};
-    let perform_quotation = move |se: SynEnv, starter_info: Ast| -> SynEnv {
-        let starter_nt = match starter_info {
-            ::ast::IncompleteNode(ref parts) => vr_to_name(&parts.get_leaf_or_panic(&n("nt"))),
-            _ => icp!("malformed quotation"),
-        };
-        fn already_has_unquote(fp: &FormPat) -> bool {
-            match *fp {
-                Alt(ref parts) => parts.iter().any(|sub_fp| already_has_unquote(&*sub_fp)),
-                Biased(ref plan_a, ref plan_b) => {
-                    already_has_unquote(&*plan_a) || already_has_unquote(&*plan_b)
+    let perform_quotation =
+        move |pc: ::earley::ParseContext, starter_info: Ast| -> ::earley::ParseContext {
+            let starter_nt = match starter_info {
+                ::ast::IncompleteNode(ref parts) => vr_to_name(&parts.get_leaf_or_panic(&n("nt"))),
+                _ => icp!("malformed quotation"),
+            };
+            fn already_has_unquote(fp: &FormPat) -> bool {
+                match *fp {
+                    Alt(ref parts) => parts.iter().any(|sub_fp| already_has_unquote(&*sub_fp)),
+                    Biased(ref plan_a, ref plan_b) => {
+                        already_has_unquote(&*plan_a) || already_has_unquote(&*plan_b)
+                    }
+                    Scope(ref f, _) => f.name == n("unquote"),
+                    _ => false,
                 }
-                Scope(ref f, _) => f.name == n("unquote"),
-                _ => false,
             }
-        }
 
-        let pos_inside = nt_is_positive(starter_nt);
+            let pos_inside = nt_is_positive(starter_nt);
 
-        se.keyed_map_borrow_f(&mut |nt: &Name, nt_def: &Rc<FormPat>| {
-            if already_has_unquote(nt_def)
+            let new_grammar = pc
+                .grammar
+                .keyed_map_borrow_f(&mut |nt: &Name, nt_def: &Rc<FormPat>| {
+                    if already_has_unquote(nt_def)
                // HACK: this is to avoid hitting "starterer". TODO: find a better way
                || (nt != &n("Expr") && nt != &n("Pat") && nt != &n("Type"))
-            {
-                nt_def.clone()
-            } else {
-                // TODO: maybe we should only insert `dotdotdot` in repetition positions?
-                Rc::new(Biased(unquote(*nt, pos), Rc::new(Biased(dotdotdot(*nt), nt_def.clone()))))
-            }
-        })
-        .set(
-            n("starterer_nt"),
-            Rc::new(form_pat!(
+                    {
+                        nt_def.clone()
+                    } else {
+                        // TODO: maybe we should only insert `dotdotdot` in repetition positions?
+                        Rc::new(Biased(
+                            unquote(*nt, pos),
+                            Rc::new(Biased(dotdotdot(*nt), nt_def.clone())),
+                        ))
+                    }
+                })
+                .set(
+                    n("QuotationBody"),
+                    Rc::new(form_pat!(
                     // HACK: The `nt` from outside isn't in the same Scope, it seems:
                     [(named "nt", (anyways (, ::ast::VariableReference(starter_nt)))),
                      (alt [], (delim "<[", "[", (named "ty_annot", (call "Type")))),
                      (lit "|"),
                      (named "body", (++ pos_inside (call_by_name starter_nt)))])),
-        )
-    };
+                );
+
+            pc.with_grammar(new_grammar)
+        };
 
     // TODO #4: the following hardcodes positive walks as `Expr` and negative walks as `Pat`.
     // What happens when more NTs are added?
     Rc::new(Form {
         name: if pos { n("quote_expr") } else { n("quote_pat") },
         grammar: Rc::new(form_pat!((delim "'[", "[",
-            [(extend (named "nt", varref), "starterer_nt", perform_quotation)]))),
+            [(extend (named "nt", varref), "QuotationBody", perform_quotation)]))),
         type_compare: ::form::Both(NotWalked, NotWalked), // Not a type
         synth_type: if pos {
             ::form::Positive(cust_rc_box!(|quote_parts| {
