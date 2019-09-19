@@ -675,7 +675,7 @@ macro_rules! layer_watch {
     {$layer:ident : $( $body:stmt );* } => {
         $layer.with(|l| *l.borrow_mut() += 1);
         let res = {
-            $( $body );*
+            $( $body )*
         };
         $layer.with(|l| *l.borrow_mut() -= 1);
         res
