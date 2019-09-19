@@ -110,16 +110,13 @@ macro_rules! Reifiable {
 
             fn ty_name() -> ::name::Name { ::name::n(stringify!($name)) }
 
-            fn ty_invocation() -> ::ast::Ast {
+            fn concrete_arguments() -> Option<Vec<::ast::Ast>> {
                 // HACK: at runtime, check to see if we need type parameters by making a vector
                 let argument_list : Vec<&str> = vec![$( $( stringify!($ty_param_ty) ),* )*];
                 if argument_list.len() > 0 {
-                    ast!({ "Type" "type_apply" :
-                        "type_rator" => (, ::ast::Ast::VariableReference( Self::ty_name() ) ),
-                        "arg" => [ $( $( (, $ty_param_ty ::ty_invocation() ) ),* )* ]
-                    })
+                    Some(vec![ $( $( <$ty_param_ty>::ty_invocation() ),* )* ])
                 } else {
-                    ::ast::Ast::VariableReference( Self::ty_name() )
+                    None
                 }
             }
 
@@ -208,16 +205,13 @@ macro_rules! Reifiable {
 
             fn ty_name() -> ::name::Name { ::name::n(stringify!($name)) }
 
-            fn ty_invocation() -> ::ast::Ast {
+            fn concrete_arguments() -> Option<Vec<::ast::Ast>> {
                 // HACK: at runtime, check to see if we need type parameters by making a vector
                 let argument_list : Vec<&str> = vec![$( $( stringify!($ty_param_ty) ),* )*];
                 if argument_list.len() > 0 {
-                    ast!({ "Type" "type_apply" :
-                        "type_rator" => (, ::ast::Ast::VariableReference( Self::ty_name() ) ),
-                        "arg" => [ $( $( (, $ty_param_ty ::ty_invocation() ) ),* )* ]
-                    })
+                    Some(vec![ $( $( <$ty_param_ty>::ty_invocation() ),* )* ])
                 } else {
-                    ::ast::Ast::VariableReference( Self::ty_name() )
+                    None
                 }
             }
 
