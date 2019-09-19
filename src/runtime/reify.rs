@@ -30,21 +30,7 @@ pub trait Reifiable {
     /// TODO: rename to `generic_ty`
     fn ty() -> Ast {
         // By default, this is an opaque primitive.
-        Ast::Node(
-            Rc::new(::form::Form {
-                name: Self::ty_name(),
-                grammar: Rc::new(::grammar::FormPat::Impossible),
-                type_compare: ::form::Positive(::ast_walk::WalkRule::NotWalked),
-                synth_type: ::form::Positive(::ast_walk::WalkRule::LiteralLike),
-                quasiquote: ::form::Both(
-                    ::ast_walk::WalkRule::LiteralLike,
-                    ::ast_walk::WalkRule::LiteralLike,
-                ),
-                eval: ::form::Positive(::ast_walk::WalkRule::NotWalked),
-            }),
-            ::util::mbe::EnvMBE::new(),
-            ::beta::ExportBeta::Nothing,
-        )
+        ::core_type_forms::get__primitive_type(Self::ty_name()).concrete()
     }
 
     /// A name for that type, so that recursive types are okay.
