@@ -159,9 +159,9 @@ impl PartialEq for SyntaxExtension {
 }
 
 // This kind of struct is theoretically possible to add to the `Reifiable!` macro,
-// but I don't feel like doing it right now
+//  but is it worth the complexity?
 impl ::runtime::reify::Reifiable for SyntaxExtension {
-    fn ty_name() -> Name { n("syntax_extension") }
+    fn ty_name() -> Name { n("SyntaxExtension") }
 
     fn reify(&self) -> ::runtime::eval::Value {
         ::runtime::reify::reify_2ary_function(self.0.clone())

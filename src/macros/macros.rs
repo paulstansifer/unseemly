@@ -640,7 +640,7 @@ macro_rules! extract {
 }
 
 // Reification helper (doesn't work on parameterized types...)
-
+// TODO: just delete this, or actually add `Smuggled(std::any::Any)` to `Value`.
 macro_rules! cop_out_reifiability {
     ( $underlying_type:ty, $ty_name:tt ) => {
         impl Reifiable for $underlying_type {

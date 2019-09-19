@@ -57,8 +57,6 @@ impl ::runtime::reify::Reifiable for Ty {
 
     fn ty_name() -> Name { n("Type") }
 
-    fn ty_invocation() -> Ast { Ast::ty_invocation() }
-
     fn reify(&self) -> ::runtime::eval::Value { self.0.reify() }
 
     fn reflect(v: &::runtime::eval::Value) -> Self { Ty::new(Ast::reflect(v)) }

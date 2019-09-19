@@ -315,8 +315,10 @@ impl<Mode: WalkMode> WalkRule<Mode> {
 
 // trait bounds on parameters and functions are not yet supported by `Reifiable!`
 impl<Mode: WalkMode + Copy + 'static> reify::Reifiable for WalkRule<Mode> {
-    // doesn't need to be parameterized because it will be opaque. I think!?
-    fn ty_name() -> Name { n(&format!("WalkRule_{}", Mode::ty_name())) }
+    // Maybe there's some magic we can do somewhere to make this opaque?
+    fn ty_name() -> Name { n("WalkRule") }
+
+    fn concrete_arguments() -> Option<Vec<Ast>> { Some(vec![Mode::ty_invocation()]) }
 
     fn reify(&self) -> eval::Value {
         match *self {
@@ -369,8 +371,9 @@ pub struct LazilyWalkedTerm<Mode: WalkMode> {
 
 // trait bounds on parameters are not yet supported by `Reifiable!`
 impl<Mode: WalkMode> reify::Reifiable for LazilyWalkedTerm<Mode> {
-    // doesn't need to be parameterized because it will be opaque. I think!?
-    fn ty_name() -> Name { n("lazily_walked_term") }
+    fn ty_name() -> Name { n("LazilyWalkedTerm") }
+
+    fn concrete_arguments() -> Option<Vec<Ast>> { Some(vec![Mode::ty_invocation()]) }
 
     fn reify(&self) -> eval::Value {
         val!(struct "term" => (, self.term.reify()), "res" => (, self.res.reify()))
@@ -455,8 +458,9 @@ pub struct LazyWalkReses<Mode: WalkMode> {
 
 // trait bounds on parameters are not yet supported by `Reifiable!`
 impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
-    // doesn't need to be parameterized because it will be opaque. I think!?
-    fn ty_name() -> Name { n("lazy_walked_reses") }
+    fn ty_name() -> Name { n("LazyWalkedReses") }
+
+    fn concrete_arguments() -> Option<Vec<Ast>> { Some(vec![Mode::ty_invocation()]) }
 
     fn reify(&self) -> eval::Value {
         val!(struct "parts" => (, self.parts.reify()), "env" => (, self.env.reify()),

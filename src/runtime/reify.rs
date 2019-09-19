@@ -43,8 +43,20 @@ pub trait Reifiable {
     /// Parameters will be concrete.
     /// e.g. `WithInteger<[Float]<`
     /// (Types using this type will use this, rather than `ty`)
-    /// The default implementation is fine if `Self` takes no type parameters.
-    fn ty_invocation() -> Ast { Ast::VariableReference(Self::ty_name()) }
+    /// Don't override this.
+    fn ty_invocation() -> Ast {
+        let name_ref = Ast::VariableReference(Self::ty_name());
+        match Self::concrete_arguments() {
+            None => name_ref,
+            Some(args) => ast!({ "Type" "type_apply" :
+                "type_rator" => (, name_ref),
+                "arg" => (,seq args)
+            }),
+        }
+    }
+
+    // Override this to set the type arguments for invocation.
+    fn concrete_arguments() -> Option<Vec<Ast>> { None }
 
     /// The Unseemly value that corresponds to a value.
     fn reify(&self) -> Value;
@@ -254,7 +266,7 @@ impl<T: Reifiable> Reifiable for ::std::rc::Rc<T> {
 
     fn ty_name() -> Name { T::ty_name() }
 
-    fn ty_invocation() -> Ast { T::ty_invocation() }
+    fn concrete_arguments() -> Option<Vec<Ast>> { T::concrete_arguments() }
 
     fn reify(&self) -> Value { (**self).reify() }
 
@@ -274,20 +286,9 @@ pub fn un__sequence_type(ty: &::ty::Ty, loc: &Ast) -> Result<::ty::Ty, ::ty::Typ
 }
 
 impl<T: Reifiable> Reifiable for Vec<T> {
-    fn ty() -> Ast {
-        ast!({ "Type" "type_apply" :
-            "type_rator" => (, ::core_type_forms::get__primitive_type(n("Sequence")).concrete()),
-            "arg" => [(, T::ty() )]})
-    }
+    fn ty_name() -> Name { n("Sequence") }
 
-    fn ty_name() -> Name { n(&format!("Sequence_of_{}", T::ty_name())) }
-
-    fn ty_invocation() -> Ast {
-        ast!({ "Type" "type_apply" :
-            "type_rator" => (vr "Sequence"),
-            "arg" => [(, T::ty_invocation() )]
-        })
-    }
+    fn concrete_arguments() -> Option<Vec<Ast>> { Some(vec![T::ty_invocation()]) }
 
     fn reify(&self) -> Value {
         Value::Sequence(self.iter().map(|elt| Rc::new(elt.reify())).collect())
@@ -305,7 +306,7 @@ impl<T: Reifiable> Reifiable for ::std::boxed::Box<T> {
 
     fn ty_name() -> Name { T::ty_name() }
 
-    fn ty_invocation() -> Ast { T::ty_invocation() }
+    fn concrete_arguments() -> Option<Vec<Ast>> { T::concrete_arguments() }
 
     fn reify(&self) -> Value { (**self).reify() }
 
@@ -316,13 +317,17 @@ impl<T: Reifiable> Reifiable for ::std::boxed::Box<T> {
 impl<T: Reifiable> Reifiable for ::std::cell::RefCell<T> {
     fn ty_name() -> Name { n("Rust_RefCell") }
 
+    fn concrete_arguments() -> Option<Vec<Ast>> { Some(vec![T::ty_invocation()]) }
+
     fn reify(&self) -> Value { self.borrow().reify() }
 
     fn reflect(v: &Value) -> Self { ::std::cell::RefCell::<T>::new(T::reflect(v)) }
 }
 
-impl<T> Reifiable for ::std::marker::PhantomData<T> {
-    fn ty_name() -> Name { n("PhantomData") } // Do we need to distinguish different ones?
+impl<T: Reifiable> Reifiable for ::std::marker::PhantomData<T> {
+    fn ty_name() -> Name { n("PhantomData") }
+
+    fn concrete_arguments() -> Option<Vec<Ast>> { Some(vec![T::ty_invocation()]) }
 
     fn reify(&self) -> Value { Value::Int(BigInt::from(0)) }
 
