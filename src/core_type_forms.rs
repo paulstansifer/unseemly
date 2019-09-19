@@ -92,8 +92,8 @@ fn type_defn_complex(
 thread_local! {
     // Not needed by the user.
     // An internal type to keep the compiler from trying to dig into the `Expr` in `Expr <[X]<`.
-    pub static abstract_parametric_type : Rc<Form> = Rc::new(Form {
-        name: n("abstract_parametric_type"),
+    pub static primitive_type : Rc<Form> = Rc::new(Form {
+        name: n("primitive_type"),
         grammar: Rc::new(form_pat!([(named "name", atom)])),
         type_compare: Both(LiteralLike, LiteralLike),
         synth_type: Positive(LiteralLike),
@@ -102,9 +102,11 @@ thread_local! {
     })
 }
 
-pub fn get__abstract_parametric_type() -> Rc<Form> {
-    abstract_parametric_type.with(|a_p_t| a_p_t.clone())
+pub fn get__primitive_type(called: Name) -> Ty {
+    ty!({primitive_type.with(|p_t| p_t.clone()) ; "name" => (, ::ast::Atom(called))})
 }
+
+fn is_primitive(form: &Rc<Form>) -> bool { form == &primitive_type.with(|p_t| p_t.clone()) }
 
 pub fn make_core_syn_env_types() -> SynEnv {
     // Regarding the value/type/kind hierarchy, Benjamin Pierce generously assures us that
@@ -371,9 +373,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                         icp!()
                     }
                 }
-                Node(ref got_f, ref lhs_parts, ref exports)
-                    if got_f == &get__abstract_parametric_type() =>
-                {
+                Node(ref got_f, ref lhs_parts, ref exports) if is_primitive(got_f) => {
                     // Like the above; don't descend into `Expr`
                     let mut new__tapp_parts =
                         ::util::mbe::EnvMBE::new_from_leaves(assoc_n!("type_rator" =>
@@ -420,6 +420,10 @@ pub fn make_core_syn_env_types() -> SynEnv {
 
     assoc_n!("Type" => Rc::new(Biased(Rc::new(forms_to_form_pat![
         fn_type.clone(),
+        // TODO: these should turn into `primitive_type`s in the core type environment.
+        // First, we need a really simple core type environment for testing,
+        //  and then to change all the `uty!({Type Int :})`s into `uty!(Int)`s
+        //  (and `ast!({"Type" "Int" :})`s into `ast!((vr "Int"))`).
         type_defn("Ident", form_pat!((lit "Ident"))),
         type_defn("Int", form_pat!((lit "Int"))),
         type_defn("Nat", form_pat!((lit "Nat"))),
@@ -438,8 +442,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
 //  or just automatically have one type per NT. Probably the latter.
 pub fn nt_to_type(nt: Name) -> Ty {
     if nt == n("Type") || nt == n("Pat") || nt == n("Expr") {
-        let nt_sp = &nt.sp();
-        ty!({get__abstract_parametric_type(); "name" => nt_sp})
+        get__primitive_type(nt)
     } else {
         icp!("unknown NT {}", nt)
     }
@@ -465,10 +468,9 @@ pub fn less_quoted_ty(t: &Ty, nt: Option<Name>, loc: &Ast) -> Result<Ty, ::ty::T
         tapp_parts;
         {
             if let Some(nt) = nt { // Check it if you got it
-                let nt_sp = &nt.sp();
                 ty_exp!(
                     &Ty::new(tapp_parts.get_leaf_or_panic(&n("type_rator")).clone()),
-                    &ty!({get__abstract_parametric_type() ; "name" => nt_sp}),
+                    &get__primitive_type(nt),
                     loc
                 );
             }
@@ -485,10 +487,9 @@ pub fn less_quoted_ty(t: &Ty, nt: Option<Name>, loc: &Ast) -> Result<Ty, ::ty::T
 }
 
 pub fn more_quoted_ty(t: &Ty, nt: Name) -> Ty {
-    let nt_sp = &nt.sp();
     ty!({"Type" "type_apply" :
-        "type_rator" => {get__abstract_parametric_type() ; "name" => nt_sp},
-        "arg" => [(,t.concrete())]})
+        "type_rator" => (, get__primitive_type(nt).concrete()),
+        "arg" => [(, t.concrete())]})
 }
 
 #[test]

@@ -278,8 +278,7 @@ impl<T: Reifiable> Reifiable for ::std::rc::Rc<T> {
 // for when we have a `Ty`, rather than a Rust type.
 pub fn sequence_type__of(ty: &::ty::Ty) -> ::ty::Ty {
     ty!({ "Type" "type_apply" :
-        "type_rator" => {
-            ::core_type_forms::get__abstract_parametric_type(); "name" => "Sequence"},
+        "type_rator" => (, ::core_type_forms::get__primitive_type(n("Sequence")).concrete()),
         "arg" => [(, ty.concrete()) ]})
 }
 
@@ -291,8 +290,7 @@ pub fn un__sequence_type(ty: &::ty::Ty, loc: &Ast) -> Result<::ty::Ty, ::ty::Typ
 impl<T: Reifiable> Reifiable for Vec<T> {
     fn ty() -> Ast {
         ast!({ "Type" "type_apply" :
-            "type_rator" => {
-                ::core_type_forms::get__abstract_parametric_type(); "name" => "Sequence"},
+            "type_rator" => (, ::core_type_forms::get__primitive_type(n("Sequence")).concrete()),
             "arg" => [(, T::ty() )]})
     }
 

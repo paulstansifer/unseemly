@@ -640,8 +640,8 @@ fn quote_type_basic() {
         "qn" => ty!({"Type" "Nat" :})
     );
 
-    let expr_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Expr" });
-    let pat_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Pat" });
+    let expr_type = ::core_type_forms::get__primitive_type(n("Expr")).concrete();
+    let pat_type = ::core_type_forms::get__primitive_type(n("Pat")).concrete();
 
     fn synth_type_two_phased(
         expr: &Ast,
@@ -817,8 +817,8 @@ fn quote_unquote_type_basic() {
     let pos = true;
     let neg = false;
 
-    let expr_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Expr" });
-    let pat_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Pat" });
+    let expr_type = ::core_type_forms::get__primitive_type(n("Expr")).concrete();
+    let pat_type = ::core_type_forms::get__primitive_type(n("Pat")).concrete();
 
     assert_eq!(
         ::ty::synth_type(
@@ -1006,8 +1006,8 @@ fn unquote_type_basic() {
     let pos = true;
     let _neg = false;
 
-    let expr_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Expr" });
-    let _pat_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Pat" });
+    let expr_type = ::core_type_forms::get__primitive_type(n("Expr")).concrete();
+    let _pat_type = ::core_type_forms::get__primitive_type(n("Pat")).concrete();
 
     let env = assoc_n!(
         "n" => ty!({"Type" "Nat" :}),
@@ -1046,7 +1046,7 @@ fn use_dotdotdot() {
     use runtime::eval::Value;
 
     let pos = true;
-    let expr_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Expr" });
+    let expr_type = ::core_type_forms::get__primitive_type(n("Expr")).concrete();
 
     let env = assoc_n!(
         "n" => ty!({"Type" "Nat" :}),
@@ -1077,7 +1077,7 @@ fn use_dotdotdot() {
         "qnn" => val!(i 7)
     );
 
-    let expr_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Expr" });
+    let expr_type = ::core_type_forms::get__primitive_type(n("Expr")).concrete();
 
     fn synth_type_two_phased(
         expr: &Ast,
@@ -1143,7 +1143,7 @@ fn use_dotdotdot() {
                                     (import ["p" = "scrutinee"] (vr "qnn"))]})));
     }
 
-    let type_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Type" });
+    let type_type = ::core_type_forms::get__primitive_type(n("Type")).concrete();
 
     let ddd_env = assoc_n!(
         "names" =>  ty!({"Type" "tuple" :

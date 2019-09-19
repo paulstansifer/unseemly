@@ -690,8 +690,8 @@ fn formpat_reflection() {
 
 #[test]
 fn macro_definitions() {
-    let expr_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Expr" });
-    let pat_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Pat" });
+    let expr_type = ::core_type_forms::get__primitive_type(n("Expr")).concrete();
+    let pat_type = ::core_type_forms::get__primitive_type(n("Pat")).concrete();
     let int_expr_type = ty!({"Type" "type_apply" :
         "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Int" :}]
     });
@@ -759,7 +759,7 @@ fn macro_definitions() {
 
 #[test]
 fn macro_types() {
-    let expr_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Expr" });
+    let expr_type = ::core_type_forms::get__primitive_type(n("Expr")).concrete();
     let int_expr_type = ty!({"Type" "type_apply" :
         "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Int" :}]
     });
@@ -790,9 +790,9 @@ fn macro_types() {
 
 #[test]
 fn type_basic_macro_invocation() {
-    let expr_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Expr" });
-    let pat_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Pat" });
-    let type_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Type" });
+    let expr_type = ::core_type_forms::get__primitive_type(n("Expr")).concrete();
+    let pat_type = ::core_type_forms::get__primitive_type(n("Pat")).concrete();
+    let type_type = ::core_type_forms::get__primitive_type(n("Type")).concrete();
     let int_expr_type = ty!({"Type" "type_apply" :
         "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Int" :}]
     });
@@ -922,8 +922,8 @@ fn type_basic_macro_invocation() {
 
 #[test]
 fn type_ddd_macro() {
-    let expr_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Expr" });
-    let pat_type = ast!({::core_type_forms::get__abstract_parametric_type() ; "name" => "Pat" });
+    let expr_type = ::core_type_forms::get__primitive_type(n("Expr")).concrete();
+    let pat_type = ::core_type_forms::get__primitive_type(n("Pat")).concrete();
     let t_expr_type = ty!({"Type" "type_apply" :
         "type_rator" => (,expr_type.clone()), "arg" => [(vr "T")]
     });

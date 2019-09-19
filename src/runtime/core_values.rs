@@ -87,42 +87,27 @@ macro_rules! reified_ty_env {
 }
 
 pub fn core_types() -> Assoc<Name, Ty> {
-    use core_type_forms::get__abstract_parametric_type;
+    use core_type_forms::get__primitive_type;
     use runtime::reify::Reifiable;
     core_typed_values()
         .map(&erase_value)
         .set(
             n("Bool"),
-            ty!(
-            {"Type" "enum" : "name" => [@"c" "True", "False"], "component" => [@"c" [], []]}),
+            ty!({"Type" "enum" : "name" => [@"c" "True", "False"], "component" => [@"c" [], []]}),
         )
         // These need to be in the environment, not just atomic types
         //  because we sometimes look them up internally in the compiler
         //   in the environment,
         //  not just as programmers, looking them up by syntax, where this whole thing is a wash.
-        .set(
-            n("Pat"),
-            ty!({get__abstract_parametric_type() ; "name" => "Pat" }),
-        )
-        .set(
-            n("Type"),
-            ty!({get__abstract_parametric_type() ; "name" => "Type" }),
-        )
-        .set(
-            n("Expr"),
-            ty!({get__abstract_parametric_type() ; "name" => "Expr" }),
-        )
-        .set(
-            n("Sequence"),
-            ty!({get__abstract_parametric_type() ; "name" => "Sequence" }),
-        )
-        // This is no good, we gotta reify generic types:
-        /*
-        .set_assoc(&reified_ty_env!(
-            Name, ::grammar::FormPat, u8, ::beta::Beta, ::form::Form,
-            ::ast_walk::WalkRule<::ty::SynthTy>, ::ast_walk::WalkRule<::runtime::eval::QQuote>, 
-            ::ast_walk::WalkRule<::runtime::eval::QQuoteDestr>))
-            */
+        .set(n("Pat"), get__primitive_type(n("Pat")))
+        .set(n("Type"), get__primitive_type(n("Type")))
+        .set(n("Expr"), get__primitive_type(n("Expr")))
+        .set(n("Sequence"), get__primitive_type(n("Sequence")))
+    // This is no good, we gotta reify generic types:
+    // .set_assoc(&reified_ty_env!(
+    // Name, ::grammar::FormPat, u8, ::beta::Beta, ::form::Form,
+    // ::ast_walk::WalkRule<::ty::SynthTy>, ::ast_walk::WalkRule<::runtime::eval::QQuote>,
+    // ::ast_walk::WalkRule<::runtime::eval::QQuoteDestr>))
 }
 
 pub fn get_core_envs() -> ::earley::CodeEnvs {
