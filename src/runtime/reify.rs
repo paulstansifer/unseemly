@@ -14,18 +14,20 @@ use util::assoc::Assoc;
 ///  with the Unseemly code that actually gets evaluated.
 /// This is where the magic happens.
 ///
+/// Suppose that `T` is a two-argument generic type.
+/// Generally, we plan on executing code in an environment in which
+///  `T::<(),()>::name()` is bound to `T::<(),()>::ty()`.
+///   (The type arguments do not affect `name` and `ty`; `()` is convention.)
+/// Then, we can use `T::<SomeActualArg, OtherActualArg>::ty_invocation()` in that environment.
+///
 /// This is also where ICPs can happen, so make sure that ::ty() is consistent with ::reify().
 
 pub trait Reifiable {
-    /// TODO: I think that `ty`/`ty_name`/`ty_invocation` doesn't make sense.
-    /// I think it could make sense to just have `ty` and `ty_name`, where one writes
-    /// `let_type <<ty_name>> = <<ty>>` once and `<<ty_name>>` elsewhere.
-    /// The type parameters, if any, are always known at reification time.
-
     /// The Unseemly type that corresponds to to the `Reifiable` type.
-    /// Suitable for type definition, so any parameters will be abstract.
+    /// This leaves abstract the type parameters of `Self`; invoke like `Self::<(),()>::ty()`.
     /// e.g. `∀ A. Pair <[A int]<`
     /// TODO: this should return `Ty`
+    /// TODO: rename to `generic_ty`
     fn ty() -> Ast {
         // By default, this is an opaque primitive.
         Ast::Node(
@@ -46,15 +48,16 @@ pub trait Reifiable {
     }
 
     /// A name for that type, so that recursive types are okay.
-    /// e.g. `Annotated_with_int`
+    /// Ignore the type parameters of `Self`; invoke like `Self::<(),()>::ty_name()`.
+    /// e.g. `WithInteger`
     fn ty_name() -> Name;
 
     /// How to refer to this type, given an environment in which
     ///  `ty_name()` is defined to be `ty()`.
     /// Parameters will be concrete.
-    /// e.g. `Annotated_with_int<[nat]<`
+    /// e.g. `WithInteger<[Float]<`
     /// (Types using this type will use this, rather than `ty`)
-    /// This must be customized if `ty` is, I think...
+    /// The default implementation is fine if `Self` takes no type parameters.
     fn ty_invocation() -> Ast { Ast::VariableReference(Self::ty_name()) }
 
     /// The Unseemly value that corresponds to a value.
