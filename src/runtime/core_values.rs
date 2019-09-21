@@ -88,7 +88,7 @@ macro_rules! reified_ty_env {
 
 pub fn core_types() -> Assoc<Name, Ty> {
     use core_type_forms::get__primitive_type;
-    use runtime::reify::Reifiable;
+    use runtime::reify::{Irr, Reifiable};
     core_typed_values()
         .map(&erase_value)
         .set(
@@ -103,11 +103,18 @@ pub fn core_types() -> Assoc<Name, Ty> {
         .set(n("Type"), get__primitive_type(n("Type")))
         .set(n("Expr"), get__primitive_type(n("Expr")))
         .set(n("Sequence"), get__primitive_type(n("Sequence")))
-    // This is no good, we gotta reify generic types:
-    // .set_assoc(&reified_ty_env!(
-    // Name, ::grammar::FormPat, u8, ::beta::Beta, ::form::Form,
-    // ::ast_walk::WalkRule<::ty::SynthTy>, ::ast_walk::WalkRule<::runtime::eval::QQuote>,
-    // ::ast_walk::WalkRule<::runtime::eval::QQuoteDestr>))
+        .set_assoc(&reified_ty_env!(
+            Option<Irr>, u8, usize,
+            ::util::assoc::AssocNode<Irr, Irr>, ::util::assoc::Assoc<Irr, Irr>,
+            ::util::mbe::EnvMBE<Irr>,
+            Name, ::ast::Ast, ::beta::Beta, ::beta::ExportBeta,
+            ::grammar::FormPat, ::grammar::SyntaxExtension, ::grammar::Scanner,
+            ::form::Form, ::form::EitherPN<Irr, Irr>, ::ast_walk::WalkRule<Irr>,
+            ::runtime::eval::QQuote, ::runtime::eval::QQuoteDestr,
+            ::runtime::eval::Eval, ::runtime::eval::Destructure,
+            ::ty::SynthTy, ::ty::UnpackTy,
+            ::ty_compare::Canonicalize, ::ty_compare::Subtype
+            ))
 }
 
 pub fn get_core_envs() -> ::earley::CodeEnvs {
