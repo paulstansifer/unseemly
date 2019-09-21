@@ -527,8 +527,9 @@ pub fn extend_syntax() -> Rc<Form> {
         // TODO: change signature and thread this error through the parser
         ::ast_walk::walk(
             &calculate_extension,
-            &pc.type_ctxt
-                .with_environment(pc.type_ctxt.env.set(n("original_grammar"), Ty(SynEnv::ty()))),
+            &pc.type_ctxt.with_environment(
+                pc.type_ctxt.env.set(n("original_grammar"), Ty(SynEnv::ty_invocation())),
+            ),
         )
         .unwrap();
 
@@ -559,10 +560,10 @@ pub fn extend_syntax() -> Rc<Form> {
         type_compare: ::form::Both(NotWalked, NotWalked),
         synth_type: ::form::Positive(cust_rc_box!(|extend_syntax_parts| {
             // Demand a SynEnv -> SynEnv function:
-            let se_name = ::ast::VariableReference(SynEnv::ty_name());
+            let se_ty = SynEnv::ty_invocation();
             ty_exp!(
                 &extend_syntax_parts.get_res(n("extension"))?,
-                &uty!({Type fn : [(, se_name.clone())] (, se_name.clone())}),
+                &uty!({Type fn : [(, se_ty.clone())] (, se_ty.clone())}),
                 extend_syntax_parts.this_ast
             );
 
