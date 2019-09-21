@@ -302,7 +302,18 @@ macro_rules! unpack_parts {
 
 // For `ty`
 macro_rules! type_defn_wrapper {
-    ( $(<$($ty_param_ty:ident),*>)* => $body:tt ) => {
+    ( $(<$($ty_param_ty:ident),*>)* => $body:tt ) => {{
+        // In this context, we want reification of the type parameters
+        //  to produce type variables, not whatever those parameters "actually" are
+        //   (because they're actually `Irr`, since they are irrelevant).
+        $( $(
+            struct $ty_param_ty {}
+            impl ::runtime::reify::Reifiable for $ty_param_ty {
+                fn ty_name() -> ::name::Name { ::name::n(stringify!($ty_param_ty)) }
+                fn reify(&self) -> ::runtime::eval::Value { icp!() }
+                fn reflect(_: &::runtime::eval::Value) -> Self { icp!() }
+            }
+        )* )*
         // All types will be ∀, even if in Rust they have no parameters;
         //  this is safe, but a nuisance.
         // All types will be μ. I think this is the way things work in most languages.
@@ -316,7 +327,7 @@ macro_rules! type_defn_wrapper {
                  "body" => (import [* [prot "param"]] $body)
              })
         })
-    }
+    }}
 }
 
 macro_rules! refer_to_type {
