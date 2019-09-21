@@ -113,7 +113,10 @@ impl WalkMode for Eval {
     fn automatically_extend_env() -> bool { true }
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Eval>) -> Result<Value, ()> {
-        Ok(cnc.env.find(&n).expect("Undefined var; did you use a type name as a value?").clone())
+        match cnc.env.find(&n) {
+            Some(v) => Ok(v.clone()),
+            None => panic!("Undefined var `{}` in {}", n, cnc.env),
+        }
     }
 
     // TODO: maybe keep this from being called?
