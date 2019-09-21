@@ -66,7 +66,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
         //=> unparse_mbe(&*body, context.get_leaf(name).unwrap_or(&Atom(n("<MISSING>"))), context, s),
         (&Call(sub_form), _) => unparse_mbe(s.find_or_panic(&sub_form), actl, context, s),
         (&Anyways(_), _) | (&Impossible, _) => "".to_string(),
-        (&Literal(ref sub_form, _), _) => unparse_mbe(&*sub_form, &actl, context, s),
+        (&Literal(_, n), _) => n.print(),
         (&Scan(_), &Atom(n)) => n.print(),
         (&Scan(_), _) => "".to_string(), // HACK for `Alt`
         (&VarRef(ref sub_form), &VariableReference(n)) => {
