@@ -273,8 +273,8 @@ impl WalkMode for Subtype {
     fn automatically_extend_env() -> bool { true }
 
     fn underspecified(name: Name) -> Ty {
-        ::ty_compare::next_id.with(|id| {
-            ::ty_compare::underdetermined_form.with(|u_f| {
+        next_id.with(|id| {
+            underdetermined_form.with(|u_f| {
                 *id.borrow_mut() += 1;
                 // TODO: we need `gensym`!
                 let new_name = n(format!("{}⚁{}", name, *id.borrow()).as_str());

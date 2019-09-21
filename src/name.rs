@@ -75,6 +75,7 @@ impl Name {
                     .or_insert_with(|| {
                         let mut print_version = self.orig_sp();
                         while printables_used_.borrow().contains(&print_version) {
+                            // Graffiti seen at Berkley: "EⒶT YOUR VEGETABLES 🥕"
                             print_version = format!("{}🥕", print_version);
                         }
                         printables_used_.borrow_mut().insert(print_version.clone());

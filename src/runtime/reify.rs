@@ -84,7 +84,7 @@ macro_rules! basic_reifiability {
 }
 
 custom_derive! {
-    /// The irrelevant type (like `!`).
+    /// Irr: the irrelevant type (like `!`). Satisfies a bunch of traits; can't be created.
     #[derive(Copy,Clone,PartialEq,Eq,Debug)]
     pub enum Irr {} // No values can be created.
 }
