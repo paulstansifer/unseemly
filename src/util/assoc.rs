@@ -14,7 +14,7 @@ custom_derive! {
     }
 }
 
-impl<K: PartialEq + Clone, V: Clone> Clone for Assoc<K, V> {
+impl<K: Clone, V: Clone> Clone for Assoc<K, V> {
     fn clone(&self) -> Assoc<K, V> { Assoc { n: self.n.clone() } }
 }
 
@@ -47,18 +47,11 @@ impl<K: PartialEq + Clone, V: PartialEq> PartialEq for Assoc<K, V> {
 impl<K: PartialEq + Clone, V: PartialEq> Eq for Assoc<K, V> {}
 
 custom_derive! {
-    #[derive(Reifiable)]
+    #[derive(Reifiable, Clone)]
     pub struct AssocNode<K, V> {
         k: K,
         v: V,
         next: Assoc<K,V>
-    }
-}
-
-// This would rather be `#[derive(Clone)]`, but that would require `K: PartialEq`
-impl<K: PartialEq + Clone, V: Clone> Clone for AssocNode<K, V> {
-    fn clone(&self) -> AssocNode<K, V> {
-        AssocNode::<K, V> { k: self.k.clone(), v: self.v.clone(), next: self.next.clone() }
     }
 }
 
