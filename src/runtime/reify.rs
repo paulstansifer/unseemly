@@ -168,11 +168,27 @@ impl Reifiable for u8 {
     }
 }
 impl Reifiable for () {
-    fn ty_name() -> Name { n("unit") }
+    fn ty_name() -> Name { n("Unit") }
 
     fn reify(&self) -> Value { Value::Int(BigInt::from(0)) }
 
     fn reflect(_: &Value) -> Self { () }
+}
+
+impl<T0: Reifiable, T1: Reifiable> Reifiable for (T0, T1) {
+    fn ty_name() -> Name { n("Tuple2") }
+
+    fn concrete_arguments() -> Option<Vec<Ast>> {
+        Some(vec![T0::ty_invocation(), T1::ty_invocation()])
+    }
+
+    fn reify(&self) -> Value {
+        Value::Sequence(vec![Rc::new(self.0.reify()), Rc::new(self.1.reify())])
+    }
+
+    fn reflect(v: &Value) -> Self {
+        extract!((v) Value::Sequence = (ref s) => (T0::reflect(&*s[0]), T1::reflect(&*s[1])))
+    }
 }
 
 impl Reifiable for String {
