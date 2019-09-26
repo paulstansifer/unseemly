@@ -30,6 +30,9 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 thread_local! {
     static next_id: RefCell<u32> = RefCell::new(0);
+
+    // TODO: instead of indexing by unique cell, we should intern `ParseContext`s
+    //  for fast (and not just pointer-based) comparison.
     static all_parse_contexts: RefCell<HashMap<UniqueIdRef, ParseContext>>
         = RefCell::new(HashMap::new());
 

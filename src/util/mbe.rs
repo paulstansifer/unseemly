@@ -75,50 +75,74 @@ use util::assoc::Assoc;
 // How on earth can one data structure need so many variations on `map`?
 // There's got to be a better way!
 
-custom_derive! {
-    // `Clone` needs to traverse the whole `Vec` ):
-    /**
-     `EnvMBE` is like an environment,
-    except that some of its contents are "repeats",
-    which represent _n_ different values
-    (or repeats of repeats, etc.).
-    Non-repeated values may be retrieved by `get_leaf`.
-    To access repeated values, one must `march` them,
-    which produces _n_ different environments,
-    in which the marched values are not repeated (or one layer less repeated).
-    Marching multiple repeated values at once
-    is only permitted if they were constructed to repeat the same number of times.
-    */
-    #[derive(Eq, Clone, Reifiable)]
-    pub struct EnvMBE<T> {
-        /// Non-repeated values
-        leaves: Assoc<Name, T>,
+// custom_derive! {
+// `Clone` needs to traverse the whole `Vec` ):
+/// `EnvMBE` is like an environment,
+/// except that some of its contents are "repeats",
+/// which represent _n_ different values
+/// (or repeats of repeats, etc.).
+/// Non-repeated values may be retrieved by `get_leaf`.
+/// To access repeated values, one must `march` them,
+/// which produces _n_ different environments,
+/// in which the marched values are not repeated (or one layer less repeated).
+/// Marching multiple repeated values at once
+/// is only permitted if they were constructed to repeat the same number of times.
+#[derive(Eq, Clone)]
+pub struct EnvMBE<T: Clone> {
+    /// Non-repeated values
+    leaves: Assoc<Name, T>,
 
-        /// Outer vec holds distinct repetitions
-        ///  (i.e. differently-named, or entirely unnamed repetitions)
-        /// Note that some of the entries may be obsolete;
-        ///  deletions are marked by putting `None` in the `Assoc`s
-        ///   that index into this.
-        repeats: Vec<Rc<Vec<EnvMBE<T>>>>,
+    /// Outer vec holds distinct repetitions
+    ///  (i.e. differently-named, or entirely unnamed repetitions)
+    /// Note that some of the entries may be obsolete;
+    ///  deletions are marked by putting `None` in the `Assoc`s
+    ///   that index into this.
+    repeats: Vec<Rc<Vec<EnvMBE<T>>>>,
 
-        /// Which, if any, index is supposed to match 0 or more repetitions of something?
-        /// This should always have the same length as `repeats`.
-        /// If this isn't all `None`, then this MBE is presumably some kind of pattern.
-        ddd_rep_idxes: Vec<Option<usize>>,
+    /// Which, if any, index is supposed to match 0 or more repetitions of something?
+    /// This should always have the same length as `repeats`.
+    /// If this isn't all `None`, then this MBE is presumably some kind of pattern.
+    ddd_rep_idxes: Vec<Option<usize>>,
 
-        /// Where in `repeats` to look, if we want to traverse for a particular leaf.
-        /// We use `.unwrap_or(None)` when looking up into this
-        ///  so we can delete by storing `None`.
-        leaf_locations: Assoc<Name, Option<usize>>,
+    /// Where in `repeats` to look, if we want to traverse for a particular leaf.
+    /// We use `.unwrap_or(None)` when looking up into this
+    ///  so we can delete by storing `None`.
+    leaf_locations: Assoc<Name, Option<usize>>,
 
-        /// The location in `repeats` that represents a specific repetition name.
-        named_repeats: Assoc<Name, Option<usize>>
+    /// The location in `repeats` that represents a specific repetition name.
+    named_repeats: Assoc<Name, Option<usize>>,
+}
+//}
+
+// `custom_derive!` (or maybe `Reifiable!`) can't handle type bounds, so we need to do this manually
+impl<T: Clone + ::runtime::reify::Reifiable> ::runtime::reify::Reifiable for EnvMBE<T> {
+    fn ty_name() -> Name { n("EnvMBE") }
+    fn concrete_arguments() -> Option<Vec<::ast::Ast>> { Some(vec![T::ty_invocation()]) }
+    fn reify(&self) -> ::runtime::eval::Value {
+        ::runtime::eval::Value::Sequence(vec![
+            Rc::new(self.leaves.reify()),
+            Rc::new(self.repeats.reify()),
+            Rc::new(self.ddd_rep_idxes.reify()),
+            Rc::new(self.leaf_locations.reify()),
+            Rc::new(self.named_repeats.reify()),
+        ])
+    }
+    fn reflect(v: &::runtime::eval::Value) -> Self {
+        extract!((v) ::runtime::eval::Value::Sequence = (ref parts) => {
+            EnvMBE {
+               leaves: <Assoc<Name, T>>::reflect(&*parts[0]),
+               repeats: <Vec<Rc<Vec<EnvMBE<T>>>>>::reflect(&*parts[1]),
+               ddd_rep_idxes: <Vec<Option<usize>>>::reflect(&*parts[2]),
+               leaf_locations: <Assoc<Name, Option<usize>>>::reflect(&*parts[3]),
+               named_repeats: <Assoc<Name, Option<usize>>>::reflect(&*parts[4])
+            }
+        })
     }
 }
 
-impl<T: PartialEq> PartialEq for EnvMBE<T> {
+impl<T: PartialEq + Clone> PartialEq for EnvMBE<T> {
     fn eq(&self, other: &EnvMBE<T>) -> bool {
-        fn assoc_eq_modulo_none<K: PartialEq + Clone, V: PartialEq>(
+        fn assoc_eq_modulo_none<K: Eq + std::hash::Hash + Clone, V: PartialEq + Clone>(
             lhs: &Assoc<K, Option<V>>,
             rhs: &Assoc<K, Option<V>>,
         ) -> bool
@@ -463,13 +487,13 @@ impl<T: Clone> EnvMBE<T> {
         self.named_repeats = self.named_repeats.set(n, None);
     }
 
-    pub fn map<NewT, F>(&self, f: &mut F) -> EnvMBE<NewT>
+    pub fn map<NewT: Clone, F>(&self, f: &mut F) -> EnvMBE<NewT>
     where F: FnMut(&T) -> NewT {
         self.named_map(&mut |_n, elt| f(elt))
     }
 
     /// Map, but march the `ctxt` along with the structure of `self`
-    pub fn map_marched_against<NewT, Mode: ::walk_mode::WalkMode, F>(
+    pub fn map_marched_against<NewT: Clone, Mode: ::walk_mode::WalkMode, F>(
         &self,
         f: &mut F,
         ctxt: &::ast_walk::LazyWalkReses<Mode>,
@@ -508,7 +532,7 @@ impl<T: Clone> EnvMBE<T> {
         }
     }
 
-    pub fn named_map<NewT, F>(&self, f: &mut F) -> EnvMBE<NewT>
+    pub fn named_map<NewT: Clone, F>(&self, f: &mut F) -> EnvMBE<NewT>
     where F: FnMut(&Name, &T) -> NewT {
         EnvMBE {
             leaves: self.leaves.keyed_map_borrow_f(f),
@@ -541,12 +565,12 @@ impl<T: Clone> EnvMBE<T> {
 
     /// Provide the map map function with the name of the current leaf,
     /// and the appropriately-marched context element
-    pub fn marched_map<NewT, F>(&self, f: &mut F) -> EnvMBE<NewT>
+    pub fn marched_map<NewT: Clone, F>(&self, f: &mut F) -> EnvMBE<NewT>
     where F: FnMut(Name, &EnvMBE<T>, &T) -> NewT {
         self.marched_map_rec(self, f)
     }
 
-    fn marched_map_rec<NewT, F>(&self, outer: &EnvMBE<T>, f: &mut F) -> EnvMBE<NewT>
+    fn marched_map_rec<NewT: Clone, F>(&self, outer: &EnvMBE<T>, f: &mut F) -> EnvMBE<NewT>
     where F: FnMut(Name, &EnvMBE<T>, &T) -> NewT {
         let local_mbe = outer.combine_overriding(self);
 
@@ -861,15 +885,15 @@ impl<T: Clone> EnvMBE<T> {
 
         for sub_mbe in sub {
             for leaf_name in sub_mbe.leaf_locations.iter_keys().chain(sub_mbe.leaves.iter_keys()) {
-                if !already_placed_leaves.contains(&leaf_name) {
-                    self.leaf_locations = self.leaf_locations.set(leaf_name, Some(idx));
-                    already_placed_leaves.insert(leaf_name);
+                if !already_placed_leaves.contains(leaf_name) {
+                    self.leaf_locations = self.leaf_locations.set(*leaf_name, Some(idx));
+                    already_placed_leaves.insert(*leaf_name);
                 }
             }
             for repeat_name in sub_mbe.named_repeats.iter_keys() {
-                if !already_placed_repeats.contains(&repeat_name) {
-                    self.named_repeats = self.named_repeats.set(repeat_name, Some(idx));
-                    already_placed_repeats.insert(repeat_name);
+                if !already_placed_repeats.contains(repeat_name) {
+                    self.named_repeats = self.named_repeats.set(*repeat_name, Some(idx));
+                    already_placed_repeats.insert(*repeat_name);
                 }
             }
         }

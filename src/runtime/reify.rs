@@ -83,11 +83,9 @@ macro_rules! basic_reifiability {
     }
 }
 
-custom_derive! {
-    /// Irr: the irrelevant type (like `!`). Satisfies a bunch of traits; can't be created.
-    #[derive(Copy,Clone,PartialEq,Eq,Debug)]
-    pub enum Irr {} // No values can be created.
-}
+/// Irr: the irrelevant type (like `!`). Satisfies a bunch of traits; can't be created.
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+pub enum Irr {} // No values can be created.
 
 impl ::std::fmt::Display for Irr {
     fn fmt(&self, _: &mut std::fmt::Formatter) -> std::fmt::Result { icp!() }
@@ -291,18 +289,6 @@ macro_rules! fake_reifiability {
         }
     };
 }
-
-// This is unhygienic as heck, but the only way I've found to make `ty` make sense.
-// The problem is that, in Rust, there's no such thing as associated methods on
-//  `Assoc`, just `Assoc<K, V>` (not that would make sense anyways)
-// The other problem is that ihavenoideawhatimdoing.jpg
-
-struct K {}
-fake_reifiability!(K);
-struct V {}
-fake_reifiability!(V);
-
-pub fn make_reified_ty_env() -> Assoc<Name, ::ty::Ty> { reify_types!(Ast, Assoc<K, V>) }
 
 // impl<A: Reifiable, R: Reifiable> Reifiable for Box<Fn(A) -> R> {
 //     fn ty() -> Ast { panic!("") }

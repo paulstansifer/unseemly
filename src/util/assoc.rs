@@ -1,218 +1,75 @@
 use runtime::reify::Reifiable;
-use std::{clone::Clone, fmt, rc::Rc};
+use std::{clone::Clone, fmt, hash::Hash, rc::Rc};
 
-// Potential optimization: replace a run of ten nodes with a `HashMap`.
-// Recursively replace runs of those, too...
+extern crate im_rc;
 
-custom_derive! {
-    /// A functional key-value map. Seaching is linear (boo!), but the map is persistant (yay!).
-    /// (It's just a linked list of pairs.)
-    #[must_use] // this is a functional data structure; dropping it on the floor is usually bad
-    #[derive(Reifiable, Default)]
-    pub struct Assoc<K, V> {
-        n: Option<Rc<AssocNode<K, V>>> // This could be a newtype, except for `custom_derive`
+use self::im_rc::HashMap;
+
+thread_local! {
+    static next_id: std::cell::RefCell<u32> = std::cell::RefCell::new(0);
+}
+
+fn get_next_id() -> u32 {
+    next_id.with(|id| {
+        let res = *id.borrow();
+        *id.borrow_mut() += 1;
+        res
+    })
+}
+
+/// A persistent key-value store. `clone`, `set`, and `find` are sub-linear.
+#[derive(Clone)]
+pub struct Assoc<K, V>
+where
+    K: Eq + Hash + Clone,
+    V: Clone,
+{
+    hamt: HashMap<K, V>,
+    // TODO: this is a hack, needed for `almost_ptr_eq`,
+    //  which in turn is only needed in `earley.rs`.
+    // `earley.rs` should use interning as a replacement optimization, and `id` should be removed.
+    id: u32,
+}
+
+impl<K: Eq + Hash + Clone, V: Clone + PartialEq> PartialEq for Assoc<K, V> {
+    // `id` is not relevant for equality
+    fn eq(&self, other: &Self) -> bool { self.hamt == other.hamt }
+}
+
+impl<K: Eq + Hash + Clone, V: Clone + Eq> Eq for Assoc<K, V> {}
+
+impl<K: Eq + Hash + Clone, V: Clone> Default for Assoc<K, V> {
+    fn default() -> Self { Self::new() }
+}
+
+impl<K: Eq + Hash + Clone + Reifiable, V: Clone + Reifiable> Reifiable for Assoc<K, V> {
+    fn ty_name() -> ::name::Name { ::name::n("Assoc") }
+
+    fn concrete_arguments() -> Option<Vec<::ast::Ast>> {
+        Some(vec![K::ty_invocation(), V::ty_invocation()])
     }
-}
 
-impl<K: Clone, V: Clone> Clone for Assoc<K, V> {
-    fn clone(&self) -> Assoc<K, V> { Assoc { n: self.n.clone() } }
-}
+    fn reify(&self) -> ::runtime::eval::Value {
+        let res: Vec<_> =
+            self.hamt.iter().map(|(k, v)| Rc::new((k.clone(), v.clone()).reify())).collect();
 
-impl<K: PartialEq + Clone, V: PartialEq> PartialEq for Assoc<K, V> {
-    fn eq(&self, other: &Assoc<K, V>) -> bool {
-        for (k, v) in self.iter_pairs() {
-            if let Some(other_v) = other.find(k) {
-                if !(v == other_v) {
-                    return false;
-                }
-            } else {
-                return false;
+        ::runtime::eval::Value::Sequence(res)
+    }
+
+    fn reflect(v: &::runtime::eval::Value) -> Self {
+        let mut res = Assoc::<K, V>::new();
+
+        extract!((v) ::runtime::eval::Value::Sequence = (ref parts) => {
+            for part in parts {
+                let (k_part, v_part) = <(K,V)>::reflect(&**part);
+                res = res.set(k_part, v_part);
             }
-        }
-
-        for (other_k, other_v) in other.iter_pairs() {
-            if let Some(v) = self.find(other_k) {
-                if !(v == other_v) {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-
-        true
+        });
+        res
     }
 }
 
-impl<K: PartialEq + Clone, V: PartialEq> Eq for Assoc<K, V> {}
-
-custom_derive! {
-    #[derive(Reifiable, Clone)]
-    pub struct AssocNode<K, V> {
-        k: K,
-        v: V,
-        next: Assoc<K,V>
-    }
-}
-
-impl<K: PartialEq, V> Assoc<K, V> {
-    /// Possibly unintuitively, all empty assocs are identical.
-    pub fn almost_ptr_eq(&self, other: &Assoc<K, V>) -> bool {
-        match (&self.n, &other.n) {
-            (&None, &None) => true,
-            (&Some(ref l_rc), &Some(ref r_rc)) => {
-                &**l_rc as *const AssocNode<K, V> == &**r_rc as *const AssocNode<K, V>
-            }
-            _ => false,
-        }
-    }
-
-    pub fn find<'assoc, 'f>(&'assoc self, target: &'f K) -> Option<&'assoc V> {
-        match self.n {
-            None => None,
-            Some(ref node) => {
-                if (*node).k == *target {
-                    Some(&node.v)
-                } else {
-                    (*node).next.find(target)
-                }
-            }
-        }
-    }
-
-    pub fn empty(&self) -> bool { self.n.is_none() }
-
-    pub fn set(&self, k: K, v: V) -> Assoc<K, V> {
-        Assoc { n: Some(Rc::new(AssocNode { k: k, v: v, next: Assoc { n: self.n.clone() } })) }
-    }
-
-    pub fn new() -> Assoc<K, V> { Assoc { n: None } }
-
-    pub fn single(k: K, v: V) -> Assoc<K, V> { Self::new().set(k, v) }
-
-    pub fn iter_pairs(&self) -> PairIter<K, V> { PairIter { seen: Assoc::new(), cur: self } }
-
-    pub fn reduce<Out>(&self, red: &dyn Fn(&K, &V, Out) -> Out, base: Out) -> Out {
-        match self.n {
-            None => base,
-            Some(ref node) => red(&node.k, &node.v, node.next.reduce(red, base)),
-        }
-    }
-}
-
-impl<K: PartialEq + Clone, V> Assoc<K, V> {
-    pub fn iter_keys<'assoc>(&'assoc self) -> Box<dyn Iterator<Item = K> + 'assoc> {
-        Box::new(self.iter_pairs().map(|p| (*p.0).clone()))
-    }
-}
-
-impl<K: PartialEq + Clone, V: Clone> Assoc<K, V> {
-    pub fn iter_values<'assoc>(&'assoc self) -> Box<dyn Iterator<Item = V> + 'assoc> {
-        Box::new(self.iter_pairs().map(|p| (*p.1).clone()))
-    }
-
-    pub fn map<NewV, F>(&self, mut f: F) -> Assoc<K, NewV>
-    where F: FnMut(&V) -> NewV {
-        self.map_borrow_f(&mut f)
-    }
-
-    pub fn map_borrow_f<NewV, F>(&self, f: &mut F) -> Assoc<K, NewV>
-    where F: FnMut(&V) -> NewV {
-        match self.n {
-            None => Assoc { n: None },
-            Some(ref node) => Assoc {
-                n: Some(Rc::new(AssocNode {
-                    k: node.k.clone(),
-                    v: f(&node.v),
-                    next: node.next.map_borrow_f(f),
-                })),
-            },
-        }
-    }
-
-    pub fn keyed_map_borrow_f<NewV, F>(&self, f: &mut F) -> Assoc<K, NewV>
-    where F: FnMut(&K, &V) -> NewV {
-        match self.n {
-            None => Assoc { n: None },
-            Some(ref node) => Assoc {
-                n: Some(Rc::new(AssocNode {
-                    k: node.k.clone(),
-                    v: f(&node.k, &node.v),
-                    next: node.next.keyed_map_borrow_f(f),
-                })),
-            },
-        }
-    }
-
-    // TODO: this should handle missing keys symmetrically
-    pub fn map_with<NewV>(
-        &self,
-        other: &Assoc<K, V>,
-        f: &dyn Fn(&V, &V) -> NewV,
-    ) -> Assoc<K, NewV>
-    {
-        match self.n {
-            None => Assoc { n: None },
-            Some(ref node) => {
-                Assoc {
-                    n: Some(Rc::new(AssocNode {
-                        k: node.k.clone(),
-                        // Should we require `K` and `V` to be `Debug` to use `find_or_panic`?
-                        v: f(&node.v, other.find(&node.k).unwrap()),
-                        next: node.next.map_with(other, f),
-                    })),
-                }
-            }
-        }
-    }
-
-    pub fn keyed_map_with<NewV>(
-        &self,
-        other: &Assoc<K, V>,
-        f: &dyn Fn(&K, &V, &V) -> NewV,
-    ) -> Assoc<K, NewV>
-    {
-        match self.n {
-            None => Assoc { n: None },
-            Some(ref node) => {
-                Assoc {
-                    n: Some(Rc::new(AssocNode {
-                        k: node.k.clone(),
-                        // Should we require `K` and `V` to be `Debug` to use `find_or_panic`?
-                        v: f(&node.k, &node.v, other.find(&node.k).unwrap()),
-                        next: node.next.keyed_map_with(other, f),
-                    })),
-                }
-            }
-        }
-    }
-}
-
-impl<K, V: PartialEq> Assoc<K, V> {
-    pub fn find_value<'assoc, 'f>(&'assoc self, target: &'f V) -> Option<&'assoc K> {
-        match self.n {
-            None => None,
-            Some(ref node) => {
-                if (*node).v == *target {
-                    Some(&node.k)
-                } else {
-                    (*node).next.find_value(target)
-                }
-            }
-        }
-    }
-}
-
-impl<K: PartialEq + fmt::Debug + Clone, V: fmt::Debug + Clone> Assoc<K, V> {
-    pub fn find_or_panic<'assoc, 'f>(&'assoc self, target: &'f K) -> &'assoc V {
-        match self.find(target) {
-            None => panic!("{:#?} not found in {:#?}", target, self.map(|_| "…")),
-            Some(v) => v,
-        }
-    }
-}
-
-impl<K: PartialEq + Clone + fmt::Debug, V: fmt::Debug> fmt::Debug for Assoc<K, V> {
+impl<K: Eq + Hash + Clone + fmt::Debug, V: Clone + fmt::Debug> fmt::Debug for Assoc<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "⟦")?;
         let mut first = true;
@@ -227,7 +84,7 @@ impl<K: PartialEq + Clone + fmt::Debug, V: fmt::Debug> fmt::Debug for Assoc<K, V
     }
 }
 
-impl<K: PartialEq + Clone + fmt::Display, V: fmt::Display> fmt::Display for Assoc<K, V> {
+impl<K: Eq + Hash + Clone + fmt::Display, V: Clone + fmt::Display> fmt::Display for Assoc<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "⟦")?;
         let mut first = true;
@@ -242,124 +99,106 @@ impl<K: PartialEq + Clone + fmt::Display, V: fmt::Display> fmt::Display for Asso
     }
 }
 
-impl<K: PartialEq + Clone, V: Clone> Assoc<K, V> {
-    pub fn set_assoc(&self, other: &Assoc<K, V>) -> Assoc<K, V> {
-        match other.n {
-            None => (*self).clone(),
-            Some(ref node) => self.set_assoc(&node.next).set(node.k.clone(), node.v.clone()),
+impl<K: Eq + Hash + Clone, V: Clone> Assoc<K, V> {
+    fn from_hamt(hamt: HashMap<K, V>) -> Self { Assoc { hamt: hamt, id: get_next_id() } }
+
+    pub fn new() -> Self { Self::from_hamt(HashMap::new()) }
+
+    pub fn find(&self, key: &K) -> Option<&V> { self.hamt.get(key) }
+
+    pub fn set(&self, key: K, value: V) -> Self { Self::from_hamt(self.hamt.update(key, value)) }
+
+    pub fn set_assoc(&self, other: &Self) -> Self {
+        Self::from_hamt(other.hamt.clone().union(self.hamt.clone()))
+    }
+
+    pub fn single(key: K, value: V) -> Self { Self::new().set(key, value) }
+
+    pub fn empty(&self) -> bool { self.hamt.is_empty() }
+
+    pub fn iter_pairs(&self) -> im_rc::hashmap::Iter<K, V> { self.hamt.iter() }
+
+    pub fn iter_keys(&self) -> im_rc::hashmap::Keys<K, V> { self.hamt.keys() }
+
+    pub fn iter_values(&self) -> im_rc::hashmap::Values<K, V> { self.hamt.values() }
+
+    pub fn map<NewV: Clone, F>(&self, mut f: F) -> Assoc<K, NewV>
+    where F: FnMut(&V) -> NewV {
+        self.map_borrow_f(&mut f)
+    }
+
+    pub fn map_borrow_f<NewV: Clone, F>(&self, f: &mut F) -> Assoc<K, NewV>
+    where F: FnMut(&V) -> NewV {
+        Assoc::<K, NewV>::from_hamt(
+            self.hamt.iter().map(|(ref k, ref v)| (k.clone(), f(v))).collect(),
+        )
+    }
+    pub fn keyed_map_borrow_f<NewV: Clone, F>(&self, f: &mut F) -> Assoc<K, NewV>
+    where F: FnMut(&K, &V) -> NewV {
+        Assoc::<K, NewV>::from_hamt(
+            self.hamt.iter().map(|(ref k, ref v)| (k.clone(), f(k, v))).collect(),
+        )
+    }
+
+    pub fn map_with<NewV: Clone>(
+        &self,
+        other: &Assoc<K, V>,
+        f: &dyn Fn(&V, &V) -> NewV,
+    ) -> Assoc<K, NewV>
+    {
+        Assoc::<K, NewV>::from_hamt(
+            self.hamt
+                .clone()
+                .intersection_with_key(other.hamt.clone(), |_, ref v_l, ref v_r| f(v_l, v_r)),
+        )
+    }
+
+    pub fn keyed_map_with<NewV: Clone>(
+        &self,
+        other: &Assoc<K, V>,
+        f: &dyn Fn(&K, &V, &V) -> NewV,
+    ) -> Assoc<K, NewV>
+    {
+        Assoc::<K, NewV>::from_hamt(
+            self.hamt
+                .clone()
+                .intersection_with_key(other.hamt.clone(), |ref k, ref v_l, ref v_r| {
+                    f(k, v_l, v_r)
+                }),
+        )
+    }
+
+    pub fn find_value<'assoc, 'f>(&'assoc self, target: &'f V) -> Option<&'assoc K>
+    where V: PartialEq {
+        self.hamt.iter().find(|(_, v)| v == target).map(|(k, _)| k)
+    }
+
+    pub fn find_or_panic<'assoc, 'f>(&'assoc self, target: &'f K) -> &'assoc V
+    where K: fmt::Debug {
+        match self.find(target) {
+            None => panic!("{:#?} not found in {:#?}", target, self.map(|_| "…")),
+            Some(v) => v,
         }
     }
 
-    /// Generates a version of `self` that lacks the common suffix it shares with `other` (if any)
-    pub fn cut_common(&self, other: &Assoc<K, V>) -> Assoc<K, V> {
-        match self.n {
-            None => Assoc::new(),
-            Some(ref node) => {
-                if let Some(other_v) = other.find(&node.k) {
-                    if &node.v as *const V == other_v as *const V {
-                        return Assoc::new(); // we found the common suffix
-                    }
-                }
-                node.next.cut_common(other).set(node.k.clone(), node.v.clone())
-            }
-        }
+    // Generates a version of `self` that lacks the entries it shares with `other`
+    pub fn cut_common(&self, other: &Assoc<K, V>) -> Assoc<K, V>
+    where V: PartialEq {
+        Self::from_hamt(
+            self.hamt.iter().filter(|(k, v)| other.find(k) != Some(v)).cloned().collect(),
+        )
     }
 
-    pub fn unset(&self, k: &K) -> Assoc<K, V> {
-        match self.n {
-            None => Assoc { n: None },
-            Some(ref node) => {
-                let v = node.v.clone();
-                if &node.k != k {
-                    Assoc {
-                        n: Some(Rc::new(AssocNode {
-                            k: node.k.clone(),
-                            v: v,
-                            next: node.next.unset(k),
-                        })),
-                    }
-                } else {
-                    node.next.unset(k)
-                }
-            }
-        }
-    }
-    // This isn't right without deduplication before hand...
-    // pub fn filter(&self, f: &Fn(&V) -> bool) -> Assoc<K, V> {
-    //     match self.n {
-    //         None => Assoc{ n: None },
-    //         Some(ref node) => {
-    //             let v = node.v.clone();
-    //             if f(&v) {
-    //                 Assoc{
-    //                     n: Some(Rc::new(AssocNode {
-    //                         k: node.k.clone(), v: v,
-    //                         next: node.next.filter(f)
-    //                     }))
-    //                 }
-    //             } else {
-    //                 node.next.filter(f)
-    //             }
-    //         }
-    //     }
-    // }
-}
+    pub fn unset(&self, k: &K) -> Assoc<K, V> { Self::from_hamt(self.hamt.without(k)) }
 
-pub struct KeyIter<'assoc, K: PartialEq + 'assoc, V: 'assoc> {
-    cur: &'assoc Assoc<K, V>,
-}
-
-impl<'assoc, K: PartialEq, V> Iterator for KeyIter<'assoc, K, V> {
-    type Item = &'assoc K;
-    fn next(&mut self) -> Option<&'assoc K> {
-        match self.cur.n {
-            None => None,
-            Some(ref node) => {
-                self.cur = &(*node).next;
-                Some(&(*node).k)
-            }
-        }
+    pub fn reduce<Out>(&self, red: &dyn Fn(&K, &V, Out) -> Out, base: Out) -> Out {
+        self.hamt.iter().fold(base, |base, (k, v)| red(k, v, base))
     }
 }
 
-pub struct ValueIter<'assoc, K: PartialEq + 'assoc, V: 'assoc> {
-    cur: &'assoc Assoc<K, V>,
-}
-
-impl<'assoc, K: PartialEq, V> Iterator for ValueIter<'assoc, K, V> {
-    type Item = &'assoc V;
-    fn next(&mut self) -> Option<&'assoc V> {
-        match self.cur.n {
-            None => None,
-            Some(ref node) => {
-                self.cur = &(*node).next;
-                Some(&(*node).v)
-            }
-        }
-    }
-}
-
-pub struct PairIter<'assoc, K: PartialEq + 'assoc, V: 'assoc> {
-    seen: Assoc<K, ()>, // TODO: this should probably be a HashMap to avoid quadratic behavior.
-    cur: &'assoc Assoc<K, V>,
-}
-
-impl<'assoc, K: PartialEq + Clone, V> Iterator for PairIter<'assoc, K, V> {
-    type Item = (&'assoc K, &'assoc V);
-    fn next(&mut self) -> Option<(&'assoc K, &'assoc V)> {
-        match self.cur.n {
-            None => None,
-            Some(ref node) => {
-                self.cur = &(*node).next;
-                if self.seen.find(&(*node).k).is_none() {
-                    // have we done this key already?
-                    self.seen = self.seen.set((*node).k.clone(), ());
-                    Some((&(*node).k, &(*node).v))
-                } else {
-                    self.next() // try the next one
-                }
-            }
-        }
+impl<K: Eq + Hash + Clone, V: Clone> Assoc<K, V> {
+    pub fn almost_ptr_eq(&self, other: &Assoc<K, V>) -> bool {
+        self.id == other.id // Only true if they are clones of each other
     }
 }
 
@@ -415,17 +254,23 @@ fn assoc_equality() {
     assert_eq!(mt.cut_common(&mt), mt);
     assert_eq!(a1.cut_common(&mt), a1);
     assert_eq!(mt.cut_common(&a1), mt);
-    assert_eq!(a1_again.cut_common(&a1), a1_again); // Needs pointer equality!
-    assert_eq!(a_override_direct.cut_common(&a_override), a_override_direct);
-    assert_eq!(a_override.cut_common(&a_override_direct), a_override);
 
     // Everything shared: empty result
+    assert_eq!(a1_again.cut_common(&a1), mt);
+    assert_eq!(a_override_direct.cut_common(&a_override), mt);
+    assert_eq!(a_override.cut_common(&a_override_direct), mt);
     assert_eq!(a1.cut_common(&a1), mt);
     assert_eq!(a2.cut_common(&a2), mt);
 
     // Partial share:
     assert_eq!(a2.cut_common(&a1), mt.set(6, 7));
     assert_eq!(a_override.cut_common(&a2), mt.set(5, 500));
+
+    assert!(mt.almost_ptr_eq(&mt));
+    assert!(a2.almost_ptr_eq(&a2));
+    assert!(a_override_direct.almost_ptr_eq(&a_override_direct));
+    assert!(!a2.almost_ptr_eq(&a2_opposite));
+    // assert!(mt.almost_ptr_eq(&Assoc::new()));
 }
 
 #[test]

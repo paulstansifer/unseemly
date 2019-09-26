@@ -8,7 +8,7 @@ use std::fmt::{Debug, Display};
 use util::{assoc::Assoc, mbe::EnvMBE};
 
 /// This trait makes a type producable by positive and negative walks.
-pub trait WalkElt: Clone + Debug + Display + Reifiable {
+pub trait WalkElt: Clone + Debug + Display + Reifiable + PartialEq {
     fn from_ast(a: &Ast) -> Self;
     fn to_ast(&self) -> Ast;
 

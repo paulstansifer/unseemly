@@ -105,7 +105,7 @@ pub fn core_types() -> Assoc<Name, Ty> {
         .set(n("Sequence"), get__primitive_type(n("Sequence")))
         .set_assoc(&reified_ty_env!(
             Option<Irr>, u8, usize,
-            ::util::assoc::AssocNode<Irr, Irr>, ::util::assoc::Assoc<Irr, Irr>,
+            ::util::assoc::Assoc<Irr, Irr>,
             ::util::mbe::EnvMBE<Irr>,
             Name, ::ast::Ast, ::beta::Beta, ::beta::ExportBeta,
             ::grammar::FormPat, ::grammar::SyntaxExtension, ::grammar::Scanner,

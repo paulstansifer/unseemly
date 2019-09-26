@@ -110,9 +110,9 @@ macro_rules! syntax_syntax {
 // Macros have types!
 // ...but they're not higher-order (i.e., you can't do anything with a macro other than invoke it).
 // This means that we can just generate a type for them at the location of invocation.
-fn macro_type(forall_ty_vars: &[Name], arguments: Assoc<Name, Ty>, output: Ty) -> Ty {
+fn macro_type(forall_ty_vars: &[Name], arguments: Vec<(Name, Ty)>, output: Ty) -> Ty {
     let mut components = vec![];
-    for (k, v) in arguments.iter_pairs() {
+    for (k, v) in arguments.iter() {
         components.push(mbe!("component_name" => (, Atom(*k)), "component" => (, v.to_ast())));
     }
     let argument_struct = Node(
@@ -143,7 +143,7 @@ fn type_macro_invocation(
 ) -> Result<Assoc<Name, Ty>, ::ty::TypeError>
 {
     // Typecheck the subterms, and then quote them:
-    let mut q_arguments = Assoc::new();
+    let mut q_arguments = vec![];
 
     for (binder, depth) in grammar.binders() {
         let nt = grammar.find_named_call(binder).unwrap();
@@ -156,7 +156,7 @@ fn type_macro_invocation(
         } else {
             ::ty_compare::Subtype::underspecified(binder)
         };
-        q_arguments = q_arguments.set(binder, more_quoted_ty(&term_ty, nt));
+        q_arguments.push((binder, more_quoted_ty(&term_ty, nt)));
     }
 
     // This is lifted almost verbatim from "Expr" "apply". Maybe they should be unified?
@@ -169,7 +169,13 @@ fn type_macro_invocation(
     )
     .map_err(|e| ::util::err::sp(e, parts.this_ast.clone()))?;
 
-    Ok(q_arguments)
+    // TODO: I think `Assoc` should implement `From<Vec<(K,V)>>`, maybe?
+    let mut res = Assoc::new();
+    for (k, v) in q_arguments {
+        res = res.set(k, v.clone())
+    }
+
+    Ok(res)
 }
 
 // This will be called at parse-time to generate the `Ast` for a macro invocation.
@@ -470,7 +476,9 @@ pub fn make_core_macro_forms() -> SynEnv {
         Scope {
             |parts| {
                 let return_ty = parts.switch_mode::<::ty::SynthTy>().get_res(n("implementation"))?;
-                let arguments = parts.get_res(n("syntax"))?;
+                let mut arguments : Vec<(Name, Ty)> = parts.get_res(n("syntax"))?
+                    .iter_pairs().cloned().collect();
+                arguments.sort_by(|lhs, rhs| lhs.0.cmp(&rhs.0) ); // Pick a canonical order
                 let ty_params = &parts.get_rep_term(n("param")).iter().map(
                             |p| ast_to_name(p)).collect::<Vec<_>>();
                 Ok(Assoc::new().set(ast_to_name(&parts.get_term(n("macro_name"))),
@@ -733,14 +741,14 @@ fn macro_definitions() {
                 "syntax" => (import [* [forall "param"]] {"Syntax" "seq" => [* ["elt"]] :
                     "elt" => [
                         {"Syntax" "named" => ["part_name"] :
+                            "part_name" => "body",
+                            "body" => {"Syntax" "call" : "nt" => "Expr", "ty_annot" => (vr "S")}},
+                        {"Syntax" "named" => ["part_name"] :
                             "part_name" => "val",
                             "body" => {"Syntax" "call" : "nt" => "Expr", "ty_annot" => (vr "T")}},
                         {"Syntax" "named" => ["part_name"] :
                             "part_name" => "binding",
-                            "body" => {"Syntax" "call" : "nt" => "Pat", "ty_annot" => (vr "T")}},
-                        {"Syntax" "named" => ["part_name"] :
-                            "part_name" => "body",
-                            "body" => {"Syntax" "call" : "nt" => "Expr", "ty_annot" => (vr "S")}}]
+                            "body" => {"Syntax" "call" : "nt" => "Pat", "ty_annot" => (vr "T")}}]
                 }),
                 "unused_type" => {"Type" "Nat" :}, // In practice, this is a `trivial_type_form`
                 "macro_name" => "some_macro",
@@ -751,9 +759,9 @@ fn macro_definitions() {
         ),
         Ok(assoc_n!(
             "some_macro" => macro_type(&vec![n("T"), n("S")],
-                                       assoc_n!("body" => s_expr_type.clone(),
-                                                "binding" => t_pat_type.clone(),
-                                                "val" => t_expr_type.clone()),
+                                       vec![(n("binding"), t_pat_type.clone()),
+                                            (n("body"), s_expr_type.clone()),
+                                            (n("val"), t_expr_type.clone())],
                                        int_expr_type.clone())))
     );
 }
@@ -768,7 +776,7 @@ fn macro_types() {
         "type_rator" => (,expr_type.clone()), "arg" => [(vr "T")]
     });
     assert_eq!(
-        macro_type(&vec![], assoc_n!("a" => int_expr_type.clone()), int_expr_type.clone()),
+        macro_type(&vec![], vec![(n("a"), int_expr_type.clone())], int_expr_type.clone()),
         ty!({"Type" "fn" :
                     "param" => [{"Type" "struct" :
                         "component" => [@"c" (, int_expr_type.concrete())],
@@ -777,7 +785,7 @@ fn macro_types() {
                     "ret" => (, int_expr_type.concrete() )})
     );
     assert_eq!(
-        macro_type(&vec![n("T")], assoc_n!("a" => t_expr_type.clone()), t_expr_type.clone()),
+        macro_type(&vec![n("T")], vec![(n("a"), t_expr_type.clone())], t_expr_type.clone()),
         ty!({"Type" "forall_type" :
                 "param" => ["T"],
                 "body" => (import [* [forall "param"]] {"Type" "fn" :
@@ -813,22 +821,22 @@ fn type_basic_macro_invocation() {
         "int_var" => ty!({ "Type" "Int" :}),
         "nat_var" => ty!({ "Type" "Nat" :}),
         "basic_int_macro" =>
-            macro_type(&vec![], assoc_n!("a" => int_expr_type.clone()), int_expr_type.clone()),
+            macro_type(&vec![], vec![(n("a"), int_expr_type.clone())], int_expr_type.clone()),
         "basic_t_macro" =>
-            macro_type(&vec![n("T")], assoc_n!("a" => t_expr_type.clone()), t_expr_type.clone()),
+            macro_type(&vec![n("T")], vec![(n("a"), t_expr_type.clone())], t_expr_type.clone()),
         "basic_pattern_macro" =>
-            macro_type(&vec![n("T")], assoc_n!("a" => t_pat_type.clone()), t_pat_type.clone()),
+            macro_type(&vec![n("T")], vec![(n("a"), t_pat_type.clone())], t_pat_type.clone()),
         "let_like_macro" =>
             macro_type(&vec![n("T"), n("S")],
-                       assoc_n!("val" => t_expr_type.clone(),
-                                "binding" => t_pat_type.clone(),
-                                "body" => s_expr_type.clone()),
+                       vec![(n("val"), t_expr_type.clone()),
+                            (n("binding"), t_pat_type.clone()),
+                            (n("body"), s_expr_type.clone())],
                        s_expr_type.clone()),
         "pattern_cond_like_macro" =>
             macro_type(&vec![n("T"), n("S")],
-                       assoc_n!("t" => t_type_type.clone(),
-                                "body" => t_pat_type.clone(),
-                                "cond_expr" => int_expr_type.clone()), // (would really be a bool)
+                       vec![(n("t"), t_type_type.clone()),
+                            (n("body"), t_pat_type.clone()),
+                            (n("cond_expr"), int_expr_type.clone())], // (would really be a bool)
                        t_pat_type.clone())
 
     );
@@ -939,9 +947,9 @@ fn type_ddd_macro() {
         "nat_var" => ty!({ "Type" "Nat" :}),
         "let_like_macro" =>
             macro_type(&vec![n("T"), n("S")],
-                       assoc_n!("val" => t_expr_type.clone(),
-                                "binding" => t_pat_type.clone(),
-                                "body" => s_expr_type.clone()),
+                       vec![(n("val"), t_expr_type.clone()),
+                            (n("binding"), t_pat_type.clone()),
+                            (n("body"), s_expr_type.clone())],
                        s_expr_type.clone()));
 
     assert_eq!(

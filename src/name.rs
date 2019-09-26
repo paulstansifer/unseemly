@@ -46,6 +46,16 @@ impl ::runtime::reify::Reifiable for Name {
     }
 }
 
+impl std::cmp::PartialOrd for Name {
+    fn partial_cmp(&self, other: &Name) -> Option<std::cmp::Ordering> {
+        Some(self.orig_sp().cmp(&other.orig_sp()))
+    }
+}
+
+impl std::cmp::Ord for Name {
+    fn cmp(&self, other: &Name) -> std::cmp::Ordering { self.orig_sp().cmp(&other.orig_sp()) }
+}
+
 // These are for isolating tests of alpha-equivalence from each other.
 
 pub fn enable_fake_freshness(ff: bool) {

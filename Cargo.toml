@@ -13,6 +13,7 @@ rustyline = "4.1.0"
 dirs = "2.0.1"
 tap = "0.4.0"
 color-backtrace = "*"
+im-rc = "13.0"
 
 [[bin]]
 name = "unseemly"
