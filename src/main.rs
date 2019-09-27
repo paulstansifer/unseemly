@@ -47,6 +47,7 @@ mod unparse;
 mod form;
 
 mod ast_walk;
+mod expand;
 mod ty;
 mod ty_compare;
 mod walk_mode;

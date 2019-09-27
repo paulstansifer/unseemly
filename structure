@@ -1,10 +1,8 @@
 TODO:
-  [ ] Repetition typing for syntax types
   [ ] Macros (procedural!)
   [ ] Fancy bindings
   [ ] Modules
   [ ] Kinds
-  [ ] Scanerless parsing
   [ ] Worry about parse error messages
 
 
@@ -59,24 +57,16 @@ There are separate files
  for defining the types themselves ("core_type_forms.rs")
  and for defining syntax (un)quotation ("core_qq_forms.rs").
 
-
 Pipeline:
-                             ⋮              ⋮           ⋮
-                      →  [TypeSynth]  →  [Expand] →  [Evaluate] ↩ (phase 2)
-                      →  [TypeSynth]  →  [Expand] →  [Evaluate] ↩ (phase 1)
-  [Read]  →  [Parse]  →  [TypeSynth]  →  [Expand] →  [Evaluate] (runtime)
-          ↑           ↑               ↑           ↑
-      TokenTree      Ast           Ast:Ty      Ast:Ty (core)
+                                 ⋮                  ⋮                   ⋮
+               ↱     `Ast`→ [TypeSynth] →`Ty`
+                          →  [Expand]   →`Ast`→ [Evaluate]  →`Value`→ [Reflect] ↩ (phase 2)
+               ↱     `Ast`→ [TypeSynth] →`Ty`
+                          →  [Expand]   →`Ast`→ [Evaluate]  →`Value`→ [Reflect] ↩ (phase 1)
+    `&str`→ [Parse] →`Ast`→ [TypeSynth] →`Ty`
+                          →  [Expand]   →`Ast`→ [Evaluate]  →`Value`              (runtime)
 
-
-[Read] read.rs
-  The reader is very simple.
-  Tokens boundaries are whitespace and the inside boundaries of ()[]{}.
-  If a token ends with ([{,
-   it should match a token that is identical
-    except for starting with )]} instead.
-
-[Parse] parse.rs and earley.rs
+[Parse] grammar.rs and earley.rs
   The parser has to parse arbitrary grammars (`FormPat`s).
   Furthermore, it must be able to
    extend the grammar it is currently parsing
@@ -85,6 +75,8 @@ Pipeline:
   Extending the grammar may entail invoking the rest of the pipeline
    (Typesynth and Evaluate),
    the timing of which should be controlled by phasing.
+  The parser is scannerless, because we need to change tokenization
+   when we change grammars sometimes.
 
 [TypeSynth] ty.rs
   Type synthesis.
@@ -94,6 +86,10 @@ Pipeline:
   I think.
   If not, there's not much point to making this language.
 
+[Expand] expand.rs
+  Recursively expand macros.
+  Because macros are identified by their syntax (by the parser), there's no environment.
+
 [Evaluate] eval.rs
   Evaluation is a tree traversal, surprisingly similar to type synthesis.
 
@@ -102,7 +98,7 @@ Pipeline:
    but it may be faster to interpret
     the many small programs that macros are.
 
-[↩ (Reflection)] reify.rs
+[↱ Reflect ↩] reify.rs
   Macros are programs that manipulate `Ast`s
    (they can also access environments).
   We need to reflect internal `Ast`s into Unseemly values

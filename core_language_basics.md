@@ -4,7 +4,7 @@ but to support the bare minimum of an algebraic type system and a procedural mac
 The file extension for Unseemly source code is `.≉`.
 
 ## Low-level structure
-The Unseemly tokenizer is very simple.
+The default Unseemly tokenizer is very simple.
 Tokens are only separated by whitespace and the *inside edges* of `([{}])`.
 Furthermore, groupers are named. Thus `[]`, `.[ ].`, `hi[ ]hi` are all legal,
  but `x[ ]` is not.
@@ -48,6 +48,9 @@ Probably, there's a reason that they have tokenizers
       `x` must have been parsed under some kind of repetition; this expands `x` to its components,
       duplicating everything else.
       It will usually contain an unquotation immediately inside it.
+* `extend_syntax expr in extended_expr` is syntax extension.
+    `expr` should define a function from the current syntax enviroment to a new syntax environment.
+    `extended_expr` is an expression in that new environment.
 
 ## Pre-defined values
 * `zero` through `ten` are integers. (What are these "literals" you speak of?)
@@ -74,6 +77,8 @@ Probably, there's a reason that they have tokenizers
 
 * `struct { component : Type  ⋯ }` is the structure type.
 
+* `**[Type ⋯]**` is a tuple type.
+
 * `forall X ⋯ . Type` is the abstracted type.
 
 * `mu_type X ⋯ . Type` protects a recursive type from being infinitely large.
@@ -82,6 +87,9 @@ Probably, there's a reason that they have tokenizers
 * `Type <[Type ⋯]<` applies an abstracted type.
     For example, `List <[Int]<` is a list of integers.
     The technical term for this operator is "Fish X-ray".
+
+* `:::[ T >> Type]:::` requires `T` to refer to a tuple type. Suppose `T` is `**[A B Int]**`:
+    `:::[T >> [T -> X]]:::` is `**[[A->X] [B->X] [Int->X]]**`.
 
 ## Pre-defined types
 * `Int` is a built-in type.

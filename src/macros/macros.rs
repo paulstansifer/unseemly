@@ -414,7 +414,7 @@ macro_rules! form_pat {
 // This has to be a macro for type reasons involving sizedness I don't understand.
 macro_rules! cust_rc_box {
     ($contents:expr) => {
-        Custom(::std::rc::Rc::new(Box::new($contents)))
+        ::ast_walk::WalkRule::Custom(::std::rc::Rc::new(Box::new($contents)))
     };
 }
 

@@ -16,7 +16,7 @@ use runtime::{eval::Closure, reify::Reifiable};
 use std::rc::Rc;
 use ty::{SynthTy, Ty};
 use util::assoc::Assoc;
-use walk_mode::{WalkElt, WalkMode};
+use walk_mode::WalkElt;
 
 // Macros!
 //
@@ -575,66 +575,6 @@ pub fn extend_syntax() -> Rc<Form> {
     })
 }
 
-custom_derive! {
-    #[derive(Copy, Clone, Debug, Reifiable)]
-    pub struct ExpandMacros {}
-}
-custom_derive! {
-    #[derive(Copy, Clone, Debug, Reifiable)]
-    pub struct UnusedNegativeExpandMacros {}
-}
-
-fn expand_macro(parts: ::ast_walk::LazyWalkReses<ExpandMacros>) -> Result<Ast, ()> {
-    let mut env = Assoc::new(); // TODO: there should probably be something in scope here...
-
-    let macro_form: &Form = parts.this_ast.node_form();
-
-    // Turn the subterms into values
-    for (binder, _depth) in macro_form.grammar.binders() {
-        let nt = macro_form.grammar.find_named_call(binder).unwrap();
-        if nt != n("DefaultName") && nt != n("Ident") {
-            // TODO: why not?
-            env = env.set(binder, ::runtime::eval::Value::from_ast(&parts.get_term(binder)));
-        }
-    }
-
-    let expanded = ::runtime::eval::eval(&parts.get_term(n("implementation")), env)?.to_ast();
-
-    expand(&expanded, parts.env)
-}
-
-impl WalkMode for ExpandMacros {
-    fn name() -> &'static str { "MExpand" }
-    type Elt = Ast;
-    type Negated = UnusedNegativeExpandMacros;
-    type Err = (); // TODO: should be the same as runtime errors
-    type D = ::walk_mode::Positive<ExpandMacros>;
-    type ExtraInfo = ();
-
-    fn get_walk_rule(f: &Form) -> ::ast_walk::WalkRule<ExpandMacros> {
-        if f.name == n("macro_invocation") {
-            cust_rc_box!(expand_macro)
-        } else {
-            LiteralLike
-        }
-    }
-    fn automatically_extend_env() -> bool { true }
-}
-impl WalkMode for UnusedNegativeExpandMacros {
-    fn name() -> &'static str { "XXXXX" }
-    type Elt = Ast;
-    type Negated = ExpandMacros;
-    type Err = ();
-    type D = ::walk_mode::Positive<UnusedNegativeExpandMacros>;
-    type ExtraInfo = ();
-    fn get_walk_rule(_: &Form) -> ::ast_walk::WalkRule<UnusedNegativeExpandMacros> { icp!() }
-    fn automatically_extend_env() -> bool { icp!() }
-}
-
-pub fn expand(ast: &Ast, env: Assoc<Name, Ast>) -> Result<Ast, ()> {
-    ::ast_walk::walk::<ExpandMacros>(ast, &LazyWalkReses::new_wrapper(env))
-}
-
 #[test]
 fn formpat_reflection() {
     use core_forms::find_form;
@@ -1004,5 +944,3 @@ fn perform_syntax_extension() {
     assert_m!(::ty::synth_type(&ast, ::core_values::core_types()), Ok(_));
     assert_eq!(::runtime::eval::eval(&ast, ::core_values::core_values()), Ok(val!(i 4)));
 }
-#[test]
-fn expand_basic_macros() {}
