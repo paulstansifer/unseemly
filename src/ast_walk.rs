@@ -224,7 +224,7 @@ pub fn walk<Mode: WalkMode>(
             }
 
             Trivial | Shape(_) => {
-                icp!("{:#?} is not a walkable AST", a);
+                icp!("{:#?} is not a walkable AST in {}", a, Mode::name());
             }
 
             // TODO: `env_from_beta` only works in positive modes... what should we do otherwise?

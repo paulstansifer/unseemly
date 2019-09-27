@@ -567,14 +567,7 @@ pub fn extend_syntax() -> Rc<Form> {
                 perform_extension)])),
         type_compare: ::form::Both(NotWalked, NotWalked),
         synth_type: ::form::Positive(cust_rc_box!(|extend_syntax_parts| {
-            // Demand a SynEnv -> SynEnv function:
-            let se_ty = SynEnv::ty_invocation();
-            ty_exp!(
-                &extend_syntax_parts.get_res(n("extension"))?,
-                &uty!({Type fn : [(, se_ty.clone())] (, se_ty.clone())}),
-                extend_syntax_parts.this_ast
-            );
-
+            // `extension` is typechecked in `perform_extension`
             extend_syntax_parts.get_res(n("body"))
         })),
         eval: ::form::Positive(Body(n("body"))),
@@ -972,27 +965,44 @@ fn type_ddd_macro() {
 }
 #[test]
 fn perform_syntax_extension() {
-    let _ty_ctxt = ::ast_walk::LazyWalkReses::<::ty::SynthTy>::new_wrapper(
-        ::runtime::core_values::core_types()
-            .set(n("gimme_syntax"), uty!({Type fn: [(, SynEnv::ty())] (, SynEnv::ty())})),
-    );
-    let _ev_ctxt = ::ast_walk::LazyWalkReses::<::runtime::eval::Eval>::new_wrapper(
-        ::runtime::core_values::core_values().set(n("gimmie_syntax"), val!(i 5)),
-    );
-/*
-    assert_m!(
-        ::grammar::parse(
-            &*extend_syntax().grammar,
-            &assoc_n!(
-                "DefaultToken" => Rc::new(::grammar::new_scan(r"\s*(\S+)")),
-                "Expr" => Rc::new(form_pat!(varref_aat))
-            ),
-            (ty_ctxt, ev_ctxt),
-            "extend_syntax gimme_syntax in ( ( ( 1 ) ) )",
+    let make_se = |_orig_se: Vec<::runtime::eval::Value>| {
+        assoc_n!("Expr" => Rc::new(form_pat!((alt
+        varref_aat,
+        (scope basic_typed_form!(
+            [(lit_aat "("), (named "body", (call "Expr")), (lit_aat ")")],
+            cust_rc_box!(|_| Ok(uty!({Type Int :}))),
+            cust_rc_box!(|parts| {
+                let res: num::BigInt = extract!(
+                    (&parts.get_res(n("body"))?) ::runtime::eval::Value::Int = (ref i) => i + 1);
+                Ok(val!(i res))
+            })
+        ))))))
+        .reify()
+    };
+
+    let ty_ctxt = ::ast_walk::LazyWalkReses::<::ty::SynthTy>::new_wrapper(
+        ::runtime::core_values::core_types().set(
+            n("gimmie_syntax"),
+            uty!({Type fn: [(, SynEnv::ty_invocation())] (, SynEnv::ty_invocation())}),
         ),
-        Ok(_)
     );
-    */
+    let ev_ctxt = ::ast_walk::LazyWalkReses::<::runtime::eval::Eval>::new_wrapper(
+        ::runtime::core_values::core_values().set(n("gimmie_syntax"), val!(bif make_se)),
+    );
+
+    let ast = ::grammar::parse(
+        &form_pat!((scope extend_syntax())),
+        &assoc_n!(
+            "DefaultToken" => Rc::new(::grammar::new_scan(r"\s*(\S+)")),
+            "Expr" => Rc::new(form_pat!(varref_aat))
+        ),
+        (ty_ctxt, ev_ctxt),
+        "extend_syntax gimmie_syntax in ( ( ( one ) ) )",
+    )
+    .unwrap();
+
+    assert_m!(::ty::synth_type(&ast, ::core_values::core_types()), Ok(_));
+    assert_eq!(::runtime::eval::eval(&ast, ::core_values::core_values()), Ok(val!(i 4)));
 }
 #[test]
 fn expand_basic_macros() {}
