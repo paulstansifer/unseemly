@@ -194,7 +194,8 @@ pub fn parse_flimsy_mbe(flimsy: &Ast, grammar: &FormPat) -> Option<EnvMBE<Ast>> 
         Named(name, ref body) => Some(EnvMBE::new_from_leaves(
             ::util::assoc::Assoc::new().set(*name, parse_flimsy_ast(flimsy, &*body)),
         )),
-        _ => unimplemented!(),
+        NameImport(_, _) => panic!("`NameImport` should live underneath `Named`: {:?}", grammar),
+        _ => unimplemented!("Can't handle {:?}", grammar),
     }
 }
 

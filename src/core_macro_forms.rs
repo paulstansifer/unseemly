@@ -474,7 +474,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         // Not sure if `Scope` syntax should be positive or negative.
         syntax_syntax!( ([(lit "forall"), (star (named "param", atom)), (lit "."),
                           (delim "'{", "{",
-                              (import [* [forall "param"]], (named "syntax", (call "Syntax")))),
+                              (named "syntax", (import [* [forall "param"]],  (call "Syntax")))),
                           // We need an arbitrary negative_ret_val:
                           (named "unused_type", (anyways {trivial_type_form ; } )),
                           (named "macro_name", atom), (lit "->"),
