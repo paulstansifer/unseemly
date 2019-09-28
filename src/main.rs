@@ -655,3 +655,15 @@ fn end_to_end_quotation_advanced() {
     //          eval_unseemly_program("'[Expr <[Int]< | (.[x : Int . match x {y => five}].  eight)]'"));
     //  }
 }
+
+#[test]
+fn language_building() {
+    assert_eq!(
+        eval_unseemly_program(
+            r"extend_syntax bnf[
+                DefaultToken ::= /(?:\s|#[^\n]*)*(\S+)/ ;
+            ]bnf in
+                # Now we have comments! (just not after the last token)
+            five"),
+        Ok(val!(i 5)));
+}

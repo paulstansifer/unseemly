@@ -15,7 +15,8 @@ custom_derive! {
 }
 
 fn expand_macro(parts: ::ast_walk::LazyWalkReses<ExpandMacros>) -> Result<Ast, ()> {
-    let mut env = Assoc::new(); // TODO: there should probably be something in scope here...
+    // TODO: should there be something in scope here? Or is everything captured?
+    let mut env = Assoc::new();
 
     let macro_form: &Form = parts.this_ast.node_form();
 
@@ -30,6 +31,7 @@ fn expand_macro(parts: ::ast_walk::LazyWalkReses<ExpandMacros>) -> Result<Ast, (
 
     let expanded = ::runtime::eval::eval(&parts.get_term(n("implementation")), env)?.to_ast();
 
+    // Expand any macros that were produced by expansion, or were already present in subterms:
     expand(&expanded)
 }
 

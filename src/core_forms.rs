@@ -321,7 +321,8 @@ pub fn make_core_syn_env() -> SynEnv {
             }),
             Body(n("body"))),
         ::core_qq_forms::quote(/* positive= */ true),
-        ::core_macro_forms::extend_syntax()
+        ::core_macro_forms::extend_syntax(),
+        ::core_macro_forms::bnf_syntax_extension()
     ];
 
     let main_pat_forms = forms_to_form_pat_export![
@@ -471,6 +472,10 @@ pub fn make_core_syn_env() -> SynEnv {
         n(":"),
         n("=>"),
         n("->"),
+        n("extend_syntax"),
+        n("in"),
+        n("bnf["),
+        n("]bnf")
     ];
 
     assoc_n!(

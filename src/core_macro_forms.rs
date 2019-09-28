@@ -586,7 +586,7 @@ pub fn extend_syntax() -> Rc<Form> {
     })
 }
 
-pub fn bnf_macro_def() -> Rc<Form> {
+pub fn bnf_syntax_extension() -> Rc<Form> {
     typed_form!(
         "bnf",
         [(lit "bnf["),
@@ -951,7 +951,7 @@ fn use_bnf() {
                 "DefaultName" => Rc::new(form_pat!((reserved_by_name_vec (call "DefaultToken"),
                     vec![n("bnf["), n("]bnf"), n("lit"), n(",{"), n("},"), n("=")]))),
                 "DefaultToken" => Rc::new(::grammar::new_scan(r"\s*(\S+)")),
-                "Expr" => Rc::new(form_pat!((scope bnf_macro_def())))
+                "Expr" => Rc::new(form_pat!((scope bnf_syntax_extension())))
             )
             .set_assoc(&make_core_macro_forms()),
             (ty_ctxt, ev_ctxt),
