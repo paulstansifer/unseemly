@@ -4,6 +4,8 @@
 // `ast!` is clunky and makes it *super* easy to leave off `QuoteMore`, `QuoteLess`, and `ExtendEnv`
 // We'll assume that the form itself is known and that we can drop all the literals on the ground.
 // The result is a terse way to make valid ASTs.
+// It's weird to be relying on the grammar while ignoring parts of it, hence "flimsy",
+//  but errors are much more likely to be compile-time than inscrutable test problems.
 
 use ast::Ast::{self, *};
 use grammar::FormPat;
@@ -79,6 +81,9 @@ macro_rules! u {
     };
     ((at $t:tt)) => {
         ::ast::Atom(n(stringify!($t)))
+    };
+    ((prim $t:tt)) => {
+        ::core_type_forms::get__primitive_type(n(stringify!($t))).concrete()
     };
     ((, $interpolate:expr)) => {
         $interpolate

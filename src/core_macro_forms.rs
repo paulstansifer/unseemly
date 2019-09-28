@@ -755,55 +755,31 @@ fn macro_definitions() {
 
 #[test]
 fn macro_types() {
-    let expr_type = ::core_type_forms::get__primitive_type(n("Expr")).concrete();
-    let int_expr_type = ty!({"Type" "type_apply" :
-        "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Int" :}]
-    });
-    let t_expr_type = ty!({"Type" "type_apply" :
-        "type_rator" => (,expr_type.clone()), "arg" => [(vr "T")]
-    });
+    let int_expr_type = uty!({Type type_apply : (prim Expr) [(~ {Type Int :})]});
+    let t_expr_type = uty!({Type type_apply : (prim Expr) [(~ T)]});
+
     assert_eq!(
         macro_type(&vec![], vec![(n("a"), int_expr_type.clone())], int_expr_type.clone()),
-        ty!({"Type" "fn" :
-                    "param" => [{"Type" "struct" :
-                        "component" => [@"c" (, int_expr_type.concrete())],
-                        "component_name" => [@"c" "a"]
-                    }],
-                    "ret" => (, int_expr_type.concrete() )})
+        uty!({Type fn :
+            [{Type struct : [a {Type type_apply : (prim Expr) [(~ {Type Int :})]}]}]
+            {Type type_apply : (prim Expr) [(~ {Type Int :})]}})
     );
     assert_eq!(
         macro_type(&vec![n("T")], vec![(n("a"), t_expr_type.clone())], t_expr_type.clone()),
-        ty!({"Type" "forall_type" :
-                "param" => ["T"],
-                "body" => (import [* [forall "param"]] {"Type" "fn" :
-                    "param" => [{"Type" "struct" :
-                        "component" => [@"c" (, t_expr_type.concrete())],
-                        "component_name" => [@"c" "a"]
-                    }],
-                    "ret" => (, t_expr_type.concrete() )})})
+        uty!({Type forall_type : [T]
+            {Type fn : [{Type struct : [a {Type type_apply : (prim Expr) [(~ T)]}]}]
+                {Type type_apply : (prim Expr) [(~ T)]}}})
     );
 }
 
 #[test]
 fn type_basic_macro_invocation() {
-    let expr_type = ::core_type_forms::get__primitive_type(n("Expr")).concrete();
-    let pat_type = ::core_type_forms::get__primitive_type(n("Pat")).concrete();
-    let type_type = ::core_type_forms::get__primitive_type(n("Type")).concrete();
-    let int_expr_type = ty!({"Type" "type_apply" :
-        "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Int" :}]
-    });
-    let t_expr_type = ty!({"Type" "type_apply" :
-        "type_rator" => (,expr_type.clone()), "arg" => [(vr "T")]
-    });
-    let s_expr_type = ty!({"Type" "type_apply" :
-        "type_rator" => (,expr_type.clone()), "arg" => [(vr "S")]
-    });
-    let t_pat_type = ty!({"Type" "type_apply" :
-        "type_rator" => (,pat_type.clone()), "arg" => [(vr "T")]
-    });
-    let t_type_type = ty!({"Type" "type_apply" :
-        "type_rator" => (,type_type.clone()), "arg" => [(vr "T")]
-    });
+    let int_expr_type = uty!({Type type_apply : (prim Expr) [(~ {Type Int :})]});
+    let t_expr_type = uty!({Type type_apply : (prim Expr) [(~ T)]});
+    let s_expr_type = uty!({Type type_apply : (prim Expr) [(~ S)]});
+    let t_pat_type = uty!({Type type_apply : (prim Pat) [(~ T)]});
+    let t_type_type = uty!({Type type_apply : (prim Type) [(~ S)]});
+
     let env = assoc_n!(
         "int_var" => ty!({ "Type" "Int" :}),
         "nat_var" => ty!({ "Type" "Nat" :}),
@@ -918,17 +894,10 @@ fn type_basic_macro_invocation() {
 
 #[test]
 fn type_ddd_macro() {
-    let expr_type = ::core_type_forms::get__primitive_type(n("Expr")).concrete();
-    let pat_type = ::core_type_forms::get__primitive_type(n("Pat")).concrete();
-    let t_expr_type = ty!({"Type" "type_apply" :
-        "type_rator" => (,expr_type.clone()), "arg" => [(vr "T")]
-    });
-    let s_expr_type = ty!({"Type" "type_apply" :
-        "type_rator" => (,expr_type.clone()), "arg" => [(vr "S")]
-    });
-    let t_pat_type = ty!({"Type" "type_apply" :
-        "type_rator" => (,pat_type.clone()), "arg" => [(vr "T")]
-    });
+    let t_expr_type = uty!({Type type_apply : (prim Expr) [(~ T)]});
+    let s_expr_type = uty!({Type type_apply : (prim Expr) [(~ S)]});
+    let t_pat_type = uty!({Type type_apply : (prim Pat) [(~ T)]});
+
     let env = assoc_n!(
         "int_var" => ty!({ "Type" "Int" :}),
         "nat_var" => ty!({ "Type" "Nat" :}),
@@ -1023,7 +992,7 @@ fn use_bnf() {
                 [ lit ,{ DefaultToken }, = a +  vr ,{ DefaultName },
                   lit ,{ DefaultToken }, = z ] ;
              ]bnf in
-        a a a whatever z"
+             a a a whatever z"
         ),
         Ok(_)
     )
