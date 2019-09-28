@@ -237,6 +237,8 @@ custom_derive! {
     pub struct Subtype {}
 }
 
+// TODO: Canonicalization is almost the same thing as `SynthTy`.
+// Try to replace it with `SynthTy` and see what happens.
 impl WalkMode for Canonicalize {
     fn name() -> &'static str { "Canon" }
 
@@ -258,6 +260,9 @@ impl WalkMode for Canonicalize {
             None => Ok(Ty(VariableReference(n))), // TODO why can this happen?
         }
     }
+
+    // Simply protect the name; don't try to unify it.
+    fn underspecified(name: Name) -> Ty { Ty(VariableReference(name)) }
 }
 
 impl WalkMode for Subtype {
@@ -586,6 +591,9 @@ fn misc_subtyping_problems() {
         "FloatList" => bool_list_ty.clone(),
         "List" => list_ty.clone()
     );
+
+    // Test that canonicalization accepts `underspecified`:
+    assert_m!(canonicalize(&list_ty, ty_env.clone()), Ok(_));
 
     // μ also has binding:
     assert_m!(must_subtype(&int_list_ty, &int_list_ty, ty_env.clone()), Ok(_));

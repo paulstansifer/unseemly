@@ -106,7 +106,7 @@ fn mentioned_in_import(parts: &EnvMBE<Ast>) -> Vec<Name> {
             // TODO: does it make sense to mention a name underneath a quotation?
             QuoteMore(ref body, _) | QuoteLess(ref body, _) => process_ast(body, v),
             Trivial | Atom(_) | VariableReference(_) => {} // no beta
-            Shape(_) | IncompleteNode(_) => icp!("shouldn't be needed"),
+            Shape(_) | IncompleteNode(_) => icp!("{:?} isn't a complete AST", a),
         }
     }
 
