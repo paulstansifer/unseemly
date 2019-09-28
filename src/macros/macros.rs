@@ -407,7 +407,8 @@ macro_rules! form_pat {
             ::grammar::SyntaxExtension(::std::rc::Rc::new(Box::new($f))))
     };
     ( [$($body:tt),*] ) => {
-        ::grammar::FormPat::Seq(vec![ $( ::std::rc::Rc::new(form_pat!($body)) ),* ])}
+        ::grammar::FormPat::Seq(vec![ $( ::std::rc::Rc::new(form_pat!($body)) ),* ])};
+    ((, $interpolate:expr)) => { $interpolate }
 }
 
 // utility, for core_forms and core_type_forms

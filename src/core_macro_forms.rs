@@ -386,7 +386,8 @@ pub fn make_core_macro_forms() -> SynEnv {
                 Ok(Plus(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?))).reify())
             }
         }) => ["body"],
-        syntax_syntax!( ( (delim "alt[", "[", (star (named "elt", (call "Syntax"))))) Alt {
+        // TODO: support seprators, and add a separator here
+        syntax_syntax!( ( (delim "alt[", "[", (star [(named "elt", (call "Syntax"))]))) Alt {
             |parts| {
                 let mut out = Assoc::<Name, Ty>::new();
                 for sub in &parts.get_rep_res(n("elt"))? {
@@ -411,7 +412,8 @@ pub fn make_core_macro_forms() -> SynEnv {
         //   TODO: replace `binder` with a `Pat`, and make the following true:
         //     This has to have the same named parts as `unquote`, because it reuses its typechecker
         //     But the type walk (as an overall quotation and locally) is always negative.
-        syntax_syntax!( ([(named "part_name", atom), (lit "="), (named "body", (call "Syntax"))])
+        syntax_syntax!( ([(named "part_name", atom), (lit ":="),
+                          (lit "("), (named "body", (call "Syntax")), (lit ")")])
         Named {
             |parts| {
                 let binder = ast_to_name(&parts.get_term(n("part_name")));
@@ -424,9 +426,21 @@ pub fn make_core_macro_forms() -> SynEnv {
                     Rc::new(FormPat::reflect(&parts.get_res(n("body"))?))).reify())
             }
         }) => ["part_name"],
-        // `Call` is positive (has to be under a `Named`)
+        // `Call` without a type
+        syntax_syntax!( ((delim ",{", "{", (named "nt", atom))) Call {
+            |_| {
+                Ok(Assoc::new()) // We should check that the nt is defined, but we can't here
+            }
+        } {
+            |parts| {
+                Ok(Call(::core_forms::ast_to_name(&parts.get_term(n("nt")))).reify())
+            }
+        }) => [],
+
+
+        // `Call` with a type is positive (has to be under a `Named`)
         Rc::new(Form {
-            name: n("call"),
+            name: n("call_with_type"),
             grammar: Rc::new(form_pat!(
                 (delim ",{", "{",
                     [(named "nt", atom), (delim "<[", "[", (named "ty_annot", (call "Type")))]))),
@@ -575,6 +589,43 @@ pub fn extend_syntax() -> Rc<Form> {
     })
 }
 
+pub fn bnf_macro_def() -> Rc<Form> {
+    typed_form!(
+        "bnf",
+        [(lit "bnf["),
+            (star [(named "nt", atom),
+                   (named "operator", (alt (lit "::="), (lit "::=also"))),
+                   (named "rhs", (call "Syntax")),
+                   (lit ";")]),
+            (lit "]bnf")],
+        cust_rc_box!(|_bnf_parts|
+            // Always produces a SynEnv-to-SynEnv function, regardless of input
+            Ok(uty!({Type fn : [(, SynEnv::ty_invocation())] (,SynEnv::ty_invocation())}))),
+        cust_rc_box!(|bnf_parts| {
+            let nts : Vec<Name> = bnf_parts.get_rep_term(n("nt")).iter().map(
+                ::core_forms::ast_to_name).collect();
+            let ops : Vec<bool> = bnf_parts.get_rep_term(n("operator")).iter().map(
+                |a| a == &::ast::Atom(n("::=also"))).collect();
+            let rhses : Vec<FormPat> = bnf_parts.get_rep_res(n("rhs"))?.iter().map(
+                FormPat::reflect).collect();
+            Ok(val!(bif move |se: Vec<::runtime::eval::Value>| {
+                let mut syn_env = SynEnv::reflect(&se[0]);
+                for ((nt, extend), rhs) in nts.iter().zip(ops.iter()).zip(rhses.iter()) {
+                    syn_env = syn_env.set(
+                        *nt,
+                        Rc::new(if *extend {
+                            form_pat!((alt (, rhs.clone()),
+                                           (, (**syn_env.find_or_panic(&nt)).clone())))
+                        } else {
+                            rhs.clone()
+                        })
+                    );
+                }
+                syn_env.reify()
+            }))
+    }))
+}
+
 #[test]
 fn formpat_reflection() {
     use core_forms::find_form;
@@ -644,7 +695,7 @@ fn macro_definitions() {
             &ast!({"Syntax" "star" => ["body"] :
                 "body" => {"Syntax" "named" => ["part_name"] :
                     "part_name" => "x",
-                    "body" => {"Syntax" "call" :
+                    "body" => {"Syntax" "call_with_type" :
                         "nt" => "Expr",
                         "ty_annot" => {"Type" "Int" :}
                     }
@@ -675,13 +726,16 @@ fn macro_definitions() {
                     "elt" => [
                         {"Syntax" "named" => ["part_name"] :
                             "part_name" => "body",
-                            "body" => {"Syntax" "call" : "nt" => "Expr", "ty_annot" => (vr "S")}},
+                            "body" => {"Syntax" "call_with_type" :
+                                "nt" => "Expr", "ty_annot" => (vr "S")}},
                         {"Syntax" "named" => ["part_name"] :
                             "part_name" => "val",
-                            "body" => {"Syntax" "call" : "nt" => "Expr", "ty_annot" => (vr "T")}},
+                            "body" => {"Syntax" "call_with_type" :
+                                "nt" => "Expr", "ty_annot" => (vr "T")}},
                         {"Syntax" "named" => ["part_name"] :
                             "part_name" => "binding",
-                            "body" => {"Syntax" "call" : "nt" => "Pat", "ty_annot" => (vr "T")}}]
+                            "body" => {"Syntax" "call_with_type" :
+                                "nt" => "Pat", "ty_annot" => (vr "T")}}]
                 }),
                 "unused_type" => {"Type" "Nat" :}, // In practice, this is a `trivial_type_form`
                 "macro_name" => "some_macro",
@@ -943,4 +997,34 @@ fn perform_syntax_extension() {
 
     assert_m!(::ty::synth_type(&ast, ::core_values::core_types()), Ok(_));
     assert_eq!(::runtime::eval::eval(&ast, ::core_values::core_values()), Ok(val!(i 4)));
+}
+
+#[test]
+fn use_bnf() {
+    let ty_ctxt = ::ast_walk::LazyWalkReses::<::ty::SynthTy>::new_wrapper(
+        ::runtime::core_values::core_types(),
+    );
+    let ev_ctxt = ::ast_walk::LazyWalkReses::<::runtime::eval::Eval>::new_wrapper(
+        ::runtime::core_values::core_values(),
+    );
+
+    assert_m!(
+        ::grammar::parse(
+            &form_pat!((scope extend_syntax())),
+            &assoc_n!(
+                "DefaultName" => Rc::new(form_pat!((reserved_by_name_vec (call "DefaultToken"),
+                    vec![n("bnf["), n("]bnf"), n("lit"), n(",{"), n("},"), n("=")]))),
+                "DefaultToken" => Rc::new(::grammar::new_scan(r"\s*(\S+)")),
+                "Expr" => Rc::new(form_pat!((scope bnf_macro_def())))
+            )
+            .set_assoc(&make_core_macro_forms()),
+            (ty_ctxt, ev_ctxt),
+            "extend_syntax bnf[ Expr ::=also
+                [ lit ,{ DefaultToken }, = a +  vr ,{ DefaultName },
+                  lit ,{ DefaultToken }, = z ] ;
+             ]bnf in
+        a a a whatever z"
+        ),
+        Ok(_)
+    )
 }
