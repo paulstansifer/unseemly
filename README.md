@@ -22,13 +22,14 @@ Unseemly has a bare minimum of forms
  * Pretty-printing respects macro invocations and quoted syntax
     (the pretty-printer is rather limited at the moment, though)
  * Hygenic macros (all operations respect α-equivalence)
+ * Macro By Example (easily implement n-ary forms without writing boilerplate loops).
 ### Unique features
  * Typechecking under syntax quotation
    (so `'[Expr | (plus one ,[Expr | e1],)]'` is a type error
      if `e1` has the type `Expr <[String]<`)
  * No type errors in generated code
    (if a macro invocation typechecks, the code it expands to doesn't need typechecking).
- * Extensible parsing (write real SQL or real regexes inline, not strings).
+ * Extensible parsing and lexing (write real SQL or real regexes inline, not strings).
 ### Other features
  * Full-featured REPL, with command history and line editing (courtesy of `rustyline`).
 
@@ -59,8 +60,8 @@ Look at core_language_basics.md for documentation of the language.
 
 ### FreshML / Romeo
 
-Unseemly is sort of a descendant of FreshML and Romeo
- (but without the parts of Romeo corresponding to Pure FreshML).
+Unseemly is sort of a descendant of Romeo, which descends from FreshML.
+ (Romeo is closer to Pure FreshML, but the "Pure" part is not present in Unseemly.)
 Romeo allowed for manipulation of syntax types with complex binding information, but
   * syntax was otherwise untyped
   * there was no macro system (so the syntax manipulation was pointless!)
@@ -79,12 +80,21 @@ It provides sound language extensions, but
 (TODO: are the extensions themselves statically verified to be type-preserving?
  I think so, but I don't remember for sure.)
 
+### Scala
+
+If I understand correctly, Scala's blackbox macros are typechecked before expansion,
+ but they can't do everything that whitebox macros can.
+Unseemly macros are typechecked before expansion, but are the only macro system needed,
+ because they can (in particular) define new binding forms safely.
+(TODO: learn more about Scala's macro system)
+
 ### Wyvern
 
 Wyvern's primary motivating example
  (write SQL, not strings containing SQL, in your general-purpose code)
  is a lot like Unseemly's vision of inline syntax extension.
-Wyvern is an engineered programming language, not a core calculus.
+Wyvern is a full-fledge language, not a core language.
+I believe that writing new embedded languages is not as easy as macro definition.
 
 Wyvern also includes a number of features that are outside the scope of Unseemly.
 
@@ -102,3 +112,5 @@ In this case, it looks like the goal is to marry a high-level and low-level lang
 ### Rust and SweetJS
 
 Rust and SweetJS are non-S-expression-based languages with macro systems that allow rich syntax.
+
+Unseemly is implemented in Rust, and it uses *lots* of macros.
