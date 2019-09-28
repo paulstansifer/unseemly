@@ -600,14 +600,14 @@ fn form_expect_node() {
 #[test]
 fn form_type() {
     let simple_ty_env = assoc_n!(
-        "x" => uty!({Type Int :}),
-        "n" => uty!({Type Nat :}));
+        "x" => uty!({Int :}),
+        "n" => uty!({Nat :}));
 
-    assert_eq!(synth_type(&ast!( (vr "x") ), simple_ty_env.clone()), Ok(uty!({Type Int :})));
+    assert_eq!(synth_type(&ast!( (vr "x") ), simple_ty_env.clone()), Ok(uty!({Int :})));
 
     assert_eq!(
         synth_type(&u!({lambda : [y {Type Nat :}] x}), simple_ty_env.clone()),
-        Ok(Ty(u!({Type fn : [{Type Nat :}] {Type Int :}})))
+        Ok(uty!({fn : [{Nat :}] {Int :}}))
     );
 }
 
@@ -618,9 +618,9 @@ fn type_apply_with_subtype() {
     let nat_ty = ty!({ "Type" "Nat" : });
 
     let ty_env = assoc_n!(
-        "N" => uty!({Type Nat :}),
-        "nat_to_nat" => uty!({Type fn : [{Type Nat :}] {Type Nat :}}),
-        "forall_t_t_to_t" => uty!({Type forall_type : [T] {Type fn : [T] T}}));
+        "N" => uty!({Nat :}),
+        "nat_to_nat" => uty!({fn : [{Nat :}] {Nat :}}),
+        "forall_t_t_to_t" => uty!({forall_type : [T] {fn : [T] T}}));
 
     assert_eq!(synth_type(&u!({apply : nat_to_nat [N]}), ty_env.clone()), Ok(nat_ty.clone()));
 
@@ -776,9 +776,9 @@ fn alg_eval() {
 
     // Evaluate enum expression
 
-    let my_enum_t = u!({Type enum : [choice0 [{Type Int :}];
-                                     choice1 [{Type Int :}; {Type Nat :}];
-                                     choice2 [{Type Float :}; {Type Float :}]]});
+    let my_enum_t = u!({Type enum : [choice0 [{Int :}];
+                                     choice1 [{Int :}; {Nat :}];
+                                     choice2 [{Float :}; {Float :}]]});
 
     let choice1_e = u!({enum_expr : choice1 [x; b] (, my_enum_t.clone())});
 
@@ -798,7 +798,7 @@ fn alg_eval() {
 
     assert_eq!(
         eval(
-            &u!({Expr match : x [(at my_new_name) my_new_name; (at unreachable) x]}),
+            &u!({match : x [(at my_new_name) my_new_name; (at unreachable) x]}),
             simple_env.clone()
         ),
         Ok(val!(i 18))
@@ -806,7 +806,7 @@ fn alg_eval() {
 
     assert_eq!(
         eval(
-            &u!({Expr match : (, choice1_e)
+            &u!({match : (, choice1_e)
                     [{Pat enum_pat => [* ["component"]] : choice2 [(at xx) ; (at yy)]} yy;
                      {Pat enum_pat => [* ["component"]] : choice1 [(at ii) ; (at bb)]} bb;
                      {Pat enum_pat => [* ["component"]] : choice0 [(at ii)]} ii]}),
@@ -981,11 +981,11 @@ fn use_insert_form_pat() {
 #[test]
 fn generate_flimsy_syntax() {
     assert_eq!(
-        u!({Expr apply : nat_to_nat [x]}),
+        u!({apply : nat_to_nat [x]}),
         ast!({ "Expr" "apply" : "rator" => (vr "nat_to_nat") , "rand" => [ (vr "x") ]})
     );
     assert_eq!(
-        u!({Expr lambda : [y {Type Nat :}; z T] body}),
+        u!({lambda : [y {Type Nat :}; z T] body}),
         ast!({ "Expr" "lambda" :
             "param" => [@"p" "y", "z"],
             "p_t" => [@"p" {"Type" "Nat" :}, (vr "T")],

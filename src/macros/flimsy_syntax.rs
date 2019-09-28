@@ -32,6 +32,10 @@ macro_rules! u_rep {
     };
 }
 
+thread_local! {
+    pub static default_nt: std::cell::RefCell<String> = std::cell::RefCell::new("Expr".to_owned());
+}
+
 macro_rules! u {
     ($atom:ident) => {
         // Default to this, because `Call` will use whatever it's given, without a grammar:
@@ -42,20 +46,33 @@ macro_rules! u {
     };
     ( { $form:ident : $( $ts:tt )*} ) => {
         {
-            let f = ::core_forms::find_core_form("Expr", stringify!($form));
-            ::ast::Node(f.clone(),
-                ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
-                    .unwrap_or_else(::util::mbe::EnvMBE::new),
-                ::beta::ExportBeta::Nothing)
+            ::macros::flimsy_syntax::default_nt.with(|def_nt| {
+                let f = ::core_forms::find_core_form(&def_nt.borrow(), stringify!($form));
+                ::ast::Node(f.clone(),
+                    ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
+                        .unwrap_or_else(::util::mbe::EnvMBE::new),
+                    ::beta::ExportBeta::Nothing)
+            })
         }
     };
     ( { $nt:ident $form:ident : $( $ts:tt )*} ) => {
         {
-            let f = ::core_forms::find_core_form(stringify!($nt), stringify!($form));
-            ::ast::Node(f.clone(),
+            let mut old_default_nt = "".to_owned();
+            let f = ::macros::flimsy_syntax::default_nt.with(|def_nt| {
+                old_default_nt = def_nt.borrow().clone();
+                let nt = stringify!($nt);
+                *def_nt.borrow_mut() = nt.to_string();
+
+                ::core_forms::find_core_form(&nt, stringify!($form))
+            });
+            let res = ::ast::Node(f.clone(),
                 ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
                     .unwrap_or_else(::util::mbe::EnvMBE::new),
-                ::beta::ExportBeta::Nothing)
+                ::beta::ExportBeta::Nothing);
+            ::macros::flimsy_syntax::default_nt.with(|def_nt| {
+                *def_nt.borrow_mut() = old_default_nt;
+            });
+            res
         }
     };
     // The need for explicit exports is unfortunate;
@@ -99,7 +116,19 @@ macro_rules! u {
 
 macro_rules! uty {
     ($( $ts:tt )*) => {
-        Ty(u!( $($ts)* ))
+        {
+            let mut old_default_nt = "".to_owned();
+            ::macros::flimsy_syntax::default_nt.with(|def_nt| {
+                old_default_nt = def_nt.borrow().clone();
+                *def_nt.borrow_mut() = "Type".to_owned();
+            });
+            let res = Ty(u!( $($ts)* ));
+
+            ::macros::flimsy_syntax::default_nt.with(|def_nt| {
+                *def_nt.borrow_mut() = old_default_nt;
+            });
+            res
+        }
     };
 }
 

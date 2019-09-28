@@ -120,10 +120,7 @@ fn macro_type(forall_ty_vars: &[Name], arguments: Vec<(Name, Ty)>, output: Ty) -
         ::util::mbe::EnvMBE::new_from_anon_repeat(components),
         ::beta::ExportBeta::Nothing,
     );
-    let mac_fn = ast!({"Type" "fn" :
-        "param" => [(, argument_struct)],
-        "ret" => (, output.to_ast())
-    });
+    let mac_fn = u!({Type fn : [(, argument_struct)] (, output.to_ast())});
 
     if forall_ty_vars.is_empty() {
         Ty(mac_fn)
@@ -685,9 +682,7 @@ fn formpat_reflection() {
 fn macro_definitions() {
     let expr_type = ::core_type_forms::get__primitive_type(n("Expr")).concrete();
     let pat_type = ::core_type_forms::get__primitive_type(n("Pat")).concrete();
-    let int_expr_type = ty!({"Type" "type_apply" :
-        "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Int" :}]
-    });
+    let int_expr_type = uty!({type_apply : (,expr_type.clone()) [(~ {Int :})]});
     let env = assoc_n!("ie" => int_expr_type.clone()).set(negative_ret_val(), ty!((trivial)));
 
     assert_eq!(
@@ -755,34 +750,34 @@ fn macro_definitions() {
 
 #[test]
 fn macro_types() {
-    let int_expr_type = uty!({Type type_apply : (prim Expr) [(~ {Type Int :})]});
-    let t_expr_type = uty!({Type type_apply : (prim Expr) [(~ T)]});
+    let int_expr_type = uty!({type_apply : (prim Expr) [(~ {Int :})]});
+    let t_expr_type = uty!({type_apply : (prim Expr) [(~ T)]});
 
     assert_eq!(
         macro_type(&vec![], vec![(n("a"), int_expr_type.clone())], int_expr_type.clone()),
-        uty!({Type fn :
-            [{Type struct : [a {Type type_apply : (prim Expr) [(~ {Type Int :})]}]}]
-            {Type type_apply : (prim Expr) [(~ {Type Int :})]}})
+        uty!({fn :
+            [{struct : [a {type_apply : (prim Expr) [(~ {Int :})]}]}]
+            {type_apply : (prim Expr) [(~ {Int :})]}})
     );
     assert_eq!(
         macro_type(&vec![n("T")], vec![(n("a"), t_expr_type.clone())], t_expr_type.clone()),
-        uty!({Type forall_type : [T]
-            {Type fn : [{Type struct : [a {Type type_apply : (prim Expr) [(~ T)]}]}]
-                {Type type_apply : (prim Expr) [(~ T)]}}})
+        uty!({forall_type : [T]
+            {fn : [{struct : [a {type_apply : (prim Expr) [(~ T)]}]}]
+                {type_apply : (prim Expr) [(~ T)]}}})
     );
 }
 
 #[test]
 fn type_basic_macro_invocation() {
-    let int_expr_type = uty!({Type type_apply : (prim Expr) [(~ {Type Int :})]});
-    let t_expr_type = uty!({Type type_apply : (prim Expr) [(~ T)]});
-    let s_expr_type = uty!({Type type_apply : (prim Expr) [(~ S)]});
-    let t_pat_type = uty!({Type type_apply : (prim Pat) [(~ T)]});
-    let t_type_type = uty!({Type type_apply : (prim Type) [(~ S)]});
+    let int_expr_type = uty!({type_apply : (prim Expr) [(~ {Int :})]});
+    let t_expr_type = uty!({type_apply : (prim Expr) [(~ T)]});
+    let s_expr_type = uty!({type_apply : (prim Expr) [(~ S)]});
+    let t_pat_type = uty!({type_apply : (prim Pat) [(~ T)]});
+    let t_type_type = uty!({type_apply : (prim Type) [(~ S)]});
 
     let env = assoc_n!(
-        "int_var" => ty!({ "Type" "Int" :}),
-        "nat_var" => ty!({ "Type" "Nat" :}),
+        "int_var" => uty!({Int :}),
+        "nat_var" => uty!({Nat :}),
         "basic_int_macro" =>
             macro_type(&vec![], vec![(n("a"), int_expr_type.clone())], int_expr_type.clone()),
         "basic_t_macro" =>
@@ -894,13 +889,13 @@ fn type_basic_macro_invocation() {
 
 #[test]
 fn type_ddd_macro() {
-    let t_expr_type = uty!({Type type_apply : (prim Expr) [(~ T)]});
-    let s_expr_type = uty!({Type type_apply : (prim Expr) [(~ S)]});
-    let t_pat_type = uty!({Type type_apply : (prim Pat) [(~ T)]});
+    let t_expr_type = uty!({type_apply : (prim Expr) [(~ T)]});
+    let s_expr_type = uty!({type_apply : (prim Expr) [(~ S)]});
+    let t_pat_type = uty!({type_apply : (prim Pat) [(~ T)]});
 
     let env = assoc_n!(
-        "int_var" => ty!({ "Type" "Int" :}),
-        "nat_var" => ty!({ "Type" "Nat" :}),
+        "int_var" => uty!({Int :}),
+        "nat_var" => uty!({Nat :}),
         "let_like_macro" =>
             macro_type(&vec![n("T"), n("S")],
                        vec![(n("val"), t_expr_type.clone()),
@@ -923,7 +918,7 @@ fn type_ddd_macro() {
             }),
             env.clone()
         ),
-        Ok(ty!({ "Type" "Nat" :}))
+        Ok(uty!({Nat :}))
     );
 }
 #[test]
@@ -933,7 +928,7 @@ fn perform_syntax_extension() {
         varref_aat,
         (scope basic_typed_form!(
             [(lit_aat "("), (named "body", (call "Expr")), (lit_aat ")")],
-            cust_rc_box!(|_| Ok(uty!({Type Int :}))),
+            cust_rc_box!(|_| Ok(uty!({Int :}))),
             cust_rc_box!(|parts| {
                 let res: num::BigInt = extract!(
                     (&parts.get_res(n("body"))?) ::runtime::eval::Value::Int = (ref i) => i + 1);
@@ -946,7 +941,7 @@ fn perform_syntax_extension() {
     let ty_ctxt = ::ast_walk::LazyWalkReses::<::ty::SynthTy>::new_wrapper(
         ::runtime::core_values::core_types().set(
             n("gimmie_syntax"),
-            uty!({Type fn: [(, SynEnv::ty_invocation())] (, SynEnv::ty_invocation())}),
+            uty!({fn: [(, SynEnv::ty_invocation())] (, SynEnv::ty_invocation())}),
         ),
     );
     let ev_ctxt = ::ast_walk::LazyWalkReses::<::runtime::eval::Eval>::new_wrapper(
