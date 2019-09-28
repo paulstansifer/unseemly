@@ -77,13 +77,37 @@ macro_rules! u {
     };
     // The need for explicit exports is unfortunate;
     //  that information is part of `Scope`, not `Form` (maybe we should change that?)
+    ( { $form:ident => $ebeta:tt : $( $ts:tt )*} ) => {
+        {
+            ::macros::flimsy_syntax::default_nt.with(|def_nt| {
+                let f = ::core_forms::find_core_form(&def_nt.borrow(), stringify!($form));
+                ::ast::Node(f.clone(),
+                    ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
+                        .unwrap_or_else(::util::mbe::EnvMBE::new),
+                    ebeta!($ebeta))
+            })
+        }
+    };
     ( { $nt:ident $form:ident => $ebeta:tt : $( $ts:tt )*} ) => {
         {
-            let f = ::core_forms::find_core_form(stringify!($nt), stringify!($form));
-            ::ast::Node(f.clone(),
-                ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
-                    .unwrap_or_else(::util::mbe::EnvMBE::new),
-                ebeta!($ebeta))
+            // code duplication from above ) :
+            let mut old_default_nt = "".to_owned();
+            let f = ::macros::flimsy_syntax::default_nt.with(|def_nt| {
+                old_default_nt = def_nt.borrow().clone();
+                let nt = stringify!($nt);
+                *def_nt.borrow_mut() = nt.to_string();
+
+                ::core_forms::find_core_form(&nt, stringify!($form))
+            });
+
+            let res =::ast::Node(f.clone(),
+                    ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
+                        .unwrap_or_else(::util::mbe::EnvMBE::new),
+                    ebeta!($ebeta));
+            ::macros::flimsy_syntax::default_nt.with(|def_nt| {
+                *def_nt.borrow_mut() = old_default_nt;
+            });
+            res
         }
     };
     ({ $( $anything:tt )* }) => {

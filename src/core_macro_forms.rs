@@ -680,62 +680,34 @@ fn formpat_reflection() {
 
 #[test]
 fn macro_definitions() {
-    let expr_type = ::core_type_forms::get__primitive_type(n("Expr")).concrete();
-    let pat_type = ::core_type_forms::get__primitive_type(n("Pat")).concrete();
-    let int_expr_type = uty!({type_apply : (,expr_type.clone()) [{Int :}]});
+    let int_expr_type = uty!({type_apply : (prim Expr) [{Int :}]});
     let env = assoc_n!("ie" => int_expr_type.clone()).set(negative_ret_val(), ty!((trivial)));
 
     assert_eq!(
         ::ty::neg_synth_type(
-            &ast!({"Syntax" "star" => ["body"] :
-                "body" => {"Syntax" "named" => ["part_name"] :
-                    "part_name" => "x",
-                    "body" => {"Syntax" "call_with_type" :
-                        "nt" => "Expr",
-                        "ty_annot" => {"Type" "Int" :}
-                    }
-                }
-            }),
+            &u!({Syntax star => ["body"] :
+                {named => ["part_name"] : x {call_with_type : Expr {Type Int :}}}}),
             env.clone()
         ),
         Ok(assoc_n!("x" => ::runtime::reify::sequence_type__of(
             &int_expr_type)))
     );
 
-    let t_expr_type = ty!({"Type" "type_apply" :
-        "type_rator" => (,expr_type.clone()), "arg" => [(vr "T")]
-    });
-    let s_expr_type = ty!({"Type" "type_apply" :
-        "type_rator" => (,expr_type.clone()), "arg" => [(vr "S")]
-    });
-    let t_pat_type = ty!({"Type" "type_apply" :
-        "type_rator" => (,pat_type.clone()), "arg" => [(vr "T")]
-    });
+    let t_expr_type = uty!({type_apply : (prim Expr) [T]});
+    let s_expr_type = uty!({type_apply : (prim Expr) [S]});
+    let t_pat_type = uty!({type_apply : (prim Pat) [T]});
 
     assert_eq!(
         ::ty::neg_synth_type(
-            &ast!(
-            {"Syntax" "scope" :
-                "param" => ["T", "S"],
-                "syntax" => (import [* [forall "param"]] {"Syntax" "seq" => [* ["elt"]] :
-                    "elt" => [
-                        {"Syntax" "named" => ["part_name"] :
-                            "part_name" => "body",
-                            "body" => {"Syntax" "call_with_type" :
-                                "nt" => "Expr", "ty_annot" => (vr "S")}},
-                        {"Syntax" "named" => ["part_name"] :
-                            "part_name" => "val",
-                            "body" => {"Syntax" "call_with_type" :
-                                "nt" => "Expr", "ty_annot" => (vr "T")}},
-                        {"Syntax" "named" => ["part_name"] :
-                            "part_name" => "binding",
-                            "body" => {"Syntax" "call_with_type" :
-                                "nt" => "Pat", "ty_annot" => (vr "T")}}]
-                }),
-                "unused_type" => {"Type" "Nat" :}, // In practice, this is a `trivial_type_form`
-                "macro_name" => "some_macro",
-                "implementation" => (import [* [forall "param"]] (import ["syntax" = "unused_type"]
-                    (vr "ie")))
+            &u!({Syntax scope : [T; S]
+                {seq => [* ["elt"]] :
+                    [{named => ["part_name"] : body {call_with_type : Expr S}};
+                     {named => ["part_name"] : val {call_with_type : Expr T}};
+                     {named => ["part_name"] : binding {call_with_type : Pat T}}]
+                }
+                {Type Nat :} // "unused_type". In practice, this is `trivial_type_form`
+                some_macro
+                ie
             }),
             env.clone()
         ),
