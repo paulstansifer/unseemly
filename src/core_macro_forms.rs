@@ -682,7 +682,7 @@ fn formpat_reflection() {
 fn macro_definitions() {
     let expr_type = ::core_type_forms::get__primitive_type(n("Expr")).concrete();
     let pat_type = ::core_type_forms::get__primitive_type(n("Pat")).concrete();
-    let int_expr_type = uty!({type_apply : (,expr_type.clone()) [(~ {Int :})]});
+    let int_expr_type = uty!({type_apply : (,expr_type.clone()) [{Int :}]});
     let env = assoc_n!("ie" => int_expr_type.clone()).set(negative_ret_val(), ty!((trivial)));
 
     assert_eq!(
@@ -750,30 +750,30 @@ fn macro_definitions() {
 
 #[test]
 fn macro_types() {
-    let int_expr_type = uty!({type_apply : (prim Expr) [(~ {Int :})]});
-    let t_expr_type = uty!({type_apply : (prim Expr) [(~ T)]});
+    let int_expr_type = uty!({type_apply : (prim Expr) [{Int :}]});
+    let t_expr_type = uty!({type_apply : (prim Expr) [T]});
 
     assert_eq!(
         macro_type(&vec![], vec![(n("a"), int_expr_type.clone())], int_expr_type.clone()),
         uty!({fn :
-            [{struct : [a {type_apply : (prim Expr) [(~ {Int :})]}]}]
-            {type_apply : (prim Expr) [(~ {Int :})]}})
+            [{struct : [a {type_apply : (prim Expr) [{Int :}]}]}]
+            {type_apply : (prim Expr) [{Int :}]}})
     );
     assert_eq!(
         macro_type(&vec![n("T")], vec![(n("a"), t_expr_type.clone())], t_expr_type.clone()),
         uty!({forall_type : [T]
-            {fn : [{struct : [a {type_apply : (prim Expr) [(~ T)]}]}]
-                {type_apply : (prim Expr) [(~ T)]}}})
+            {fn : [{struct : [a {type_apply : (prim Expr) [T]}]}]
+                {type_apply : (prim Expr) [T]}}})
     );
 }
 
 #[test]
 fn type_basic_macro_invocation() {
-    let int_expr_type = uty!({type_apply : (prim Expr) [(~ {Int :})]});
-    let t_expr_type = uty!({type_apply : (prim Expr) [(~ T)]});
-    let s_expr_type = uty!({type_apply : (prim Expr) [(~ S)]});
-    let t_pat_type = uty!({type_apply : (prim Pat) [(~ T)]});
-    let t_type_type = uty!({type_apply : (prim Type) [(~ S)]});
+    let int_expr_type = uty!({type_apply : (prim Expr) [{Int :}]});
+    let t_expr_type = uty!({type_apply : (prim Expr) [T]});
+    let s_expr_type = uty!({type_apply : (prim Expr) [S]});
+    let t_pat_type = uty!({type_apply : (prim Pat) [T]});
+    let t_type_type = uty!({type_apply : (prim Type) [S]});
 
     let env = assoc_n!(
         "int_var" => uty!({Int :}),
@@ -889,9 +889,9 @@ fn type_basic_macro_invocation() {
 
 #[test]
 fn type_ddd_macro() {
-    let t_expr_type = uty!({type_apply : (prim Expr) [(~ T)]});
-    let s_expr_type = uty!({type_apply : (prim Expr) [(~ S)]});
-    let t_pat_type = uty!({type_apply : (prim Pat) [(~ T)]});
+    let t_expr_type = uty!({type_apply : (prim Expr) [T]});
+    let s_expr_type = uty!({type_apply : (prim Expr) [S]});
+    let t_pat_type = uty!({type_apply : (prim Pat) [T]});
 
     let env = assoc_n!(
         "int_var" => uty!({Int :}),

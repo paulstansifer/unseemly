@@ -342,7 +342,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         "type_apply",
         // The technical term for `<[...]<` is "fish X-ray"
         form_pat!([(named "type_rator", (call "Type")),
-         (delim "<[", "[", (star [(named "arg", (call "Type"))]))]),
+         (delim "<[", "[", (star (named "arg", (call "Type"))))]),
         // TODO: shouldn't it be "args"?
         cust_rc_box!(move |tapp_parts| {
             let arg_res = tapp_parts.get_rep_res(n("arg"))?;
