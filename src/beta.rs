@@ -198,28 +198,25 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(
             //   The latter have heavyweight logic systems that really aren't worth it,
             //    because the errors in question aren't that bad to debug.)
 
-            if let Ast::Node(_, ref sub_parts, ref export) = parts.get_term(name_source) {
-                // For our purposes, this syntax is "real", so `quote_depth` is 0:
-                let expected_res_keys = bound_from_export_beta(export, sub_parts, 0);
-
-                let mut count = 0;
-                for (k, _) in res.iter_pairs() {
-                    if !expected_res_keys.contains(k) {
-                        panic!(
-                            "{} was exported (we only wanted {:#?} via {:#?})",
-                            k,
-                            expected_res_keys,
-                            parts.get_term(res_source)
-                        );
-                        // TODO: make this an `Err`. And test it with ill-formed `Form`s
-                    }
-                    count += 1;
+            // For our purposes, this syntax is "real", so `quote_depth` is 0:
+            let expected_res_keys = names_exported_by(parts.get_term_ref(name_source), 0);
+            let mut count = 0;
+            for (k, _) in res.iter_pairs() {
+                if !expected_res_keys.contains(k) {
+                    panic!(
+                        "{} was exported (we only wanted {:#?} via {:#?})",
+                        k,
+                        expected_res_keys,
+                        parts.get_term(res_source)
+                    );
+                    // TODO: make this an `Err`. And test it with ill-formed `Form`s
                 }
+                count += 1;
+            }
 
-                if count != expected_res_keys.len() {
-                    // TODO: Likewise:
-                    panic!("expected {:?} exports, got {}", expected_res_keys, count)
-                }
+            if count != expected_res_keys.len() {
+                // TODO: Likewise:
+                panic!("expected {:?} exports, got {}", expected_res_keys, count)
             }
 
             Ok(res)
@@ -347,6 +344,7 @@ fn names_exported_by(ast: &Ast, quote_depth: i16) -> Vec<Name> {
                 )
             }
         }
+        Ast::ExtendEnv(ref body, _) => names_exported_by(body, quote_depth),
         Ast::QuoteMore(ref body, _) => names_exported_by(body, quote_depth + 1),
         Ast::QuoteLess(ref body, _) => names_exported_by(body, quote_depth - 1),
         ref ast if quote_depth <= 0 => icp!("beta SameAs refers to an invalid AST node: {}", ast),
