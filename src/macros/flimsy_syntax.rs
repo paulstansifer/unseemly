@@ -23,6 +23,10 @@ macro_rules! u_rep {
     ([$t:tt $( $ts:tt )*]  [ $( $acc_cur:tt )* ] { $( $acc_rest:tt )* }) => {
         u_rep!( [ $( $ts )* ] [$($acc_cur)* $t] { $( $acc_rest )* })
     };
+    ([] [] {}) => {
+        // Empty repeat
+        ::ast::Shape(vec![::ast::Atom(n("REP"))])
+    };
     ([]  [ $( $acc_cur:tt )* ] { $( [ $( $acc_rest:tt )* ] )* }) => {
         ::ast::Shape(vec![
             ::ast::Atom(n("REP")),
@@ -218,6 +222,7 @@ pub fn parse_flimsy_mbe(flimsy: &Ast, grammar: &FormPat) -> Option<EnvMBE<Ast>> 
         Named(name, ref body) => Some(EnvMBE::new_from_leaves(
             ::util::assoc::Assoc::new().set(*name, parse_flimsy_ast(flimsy, &*body)),
         )),
+        SynImport(_, _, _) => panic!("`SynImport` can't work without a real parser"),
         NameImport(_, _) => panic!("`NameImport` should live underneath `Named`: {:?}", grammar),
         _ => unimplemented!("Can't handle {:?}", grammar),
     }
@@ -240,8 +245,6 @@ fn parse_flimsy_ast(flimsy: &Ast, grammar: &FormPat) -> Ast {
         QuoteDeepen(body, pos) => QuoteMore(Box::new(parse_flimsy_ast(flimsy, &*body)), *pos),
         QuoteEscape(body, depth) => QuoteLess(Box::new(parse_flimsy_ast(flimsy, &*body)), *depth),
 
-        // Lookup is faked by the flimsy macros, so we don't need to do anything:
-        SynImport(body, _, _) => parse_flimsy_ast(flimsy, &*body),
         Call(name) => {
             // HACK: don't descend into `Call(n("DefaultName"))
             if *name == n("DefaultName") {

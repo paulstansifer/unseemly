@@ -69,4 +69,17 @@ pub fn expand(ast: &Ast) -> Result<Ast, ()> {
 }
 
 #[test]
-fn expand_basic_macros() {}
+fn expand_basic_macros() {
+    // Quasiquotation doesn't work with `u!`, so we have to use `ast!`:
+    let make_expr = ast!({"Expr" "quote_expr" : "nt" => (vr "Expr"),
+        "body" => (++ true (,u!({apply : plus [one two]})))});
+
+    let macro_def = u!({Syntax scope :
+        [] {literal => [] : {call : DefaultToken} just_add_1_and_2}
+        {Type Nat :} // "unused_type"
+        just_add_1_and_2_macro
+        (,make_expr)
+    });
+
+    assert_m!(::runtime::eval::eval_top(&macro_def), Ok(_))
+}
