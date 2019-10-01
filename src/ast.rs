@@ -10,30 +10,42 @@ use std::{fmt, iter};
 use util::mbe::EnvMBE;
 
 // TODO: This really ought to be an `Rc` around an `enum`
-custom_derive! {
-    #[derive(Clone, PartialEq, Reifiable)]
-    pub enum Ast {
-        Trivial,
-        /// Typically, a binder
-        Atom(Name),
-        VariableReference(Name),
+#[derive(Clone, PartialEq)]
+pub enum Ast {
+    Trivial,
+    /// Typically, a binder
+    Atom(Name),
+    VariableReference(Name),
 
-        /// Shift environment to quote (a pos/neg piece of syntax) more
-        QuoteMore(Box<Ast>, bool),
-        /// Shift environment (by some amount) to quote less
-        QuoteLess(Box<Ast>, u8),
+    /// Shift environment to quote (a pos/neg piece of syntax) more
+    QuoteMore(Box<Ast>, bool),
+    /// Shift environment (by some amount) to quote less
+    QuoteLess(Box<Ast>, u8),
 
-        /// A meaningful chunk of syntax, governed by a form, containing an environment,
-        ///  potentially exporting some names.
-        Node(::std::rc::Rc<::form::Form>, EnvMBE<Ast>, ExportBeta),
+    /// A meaningful chunk of syntax, governed by a form, containing an environment,
+    ///  potentially exporting some names.
+    Node(::std::rc::Rc<::form::Form>, EnvMBE<Ast>, ExportBeta),
 
-        /// For parsing purposes.
-        IncompleteNode(EnvMBE<Ast>),
-        /// For parsing purposes. Is this used for anything other than writing simple tests?
-        Shape(Vec<Ast>),
+    /// For parsing purposes.
+    IncompleteNode(EnvMBE<Ast>),
+    /// For parsing purposes. Is this used for anything other than writing simple tests?
+    Shape(Vec<Ast>),
 
-        /// Variable binding
-        ExtendEnv(Box<Ast>, Beta)
+    /// Variable binding
+    ExtendEnv(Box<Ast>, Beta),
+}
+
+// Reification macros would totally work for this,
+//  but it's worth having a special case in `Value` in order to make this faster.
+impl ::runtime::reify::Reifiable for Ast {
+    fn ty_name() -> Name { n("Ast") }
+
+    fn reify(&self) -> ::runtime::eval::Value {
+        ::runtime::eval::Value::AbstractSyntax(self.clone())
+    }
+
+    fn reflect(v: &::runtime::eval::Value) -> Ast {
+        extract!((v) ::runtime::eval::Value::AbstractSyntax = (ref ast) => (ast.clone()))
     }
 }
 

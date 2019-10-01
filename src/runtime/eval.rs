@@ -17,7 +17,7 @@ pub enum Value {
     Sequence(Vec<Rc<Value>>), // TODO: switch to a different core sequence type
     Function(Rc<Closure>),    // TODO: unsure if this Rc is needed
     BuiltInFunction(BIF),
-    AbstractSyntax(Ast), // Unsure if this needs an Rc.
+    AbstractSyntax(Ast),
     Struct(Assoc<Name, Value>),
     Enum(Name, Vec<Value>), // A real compiler would probably tag with numbers...
 }

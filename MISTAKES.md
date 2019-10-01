@@ -18,7 +18,9 @@ If I had to do it all over again...
   as well as, uh, possibly some scoped way to define names *internal* to the grammar.
   Also, `FormPat` is a bad name.
 * The walk_mode.rs/ast_walk.rs distinction isn't great; I never know what's where.
-* I should have used procedural macros for `Reifiable`.
+* It would probably have been simpler to add a few more cases (or one `Any` case) to `Value`
+    and build some primitive operations on them
+   than it was to build all those reification macros.
 * In examples and tests, `Int` and `Nat` are frequently used,
   and the user is supposed to assume that neither is a subtype of the other.
   That's unintuitive!
