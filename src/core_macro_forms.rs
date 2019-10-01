@@ -177,14 +177,23 @@ fn type_macro_invocation(
 
 // This will be called at parse-time to generate the `Ast` for a macro invocation.
 // The form it emits is analogous to the "Expr" "apply" form.
-fn macro_invocation(grammar: FormPat, macro_name: Name, export_names: Vec<Name>) -> Rc<Form> {
+// The entire macro body is copied in "implementation", but `Ast`s are full of `Rc`s, so it's fine.
+fn macro_invocation(
+    grammar: FormPat,
+    macro_name: Name,
+    implementation: Ast,
+    export_names: Vec<Name>,
+) -> Rc<Form>
+{
     use walk_mode::WalkMode;
 
     let grammar1 = grammar.clone();
     let grammar2 = grammar.clone();
     Rc::new(Form {
-        name: n("macro_invocation"),       // TODO: maybe generate a fresh name?
-        grammar: Rc::new(grammar.clone()), // For pretty-printing
+        name: n("macro_invocation"), // TODO: maybe generate a fresh name?
+        grammar: Rc::new(
+            form_pat!([(, grammar.clone()), (named "implementation", (anyways (, implementation)))]),
+        ),
         type_compare: ::form::Both(NotWalked, NotWalked),
         // Invoked at typechecking time.
         // `macro_name` will be bound to a type of the form
@@ -335,7 +344,7 @@ pub fn make_core_macro_forms() -> SynEnv {
             }
         }) => [],
         syntax_syntax!( ([(scan r"(\s*/)"), (named "pat", (scan r"([^/]*)")), (scan r"(/)")]) Scan {
-            |_| { icp!("not walked") }
+            |_| { Ok(Assoc::new()) }
         } {
             |parts| {
                 Ok(::grammar::new_scan(
@@ -419,7 +428,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         } {
             |parts| {
                 Ok(Named(
-                    ::name::Name::reflect(&parts.get_res(n("part_name"))?),
+                    ::core_forms::ast_to_name(&parts.get_term(n("part_name"))),
                     Rc::new(FormPat::reflect(&parts.get_res(n("body"))?))).reify())
             }
         }) => ["part_name"],
@@ -515,6 +524,7 @@ pub fn make_core_macro_forms() -> SynEnv {
                 Ok(Scope(macro_invocation(
                         FormPat::reflect(&parts.get_res(n("syntax"))?),
                         ast_to_name(&parts.get_term(n("macro_name"))),
+                        parts.get_term(n("implementation")),
                         export_names),
                     export).reify())
             }
@@ -528,44 +538,61 @@ pub fn make_core_macro_forms() -> SynEnv {
 }
 
 pub fn extend_syntax() -> Rc<Form> {
-    // TODO: this is `Expr`-specific
-    let perform_extension = move |pc: ::earley::ParseContext,
-                                  extension_info: Ast|
-          -> ::earley::ParseContext {
-        let actual_extension =
+    use earley::ParseContext;
+    let perform_extension = move |pc: ParseContext, extension_info: Ast| -> ParseContext {
+        let bnf_parts =
             // TODO: getting a `Shape` (the second element is the `(lit "in")`) must be a parser bug
             extract!((&extension_info) ::ast::Shape = (ref subs) =>
-                extract!((&subs[0]) ::ast::IncompleteNode = (ref parts) =>
-                    extract!((parts.get_leaf_or_panic(&n("extension")))
-                        // It makes sense to strip the `QuoteLess`, right?
-                        // But should we shift the whole environment instead?
-                        ::ast::QuoteLess = (ref expr, 1) => (**expr).clone())));
+                extract!((&subs[0]) ::ast::IncompleteNode = (ref parts) => parts));
 
-        let calculate_extension = u!({apply : (, actual_extension) [original_grammar]});
+        let nts: Vec<Name> = bnf_parts
+            .get_rep_leaf_or_panic(n("nt"))
+            .iter()
+            .map(|a| ::core_forms::ast_to_name(*a))
+            .collect();
+        let ops: Vec<bool> = bnf_parts
+            .get_rep_leaf_or_panic(n("operator"))
+            .iter()
+            .map(|a| a == &&::ast::Atom(n("::=also")))
+            .collect();
+        let rhses: Vec<&Ast> = bnf_parts.get_rep_leaf_or_panic(n("rhs"));
 
-        // TODO: change signature and thread this error through the parser
-        ::ast_walk::walk(
-            &calculate_extension,
-            &pc.type_ctxt.with_environment(
-                pc.type_ctxt.env.set(n("original_grammar"), Ty(SynEnv::ty_invocation())),
-            ),
-        )
-        .unwrap();
+        // TODO: change signature and thread errors through the parser, instead of doing `unwrap`s.
 
-        let new__syn_env = SynEnv::reflect(
-            &::ast_walk::walk::<::runtime::eval::Eval>(
-                &calculate_extension,
-                &pc.eval_ctxt.with_environment(
-                    pc.eval_ctxt.env.set(n("original_grammar"), pc.grammar.reify()),
-                ),
+        // Types pass for the syntax extension:
+        let mut new_ty_env = pc.type_ctxt.env.clone();
+        for rhs in &rhses {
+            // `Syntax` (at least, outside of `Named`s) is type-unpacked, producing macro types.
+            new_ty_env = new_ty_env.set_assoc(
+                &::ast_walk::walk::<::ty::UnpackTy>(
+                    rhs,
+                    &pc.type_ctxt.switch_mode::<::ty::UnpackTy>().with_context(Ty(::ast::Trivial)),
+                )
+                .unwrap(),
+            );
+        }
+
+        // Evaluation pass for the syntax extension:
+        let mut syn_env = pc.grammar;
+        for ((nt, extend), rhs) in nts.into_iter().zip(ops.into_iter()).zip(rhses.into_iter()) {
+            let rhs_form_pat = FormPat::reflect(&::ast_walk::walk(rhs, &pc.eval_ctxt).unwrap());
+            syn_env = syn_env.set(
+                nt,
+                Rc::new(if extend {
+                    form_pat!((alt (, rhs_form_pat), (, (**syn_env.find_or_panic(&nt)).clone())))
+                } else {
+                    rhs_form_pat
+                }),
             )
-            .unwrap(),
-        );
+        }
 
-        pc.with_grammar(
-            new__syn_env
+        ParseContext {
+            // Gotta add a `(named "body" ⋯)`, so that `extend_syntax` can use it.
+            grammar: syn_env
                 .set(n("SyntaxExtensionBody"), Rc::new(form_pat!([(named "body", (call "Expr"))]))),
-        )
+            type_ctxt: pc.type_ctxt.with_environment(new_ty_env),
+            eval_ctxt: pc.eval_ctxt, // no change! (Macro implementations are in `syn_env`.)
+        }
     };
 
     Rc::new(Form {
@@ -573,7 +600,11 @@ pub fn extend_syntax() -> Rc<Form> {
         grammar: Rc::new(form_pat!(
             [(lit "extend_syntax"),
              (extend
-                [(named "extension", (-- 1 (call "Expr"))), (lit "in")],
+                [(star [(named "nt", atom),
+                   (named "operator", (alt (lit "::="), (lit "::=also"))),
+                   (named "rhs", (call "Syntax")),
+                   (lit ";")]),
+                 (lit "in")],
                 "SyntaxExtensionBody", // just `(named "body", (call "Expr"))`
                 perform_extension)])),
         type_compare: ::form::Both(NotWalked, NotWalked),
@@ -584,43 +615,6 @@ pub fn extend_syntax() -> Rc<Form> {
         eval: ::form::Positive(Body(n("body"))),
         quasiquote: ::form::Both(LiteralLike, LiteralLike),
     })
-}
-
-pub fn bnf_syntax_extension() -> Rc<Form> {
-    typed_form!(
-        "bnf",
-        [(lit "bnf["),
-            (star [(named "nt", atom),
-                   (named "operator", (alt (lit "::="), (lit "::=also"))),
-                   (named "rhs", (call "Syntax")),
-                   (lit ";")]),
-            (lit "]bnf")],
-        cust_rc_box!(|_bnf_parts|
-            // Always produces a SynEnv-to-SynEnv function, regardless of input
-            Ok(uty!({Type fn : [(, SynEnv::ty_invocation())] (,SynEnv::ty_invocation())}))),
-        cust_rc_box!(|bnf_parts| {
-            let nts : Vec<Name> = bnf_parts.get_rep_term(n("nt")).iter().map(
-                ::core_forms::ast_to_name).collect();
-            let ops : Vec<bool> = bnf_parts.get_rep_term(n("operator")).iter().map(
-                |a| a == &::ast::Atom(n("::=also"))).collect();
-            let rhses : Vec<FormPat> = bnf_parts.get_rep_res(n("rhs"))?.iter().map(
-                FormPat::reflect).collect();
-            Ok(val!(bif move |se: Vec<::runtime::eval::Value>| {
-                let mut syn_env = SynEnv::reflect(&se[0]);
-                for ((nt, extend), rhs) in nts.iter().zip(ops.iter()).zip(rhses.iter()) {
-                    syn_env = syn_env.set(
-                        *nt,
-                        Rc::new(if *extend {
-                            form_pat!((alt (, rhs.clone()),
-                                           (, (**syn_env.find_or_panic(&nt)).clone())))
-                        } else {
-                            rhs.clone()
-                        })
-                    );
-                }
-                syn_env.reify()
-            }))
-    }))
 }
 
 #[test]
@@ -775,7 +769,7 @@ fn type_basic_macro_invocation() {
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke basic_int_macro"), (named "a", (call "Expr"))]),
-                    n("basic_int_macro"), vec![]) ;
+                    n("basic_int_macro"), ast!((trivial)), vec![]) ;
                 "a" => (vr "int_var")
             }),
             env.clone()
@@ -788,7 +782,7 @@ fn type_basic_macro_invocation() {
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke basic_t_macro"), (named "a", (call "Expr"))]),
-                    n("basic_t_macro"), vec![]) ;
+                    n("basic_t_macro"), ast!((trivial)), vec![]) ;
                 "a" => (vr "nat_var")
             }),
             env.clone()
@@ -801,7 +795,7 @@ fn type_basic_macro_invocation() {
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke basic_int_macro"), (named "a", (call "Expr"))]),
-                    n("basic_int_macro"), vec![]) ;
+                    n("basic_int_macro"), ast!((trivial)), vec![]) ;
                 "a" => (vr "nat_var")
             }),
             env.clone()
@@ -814,7 +808,7 @@ fn type_basic_macro_invocation() {
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke basic_pattern_macro"), (named "a", (call "Pat"))]),
-                    n("basic_pattern_macro"), vec![n("a")]) => ["a"];
+                    n("basic_pattern_macro"), ast!((trivial)), vec![n("a")]) => ["a"];
                 "a" => "should_be_nat"
             }),
             env.clone().set(negative_ret_val(), ty!({"Type" "Nat" :}))
@@ -830,7 +824,7 @@ fn type_basic_macro_invocation() {
                                (named "val", (call "Expr")),
                                (named "binding", (call "Pat")),
                                (named "body", (import ["binding" = "val"], (call "Expr")))]),
-                    n("let_like_macro"), vec![]) ;
+                    n("let_like_macro"), ast!((trivial)), vec![]) ;
                 "val" => (vr "nat_var"),
                 "binding" => "x",
                 "body" => (import ["binding" = "val"] (vr "x"))
@@ -848,7 +842,7 @@ fn type_basic_macro_invocation() {
                                (named "t", (call "Type")),
                                (named "body", (call "Pat")),
                                (named "cond_expr", (import ["body" : "t"], (call "Expr")))]),
-                    n("pattern_cond_like_macro"), vec![n("body")]) ;
+                    n("pattern_cond_like_macro"), ast!((trivial)), vec![n("body")]) ;
                 "t" => {"Type" "Int" :},
                 "body" => "x",
                 "cond_expr" => (import ["body" : "t"] (vr "x"))
@@ -883,7 +877,7 @@ fn type_ddd_macro() {
                                 (star (named "val", (call "Expr"))),
                                 (star (named "binding", (call "Pat"))),
                                 (named "body", (import [* ["binding" = "val"]], (call "Expr")))]),
-                    n("let_like_macro"), vec![]) ;
+                    n("let_like_macro"), ast!((trivial)), vec![]) ;
                 "val" => [@"arm" (vr "nat_var"), (vr "nat_var")],
                 "binding" => [@"arm" "x1", "x2"],
                 "body" => (import [* ["binding" = "val"]] (vr "x1"))
@@ -894,49 +888,7 @@ fn type_ddd_macro() {
     );
 }
 #[test]
-fn perform_syntax_extension() {
-    let make_se = |_orig_se: Vec<::runtime::eval::Value>| {
-        assoc_n!("Expr" => Rc::new(form_pat!((alt
-        varref_aat,
-        (scope basic_typed_form!(
-            [(lit_aat "("), (named "body", (call "Expr")), (lit_aat ")")],
-            cust_rc_box!(|_| Ok(uty!({Int :}))),
-            cust_rc_box!(|parts| {
-                let res: num::BigInt = extract!(
-                    (&parts.get_res(n("body"))?) ::runtime::eval::Value::Int = (ref i) => i + 1);
-                Ok(val!(i res))
-            })
-        ))))))
-        .reify()
-    };
-
-    let ty_ctxt = ::ast_walk::LazyWalkReses::<::ty::SynthTy>::new_wrapper(
-        ::runtime::core_values::core_types().set(
-            n("gimmie_syntax"),
-            uty!({fn: [(, SynEnv::ty_invocation())] (, SynEnv::ty_invocation())}),
-        ),
-    );
-    let ev_ctxt = ::ast_walk::LazyWalkReses::<::runtime::eval::Eval>::new_wrapper(
-        ::runtime::core_values::core_values().set(n("gimmie_syntax"), val!(bif make_se)),
-    );
-
-    let ast = ::grammar::parse(
-        &form_pat!((scope extend_syntax())),
-        &assoc_n!(
-            "DefaultToken" => Rc::new(::grammar::new_scan(r"\s*(\S+)")),
-            "Expr" => Rc::new(form_pat!(varref_aat))
-        ),
-        (ty_ctxt, ev_ctxt),
-        "extend_syntax gimmie_syntax in ( ( ( one ) ) )",
-    )
-    .unwrap();
-
-    assert_m!(::ty::synth_type(&ast, ::core_values::core_types()), Ok(_));
-    assert_eq!(::runtime::eval::eval(&ast, ::core_values::core_values()), Ok(val!(i 4)));
-}
-
-#[test]
-fn use_bnf() {
+fn define_and_parse_macros() {
     let ty_ctxt = ::ast_walk::LazyWalkReses::<::ty::SynthTy>::new_wrapper(
         ::runtime::core_values::core_types(),
     );
@@ -944,23 +896,18 @@ fn use_bnf() {
         ::runtime::core_values::core_values(),
     );
 
-    assert_m!(
-        ::grammar::parse(
-            &form_pat!((scope extend_syntax())),
-            &assoc_n!(
-                "DefaultName" => Rc::new(form_pat!((reserved_by_name_vec (call "DefaultToken"),
-                    vec![n("bnf["), n("]bnf"), n("lit"), n(",{"), n("},"), n("=")]))),
-                "DefaultToken" => Rc::new(::grammar::new_scan(r"\s*(\S+)")),
-                "Expr" => Rc::new(form_pat!((scope bnf_syntax_extension())))
-            )
-            .set_assoc(&make_core_macro_forms()),
-            (ty_ctxt, ev_ctxt),
-            "extend_syntax bnf[ Expr ::=also
-                [ lit ,{ DefaultToken }, = a +  vr ,{ DefaultName },
-                  lit ,{ DefaultToken }, = z ] ;
-             ]bnf in
-             a a a whatever z"
-        ),
-        Ok(_)
+    ::grammar::parse(
+        &form_pat!((scope extend_syntax())),
+        &::core_forms::get_core_forms(),
+        (ty_ctxt, ev_ctxt),
+        "extend_syntax
+             Expr ::=also forall T . '{
+                 [ lit ,{ DefaultToken }, = [
+                     body := ( ,{ Expr <[ Int ]< }, )
+                   lit ,{ DefaultToken }, = ]
+                 ]
+             }' add_one__macro -> .{ '[ Expr | (plus one ,[ Expr | body], ) ]' }. ;
+        in [ [ [ one ] ] ]",
     )
+    .unwrap();
 }

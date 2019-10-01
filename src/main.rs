@@ -660,10 +660,12 @@ fn end_to_end_quotation_advanced() {
 fn language_building() {
     assert_eq!(
         eval_unseemly_program(
-            r"extend_syntax bnf[
+            r"extend_syntax
                 DefaultToken ::= /(?:\s|#[^\n]*)*(\S+)/ ;
-            ]bnf in
+            in
                 # Now we have comments! (just not after the last token)
-            five"),
-        Ok(val!(i 5)));
+            five"
+        ),
+        Ok(val!(i 5))
+    );
 }
