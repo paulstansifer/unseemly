@@ -520,10 +520,18 @@ pub fn make_core_macro_forms() -> SynEnv {
                         Box::new(export));
                 }
 
-                // This macro invocation (will replace `syntax`)
+                // This macro invocation (will replace `syntax`):
                 Ok(Scope(macro_invocation(
                         FormPat::reflect(&parts.get_res(n("syntax"))?),
                         ast_to_name(&parts.get_term(n("macro_name"))),
+                        // TODO #25: It is a (minor) hygiene violation to separate "implementation"
+                        //  from its environment.
+                        // Reifying and capturing the environment would take a lot of memory.
+                        // Instead, we probably need to make `Eval` a negative walk
+                        //  (like `TypeSynth`, so consistent at last!)
+                        //  and sneak out the `FormPat` reification, maybe through an env element.
+                        // Actual problems should be rare;
+                        //  how often do names get shadowed after being used in a macro impl?
                         parts.get_term(n("implementation")),
                         export_names),
                     export).reify())

@@ -32,6 +32,7 @@ fn expand_macro(parts: ::ast_walk::LazyWalkReses<ExpandMacros>) -> Result<Ast, (
     let expanded = ::runtime::eval::eval(&parts.get_term(n("implementation")), env)?.to_ast();
 
     // Expand any macros that were produced by expansion, or were already present in subterms:
+    // TODO #25: hygiene violation (see the `syntax_syntax!` for `Scope`)
     expand(&expanded)
 }
 
