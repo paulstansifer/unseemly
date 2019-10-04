@@ -150,6 +150,7 @@ fn main() {
 
         let just_type = regex::Regex::new("^:t (.*)$").unwrap();
         let just_eval = regex::Regex::new("^:e (.*)$").unwrap();
+        let type_and_expand = regex::Regex::new("^:x (.*)$").unwrap();
         let canon_type = regex::Regex::new("^:tt (.*)$").unwrap();
         let assign_value = regex::Regex::new("^(\\w+)\\s*:=(.*)$").unwrap();
         let save_value = regex::Regex::new("^:s +((\\w+)\\s*:=(.*))$").unwrap();
@@ -159,7 +160,8 @@ fn main() {
 
         println!();
         println!("                  \x1b[1;38mUnseemly\x1b[0m");
-        println!("    `<expr>` to (typecheck and) evaluate `<expr>`.");
+        println!("    `<expr>` to (typecheck and expand and) evaluate `<expr>`.");
+        println!("    `:x <expr>` to (typecheck and) expand `<expr>`.");
         println!("    `:e <expr>` to evaluate `<expr>` without typechecking.");
         println!("    `<name> := <expr>` to bind a name for this session.");
         println!("    `:t <expr>` to synthesize the type of <expr>.");
@@ -202,6 +204,8 @@ fn main() {
                 type_unseemly_program(&caps[1]).map(|x| format!("{}", x))
             } else if let Some(caps) = just_eval.captures(&line) {
                 eval_unseemly_program_without_typechecking(&caps[1]).map(|x| format!("{}", x))
+            } else if let Some(caps) = type_and_expand.captures(&line) {
+                type_and_expand_unseemly_program(&caps[1]).map(|x| format!("{}", x))
             } else if let Some(caps) = canon_type.captures(&line) {
                 canonicalize_type(&caps[1]).map(|x| format!("{}", x))
             } else if let Some(caps) = assign_value.captures(&line) {
@@ -348,7 +352,9 @@ fn eval_unseemly_program_without_typechecking(program: &str) -> Result<Value, St
     )
     .map_err(|e| e.msg)?;
 
-    val_env.with(|vals| eval(&ast, vals.borrow().clone()).map_err(|_| "???".to_string()))
+    let core_ast = ::expand::expand(&ast).map_err(|e| format!("{:#?}", e))?;
+
+    val_env.with(|vals| eval(&core_ast, vals.borrow().clone()).map_err(|_| "???".to_string()))
 }
 
 fn eval_unseemly_program(program: &str) -> Result<Value, String> {
@@ -363,7 +369,24 @@ fn eval_unseemly_program(program: &str) -> Result<Value, String> {
     let _type = ty_env
         .with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e)))?;
 
-    val_env.with(|vals| eval(&ast, vals.borrow().clone()).map_err(|_| "???".to_string()))
+    let core_ast = ::expand::expand(&ast).map_err(|e| format!("{:#?}", e))?;
+
+    val_env.with(|vals| eval(&core_ast, vals.borrow().clone()).map_err(|_| "???".to_string()))
+}
+
+fn type_and_expand_unseemly_program(program: &str) -> Result<ast::Ast, String> {
+    let ast: ::ast::Ast = grammar::parse(
+        &core_forms::outermost_form(),
+        &core_forms::get_core_forms(),
+        runtime::core_values::get_core_envs(),
+        program,
+    )
+    .map_err(|e| e.msg)?;
+
+    let _type = ty_env
+        .with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e)))?;
+
+    ::expand::expand(&ast).map_err(|e| format!("{:#?}", e))
 }
 
 #[test]

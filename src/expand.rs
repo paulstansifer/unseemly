@@ -38,7 +38,10 @@ impl WalkMode for ExpandMacros {
             LiteralLike
         }
     }
-    fn automatically_extend_env() -> bool { true }
+    fn automatically_extend_env() -> bool { false }
+
+    // TODO: maybe keep this from being called?
+    fn underspecified(_: Name) -> Value { val!(enum "why is this here?", ) }
 
     fn walk_var(
         name: Name,

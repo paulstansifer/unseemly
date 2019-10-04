@@ -55,14 +55,12 @@ pub trait WalkMode: Debug + Copy + Reifiable {
     where Self: Sized;
 
     /// Should the walker extend the environment based on imports?
-    ///
-    /// While `Beta`s are great for typechecking,
-    ///  evaluation sometimes extends environments
-    ///   in ways that they can't handle.
-    /// (In particular, λ causes the `Ast` containing the `ExtendEnv`
-    ///   to be moved to a context where its `Beta`s are meaningless!
-    /// If `!automatically_extend_env()`, the `Custom` implementation
-    ///  must extend the environment properly to be safe.
+    /// Only `QQ` and `Expand` have this as false; it's not 100% clear what's special about them.
+    /// (This evolved over time; it used to be false for `Eval`, because of lambda).
+    /// It seems like the thing about those modes is
+    ///  (a) they don't look at variables, so their environments are irrelevant,
+    ///  (b) `SameAs` switching to the negated mode and doing `get_res` doesn't work.
+    /// But what unites those two factors?
     fn automatically_extend_env() -> bool;
 
     /// Walk over the structure of a node, not its meaning.
