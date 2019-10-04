@@ -177,11 +177,11 @@ fn type_macro_invocation(
 
 // This will be called at parse-time to generate the `Ast` for a macro invocation.
 // The form it emits is analogous to the "Expr" "apply" form.
-// The entire macro body is copied in "implementation", but `Ast`s are full of `Rc`s, so it's fine.
-fn macro_invocation(
+// Public for use in `expand.rs` tests.
+pub fn macro_invocation(
     grammar: FormPat,
     macro_name: Name,
-    implementation: Ast,
+    implementation: ::runtime::eval::Closure,
     export_names: Vec<Name>,
 ) -> Rc<Form>
 {
@@ -191,9 +191,7 @@ fn macro_invocation(
     let grammar2 = grammar.clone();
     Rc::new(Form {
         name: n("macro_invocation"), // TODO: maybe generate a fresh name?
-        grammar: Rc::new(
-            form_pat!([(, grammar.clone()), (named "implementation", (anyways (, implementation)))]),
-        ),
+        grammar: Rc::new(grammar.clone()),
         type_compare: ::form::Both(NotWalked, NotWalked),
         // Invoked at typechecking time.
         // `macro_name` will be bound to a type of the form
@@ -255,7 +253,24 @@ fn macro_invocation(
                 })
             }),
         ),
-        eval: ::form::Both(NotWalked, NotWalked), // Macros should be expanded first!
+        // Kind of a HACK, but we re-use `eval` instead of having a separate field.
+        eval: ::form::Positive(cust_rc_box!(move |parts| {
+            // This code is basically the same as for "apply".
+            let mut env = implementation.env.clone();
+            for param in &implementation.params {
+                let nt = grammar.find_named_call(*param).unwrap();
+
+                if nt != n("DefaultName") && nt != n("Ident") {
+                    // TODO: why not?
+                    env =
+                        env.set(*param, ::runtime::eval::Value::from_ast(&parts.get_term(*param)));
+                }
+            }
+            let expanded = Ast::reflect(&::runtime::eval::eval(&implementation.body, env)?);
+
+            // Expand any macros that were produced by expansion, or were already present in subterms:
+            Ok(::expand::expand(&expanded)?.reify())
+        })),
         quasiquote: ::form::Both(LiteralLike, LiteralLike),
     })
 }
@@ -506,9 +521,8 @@ pub fn make_core_macro_forms() -> SynEnv {
             }
         } {
             |parts| {
-                // TODO: I think this is to check that `get_res` will work, but it might be
-                // a leftover mistake:
-                let _macro_params = ::beta::bound_from_export_beta(
+                // TODO: This is the right thing to do, right?
+                let macro_params = ::beta::bound_from_export_beta(
                     &ebeta!(["syntax"]), &parts.this_ast.node_parts(), 0);
 
                 let mut export = ::beta::ExportBeta::Nothing;
@@ -524,15 +538,10 @@ pub fn make_core_macro_forms() -> SynEnv {
                 Ok(Scope(macro_invocation(
                         FormPat::reflect(&parts.get_res(n("syntax"))?),
                         ast_to_name(&parts.get_term(n("macro_name"))),
-                        // TODO #25: It is a (minor) hygiene violation to separate "implementation"
-                        //  from its environment.
-                        // Reifying and capturing the environment would take a lot of memory.
-                        // Instead, we probably need to make `Eval` a negative walk
-                        //  (like `TypeSynth`, so consistent at last!)
-                        //  and sneak out the `FormPat` reification, maybe through an env element.
-                        // Actual problems should be rare;
-                        //  how often do names get shadowed after being used in a macro impl?
-                        parts.get_term(n("implementation")),
+                        ::runtime::eval::Closure{ body: parts.get_term(n("implementation")),
+                            params: macro_params,
+                            env: parts.env.clone()
+                        },
                         export_names),
                     export).reify())
             }
@@ -772,12 +781,15 @@ fn type_basic_macro_invocation() {
                        t_pat_type.clone())
 
     );
+
+    let impl_clo =
+        ::runtime::eval::Closure { body: ast!((trivial)), params: vec![], env: Assoc::new() };
     assert_eq!(
         ::ty::synth_type(
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke basic_int_macro"), (named "a", (call "Expr"))]),
-                    n("basic_int_macro"), ast!((trivial)), vec![]) ;
+                    n("basic_int_macro"), impl_clo.clone(), vec![]) ;
                 "a" => (vr "int_var")
             }),
             env.clone()
@@ -790,7 +802,7 @@ fn type_basic_macro_invocation() {
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke basic_t_macro"), (named "a", (call "Expr"))]),
-                    n("basic_t_macro"), ast!((trivial)), vec![]) ;
+                    n("basic_t_macro"), impl_clo.clone(), vec![]) ;
                 "a" => (vr "nat_var")
             }),
             env.clone()
@@ -803,7 +815,7 @@ fn type_basic_macro_invocation() {
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke basic_int_macro"), (named "a", (call "Expr"))]),
-                    n("basic_int_macro"), ast!((trivial)), vec![]) ;
+                    n("basic_int_macro"), impl_clo.clone(), vec![]) ;
                 "a" => (vr "nat_var")
             }),
             env.clone()
@@ -816,7 +828,7 @@ fn type_basic_macro_invocation() {
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke basic_pattern_macro"), (named "a", (call "Pat"))]),
-                    n("basic_pattern_macro"), ast!((trivial)), vec![n("a")]) => ["a"];
+                    n("basic_pattern_macro"), impl_clo.clone(), vec![n("a")]) => ["a"];
                 "a" => "should_be_nat"
             }),
             env.clone().set(negative_ret_val(), ty!({"Type" "Nat" :}))
@@ -832,7 +844,7 @@ fn type_basic_macro_invocation() {
                                (named "val", (call "Expr")),
                                (named "binding", (call "Pat")),
                                (named "body", (import ["binding" = "val"], (call "Expr")))]),
-                    n("let_like_macro"), ast!((trivial)), vec![]) ;
+                    n("let_like_macro"), impl_clo.clone(), vec![]) ;
                 "val" => (vr "nat_var"),
                 "binding" => "x",
                 "body" => (import ["binding" = "val"] (vr "x"))
@@ -850,7 +862,7 @@ fn type_basic_macro_invocation() {
                                (named "t", (call "Type")),
                                (named "body", (call "Pat")),
                                (named "cond_expr", (import ["body" : "t"], (call "Expr")))]),
-                    n("pattern_cond_like_macro"), ast!((trivial)), vec![n("body")]) ;
+                    n("pattern_cond_like_macro"), impl_clo.clone(), vec![n("body")]) ;
                 "t" => {"Type" "Int" :},
                 "body" => "x",
                 "cond_expr" => (import ["body" : "t"] (vr "x"))
@@ -866,6 +878,9 @@ fn type_ddd_macro() {
     let t_expr_type = uty!({type_apply : (prim Expr) [T]});
     let s_expr_type = uty!({type_apply : (prim Expr) [S]});
     let t_pat_type = uty!({type_apply : (prim Pat) [T]});
+
+    let impl_clo =
+        ::runtime::eval::Closure { body: ast!((trivial)), params: vec![], env: Assoc::new() };
 
     let env = assoc_n!(
         "int_var" => uty!({Int :}),
@@ -885,7 +900,7 @@ fn type_ddd_macro() {
                                 (star (named "val", (call "Expr"))),
                                 (star (named "binding", (call "Pat"))),
                                 (named "body", (import [* ["binding" = "val"]], (call "Expr")))]),
-                    n("let_like_macro"), ast!((trivial)), vec![]) ;
+                    n("let_like_macro"), impl_clo, vec![]) ;
                 "val" => [@"arm" (vr "nat_var"), (vr "nat_var")],
                 "binding" => [@"arm" "x1", "x2"],
                 "body" => (import [* ["binding" = "val"]] (vr "x1"))

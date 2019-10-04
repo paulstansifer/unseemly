@@ -114,8 +114,17 @@ macro_rules! u {
             res
         }
     };
+    ( { $form:expr ; $( $ts:tt )*} ) => {
+        {
+            let f = $form;
+            ::ast::Node(f.clone(),
+                ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
+                    .unwrap_or_else(::util::mbe::EnvMBE::new),
+                ::beta::ExportBeta::Nothing)
+        }
+    };
     ({ $( $anything:tt )* }) => {
-        panic!("Needed a : in u!");
+        panic!("Needed a : or ; in u!");
     };
     // Currently, nested `Seq`s need to correspond to nested `SEQ`s, so this creates one explicitly:
     ((~ $($ts:tt)*)) => {

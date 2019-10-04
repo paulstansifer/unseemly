@@ -109,7 +109,13 @@ impl WalkMode for Eval {
     type D = ::walk_mode::Positive<Eval>;
     type ExtraInfo = ();
 
-    fn get_walk_rule(f: &Form) -> WalkRule<Eval> { f.eval.pos().clone() }
+    fn get_walk_rule(f: &Form) -> WalkRule<Eval> {
+        // Macro invocations use `eval`, to avoid having a whole extra field in `Form`:
+        if f.name == n("macro_invocation") {
+            icp!("unexpanded macro!")
+        }
+        f.eval.pos().clone()
+    }
     fn automatically_extend_env() -> bool { true }
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Eval>) -> Result<Value, ()> {
@@ -185,6 +191,7 @@ impl WalkMode for QQuote {
         let n_sp = &n.sp();
         Ok(val!(ast n_sp))
     }
+    // TODO #26: Just special-case "unquote" and "dotdotdot"
     fn get_walk_rule(f: &Form) -> WalkRule<QQuote> { f.quasiquote.pos().clone() }
     fn automatically_extend_env() -> bool { false }
 }
@@ -214,6 +221,7 @@ impl WalkMode for QQuoteDestr {
             Err(Self::qlit_mismatch_error(val!(ast (vr n_sp)), cnc.context_elt().clone()))
         }
     }
+    // TODO #26: Just special-case "unquote"
     fn get_walk_rule(f: &Form) -> WalkRule<QQuoteDestr> { f.quasiquote.neg().clone() }
     fn automatically_extend_env() -> bool { false }
 }

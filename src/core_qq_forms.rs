@@ -279,7 +279,7 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
             // ...what then?
         eval:
             Both(NotWalked, NotWalked), // Outside a quotation? Makes no sense!
-        quasiquote: // this and "dotdotdot" are the only forms that *aren't* `LiteralLike`:
+        quasiquote: // TODO #26: this and "dotdotdot" are the only forms that *aren't* `LiteralLike`
             Both( // TODO: double-check that `pos` and `neg` don't matter here
                 cust_rc_box!( move | unquote_parts | {
                     let lq_parts = unquote_parts.switch_mode::<Eval>();

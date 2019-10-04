@@ -29,6 +29,7 @@ custom_derive! {
         /// From a type environment, construct the type of this term.
         pub synth_type: BiDiWR<::ty::SynthTy, ::ty::UnpackTy>,
         /// (expr and pat only) From a value environment, evaluate this term.
+        /// Or, (HACK) macro expansion, for macro invocations (just so we don't need another field)
         pub eval: BiDiWR<::runtime::eval::Eval, ::runtime::eval::Destructure>,
         /// At runtime, pick up code to use it as a value
         pub quasiquote: BiDiWR<::runtime::eval::QQuote, ::runtime::eval::QQuoteDestr>,

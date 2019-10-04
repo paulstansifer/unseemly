@@ -2,6 +2,7 @@ use ast::Ast;
 use ast_walk::{LazyWalkReses, WalkRule::LiteralLike};
 use form::Form;
 use name::{n, Name};
+use runtime::eval::Value;
 use util::assoc::Assoc;
 use walk_mode::{WalkElt, WalkMode};
 
@@ -14,31 +15,9 @@ custom_derive! {
     pub struct UnusedNegativeExpandMacros {}
 }
 
-fn expand_macro(parts: ::ast_walk::LazyWalkReses<ExpandMacros>) -> Result<Ast, ()> {
-    // TODO: should there be something in scope here? Or is everything captured?
-    let mut env = Assoc::new();
-
-    let macro_form: &Form = parts.this_ast.node_form();
-
-    // Turn the subterms into values
-    for (binder, _depth) in macro_form.grammar.binders() {
-        let nt = macro_form.grammar.find_named_call(binder).unwrap();
-        if nt != n("DefaultName") && nt != n("Ident") {
-            // TODO: why not?
-            env = env.set(binder, ::runtime::eval::Value::from_ast(&parts.get_term(binder)));
-        }
-    }
-
-    let expanded = ::runtime::eval::eval(&parts.get_term(n("implementation")), env)?.to_ast();
-
-    // Expand any macros that were produced by expansion, or were already present in subterms:
-    // TODO #25: hygiene violation (see the `syntax_syntax!` for `Scope`)
-    expand(&expanded)
-}
-
 impl WalkMode for ExpandMacros {
     fn name() -> &'static str { "MExpand" }
-    type Elt = Ast;
+    type Elt = Value;
     type Negated = UnusedNegativeExpandMacros;
     type Err = <::runtime::eval::Eval as WalkMode>::Err;
     type D = ::walk_mode::Positive<ExpandMacros>;
@@ -46,16 +25,33 @@ impl WalkMode for ExpandMacros {
 
     fn get_walk_rule(f: &Form) -> ::ast_walk::WalkRule<ExpandMacros> {
         if f.name == n("macro_invocation") {
-            cust_rc_box!(expand_macro)
+            let rule = f.eval.pos().clone();
+            cust_rc_box!(move |parts| {
+                match rule {
+                    ::ast_walk::WalkRule::Custom(ref ts_fn) => {
+                        ts_fn(parts.switch_mode::<::runtime::eval::Eval>())
+                    }
+                    _ => icp!(),
+                }
+            })
         } else {
             LiteralLike
         }
     }
     fn automatically_extend_env() -> bool { true }
+
+    fn walk_var(
+        name: Name,
+        _parts: &::ast_walk::LazyWalkReses<ExpandMacros>,
+    ) -> Result<Value, Self::Err>
+    {
+        use runtime::reify::Reifiable;
+        Ok(::ast::VariableReference(name).reify()) // Even variables are literal in macro expansion!
+    }
 }
 impl WalkMode for UnusedNegativeExpandMacros {
     fn name() -> &'static str { "XXXXX" }
-    type Elt = Ast;
+    type Elt = Value;
     type Negated = ExpandMacros;
     type Err = <::runtime::eval::Eval as WalkMode>::Err;
     type D = ::walk_mode::Positive<UnusedNegativeExpandMacros>;
@@ -66,21 +62,34 @@ impl WalkMode for UnusedNegativeExpandMacros {
 
 // I *think* the environment doesn't matter
 pub fn expand(ast: &Ast) -> Result<Ast, ()> {
-    ::ast_walk::walk::<ExpandMacros>(ast, &LazyWalkReses::new_empty())
+    use runtime::reify::Reifiable;
+    Ok(Ast::reflect(&::ast_walk::walk::<ExpandMacros>(ast, &LazyWalkReses::new_empty())?))
 }
 
 #[test]
 fn expand_basic_macros() {
     // Quasiquotation doesn't work with `u!`, so we have to use `ast!`:
     let make_expr = ast!({"Expr" "quote_expr" : "nt" => (vr "Expr"),
-        "body" => (++ true (,u!({apply : plus [one two]})))});
+        "body" => (++ true (,u!({apply : plus [one ; two]})))});
 
     let macro_def = u!({Syntax scope :
         [] {literal => [] : {call : DefaultToken} just_add_1_and_2}
         {Type Nat :} // "unused_type"
         just_add_1_and_2_macro
-        (,make_expr)
+        (,make_expr.clone())
     });
 
-    assert_m!(::runtime::eval::eval_top(&macro_def), Ok(_))
+    assert_m!(::runtime::eval::eval_top(&macro_def), Ok(_));
+
+    assert_eq!(
+        expand(&u!({
+            ::core_macro_forms::macro_invocation(
+                form_pat!((lit "just_add_1_and_2")),
+                n("just_add_1_and_2_macro"),
+                ::runtime::eval::Closure { body: make_expr, params: vec![], env: Assoc::new() },
+                vec![],
+            );
+        })),
+        Ok(u!({apply : plus [one ; two]}))
+    );
 }
