@@ -102,11 +102,8 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
             // HACK: certain forms don't live in the syntax environment,
             //  but "belong" under an `Alt`, so just assume forms know their grammar:
             if any_scopes {
-                match actl {
-                    &Node(ref form_actual, ref body, _) => {
-                        return unparse_mbe(&*form_actual.grammar, actl, body, s);
-                    }
-                    _ => {}
+                if let &Node(ref form_actual, ref body, _) = actl {
+                    return unparse_mbe(&*form_actual.grammar, actl, body, s);
                 }
             }
 

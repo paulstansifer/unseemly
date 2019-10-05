@@ -421,9 +421,6 @@ impl ::walk_mode::NegativeWalkMode for Subtype {
                 .destructure(u_f.clone(), &Trivial)
                 .map(|p| ast_to_name(p.get_leaf_or_panic(&n("id"))));
 
-            // print!("%%: {}\n%%: {}\n", lhs, rhs);
-            // print!("in: {:#?}\n", env.map(|_| "…"));
-
             match (lhs_name, rhs_name) {
                 // They are the same underdetermined type; nothing to do:
                 (Ok(l), Ok(r)) if l == r => {
@@ -444,13 +441,12 @@ impl ::walk_mode::NegativeWalkMode for Subtype {
         })?;
 
         // Now, resolve `:::[]:::` subtyping
-        match (&res_lhs.it, &mut res_rhs.it) {
-            (&Ty(Node(_, ref lhs_body, _)), &mut Ty(Node(_, ref mut rhs_body, _))) => {
-                // the LHS should be the subtype (i.e. already specific),
-                // and the RHS should be made to match
-                let _ = rhs_body.heal_splices__with(lhs_body, &match_dotdotdot(env));
-            }
-            _ => {}
+        if let (&Ty(Node(_, ref lhs_body, _)), &mut Ty(Node(_, ref mut rhs_body, _))) =
+            (&res_lhs.it, &mut res_rhs.it)
+        {
+            // the LHS should be the subtype (i.e. already specific),
+            // and the RHS should be made to match
+            let _ = rhs_body.heal_splices__with(lhs_body, &match_dotdotdot(env));
         }
         Some((res_lhs, res_rhs))
     }

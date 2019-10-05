@@ -229,7 +229,6 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
                                 unimplemented!("We may need a stack of what NTs are quoted")
                             }
                             ctxt_elt = more_quoted_ty(&ctxt_elt, nt);
-                            println!("expected: {} ctxt: {}", expected_type, ctxt_elt);
 
                             let negative_parts = unquote_parts.switch_mode::<::ty::UnpackTy>();
                             let _res = negative_parts.with_context(ctxt_elt).get_res(n("body"))?;

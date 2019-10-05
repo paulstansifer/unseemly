@@ -82,8 +82,6 @@ impl<Elt: WalkElt> Clo<Elt> {
         let o_renaming =
             o_different_env.keyed_map_borrow_f(&mut |name, _| VariableReference(name.freshen()));
 
-        // if !o_renaming.empty() { println!("MERGE: {}", o_renaming); }
-
         let mut fresh_o_env = Assoc::new();
         for (o_name, o_val) in o_different_env.iter_pairs() {
             fresh_o_env = fresh_o_env.set(
@@ -235,7 +233,6 @@ pub fn walk<Mode: WalkMode>(
                 } else {
                     walk_ctxt.env.clone()
                 };
-                // print!("↓↓↓↓: {:#?}\n    : {:#?}\n", beta, new_env.map(|_| "…"));
 
                 let new__walk_ctxt = walk_ctxt.with_environment(new_env);
                 let new__walk_ctxt = // If the RHS is also binding, assume it's the same

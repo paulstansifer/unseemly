@@ -143,13 +143,10 @@ impl Ast {
         expd_form: ::std::rc::Rc<::form::Form>,
     ) -> Option<::util::mbe::EnvMBE<Ast>>
     {
-        match self {
-            Node(ref f, ref parts, _) => {
-                if f == &expd_form {
-                    return Some(parts.clone());
-                }
+        if let Node(ref f, ref parts, _) = self {
+            if f == &expd_form {
+                return Some(parts.clone());
             }
-            _ => {}
         }
         None
     }

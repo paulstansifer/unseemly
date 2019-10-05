@@ -365,7 +365,7 @@ pub fn bound_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>, quote_depth: i16) -
         }
         ShadowAll(ref sub_beta, ref drivers) => {
             let mut res = vec![];
-            for ref sub_parts in parts.march_all(drivers) {
+            for sub_parts in &parts.march_all(drivers) {
                 res.append(&mut bound_from_beta(&*sub_beta, sub_parts, quote_depth));
             }
             res
@@ -398,7 +398,7 @@ pub fn bound_from_export_beta(
         }
         ExportBeta::ShadowAll(ref sub_beta, ref drivers) => {
             let mut res = vec![];
-            for ref sub_parts in parts.march_all(drivers) {
+            for sub_parts in &parts.march_all(drivers) {
                 res.append(&mut bound_from_export_beta(&*sub_beta, sub_parts, quote_depth));
             }
             res

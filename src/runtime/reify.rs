@@ -170,7 +170,7 @@ impl Reifiable for () {
 
     fn reify(&self) -> Value { Value::Int(BigInt::from(0)) }
 
-    fn reflect(_: &Value) -> Self { () }
+    fn reflect(_: &Value) -> Self {}
 }
 
 impl<T0: Reifiable, T1: Reifiable> Reifiable for (T0, T1) {
