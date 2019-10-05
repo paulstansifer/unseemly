@@ -716,7 +716,6 @@ fn macro_definitions() {
                      {named => ["part_name"] : val {call_with_type : Expr T}};
                      {named => ["part_name"] : binding {call_with_type : Pat T}}]
                 }
-                {Type Nat :} // "unused_type". In practice, this is `trivial_type_form`
                 some_macro
                 ie
             }),

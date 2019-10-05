@@ -190,7 +190,17 @@ where I: Iterator<Item = &'a Ast> {
             match parse_flimsy_mbe(flimsy, grammar) {
                 None => EnvMBE::new(),
                 Some(res) => {
-                    let _ = flimsy_seq.next();
+                    // `Anyways`es shouldn't consume anything (and they'll always be `Named`):
+                    let consuming = match grammar {
+                        Named(_, ref body) => match **body {
+                            Anyways(_) => false,
+                            _ => true,
+                        },
+                        _ => true,
+                    };
+                    if consuming {
+                        let _ = flimsy_seq.next();
+                    }
                     res
                 }
             }
@@ -228,6 +238,11 @@ pub fn parse_flimsy_mbe(flimsy: &Ast, grammar: &FormPat) -> Option<EnvMBE<Ast>> 
             }
             _ => panic!("Needed a REP shape"),
         },
+        Alt(ref subs) => {
+            // HACK: always pick the first branch of the `Alt`
+            // (mainly affects unquotation, where it skips the type annotation)
+            parse_flimsy_mbe(flimsy, &*subs[0])
+        }
         Named(name, ref body) => Some(EnvMBE::new_from_leaves(
             ::util::assoc::Assoc::new().set(*name, parse_flimsy_ast(flimsy, &*body)),
         )),

@@ -72,27 +72,107 @@ pub fn expand(ast: &Ast) -> Result<Ast, ()> {
 #[test]
 fn expand_basic_macros() {
     // Quasiquotation doesn't work with `u!`, so we have to use `ast!`:
-    let make_expr = ast!({"Expr" "quote_expr" : "nt" => (vr "Expr"),
+    let macro_body_0_args = ast!({"Expr" "quote_expr" : "nt" => (vr "Expr"),
         "body" => (++ true (,u!({apply : plus [one ; two]})))});
 
-    let macro_def = u!({Syntax scope :
+    let uqef = ::core_qq_forms::unquote_form(n("Expr"), true, 1);
+    let uqpf = ::core_qq_forms::unquote_form(n("Pat"), true, 1);
+
+    let macro_def_0_args = u!({Syntax scope :
         [] {literal => [] : {call : DefaultToken} just_add_1_and_2}
-        {Type Nat :} // "unused_type"
         just_add_1_and_2_macro
-        (,make_expr.clone())
+        (,macro_body_0_args.clone())
     });
 
-    assert_m!(::runtime::eval::eval_top(&macro_def), Ok(_));
+    // Full of closures, so hard to compare:
+    assert_m!(::runtime::eval::eval_top(&macro_def_0_args), Ok(_));
 
     assert_eq!(
         expand(&u!({
             ::core_macro_forms::macro_invocation(
                 form_pat!((lit "just_add_1_and_2")),
                 n("just_add_1_and_2_macro"),
-                ::runtime::eval::Closure { body: make_expr, params: vec![], env: Assoc::new() },
+                ::runtime::eval::Closure {
+                    body: macro_body_0_args,
+                    params: vec![],
+                    env: Assoc::new(),
+                },
                 vec![],
             );
         })),
         Ok(u!({apply : plus [one ; two]}))
+    );
+
+    // A macro that generates a one-adding expression:
+
+    let macro_body_1_arg = ast!({"Expr" "quote_expr" : "nt" => (vr "Expr"),
+        "body" => (++ true (,u!({apply : plus [one ; { uqef.clone(); (~) e}]})))});
+
+    let macro_def_1_arg = u!({Syntax scope :
+        [] {seq : [{literal => [] : {call : DefaultToken} add_1} ;
+                   {named => ["part_name"] : e {call : Expr}}] }
+        add_1_macro
+        (,macro_body_1_arg.clone())
+    });
+
+    // Full of closures, so hard to compare:
+    assert_m!(::runtime::eval::eval_top(&macro_def_1_arg), Ok(_));
+
+    assert_eq!(
+        expand(&u!({
+            ::core_macro_forms::macro_invocation(
+                // duplicates the syntax syntax above
+                form_pat!([(lit "add_1"), (named "e", (call "Expr"))]),
+                n("add_1_macro"),
+                ::runtime::eval::Closure {
+                    body: macro_body_1_arg,
+                    params: vec![n("e")],
+                    env: Assoc::new(),
+                },
+                vec![],
+            );
+            five // syntax argument for e
+        })),
+        Ok(u!({apply : plus [one ; five]}))
+    );
+
+    // A let macro:
+
+    let macro_body_let = ast!({"Expr" "quote_expr" : "nt" => (vr "Expr"),
+     "body" => (++ true (,u!(
+         {match : { uqef.clone(); (~) let_val}
+            [{ uqpf.clone(); (~) let_pat } {uqef.clone(); (~) let_body}]})))});
+
+    let macro_def_let = u!({Syntax scope :
+        [T; S] {seq : [{literal => [] : {call : DefaultToken} let} ;
+                       {named => ["part_name"] : let_pat {call : Pat}} ;
+                       {named => ["part_name"] : let_val {call : Expr}} ;
+                       {named => ["part_name"] : let_body {call : Expr}}] }
+        let_macro
+        (,macro_body_let.clone())
+    });
+
+    // Full of closures, so hard to compare:
+    assert_m!(::runtime::eval::eval_top(&macro_def_let), Ok(_));
+
+    assert_eq!(
+        expand(&u!({
+            ::core_macro_forms::macro_invocation(
+                // duplicates the syntax syntax above
+                form_pat!([(lit "let"), (named "let_pat", (call "Pat")),
+                           (named "let_val", (call "Expr")), (named "let_body", (call "Expr"))]),
+                n("let_macro"),
+                ::runtime::eval::Closure {
+                    body: macro_body_let,
+                    params: vec![n("let_val"), n("let_pat"), n("let_body")],
+                    env: Assoc::new(),
+                },
+                vec![],
+            );
+            x // let_pat
+            five // let_val
+            {apply : times [x ; eight]} // let_body
+        })),
+        Ok(u!({match : five [x {apply : times [x ; eight]}]}))
     );
 }
