@@ -4,13 +4,9 @@ use ast::Ast::{self, *};
 use beta::{Beta, ExportBeta};
 use form::{simple_form, Form};
 use name::*;
-use read::{DelimChar, Token, TokenTree};
+use read::DelimChar;
 use std::{boxed::Box, clone::Clone, rc::Rc};
 use util::assoc::Assoc;
-
-impl Token {
-    fn to_ast(&self) -> Ast { Atom(*self) }
-}
 
 custom_derive! {
     /// `FormPat` defines a pattern in a grammar. Think EBNF, but more extended.

@@ -579,7 +579,7 @@ fn form_grammar() {
             &form_pat!((call "Type")),
             &cse.clone(),
             ::runtime::core_values::get_core_envs(),
-            tokens_s!([""; "Ident" "->" "Ident"])
+            tokens_s!("[" "Ident" "->" "Ident" "]")
         ),
         Ok(ast!({ find_form(&cse, "Type", "fn");
                    ["ret" => {find_form(&cse, "Type", "Ident") ; []},

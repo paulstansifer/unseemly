@@ -22,7 +22,6 @@ use grammar::{
     SynEnv,
 };
 use name::*;
-use read::{Token, TokenTree};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 // TODO: This UniqueId stuff is great, but we could make things faster
@@ -982,15 +981,15 @@ fn earley_simple_recognition() {
 
     // 1-length strings
 
-    assert_eq!(recognize(&*atom, &main_grammar, tokens_s!("Pierre Menard")), true);
+    assert_eq!(recognize(&*atom, &main_grammar, tokens_s!("Pierre_Menard")), true);
 
-    assert_eq!(recognize(&Impossible, &main_grammar, tokens_s!("Pierre Menard")), false);
+    assert_eq!(recognize(&Impossible, &main_grammar, tokens_s!("Pierre_Menard")), false);
 
     assert_eq!(
         recognize(
             &Literal(atom.clone(), n("Cervantes")),
             &main_grammar,
-            tokens_s!("Pierre Menard")
+            tokens_s!("Pierre_Menard")
         ),
         false
     );
@@ -1008,7 +1007,7 @@ fn earley_simple_recognition() {
         recognize(
             &Alt(vec![Rc::new(Impossible), atom.clone()]),
             &main_grammar,
-            tokens_s!("Pierre Menard")
+            tokens_s!("Pierre_Menard")
         ),
         true
     );
@@ -1017,7 +1016,7 @@ fn earley_simple_recognition() {
         recognize(
             &Alt(vec![Rc::new(Impossible), Rc::new(Literal(atom.clone(), n("Cervantes")))]),
             &main_grammar,
-            tokens_s!("Pierre Menard")
+            tokens_s!("Pierre_Menard")
         ),
         false
     );
@@ -1026,7 +1025,7 @@ fn earley_simple_recognition() {
         recognize(
             &Biased(Rc::new(Impossible), atom.clone()),
             &main_grammar,
-            tokens_s!("Pierre Menard")
+            tokens_s!("Pierre_Menard")
         ),
         true
     );
@@ -1035,7 +1034,7 @@ fn earley_simple_recognition() {
         recognize(
             &Biased(atom.clone(), Rc::new(Impossible)),
             &main_grammar,
-            tokens_s!("Pierre Menard")
+            tokens_s!("Pierre_Menard")
         ),
         true
     );
@@ -1046,7 +1045,7 @@ fn earley_simple_recognition() {
         recognize(
             &Seq(vec![Rc::new(Seq(vec![Rc::new(Seq(vec![atom.clone()]))]))]),
             &main_grammar,
-            tokens_s!("Frustrated Novelist No Good At Describing Hands")
+            tokens_s!("Frustrated_Novelist_No_Good_At_Describing_Hands")
         ),
         true
     );
@@ -1055,7 +1054,7 @@ fn earley_simple_recognition() {
         recognize(
             &Alt(vec![Rc::new(Alt(vec![Rc::new(Alt(vec![atom.clone()]))]))]),
             &main_grammar,
-            tokens_s!("(no pun intended, by the way)")
+            tokens_s!("(no_pun_intended,_by_the_way)") // What pun?
         ),
         true
     );
@@ -1064,7 +1063,7 @@ fn earley_simple_recognition() {
         recognize(
             &Plus(Rc::new(Plus(Rc::new(Plus(atom.clone()))))),
             &main_grammar,
-            tokens_s!("(except I might've changed it otherwise)")
+            tokens_s!("(except_I_might've_changed_it_otherwise)")
         ),
         true
     );
@@ -1075,7 +1074,7 @@ fn earley_simple_recognition() {
         recognize(
             &Seq(vec![atom.clone(), atom.clone(), atom.clone()]),
             &main_grammar,
-            tokens_s!("Author" "of the" "Quixote")
+            tokens_s!("Author" "of_the" "Quixote")
         ),
         true
     );
@@ -1093,7 +1092,7 @@ fn earley_simple_recognition() {
         recognize(
             &Seq(vec![atom.clone(), atom.clone(), atom.clone()]),
             &main_grammar,
-            tokens_s!("Author of" "the Quixote")
+            tokens_s!("Author_of" "the_Quixote")
         ),
         false
     );

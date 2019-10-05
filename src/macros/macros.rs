@@ -97,18 +97,8 @@ macro_rules! tokens_s {
         ""
     };
     ($($contents:tt)*) => {
-        &tokens!( $( $contents )* ).to_string()
+        &vec![ $( $contents ),* ].join(" ")
     }
-}
-
-macro_rules! tokens {
-    () => { TokenTree{t: vec![] }}; // To suppress a warning
-    ($($contents:tt)*) => { TokenTree{t: {
-            let mut tokens = vec![];
-            $(tokens.append(&mut t_elt!($contents)); )*
-            tokens
-        }
-    }};
 }
 
 macro_rules! t_elt {
