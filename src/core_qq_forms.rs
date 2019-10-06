@@ -222,6 +222,9 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
                             less_quoted_ty(&res, Some(nt), &ast_for_errors)?
                         } else {
                             // need a type annotation
+                            if !unquote_parts.has(n("ty_annot")) {
+                                ty_err!(AnnotationRequired (()) at unquote_parts.this_ast);
+                            }
                             let expected_type = unquote_parts.get_res(n("ty_annot"))?;
 
                             let mut ctxt_elt = expected_type.clone();
@@ -475,8 +478,9 @@ pub fn quote(pos: bool) -> Rc<Form> {
                         )]
                     }))
                 } else {
-                    // TODO: if the user accidentally omits the annotation,
-                    //  provide a good error message.
+                    if !quote_parts.has(n("ty_annot")) {
+                        ty_err!(AnnotationRequired (()) at quote_parts.this_ast);
+                    }
                     let expected_type = &quote_parts.get_res(n("ty_annot"))?;
 
                     // We're looking at things 1 level deeper:

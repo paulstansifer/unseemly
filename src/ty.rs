@@ -142,7 +142,9 @@ custom_derive! {
         NonexistentStructField(Name, Ty),
         NonExhaustiveMatch(Ty),
         UnableToDestructure(Ty, Name),
-        UnboundName(Name)
+        UnboundName(Name),
+        // TODO: the reification macros can't handle empty `enum` cases. Fix that!
+        AnnotationRequired(()),
     }
 }
 
@@ -182,6 +184,11 @@ impl ::std::fmt::Display for TyErr {
                 write!(f, "[UnableToDestructure] expected a `{}` type, got `{}`", expected_name, ty)
             }
             UnboundName(name) => write!(f, "[UnboundName] `{}` is not defined", name),
+            AnnotationRequired(()) => write!(
+                f,
+                "[AnnotationRequired] Negative syntax (e.g. a pattern) inside positive syntax \
+                 (e.g. an expression) requires a type annotation."
+            ),
         }
     }
 }

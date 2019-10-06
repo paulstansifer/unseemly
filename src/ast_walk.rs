@@ -552,6 +552,9 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         self.parts.get_leaf_or_panic(&part_name).get_res(self)
     }
 
+    /// Will `get_res` or `get_term` panic?
+    pub fn has(&self, part_name: Name) -> bool { self.parts.get_leaf(part_name).is_some() }
+
     /// Like `get_res`, but for subforms that are repeated at depth 1. Sort of a hack.
     pub fn get_rep_res(&self, part_name: Name) -> Result<Vec<<Mode::D as Dir>::Out>, Mode::Err> {
         self.parts.get_rep_leaf_or_panic(part_name).iter().map(|&lwt| lwt.get_res(self)).collect()
