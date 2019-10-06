@@ -242,6 +242,19 @@ pub fn make_core_syn_env() -> SynEnv {
 
             Ok(Struct(res))
         })),
+        typed_form!(
+            "tuple_expr",
+            (delim "**[", "[", (star (named "component", (call "Expr")))),
+            cust_rc_box!( move |part_types| {
+                Ok(uty!({tuple : [,
+                    part_types.get_rep_res(n("component"))?
+                        .into_iter().map(|t| t.concrete()).collect() ]}))
+            }),
+            cust_rc_box!( move |part_values| {
+                Ok(::runtime::eval::Value::Sequence(
+                    part_values.get_rep_res(n("component"))?.into_iter().map(Rc::new).collect()))
+            })
+        ),
         // e.g.
         // let_type
         //   pair = mu lhs rhs. {l: lhs, r: rhs}
@@ -436,7 +449,7 @@ pub fn make_core_syn_env() -> SynEnv {
                     _ => icp!("[type error] non-struct")
                 }
             }))  => [* ["component"]],
-
+            // TODO #16: We need a pattern for destructuring tuples.
             ::core_qq_forms::quote(/*positive=*/false) => ["body"]];
 
     let reserved_names = vec![
@@ -715,6 +728,13 @@ fn alg_type() {
         Ok(my_struct)
     );
 
+    // Typecheck tuple expression
+
+    assert_eq!(
+        synth_type(&u!({ tuple_expr: [x; f] }), simple_ty_env.clone()),
+        Ok(uty!({tuple : [{Int :}; {Float :}]}))
+    );
+
     // Simple match...
 
     assert_eq!(
@@ -815,6 +835,13 @@ fn alg_eval() {
             simple_env.clone()
         ),
         Ok(val!(b false))
+    );
+
+    // Evaluate tuple expression
+
+    assert_eq!(
+        eval(&u!({ tuple_expr: [x; b] }), simple_env.clone()),
+        Ok(val!(seq (i 18) (b false)))
     );
 }
 

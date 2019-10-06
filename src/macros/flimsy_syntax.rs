@@ -45,18 +45,25 @@ macro_rules! u {
         // Default to this, because `Call` will use whatever it's given, without a grammar:
         ::ast::VariableReference(n(stringify!($atom)))
     };
+    ( [ , $seq:expr ] ) => {
+        {
+            let mut contents: Vec<Ast> = $seq;
+            contents.insert(0, ::ast::Atom(n("REP")));
+            ::ast::Shape(contents)
+        }
+    };
     ( [ $( $ts:tt )*  ] ) => {
         u_rep!( [$($ts)*] [] {} )
     };
     ( { $form:ident : $( $ts:tt )*} ) => {
         {
-            ::macros::flimsy_syntax::default_nt.with(|def_nt| {
-                let f = ::core_forms::find_core_form(&def_nt.borrow(), stringify!($form));
-                ::ast::Node(f.clone(),
-                    ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
-                        .unwrap_or_else(::util::mbe::EnvMBE::new),
-                    ::beta::ExportBeta::Nothing)
-            })
+            let f = ::macros::flimsy_syntax::default_nt.with(|def_nt| {
+                ::core_forms::find_core_form(&def_nt.borrow(), stringify!($form))
+            });
+            ::ast::Node(f.clone(),
+                ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
+                    .unwrap_or_else(::util::mbe::EnvMBE::new),
+                ::beta::ExportBeta::Nothing)
         }
     };
     ( { $nt:ident $form:ident : $( $ts:tt )*} ) => {
@@ -124,7 +131,7 @@ macro_rules! u {
         }
     };
     ({ $( $anything:tt )* }) => {
-        panic!("Needed a : or ; in u!");
+        compile_error!("Needed a : or ; in u!");
     };
     // Currently, nested `Seq`s need to correspond to nested `SEQ`s, so this creates one explicitly:
     ((~ $($ts:tt)*)) => {
@@ -227,7 +234,7 @@ pub fn parse_flimsy_mbe(flimsy: &Ast, grammar: &FormPat) -> Option<EnvMBE<Ast>> 
         Star(ref body) | Plus(ref body) => match flimsy {
             Shape(flimsy_parts) => {
                 if flimsy_parts[0] != Atom(n("REP")) {
-                    panic!("Need a REP")
+                    panic!("Need a REP, got {}", flimsy_parts[0])
                 }
 
                 let mut reps = vec![];
@@ -236,7 +243,7 @@ pub fn parse_flimsy_mbe(flimsy: &Ast, grammar: &FormPat) -> Option<EnvMBE<Ast>> 
                 }
                 Some(EnvMBE::new_from_anon_repeat(reps))
             }
-            _ => panic!("Needed a REP shape"),
+            _ => panic!("Needed a REP shape, got {}", flimsy),
         },
         Alt(ref subs) => {
             // HACK: always pick the first branch of the `Alt`
