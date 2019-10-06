@@ -52,6 +52,7 @@ pub fn make_core_syn_env() -> SynEnv {
     let cmf: SynEnv = ::core_macro_forms::make_core_macro_forms();
 
     // This seems to be necessary to get separate `Rc`s into the closures.
+    // TODO: surely there's a better way?
     let ctf_0 = ctf.clone();
     let ctf_2 = ctf.clone();
     let ctf_3 = ctf.clone();
@@ -59,6 +60,7 @@ pub fn make_core_syn_env() -> SynEnv {
     let ctf_5 = ctf.clone();
     let ctf_6 = ctf.clone();
     let ctf_7 = ctf.clone();
+    let ctf_8 = ctf.clone();
 
     // Unseemly expressions
     let main_expr_forms = forms_to_form_pat![
@@ -449,6 +451,44 @@ pub fn make_core_syn_env() -> SynEnv {
                     _ => icp!("[type error] non-struct")
                 }
             }))  => [* ["component"]],
+        negative_typed_form!("tuple_pat",
+            (delim "**[", "[", (star (named "component", (call "Pat")))),
+            cust_rc_box!( move |part_types|
+                expect_ty_node!( (part_types.context_elt() ; find_type(&ctf_8, "tuple") ;
+                                    &part_types.this_ast)
+                    ctxt_type_parts;
+                    {
+                        let component_types : Vec<Ty> =
+                            ctxt_type_parts.get_rep_leaf_or_panic(n("component"))
+                                .iter().map(|a| Ty::new((*a).clone())).collect();
+
+                        let mut res = Assoc::new();
+                        for sub_res in &part_types
+                                .get_rep_res_with(n("component"), component_types)? {
+                            res = res.set_assoc(sub_res);
+                        }
+
+                        return Ok(res);
+
+                    }
+            )),
+            cust_rc_box!( move |part_values| {
+                match *part_values.context_elt() {
+                    Sequence(ref sub_vals) => {
+                        let sub_vals: Vec<Value> = sub_vals.iter()
+                            .map(|rcv: &Rc<Value>| (**rcv).clone()).collect();
+                        let mut res = Assoc::new();
+                        for sub_res in &part_values.get_rep_res_with(n("component"), sub_vals)? {
+                            res = res.set_assoc(sub_res);
+                        }
+
+                        Ok(res)
+                    }
+                    _ =>  icp!("[type error] non-tuple")
+                }
+            })
+
+        ) => [* ["component"]],
             // TODO #16: We need a pattern for destructuring tuples.
             ::core_qq_forms::quote(/*positive=*/false) => ["body"]];
 
@@ -772,6 +812,14 @@ fn alg_type() {
         ),
         Ok(ty!({"Type" "Int":}))
     );
+
+    assert_eq!(
+        synth_type(
+            &u!({match : my_tuple [{Pat tuple_pat => [* ["component"]] : [(at e1) ; (at e2)]} e1]}),
+            simple_ty_env.set(n("my_tuple"), uty!({tuple : [{Int :} ; {Float :}] }))
+        ),
+        Ok(uty!({Int :}))
+    )
 }
 
 #[test]
@@ -843,6 +891,14 @@ fn alg_eval() {
         eval(&u!({ tuple_expr: [x; b] }), simple_env.clone()),
         Ok(val!(seq (i 18) (b false)))
     );
+
+    assert_eq!(
+        eval(
+            &u!({match : my_tuple [{Pat tuple_pat => [* ["component"]] : [(at e1) ; (at e2)]} e1]}),
+            simple_env.set(n("my_tuple"), val!(seq (i 8) (i 3)))
+        ),
+        Ok(val!(i 8))
+    )
 }
 
 #[test]
