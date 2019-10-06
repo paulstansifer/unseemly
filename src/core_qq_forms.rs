@@ -11,7 +11,7 @@ use ty::Ty;
 use util::assoc::Assoc;
 use walk_mode::WalkMode;
 
-// A brief digression about types and syntax quotation...
+// == Types and syntax quotation: when are annotations needed? ==
 // Expressions are "positive", and are traversed leaf-to-root in an environment, producing a type.
 // Patterns are "negative", and are traversed root-to-leave from a type, producing an environment.
 // (`match` and `lambda` are examples of interactions between expressions and patterns.)
@@ -27,13 +27,14 @@ use walk_mode::WalkMode;
 //
 // Examples of needed annotation:
 //
-//   optimize_pat '[Pat <[List <[Int]<]< | (cons a b)]'
+//   (frobnicate_pat '[Pat <[List <[Int]<]< | (cons a b)]')
 // In this case, we need to know the type of the syntax quote,
 //  but the pattern wants to know its type so that it can tell us its environment.
 //
 //   match stx { '[Expr | 1 + 5 * ,[Expr <[Nat]< | stx_num], ]' => ... }
 // In this case (looking at the expression interpolation),
-//  we need to know the type of the interpolated expression syntax (a pattern)
+//  we need to know the type of the interpolated expression syntax
+//    (a pattern, even though it's a pattern *for* an expression)
 //   in order to type-synthesize the arithmetic.
 //
 //
@@ -42,9 +43,9 @@ use walk_mode::WalkMode;
 //   match stx { '[Expr | f x]' => ... }
 // In this case, we can check that the type of the scrutinee
 //  (which is the type of the syntax quotation pattern)
-//   equals Expr<[ (whatever `f` returns) ]<.
+//   equals `Expr<[ (whatever `f` returns) ]<`.
 //
-//   optimize_expr '[Expr | match stx { ,[Pat | my_pat], => ... } ]'
+//   optimize_expr '[Expr | match stx { ,[my_pat], => ... } ]'
 // In this case (looking at the Pat interpolation),
 //  we can check that the type of the quoted scrutinee is the same as
 //   the type of `my_pat` (after peeling off its `Pat <[]<`).
@@ -54,10 +55,10 @@ use walk_mode::WalkMode;
 
 // There's a nice-seeming syntax for determining what `unquote` does when quotation is nested.
 // However, it would require some weird additional power for the parser:
-//   '[Expr | '[Expr | ,[Expr | …], ,,[Expr | …],,]']'
+//   '[Expr | '[Expr | ,[…], ,,[…],, ]']'
 // OTOH, if you are using `,,,,[],,,,`, something has gone terribly wrong.
 
-// Opacity!
+// == Opacity! ==
 // Basically, ` ,[Expr <[T]< | a ], ` dumps an expression with the type `T` into the type checker,
 //  but at a different phase from where `T` was defined.
 // We don't want to capture the whole environment, but we do want the typechecker to be able
@@ -188,15 +189,16 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
             //  so it's optional
             Rc::new(if pos_quot {
                 form_pat!((delim form_delim_start, "[",
-                    [(lit_by_name nt), (named "nt", (anyways (, ::ast::VariableReference(nt)))),
-                     (alt [], (delim "<[", "[", (named "ty_annot", (call "Type")))),
-                     (lit "|"),
+                    [(named "nt", (anyways (, ::ast::VariableReference(nt)))),
+                     (alt [], [(lit_by_name nt),
+                               (delim "<[", "[", (named "ty_annot", (call "Type"))), (lit "|")]),
                      (named "body", (-- depth (call "Expr")))]))
             } else {
                 form_pat!((delim form_delim_start, "[",
-                    [(lit_by_name nt), (named "nt", (anyways (, ::ast::VariableReference(nt)))),
-                     (alt [], (delim "<[", "[", (named "ty_annot", (call "Type")))),
-                     (lit "|"),
+                    [(named "nt", (anyways (, ::ast::VariableReference(nt)))),
+                     (alt [], [(lit_by_name nt),
+                               (delim "<[", "[", (named "ty_annot", (call "Type"))),
+                               (lit "|")]),
                      (named "body", (-- depth (call "Pat")))]))
             }),
         type_compare: Positive(NotWalked), // this is not a type form

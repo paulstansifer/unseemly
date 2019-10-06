@@ -1,4 +1,6 @@
-Unseemly is the first typed macro language.
+## Philosophical pitch
+
+Unseemly is the first language that can safely typecheck all macros before expansion.
 
 I like to divide the design of programming languages into two main threads.
 There are other, equally-valid, ways of looking at them,
@@ -34,3 +36,17 @@ This means that typechecking happens on code with macros in it,
 So, just like a true Scheme, in Unseemly you don't know
  whether something is part of the language or whether it's a macro.
 And, just like a true ML, Unseemly's type errors are concise and useful.
+
+
+## Simple, comparative-PL pitch
+
+Unseemly is a language with ML-like types and Scheme-like macros.
+ In a sense, it's the first one.
+
+It's very small, and the syntax is weird,
+ but you can build a bigger, better language with the macros.
+The macros are typechecked before expansion,
+ so the programmer won't care what is a macro, and what's part of the core language.
+
+To my knowledge, Unseemly is the first language
+ where macros that bind names can be safely typechecked without expanding them.

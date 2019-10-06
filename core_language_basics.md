@@ -36,12 +36,12 @@ Probably, there's a reason that they have tokenizers
 
 * `[Nonterminal <[Type]< | whatever_that_nonterminal_represents ]` is syntax quotation.
     For example, `[Expr | (plus one one) ]`.
-    (The `<[Type]<` annotation is usually optional, but you need it for `Pat`).
+    (The `<[Type]<` annotation is usually optional†).
 
     * Inside a quotation, `,[Nonterminal <[Type]< | expr ],` is an unquotation.
-        For example `[Expr | (plus ,[Expr | syn_for_number], one)]` is the syntax for
+        For example `[Expr | (plus ,[syn_for_number], one)]` is the syntax for
         adding one to whatever `syn_for_number` represents.
-        (The `<[Type]<` annotation is usually optional, but you need it for `Pat`).
+        (The whole `Nt <[Type]< |` annotation is usually optional†).
     * Inside a quotation `...[x ⋯ >> whatever_that_nonterminal_represents ]...`
       is an abstract repetition;
       it's only valid at parts of the grammar that accept an arbitrary number of something.
@@ -51,6 +51,12 @@ Probably, there's a reason that they have tokenizers
 * `extend_syntax expr in extended_expr` is syntax extension.
     `expr` should define a function from the current syntax enviroment to a new syntax environment.
     `extended_expr` is an expression in that new environment.
+
+†The rule for when you need a type annotation is a little weird.
+You only need an annotation if the outside of the quotation/unquotation is an expression,
+ and the inside is a pattern.
+The confusing part is that *quotation depth does not matter*!
+Honestly, it's probably best to leave off type annotations unless the typechecker complains.
 
 ## Pre-defined values
 * `zero` through `ten` are integers. (What are these "literals" you speak of?)

@@ -451,7 +451,7 @@ pub fn freshening_from_beta(
 //                    leaf: Fn(&Ast ) -> S
 
 // TODO: Test negative quasiquotation (in a non end-to-end way):
-//   '[Expr | (plus one (plus one (plus ,[Expr | lhs], ,[Expr | rhs], )))]'
+//   '[Expr | (plus one (plus one (plus ,[lhs], ,[rhs], )))]'
 // #[test]
 // fn beta_with_negative_quasiquote() {
 //

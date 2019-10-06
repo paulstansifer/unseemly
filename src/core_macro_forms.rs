@@ -31,9 +31,9 @@ use walk_mode::WalkElt;
 //             (lit then) ,{Expr <[T]< | then_e},
 //             (lit else) ,{Expr <[T]< | else_e}, }'
 //         conditional ->
-//         '[Expr | match ,[Expr | cond], {
-//             +[True]+ => ,[Expr | then_e],
-//             +[False]+ => ,[Expr | else_e], } ]'
+//         '[Expr | match ,[cond], {
+//             +[True]+ => ,[then_e],
+//             +[False]+ => ,[else_e], } ]'
 //     in
 //         if (zero? five) then three else eight
 //
@@ -928,7 +928,7 @@ fn define_and_parse_macros() {
                      body := ( ,{ Expr <[ Int ]< }, )
                    lit ,{ DefaultToken }, = ]
                  ]
-             }' add_one__macro -> .{ '[ Expr | (plus one ,[ Expr | body], ) ]' }. ;
+             }' add_one__macro -> .{ '[ Expr | (plus one ,[body], ) ]' }. ;
         in [ [ [ one ] ] ]",
     )
     .unwrap();

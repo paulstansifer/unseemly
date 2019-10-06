@@ -574,7 +574,7 @@ fn end_to_end_quotation_advanced() {
     assert_eq!(
         eval_unseemly_program(
             "(.[five_e : Expr <[Int]< .
-                '[Expr | (plus five ,[Expr | five_e],) ]' ].
+                '[Expr | (plus five ,[five_e],) ]' ].
                 '[Expr | five]')"
         ),
         eval_unseemly_program("'[Expr | (plus five five) ]'")
@@ -584,7 +584,7 @@ fn end_to_end_quotation_advanced() {
     assert_m!(
         type_unseemly_program(
             "(.[five_e : Expr <[Int]< .
-                '[Expr | (plus five ,[Expr | five_e],) ]' ].
+                '[Expr | (plus five ,[five_e],) ]' ].
                 '[Expr | true]')"
         ),
         Err(_)
@@ -594,7 +594,7 @@ fn end_to_end_quotation_advanced() {
     assert_m!(
         type_unseemly_program(
             "(.[five_e : Expr <[Bool]< .
-                '[Expr | (plus five ,[Expr | five_e],) ]' ].
+                '[Expr | (plus five ,[five_e],) ]' ].
                 '[Expr | true]')"
         ),
         Err(_)
@@ -602,16 +602,14 @@ fn end_to_end_quotation_advanced() {
 
     // Interpolate the wrong type (no application needed to find the error)
     assert_m!(
-        type_unseemly_program(
-            ".[five_e : Expr <[Bool]< . '[Expr | (plus five ,[Expr | five_e],) ]' ]."
-        ),
+        type_unseemly_program(".[five_e : Expr <[Bool]< . '[Expr | (plus five ,[five_e],) ]' ]."),
         Err(_)
     );
 
     assert_m!(
         eval_unseemly_program(
             "forall T . .[type : Type <[T]<   rhs : Expr <[T]<
-                . '[Expr | (.[x : ,[Type <[T]< | type], . eight].  ,[Expr | rhs], )]' ]."
+                . '[Expr | (.[x : ,[Type <[T]< | type], . eight].  ,[rhs], )]' ]."
         ),
         Ok(_)
     );
@@ -638,9 +636,9 @@ fn end_to_end_quotation_advanced() {
                         type : Type <[T]<
                         rhs : Expr <[T]<
                         body : Expr <[S]< .
-             '[ Expr | (.[x : ,[Type | type],
-                     . match x { ,[Pat <[T]< | binder], => ,[Expr | body], } ].
-                 ,[Expr | rhs],)]' ]."
+             '[ Expr | (.[x : ,[type],
+                     . match x { ,[Pat <[T]< | binder], => ,[body], } ].
+                 ,[rhs],)]' ]."
         ),
         Ok(_)
     );
@@ -663,8 +661,8 @@ fn end_to_end_quotation_advanced() {
     //                     body : Expr <[S]< .
     //          '[Expr | (.[ ...[, binder , >> ,[Ident | binder],]...
     //                       : ...[, type , >> ,[Type | type], ]... .
-    //                    ,[Expr | body], ].
-    //                      ...[, Expr , | ,[Expr | rhs], ]... ) ]'
+    //                    ,[body], ].
+    //                      ...[, Expr , | ,[rhs], ]... ) ]'
     //                       "),
     //       Ok(_));
 
