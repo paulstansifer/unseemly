@@ -30,9 +30,21 @@ macro_rules! u_rep {
     ([]  [ $( $acc_cur:tt )* ] { $( [ $( $acc_rest:tt )* ] )* }) => {
         ::ast::Shape(vec![
             ::ast::Atom(n("REP")),
-            $( u!( $($acc_rest)* ), )*
-            u!( $($acc_cur)* )
+            $( u_shape_if_many!(  $($acc_rest)* ), )*
+            u_shape_if_many!(  $($acc_cur)* )
         ])
+    };
+}
+
+macro_rules! u_shape_if_many {
+    ($t:tt) => {
+        u!($t)
+    };
+    () => {
+        compile_error!("empty u!")
+    };
+    ( $($ts:tt)* ) => {
+        u!((~ $($ts)* ))
     };
 }
 
@@ -90,13 +102,13 @@ macro_rules! u {
     //  that information is part of `Scope`, not `Form` (maybe we should change that?)
     ( { $form:ident => $ebeta:tt : $( $ts:tt )*} ) => {
         {
-            ::macros::flimsy_syntax::default_nt.with(|def_nt| {
-                let f = ::core_forms::find_core_form(&def_nt.borrow(), stringify!($form));
-                ::ast::Node(f.clone(),
-                    ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
-                        .unwrap_or_else(::util::mbe::EnvMBE::new),
-                    ebeta!($ebeta))
-            })
+            let f = ::macros::flimsy_syntax::default_nt.with(|def_nt| {
+                ::core_forms::find_core_form(&def_nt.borrow(), stringify!($form))
+            });
+            ::ast::Node(f.clone(),
+                ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
+                    .unwrap_or_else(::util::mbe::EnvMBE::new),
+                ebeta!($ebeta))
         }
     };
     ( { $nt:ident $form:ident => $ebeta:tt : $( $ts:tt )*} ) => {
@@ -149,7 +161,7 @@ macro_rules! u {
     ((, $interpolate:expr)) => {
         $interpolate
     };
-    // Two or more token trees (avoid infinite regress)
+    // Two or more token trees (avoid infinite regress by not handling the one-element case)
     ( $t_first:tt $t_second:tt $( $t:tt )* ) => {
         ::ast::Shape(vec![
             ::ast::Atom(n("SEQ")),

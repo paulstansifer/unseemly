@@ -8,7 +8,7 @@
 // non_upper_case_globals is stylistic; I like my thread_local!s lowercase.
 #![recursion_limit = "128"] // Yikes.
 
-// unstable; only for testing
+// for testing; requires `cargo +nightly`
 // #![feature(log_syntax, trace_macros)]
 // trace_macros!(true);
 
