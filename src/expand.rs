@@ -109,8 +109,8 @@ fn expand_basic_macros() {
         "body" => (++ true (,u!({apply : plus [one ; { uqef.clone(); (~) e}]})))});
 
     let macro_def_1_arg = u!({Syntax scope :
-        [] {seq : [{literal => [] : {call : DefaultToken} add_1} ;
-                   {named => ["part_name"] : e {call : Expr}}] }
+        [] {seq => [* ["elt"]] : [{literal => [] : {call : DefaultToken} add_1} ;
+                                  {named => ["part_name"] : e {call : Expr}}] }
         add_1_macro
         (,macro_body_1_arg.clone())
     });
@@ -144,10 +144,10 @@ fn expand_basic_macros() {
             [{ uqpf.clone(); (~) let_pat } {uqef.clone(); (~) let_body}]})))});
 
     let macro_def_let = u!({Syntax scope :
-        [T; S] {seq : [{literal => [] : {call : DefaultToken} let} ;
-                       {named => ["part_name"] : let_pat {call : Pat}} ;
-                       {named => ["part_name"] : let_val {call : Expr}} ;
-                       {named => ["part_name"] : let_body {call : Expr}}] }
+        [T; S] {seq => [* ["elt"]] : [{literal => [] : {call : DefaultToken} let} ;
+                                      {named => ["part_name"] : let_pat {call : Pat}} ;
+                                      {named => ["part_name"] : let_val {call : Expr}} ;
+                                      {named => ["part_name"] : let_body {call : Expr}}] }
         let_macro
         (,macro_body_let.clone())
     });
@@ -174,5 +174,52 @@ fn expand_basic_macros() {
             {apply : times [x ; eight]} // let_body
         })),
         Ok(u!({match : five [x {apply : times [x ; eight]}]}))
+    );
+
+    // An n-ary let macro:
+
+    let dddef = ::core_qq_forms::dotdotdot_form(n("Expr"));
+    let dddpf = ::core_qq_forms::dotdotdot_form(n("Pat"));
+
+    let macro_body_nary_let = ast!({"Expr" "quote_expr" : "nt" => (vr "Expr"),
+     "body" => (++ true (, u!(
+         {match : {tuple_expr : [{dddef.clone() ; [(~ let_val)] { uqef.clone(); (~) let_val}}]}
+            [{Pat tuple_pat : [{dddpf.clone() ; [(~ let_pat)] { uqpf.clone(); (~) let_pat }}]} 
+             { uqef.clone(); (~) let_body}]})))});
+
+    let macro_def_nary_let = u!({Syntax scope :
+        [T; S] {seq => [* ["elt"]] :
+            [{literal => [] : {call : DefaultToken} let} ;
+             {star => ["body"] : {named => ["part_name"] : let_pat {call : Pat}}} ;
+             {star => ["body"] : {named => ["part_name"] : let_val {call : Expr}}} ;
+             {named => ["part_name"] : let_body {call : Expr}}] }
+        nary_let_macro
+        (,macro_body_nary_let.clone())
+    });
+
+    // Full of closures, so hard to compare:
+    assert_m!(::runtime::eval::eval_top(&macro_def_nary_let), Ok(_));
+
+    assert_eq!(
+        expand(&u!({
+            ::core_macro_forms::macro_invocation(
+                // duplicates the syntax syntax above
+                form_pat!([(lit "let"), (star (named "let_pat", (call "Pat"))),
+                           (star (named "let_val", (call "Expr"))),
+                           (named "let_body", (call "Expr"))]),
+                n("nary_let_macro"),
+                ::runtime::eval::Closure {
+                    body: macro_body_nary_let,
+                    params: vec![n("let_val"), n("let_pat"), n("let_body")],
+                    env: Assoc::new(),
+                },
+                vec![],
+            );
+            [x; y] // let_pat
+            [five; seven] // let_val
+            {apply : times [x ; eight]} // let_body
+        })),
+        Ok(u!({match : {tuple_expr : [five; seven]}
+            [{Pat tuple_pat : [x; y]} {apply : times [x; eight]}]}))
     );
 }

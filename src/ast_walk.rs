@@ -584,6 +584,26 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         )
     }
 
+    /// Like `get_term`, but with `depth` levels of repetition, and calling `m` to map and `f` to
+    /// flatten the result
+    pub fn map_flatten_term_at_depth<S>(
+        &self,
+        part_name: Name,
+        depth: u8,
+        m: &dyn Fn(&Ast) -> S,
+        f: &dyn Fn(Vec<S>) -> S,
+    ) -> S
+    {
+        self.parts.map_flatten_rep_leaf_or_panic(
+            part_name,
+            depth,
+            &|lwt: &Rc<LazilyWalkedTerm<Mode>>| -> S {
+                return m(&lwt.term);
+            },
+            f,
+        )
+    }
+
     // /** Like `get_rep_res`, but doesn't panic if the name is absent. */
     // pub fn maybe_get_rep_res(&self, part_name: &Name) -> Option<Result<Vec<<Mode::D as Dir>::Out>, Mode::Err>> {
     //     self.parts.get_rep_leaf(part_name).map(|parts|

@@ -255,15 +255,22 @@ pub fn macro_invocation(
         ),
         // Kind of a HACK, but we re-use `eval` instead of having a separate field.
         eval: ::form::Positive(cust_rc_box!(move |parts| {
-            // This code is basically the same as for "apply".
+            use runtime::eval::Value;
+            // This code is like that for "apply".
             let mut env = implementation.env.clone();
-            for param in &implementation.params {
+            for (param, depth) in &grammar.binders() {
                 let nt = grammar.find_named_call(*param).unwrap();
 
                 if nt != n("DefaultName") && nt != n("Ident") {
-                    // TODO: why not?
-                    env =
-                        env.set(*param, ::runtime::eval::Value::from_ast(&parts.get_term(*param)));
+                    // TODO: why not for those two NTs?
+                    let rhs = parts.map_flatten_term_at_depth(
+                        *param,
+                        *depth,
+                        &Value::from_ast,
+                        &|vec: Vec<Value>| Value::Sequence(vec.into_iter().map(Rc::new).collect()),
+                    );
+
+                    env = env.set(*param, rhs);
                 }
             }
             let expanded = Ast::reflect(&::runtime::eval::eval(&implementation.body, env)?);

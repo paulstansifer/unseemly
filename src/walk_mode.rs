@@ -175,6 +175,9 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
                     _ => None,
                 });
 
+                // TODO: it should be a type error (or at least an obvious runtime error)
+                // to put a splice (i.e. a `...[]...`) somewhere it can't be healed.
+
                 Ok(<Self::Mode as WalkMode>::Elt::from_ast(&Node(f, walked, exports)))
             }
             orig => {
