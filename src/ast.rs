@@ -164,6 +164,28 @@ impl Ast {
             _ => icp!(),
         }
     }
+
+    pub fn free_vrs(&self) -> Vec<Name> {
+        match *self {
+            Trivial | Atom(_) => vec![],
+            VariableReference(v) => vec![v],
+            Shape(_) | IncompleteNode(_) => unimplemented!("TODO"),
+            QuoteLess(_, _) | QuoteMore(_, _) => unimplemented!("TODO"),
+            // This one is actually encounterable by real-world code
+            //  (if a ∀ somehow ends up underneath a `*` in syntax.)
+            // And we need to take a LazyWalkReses to do this right.
+            ExtendEnv(_, _) => unimplemented!("TODO"),
+            Node(_, ref body, _) => body.map_reduce(
+                &|a| a.free_vrs(),
+                &|v0, v1| {
+                    let mut res = v0.clone();
+                    res.append(&mut v1.clone());
+                    res
+                },
+                vec![],
+            ),
+        }
+    }
 }
 
 // This is used by combine::many, which is used by the Star parser

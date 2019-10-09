@@ -202,6 +202,16 @@ impl<K: Eq + Hash + Clone, V: Clone> Assoc<K, V> {
     }
 }
 
+impl<K: Eq + Hash + Clone, V: Clone, E: Clone> Assoc<K, Result<V, E>> {
+    pub fn lift_result(self) -> Result<Assoc<K, V>, E> {
+        let mut oks = vec![];
+        for (k, res_v) in self.hamt.into_iter() {
+            oks.push((k, res_v?))
+        }
+        Ok(Assoc::<K, V>::from_hamt(HashMap::from(oks)))
+    }
+}
+
 #[test]
 fn basic_assoc() {
     let mt: Assoc<i32, i32> = Assoc::new();

@@ -282,6 +282,27 @@ pub fn macro_invocation(
     })
 }
 
+/// What should `t` be, if matched under a repetition?
+/// A tuple, driven by whatever names are `forall`ed in `env`.
+fn repeated_type(t: &Ty, env: &Assoc<Name, Ty>) -> Result<Ty, ::ty::TypeError> {
+    let mut drivers = vec![];
+    for v in t.0.free_vrs() {
+        if env.find(&v) == Some(&Ty(::ast::VariableReference(v))) {
+            drivers.push(::ast::VariableReference(v));
+        }
+    }
+
+    if drivers.is_empty() {
+        ty_err!(NeedsDriver (()) at t.0);
+    }
+
+    Ok(ty!({"Type" "tuple" :
+    "component" => [{"Type" "dotdotdot" :
+        "driver" => (,seq drivers),
+        "body" => (, t.0.clone())
+    }]}))
+}
+
 pub fn make_core_macro_forms() -> SynEnv {
     let trivial_type_form = ::core_type_forms::type_defn("unused", form_pat!((impossible)));
 
@@ -398,8 +419,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         syntax_syntax!( ([(named "body", (call "Syntax")), (lit "*")]) Star {
             |parts| {
                 let body : Assoc<Name, Ty> = parts.get_res(n("body"))?;
-                let seq_body = body.map(::runtime::reify::sequence_type__of);
-                Ok(seq_body)
+                body.map(|t| repeated_type(t, &parts.env)).lift_result()
             }
         } {
             |parts| {
@@ -409,8 +429,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         syntax_syntax!( ([(named "body", (call "Syntax")), (lit "+")]) Plus {
             |parts| {
                 let body : Assoc<Name, Ty> = parts.get_res(n("body"))?;
-                let seq_body = body.map(::runtime::reify::sequence_type__of);
-                Ok(seq_body)
+                body.map(|t| repeated_type(t, &parts.env)).lift_result()
             }
         } {
             |parts| {
@@ -702,16 +721,16 @@ fn formpat_reflection() {
 #[test]
 fn macro_definitions() {
     let int_expr_type = uty!({type_apply : (prim Expr) [{Int :}]});
-    let env = assoc_n!("ie" => int_expr_type.clone()).set(negative_ret_val(), ty!((trivial)));
+    let env = assoc_n!("ie" => int_expr_type.clone(), "T" => uty!(T))
+        .set(negative_ret_val(), ty!((trivial)));
 
     assert_eq!(
         ::ty::neg_synth_type(
             &u!({Syntax star => ["body"] :
-                {named => ["part_name"] : x {call_with_type : Expr {Type Int :}}}}),
+                {named => ["part_name"] : x {call_with_type : Expr T}}}),
             env.clone()
         ),
-        Ok(assoc_n!("x" => ::runtime::reify::sequence_type__of(
-            &int_expr_type)))
+        Ok(assoc_n!("x" => uty!({tuple : [{dotdotdot : [T] {type_apply : (prim Expr) [T]}}]})))
     );
 
     let t_expr_type = uty!({type_apply : (prim Expr) [T]});

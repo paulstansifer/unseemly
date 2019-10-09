@@ -143,8 +143,10 @@ custom_derive! {
         NonExhaustiveMatch(Ty),
         UnableToDestructure(Ty, Name),
         UnboundName(Name),
+        // Maybe we should just have an `Other` for weird one-offs?
         // TODO: the reification macros can't handle empty `enum` cases. Fix that!
         AnnotationRequired(()),
+        NeedsDriver(())
     }
 }
 
@@ -189,6 +191,7 @@ impl ::std::fmt::Display for TyErr {
                 "[AnnotationRequired] Negative syntax (e.g. a pattern) inside positive syntax \
                  (e.g. an expression) requires a type annotation."
             ),
+            NeedsDriver(()) => write!(f, "[NeedsDriver] Repetition needs a driver"),
         }
     }
 }
