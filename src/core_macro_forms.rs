@@ -355,7 +355,10 @@ pub fn make_core_macro_forms() -> SynEnv {
         syntax_syntax!( ((lit "impossible")) Impossible ) => [],
         syntax_syntax!( (  // TODO: this might have to be both positive and negative
             [(lit "lit"), (named "body", (call "Syntax")),
-             (lit "="), (named "expected", atom)] ) Literal {
+             // TODO: Why can't these `scan`s be joined into `(scan r"\s*'([^']+)'")`?
+             // TODO: Allow escaped `'`s! And other things, presumably.
+             (lit "="), (scan r"(\s*')"), (named "expected", (scan r"([^']+)")), (scan r"(')")] )
+        Literal {
             |parts| {
                 parts.get_res(n("body"))
             }
@@ -489,12 +492,12 @@ pub fn make_core_macro_forms() -> SynEnv {
         Rc::new(Form {
             name: n("import"),
             grammar: Rc::new(form_pat!(
-                // TODO: we need syntax for a full-on beta
                 [(named "body", (call "Syntax")), (lit "<--"), (named "imported", (call "Beta"))])),
             type_compare: ::form::Both(NotWalked,NotWalked), // Not a type
             synth_type: Both(cust_rc_box!(|parts| {
                 parts.get_res(n("body"))
-            }), NotWalked),
+            }),
+            cust_rc_box!(|_| panic!("TODO prevent `import`s outside of `named`s"))),
             eval: ::form::Positive(cust_rc_box!(|parts| {
                 Ok(NameImport(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?)),
                               ::beta::Beta::reflect(&parts.get_res(n("imported"))?)).reify())
@@ -680,14 +683,14 @@ fn formpat_reflection() {
     };
 
     assert_eq!(string_to_form_pat(r"/\s*(\S+)/"), ::grammar::new_scan(r"\s*(\S+)"));
-    assert_eq!(string_to_form_pat(r"lit /\s*(\S+)/ = x"), form_pat!((lit_aat "x")));
+    assert_eq!(string_to_form_pat(r"lit /\s*(\S+)/ = 'x'"), form_pat!((lit_aat "x")));
     assert_eq!(
-        string_to_form_pat(r"[ lit /\s*(\S+)/ = write_this ,{ Expr <[ Int ]< }, <-- nothing ]"),
+        string_to_form_pat(r"[ lit /\s*(\S+)/ = 'write_this' ,{ Expr <[ Int ]< }, <-- nothing ]"),
         form_pat!([(lit_aat "write_this"), (import [], (call "Expr"))])
     );
 
     assert_eq!(
-        string_to_form_pat(r"[ lit /\s*(\S+)/ = write_this ,{ Expr <[ Int ]< }, <-- a : b ]"),
+        string_to_form_pat(r"[ lit /\s*(\S+)/ = 'write_this' ,{ Expr <[ Int ]< }, <-- a : b ]"),
         form_pat!([(lit_aat "write_this"), (import ["a" : "b"], (call "Expr"))])
     );
     assert_eq!(
@@ -931,9 +934,9 @@ fn define_and_parse_macros() {
         (ty_ctxt, ev_ctxt),
         "extend_syntax
              Expr ::=also forall T . '{
-                 [ lit ,{ DefaultToken }, = [
+                 [ lit ,{ DefaultToken }, = '['
                      body := ( ,{ Expr <[ Int ]< }, )
-                   lit ,{ DefaultToken }, = ]
+                   lit ,{ DefaultToken }, = ']'
                  ]
              }' add_one__macro -> .{ '[ Expr | (plus one ,[body], ) ]' }. ;
         in [ [ [ one ] ] ]",

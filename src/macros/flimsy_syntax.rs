@@ -7,6 +7,8 @@
 // It's weird to be relying on the grammar while ignoring parts of it, hence "flimsy",
 //  but errors are much more likely to be compile-time than inscrutable test problems.
 
+// It's not unsafe to use `u!` for runtime operations, but there's a runtime cost, so don't do it.
+
 use ast::Ast::{self, *};
 use grammar::FormPat;
 use name::*;
@@ -232,6 +234,7 @@ pub fn parse_flimsy_mbe(flimsy: &Ast, grammar: &FormPat) -> Option<EnvMBE<Ast>> 
 
     match grammar {
         Literal(_, _) => None,
+        Scan(_) => None,
         Seq(_) => match flimsy {
             Shape(flimsy_parts) => {
                 if flimsy_parts[0] != Atom(n("SEQ")) {
@@ -277,6 +280,7 @@ fn parse_flimsy_ast(flimsy: &Ast, grammar: &FormPat) -> Ast {
     match grammar {
         Anyways(ref a) => a.clone(),
         Impossible => unimplemented!(),
+        Scan(_) => flimsy.clone(),
         Literal(_, _) => Trivial,
         VarRef(_) => match flimsy {
             VariableReference(a) => VariableReference(*a),
@@ -299,6 +303,6 @@ fn parse_flimsy_ast(flimsy: &Ast, grammar: &FormPat) -> Ast {
                 flimsy.clone()
             }
         }
-        _ => unimplemented!(),
+        _ => unimplemented!("Can't handle {:?}", grammar),
     }
 }

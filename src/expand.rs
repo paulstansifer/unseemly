@@ -79,7 +79,7 @@ fn expand_basic_macros() {
     let uqpf = ::core_qq_forms::unquote_form(n("Pat"), true, 1);
 
     let macro_def_0_args = u!({Syntax scope :
-        [] {literal => [] : {call : DefaultToken} just_add_1_and_2}
+        [] {literal => [] : {call : DefaultToken} (at just_add_1_and_2)}
         just_add_1_and_2_macro
         (,macro_body_0_args.clone())
     });
@@ -109,7 +109,7 @@ fn expand_basic_macros() {
         "body" => (++ true (,u!({apply : plus [one ; { uqef.clone(); (~) e}]})))});
 
     let macro_def_1_arg = u!({Syntax scope :
-        [] {seq => [* ["elt"]] : [{literal => [] : {call : DefaultToken} add_1} ;
+        [] {seq => [* ["elt"]] : [{literal => [] : {call : DefaultToken} (at add_1)} ;
                                   {named => ["part_name"] : e {call : Expr}}] }
         add_1_macro
         (,macro_body_1_arg.clone())
@@ -144,7 +144,7 @@ fn expand_basic_macros() {
             [{ uqpf.clone(); (~) let_pat } {uqef.clone(); (~) let_body}]})))});
 
     let macro_def_let = u!({Syntax scope :
-        [T; S] {seq => [* ["elt"]] : [{literal => [] : {call : DefaultToken} let} ;
+        [T; S] {seq => [* ["elt"]] : [{literal => [] : {call : DefaultToken} (at let)} ;
                                       {named => ["part_name"] : let_pat {call : Pat}} ;
                                       {named => ["part_name"] : let_val {call : Expr}} ;
                                       {named => ["part_name"] : let_body {call : Expr}}] }
@@ -189,7 +189,7 @@ fn expand_basic_macros() {
 
     let macro_def_nary_let = u!({Syntax scope :
         [T; S] {seq => [* ["elt"]] :
-            [{literal => [] : {call : DefaultToken} let} ;
+            [{literal => [] : {call : DefaultToken} (at let)} ;
              {star => ["body"] : {named => ["part_name"] : let_pat {call : Pat}}} ;
              {star => ["body"] : {named => ["part_name"] : let_val {call : Expr}}} ;
              {named => ["part_name"] : let_body {call : Expr}}] }
