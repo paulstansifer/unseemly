@@ -300,7 +300,18 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
 }
 
 // Macro By Example transcription. TODO: currently positive-only
-
+// There are two parts to the way that Macro By Example works in Unseemly.
+//
+// The first is the types and how to construct them:
+//  If `T` is `**[Int Float]**,
+//   then `:::[T >> Expr <[T]< ]:::` is `Expr <[Int]<  Expr<[Float]<`.
+//  Note that that is two types in a row, not a tuple! (On its own, `:::[]:::` is not a valid type.)
+//   (TODO: enforce not being able to write dotdotdot types on their own.)
+//   `[:::[T >> Expr<[T]<]::: Int -> Int]` is a three-argument function!
+//  If you match syntax under a `*`, you'll get something like `**[:::[T >> Expr <[T]< ]:::]**`.
+//
+// The second is how we use them:
+//  In a syntax quotation, you can write `...[, x , >> some_syntax]...`
 pub fn dotdotdot(nt: Name) -> Rc<FormPat> {
     Rc::new(FormPat::Scope(dotdotdot_form(nt), ::beta::ExportBeta::Nothing))
 }

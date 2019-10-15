@@ -322,6 +322,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
     // TODO: we'll need dotdotdot inside betas, also, huh?
     // Note that we shouldn't try a custom subtyping implementation here;
     //  `match_dotdotdot` eliminates this form entirely. (TODO #13)
+    // TODO: if the drivers are concrete, type synthesis should expand this away (similar to ∀).
     let dotdotdot_type = type_defn(
         "dotdotdot",
         form_pat!((delim ":::[", "[", [(star (named "driver", varref)), (lit ">>"),

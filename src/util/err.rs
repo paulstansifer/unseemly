@@ -11,11 +11,12 @@ custom_derive! {
 pub fn sp<T>(t: T, a: ::ast::Ast) -> Spanned<T> { Spanned { loc: a, body: t } }
 
 impl<T: Display> Display for Spanned<T> {
-    fn fmt(&self, f: &mut Formatter) -> Result { write!(f, "{} at {:#?}", self.body, self.loc) }
+    fn fmt(&self, f: &mut Formatter) -> Result { write!(f, "{} at {}", self.body, self.loc) }
 }
 
-impl<T: Debug> Debug for Spanned<T> {
-    fn fmt(&self, f: &mut Formatter) -> Result { write!(f, "{:#?} at {:#?}", self.body, self.loc) }
+// Force pretty version
+impl<T: Display> Debug for Spanned<T> {
+    fn fmt(&self, f: &mut Formatter) -> Result { write!(f, "{} at {}", self.body, self.loc) }
 }
 
 // impl<T: From<()>> From<()> for Spanned<T> {
