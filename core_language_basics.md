@@ -25,7 +25,7 @@ Probably, there's a reason that they have tokenizers
 
 * `*[component : expr ⋯]*` constructs a structure value.
 
-* `foall X ⋯ . expr` abstracts over a type. It is typically used around lambdas.
+* `forall X ⋯ . expr` abstracts over a type. It is typically used around lambdas.
 
 * `unfold expr` pulls one layer of `mu` off a recursively-typed value.
     It is almost exclusively used for the scrutinee in `match`.
@@ -40,13 +40,13 @@ Probably, there's a reason that they have tokenizers
 
     * Inside a quotation, `,[Nonterminal <[Type]< | expr ],` is an unquotation.
         For example `[Expr | (plus ,[syn_for_number], one)]` is the syntax for
-        adding one to whatever `syn_for_number` represents.
+         adding one to whatever `syn_for_number` represents.
         (The whole `Nt <[Type]< |` annotation is usually optional†).
     * Inside a quotation `...[x ⋯ >> whatever_that_nonterminal_represents ]...`
-      is an abstract repetition;
-      it's only valid at parts of the grammar that accept an arbitrary number of something.
+       is an abstract repetition;
+       it's only valid at parts of the grammar that accept an arbitrary number of something.
       `x` must have been parsed under some kind of repetition; this expands `x` to its components,
-      duplicating everything else.
+       duplicating everything else.
       It will usually contain an unquotation immediately inside it.
 * `extend_syntax expr in extended_expr` is syntax extension.
     `expr` should define a function from the current syntax enviroment to a new syntax environment.
@@ -55,7 +55,8 @@ Probably, there's a reason that they have tokenizers
 †The rule for when you need a type annotation is a little weird.
 You only need an annotation if the outside of the quotation/unquotation is an expression,
  and the inside is a pattern.
-The confusing part is that *quotation depth does not matter*!
+The confusing part is that *whether* it's a quotation or unquotation is irrelevant!
+ (Except that when an unquotation doesn't need an annotation, it needs no `Nonterminal` at all.)
 Honestly, it's probably best to leave off type annotations unless the typechecker complains.
 
 ## Pre-defined values
@@ -107,6 +108,7 @@ Honestly, it's probably best to leave off type annotations unless the typechecke
 
 *  fact.≉ takes 5 factorial
     Demonstrates recursion with `fix`
+
 *  sum_list.≉ sums the list "1, 2, 3"
     Demonstrates `let_type`, `match`, `fold`, `unfold`, and the need for a macro system.
 

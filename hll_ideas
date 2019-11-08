@@ -20,5 +20,7 @@
   (https://klausi.github.io/rustnish/2019/03/31/mocking-in-rust-with-conditional-compilation.html)
 * a simple syntax for trait-directed `.` resolution: `something.Trait::member()`
   (https://twitter.com/myrrlyn/status/1133799922082492416)
+* package-manager level CI: can we enforce an "at least it compiles" subset of semvar
+  by looking at the types of interfaces and verifying compilation before publishing a version?
 
 - example systems I've heard good things about: ggplot, R

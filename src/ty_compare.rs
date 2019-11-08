@@ -102,7 +102,7 @@ use walk_mode::WalkMode;
 
 /// Follow variable references in `env` and underdeterminednesses in `unif`
 ///  until we hit something that can't move further.
-/// TODO: could this be replaced by `synth_type`? Can `canonicalize` be replaced by it, too?
+/// TODO #28: could this be replaced by `SynthTy`?
 /// TODO: This doesn't change `env`, and none of its clients care. It should just return `Ty`.
 pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Clo<Ty> {
     let u_f = underdetermined_form.with(|u_f| u_f.clone());
@@ -237,7 +237,7 @@ custom_derive! {
     pub struct Subtype {}
 }
 
-// TODO: Canonicalization is almost the same thing as `SynthTy`.
+// TODO #28: Canonicalization is almost the same thing as `SynthTy`.
 // Try to replace it with `SynthTy` and see what happens.
 impl WalkMode for Canonicalize {
     fn name() -> &'static str { "Canon" }
