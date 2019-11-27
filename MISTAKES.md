@@ -11,7 +11,7 @@ If I had to do it all over again...
 * There are so many variations on maps and reduces in mbe.rs,
   and pretty much all of them are used once.
   I think something visitor-pattern-like might be able to unify them?
-* I'm not sure that `Ty` being a separate type from `Ast` has had any benefit.
+* I'm not sure that `Ty` being a separate type from `Ast` has had any benefit. (Issue #30)
 * I think `FormPat` is more like a language than I realized.
   It seems to have positive and negative forms, mediated by `Scope` and `Named`.
   There might need to be more structure, to enforce what can go where,
