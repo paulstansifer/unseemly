@@ -143,10 +143,11 @@ custom_derive! {
         NonExhaustiveMatch(Ty),
         UnableToDestructure(Ty, Name),
         UnboundName(Name),
-        // Maybe we should just have an `Other` for weird one-offs?
         // TODO: the reification macros can't handle empty `enum` cases. Fix that!
         AnnotationRequired(()),
-        NeedsDriver(())
+        NeedsDriver(()),
+        // TODO: replace all uses of `Other` with more specific errors:
+        Other(String)
     }
 }
 
@@ -192,6 +193,7 @@ impl ::std::fmt::Display for TyErr {
                  (e.g. an expression) requires a type annotation."
             ),
             NeedsDriver(()) => write!(f, "[NeedsDriver] Repetition needs a driver"),
+            Other(ref s) => write!(f, "[Other] {}", s),
         }
     }
 }

@@ -166,7 +166,7 @@ macro_rules! ast {
         ::ast::IncompleteNode(mbe!( $($mbe_arg)* ))
     };
     ( { $nt:tt $form:tt => $beta:tt : $($mbe_arg:tt)*} ) => {
-        ::ast::Node(::core_forms::find_core_form($nt, $form), mbe!( $($mbe_arg)* ),
+        ::ast::Node(::core_forms::find($nt, $form), mbe!( $($mbe_arg)* ),
                     ebeta!($beta))
     };
     ( { $form:expr => $beta:tt ; $($mbe_arg:tt)*} ) => {
@@ -179,7 +179,7 @@ macro_rules! ast {
         ::ast::Node($form, mbe!( $($mbe_arg)* ), ::beta::ExportBeta::Nothing)
     };
     ( { $nt:tt $form:tt : $($mbe_arg:tt)* }) => {
-        ::ast::Node(::core_forms::find_core_form($nt, $form), mbe!( $($mbe_arg)* ),
+        ::ast::Node(::core_forms::find($nt, $form), mbe!( $($mbe_arg)* ),
                     ::beta::ExportBeta::Nothing)
     };
     ($e:expr) => { ::ast::Atom(::name::n($e))}

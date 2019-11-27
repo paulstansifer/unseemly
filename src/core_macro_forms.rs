@@ -296,11 +296,10 @@ fn repeated_type(t: &Ty, env: &Assoc<Name, Ty>) -> Result<Ty, ::ty::TypeError> {
         ty_err!(NeedsDriver (()) at t.0);
     }
 
-    Ok(ty!({"Type" "tuple" :
-    "component" => [{"Type" "dotdotdot" :
+    Ok(ty!({"Type" "dotdotdot" :
         "driver" => (,seq drivers),
         "body" => (, t.0.clone())
-    }]}))
+    }))
 }
 
 pub fn make_core_macro_forms() -> SynEnv {
@@ -730,7 +729,7 @@ fn macro_definitions() {
                 {named => ["part_name"] : x {call_with_type : Expr T}}}),
             env.clone()
         ),
-        Ok(assoc_n!("x" => uty!({tuple : [{dotdotdot : [T] {type_apply : (prim Expr) [T]}}]})))
+        Ok(assoc_n!("x" => uty!({dotdotdot : [T] {type_apply : (prim Expr) [T]}})))
     );
 
     let t_expr_type = uty!({type_apply : (prim Expr) [T]});

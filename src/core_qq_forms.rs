@@ -326,7 +326,8 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
         synth_type: Positive(cust_rc_box!(|ddd_parts| {
             let drivers = ddd_parts.get_rep_term(n("driver"));
 
-            // HACK: work on the environment one level less quoted (seems to be what we want)
+            // HACK: we want to operate on the environment one level less quoted
+            //  (that's why we put commas around the drivers)
             // Not sure what how OEH interacts with this. Doesn't matter in the positive case.
             let (_, ddd_parts_uq) = ddd_parts.quote_less();
 
@@ -336,6 +337,8 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
                 Some(&Ty(::ast::Node(ref form, ref parts, _))) if form.name == n("tuple") => {
                     parts.get_rep_leaf_or_panic(n("component")).len()
                 }
+                // TODO: what if some are `tuple` and others are `dotdotdot`?
+                Some(&Ty(::ast::Node(ref form, _, _))) if form.name == n("dotdotdot") => 1,
                 Some(other_t) => {
                     ty_err!(UnableToDestructure(other_t.clone(), n("tuple"))
                                 at ddd_parts_uq.this_ast);
@@ -350,6 +353,11 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
                         walked_env = walked_env.set(*name, match ty {
                             Ty(::ast::Node(ref form, ref parts, _)) if form.name == n("tuple") => {
                                 Ty(parts.get_rep_leaf_or_panic(n("component"))[i].clone())
+                            }
+                            Ty(::ast::Node(ref form, ref parts, _))
+                                if form.name == n("dotdotdot") =>
+                            {
+                                Ty(parts.get_leaf_or_panic(&n("body")).clone())
                             }
                             t => ty_err!(UnableToDestructure(t.clone(), n("tuple"))
                                             at t.0),
@@ -1213,6 +1221,27 @@ fn use_dotdotdot() {
         ),
         Ok(ty!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Int" :}]}))
+    );
+
+    let ddd_abs_env = assoc_n!(
+        "T" => uty!(T),
+        "vals" => uty!({dotdotdot : [T] {type_apply : (prim Expr) [T]}}),
+        "ops" => uty!({dotdotdot : [T]
+            {type_apply : (prim Expr) [{fn : [T] {Int :}}]}}));
+
+    assert_eq!(
+        synth_type_two_phased(
+            &ast!({"Expr" "quote_expr" :
+                "nt" => (vr "Expr"),
+                "body" => (++ true (, u!({tuple_expr :
+                    [{dotdotdot_form(n("Expr")) ; [(~ ops); (~ vals)]
+                        {apply : {unquote_form(n("Expr"), pos, 1) ; (~) ops}
+                            [{unquote_form(n("Expr"), pos, 1) ; (~) vals}]}}]})))
+            }),
+            ddd_abs_env.clone(),
+            qenv.clone()
+        ),
+        Ok(uty!({type_apply : (prim Expr) [{tuple : [{Int :}]}]}))
     );
 }
 
