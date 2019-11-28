@@ -316,20 +316,18 @@ pub fn dotdotdot(nt: Name) -> Rc<FormPat> {
     Rc::new(FormPat::Scope(dotdotdot_form(nt), ::beta::ExportBeta::Nothing))
 }
 
-pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
-    Rc::new(Form {
-        name: n("dotdotdot"),
-        grammar: Rc::new(form_pat!((delim "...[", "[",
-            [(star [(lit ","), (named "driver", varref), (lit ",")]), (lit ">>"),
-             (named "body", (call_by_name nt))]))),
-        type_compare: Positive(NotWalked), // this is not a type form
-        synth_type: Positive(cust_rc_box!(|ddd_parts| {
-            let drivers = ddd_parts.get_rep_term(n("driver"));
+// Once it's possible to write `where Mode::Elt = Ty and Mode::Err = <whatever>`,
+//  this can be turned into a function.
+// The behavior of `...[]...` is identical in positive and negative modes.
+macro_rules! ddd_type__body {
+    ($ddd_parts:expr) => {
+        {
+            let drivers = $ddd_parts.get_rep_term(n("driver"));
 
             // HACK: we want to operate on the environment one level less quoted
             //  (that's why we put commas around the drivers)
             // Not sure what how OEH interacts with this. Doesn't matter in the positive case.
-            let (_, ddd_parts_uq) = ddd_parts.quote_less();
+            let (_, ddd_parts_uq) = $ddd_parts.quote_less();
 
             let mut walked_env = Assoc::new();
 
@@ -368,7 +366,21 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
                 }
             }
             ddd_parts_uq.with_environment(walked_env).quote_more(None).get_res(n("body"))
-        })),
+        }
+    };
+}
+
+pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
+    Rc::new(Form {
+        name: n("dotdotdot"),
+        grammar: Rc::new(form_pat!((delim "...[", "[",
+            [(star [(lit ","), (named "driver", varref), (lit ",")]), (lit ">>"),
+             (named "body", (call_by_name nt))]))),
+        type_compare: Positive(NotWalked), // this is not a type form
+        synth_type: Both(
+            cust_rc_box!(|ddd_parts| { ddd_type__body!(ddd_parts) }),
+            cust_rc_box!(|ddd_parts| { ddd_type__body!(ddd_parts) }),
+        ),
         // An evaluate-time version of this might be a good idea;
         //  it might be all that's needed to implement variable-number-of-argument functions.
         // It shouldn't be the same form, though. Maybe `...( >> )...` ?
