@@ -4,7 +4,7 @@ use ast_walk::{
     WalkRule::{Body, Custom, LiteralLike, NotWalked},
 };
 use beta::Beta::*;
-use core_forms::ast_to_name;
+use core_forms::{ast_to_name, vr_to_name};
 use core_type_forms::{less_quoted_ty, more_quoted_ty};
 use form::{EitherPN::Both, Form};
 use grammar::{
@@ -669,6 +669,7 @@ fn formpat_reflection() {
     let macro_forms = make_core_macro_forms()
         .set(n("DefaultToken"), Rc::new(::grammar::new_scan(r"\s*(\S+)")))
         .set(n("DefaultName"), Rc::new(FormPat::Call(n("DefaultToken"))))
+        .set(n("DefaultReference"), Rc::new(VarRef(Rc::new(FormPat::Call(n("DefaultToken"))))))
         .set(n("Type"), Rc::new(FormPat::Call(n("DefaultToken"))));
 
     fn syntax_to_form_pat(a: Ast) -> FormPat { FormPat::reflect(&eval_top(&a).unwrap()) }

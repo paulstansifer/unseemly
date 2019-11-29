@@ -632,7 +632,7 @@ pub fn nt_to_type(nt: Name) -> Ty {
 // TODO #4: make this extensible, too! When the user creates a new NT,
 //  do they need to specify the direction?
 pub fn nt_is_positive(nt: Name) -> bool {
-    if nt == n("Type") || nt == n("Expr") {
+    if nt == n("Type") || nt == n("Expr") || nt == n("DefaultReference") {
         true
     } else if nt == n("Pat") || nt == n("Ident") || nt == n("DefaultName") {
         // TODO: Rename "DefaultName" to "Ident" globally.
