@@ -99,7 +99,8 @@ impl<Elt: WalkElt> Clo<Elt> {
 }
 
 thread_local! {
-    pub static ast_walk_layer: RefCell<u32> = RefCell::new(0);
+    // Tuple elements are (layers deep, number of steps taken).
+    pub static ast_walk_layer: RefCell<(u32, u32)> = RefCell::new((0, 0));
 }
 
 /// Make a `<Mode::D as Dir>::Out` by walking `node` in the environment from `walk_ctxt`.

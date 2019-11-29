@@ -664,11 +664,12 @@ macro_rules! assert_m {
 
 macro_rules! layer_watch {
     {$layer:ident : $( $body:stmt );* } => {
-        $layer.with(|l| *l.borrow_mut() += 1);
+        $layer.with(|l| l.borrow_mut().0 += 1); // layers
+        $layer.with(|l| l.borrow_mut().1 += 1); // steps
         let res = {
             $( $body )*
         };
-        $layer.with(|l| *l.borrow_mut() -= 1);
+        $layer.with(|l| l.borrow_mut().0 -= 1);
         res
     }
 }
@@ -676,7 +677,7 @@ macro_rules! layer_watch {
 // "Layer debug"
 macro_rules! ld {
     ($layer:ident, $template:tt, $($arg:expr),*) => {{
-        let layers = $layer.with(|l| *l.borrow()) - 1;
+        let layers = $layer.with(|l| l.borrow().0) - 1;
         for i in 1..layers {
             if i % 2 == 0 {
                 print!("║ ")
@@ -691,14 +692,16 @@ macro_rules! ld {
                 print!("├─");
             }
         }
-        println!($template, $($arg),*);
+        print!($template, $($arg),*);
+        print!(" ({})", $layer.with(|l| l.borrow().1));
+        println!();
     }}
 }
 
 // "Layer debug, continued"
 macro_rules! lc {
     ($layer:ident, $template:tt, $($arg:expr),*) => {{
-        let layers = $layer.with(|l| *l.borrow()) - 1;
+        let layers = $layer.with(|l| l.borrow().0) - 1;
         for i in 1..(layers+1) {
             if i % 2 == 0 {
                 print!("║ ")
