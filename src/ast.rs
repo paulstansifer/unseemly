@@ -55,8 +55,8 @@ impl fmt::Debug for Ast {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Trivial => write!(f, "⨉"),
-            Atom(ref n) => write!(f, "∘{:#?}∘", n),
-            VariableReference(ref v) => write!(f, "{:#?}", v),
+            Atom(ref n) => write!(f, "∘{}∘", n.print()),
+            VariableReference(ref v) => write!(f, "{}", v.print()),
             Shape(ref v) => {
                 write!(f, "(")?;
                 let mut first = true;
