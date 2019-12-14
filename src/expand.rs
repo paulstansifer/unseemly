@@ -4,7 +4,7 @@ use form::Form;
 use name::{n, Name};
 use runtime::eval::Value;
 use util::assoc::Assoc;
-use walk_mode::{WalkElt, WalkMode};
+use walk_mode::{NegativeWalkMode, WalkElt, WalkMode};
 
 custom_derive! {
     #[derive(Copy, Clone, Debug, Reifiable)]
@@ -19,6 +19,8 @@ impl WalkMode for ExpandMacros {
     fn name() -> &'static str { "MExpand" }
     type Elt = Value;
     type Negated = UnusedNegativeExpandMacros;
+    type AsPositive = ExpandMacros;
+    type AsNegative = UnusedNegativeExpandMacros;
     type Err = <::runtime::eval::Eval as WalkMode>::Err;
     type D = ::walk_mode::Positive<ExpandMacros>;
     type ExtraInfo = ();
@@ -56,11 +58,17 @@ impl WalkMode for UnusedNegativeExpandMacros {
     fn name() -> &'static str { "XXXXX" }
     type Elt = Value;
     type Negated = ExpandMacros;
+    type AsPositive = ExpandMacros;
+    type AsNegative = UnusedNegativeExpandMacros;
     type Err = <::runtime::eval::Eval as WalkMode>::Err;
-    type D = ::walk_mode::Positive<UnusedNegativeExpandMacros>;
+    type D = ::walk_mode::Negative<UnusedNegativeExpandMacros>;
     type ExtraInfo = ();
     fn get_walk_rule(_: &Form) -> ::ast_walk::WalkRule<UnusedNegativeExpandMacros> { icp!() }
     fn automatically_extend_env() -> bool { icp!() }
+}
+
+impl NegativeWalkMode for UnusedNegativeExpandMacros {
+    fn needs_pre_match() -> bool { panic!() }
 }
 
 // I *think* the environment doesn't matter

@@ -105,6 +105,8 @@ impl WalkMode for Eval {
 
     type Elt = Value;
     type Negated = Destructure;
+    type AsPositive = Eval;
+    type AsNegative = Destructure;
     type Err = ();
     type D = ::walk_mode::Positive<Eval>;
     type ExtraInfo = ();
@@ -134,6 +136,8 @@ impl WalkMode for Destructure {
 
     type Elt = Value;
     type Negated = Eval;
+    type AsPositive = Eval;
+    type AsNegative = Destructure;
     type Err = ();
     type D = ::walk_mode::Negative<Destructure>;
     type ExtraInfo = ();
@@ -179,6 +183,8 @@ impl WalkMode for QQuote {
     // Why not `Ast`? Because QQuote and Eval need to share environments.
     type Elt = Value;
     type Negated = QQuoteDestr;
+    type AsPositive = QQuote;
+    type AsNegative = QQuoteDestr;
     type Err = ();
     type D = ::walk_mode::Positive<QQuote>;
     type ExtraInfo = ();
@@ -201,6 +207,8 @@ impl WalkMode for QQuoteDestr {
 
     type Elt = Value;
     type Negated = QQuote;
+    type AsPositive = QQuote;
+    type AsNegative = QQuoteDestr;
     type Err = ();
     type D = ::walk_mode::Negative<QQuoteDestr>;
     type ExtraInfo = ();

@@ -675,6 +675,18 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         }
     }
 
+    /// If `Mode` is positive, returns `self`.
+    /// If `Mode` is negative, `switch_mode`s it to be positive
+    pub fn switch_to_positive(&self) -> LazyWalkReses<<Mode as WalkMode>::AsPositive> {
+        self.switch_mode::<<Mode as WalkMode>::AsPositive>()
+    }
+
+    /// If `Mode` is negative, returns `self`.
+    /// If `Mode` is positive, `switch_mode`s it to be negative
+    pub fn switch_to_negative(&self) -> LazyWalkReses<<Mode as WalkMode>::AsNegative> {
+        self.switch_mode::<<Mode as WalkMode>::AsNegative>()
+    }
+
     pub fn quote_more(mut self, oeh: Option<OutEnvHandle<Mode>>) -> LazyWalkReses<Mode> {
         let env = self.more_quoted_env.pop().unwrap_or_else(Mode::Elt::core_env);
         let more_quoted_env = self.more_quoted_env;

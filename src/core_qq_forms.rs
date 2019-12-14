@@ -9,7 +9,7 @@ use runtime::eval::{Destructure, Eval, QQuote, QQuoteDestr};
 use std::rc::Rc;
 use ty::Ty;
 use util::assoc::Assoc;
-use walk_mode::WalkMode;
+use walk_mode::{NegativeWalkMode, WalkMode};
 
 // == Types and syntax quotation: when are annotations needed? ==
 // Expressions are "positive", and are traversed leaf-to-root in an environment, producing a type.
@@ -130,6 +130,8 @@ impl WalkMode for MuProtect {
     fn name() -> &'static str { "MProt" }
     type Elt = Ty;
     type Negated = UnusedNegativeMuProtect;
+    type AsPositive = MuProtect;
+    type AsNegative = UnusedNegativeMuProtect;
     type Err = ();
     type D = ::walk_mode::Positive<MuProtect>;
     type ExtraInfo = i32;
@@ -155,15 +157,22 @@ impl WalkMode for MuProtect {
         }))
     }
 }
+
 impl WalkMode for UnusedNegativeMuProtect {
     fn name() -> &'static str { "XXXXX" }
     type Elt = Ty;
     type Negated = MuProtect;
+    type AsPositive = MuProtect;
+    type AsNegative = UnusedNegativeMuProtect;
     type Err = ();
-    type D = ::walk_mode::Positive<UnusedNegativeMuProtect>;
+    type D = ::walk_mode::Negative<UnusedNegativeMuProtect>;
     type ExtraInfo = i32;
     fn get_walk_rule(_: &Form) -> ::ast_walk::WalkRule<UnusedNegativeMuProtect> { icp!() }
     fn automatically_extend_env() -> bool { icp!() }
+}
+
+impl NegativeWalkMode for UnusedNegativeMuProtect {
+    fn needs_pre_match() -> bool { panic!() }
 }
 
 // Technically, we could have the parser decide whether `unquote` is allowed.

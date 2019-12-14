@@ -164,9 +164,9 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(
             {
                 // let LazilyWalkedTerm {term: ref ty_stx, ..}
                 //    = **parts.parts.get_leaf_or_panic(ty_source);
-                let ty = parts.get_res(ty_source)?;
+                let ty = parts.switch_to_positive().get_res(ty_source)?;
 
-                Ok(Assoc::new().set(*name, Mode::out_as_elt(ty.clone())))
+                Ok(Assoc::new().set(*name, ty.clone()))
             } else {
                 panic!(
                     "User error: {:#?} is supposed to supply names, but is not an Atom.",
@@ -180,15 +180,10 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(
         SameAs(name_source, res_source) => {
             use walk_mode::WalkMode;
 
-            let ctxt = parts.get_res(res_source)?;
+            let ctxt: Mode::Elt = parts.switch_to_positive().get_res(res_source)?;
 
             // Do the actual work:
-            let res = Mode::Negated::out_as_env(
-                parts
-                    .switch_mode::<Mode::Negated>()
-                    .with_context(Mode::out_as_elt(ctxt))
-                    .get_res(name_source)?,
-            );
+            let res = parts.switch_to_negative().with_context(ctxt).get_res(name_source)?;
 
             // ... and then check that it's the right set of names!
             // Somewhat awkward (but not unsound!) run-time error in the case that

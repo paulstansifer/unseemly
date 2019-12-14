@@ -82,6 +82,8 @@ impl WalkMode for SynthTy {
     fn name() -> &'static str { "SynTy" }
     type Elt = Ty;
     type Negated = UnpackTy;
+    type AsPositive = SynthTy;
+    type AsNegative = UnpackTy;
     type Err = TypeError;
     type D = ::walk_mode::Positive<SynthTy>;
     type ExtraInfo = ();
@@ -106,6 +108,8 @@ impl WalkMode for UnpackTy {
     fn name() -> &'static str { "UnpTy" }
     type Elt = Ty;
     type Negated = SynthTy;
+    type AsPositive = SynthTy;
+    type AsNegative = UnpackTy;
     type Err = TypeError;
     type D = ::walk_mode::Negative<UnpackTy>;
     type ExtraInfo = ();

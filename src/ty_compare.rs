@@ -247,6 +247,8 @@ impl WalkMode for Canonicalize {
 
     type Elt = Ty;
     type Negated = Subtype;
+    type AsPositive = Canonicalize;
+    type AsNegative = Subtype;
     type Err = TyErr;
     type D = ::walk_mode::Positive<Canonicalize>;
     type ExtraInfo = ();
@@ -273,6 +275,8 @@ impl WalkMode for Subtype {
 
     type Elt = Ty;
     type Negated = Canonicalize;
+    type AsPositive = Canonicalize;
+    type AsNegative = Subtype;
     type Err = TyErr;
     type D = ::walk_mode::Negative<Subtype>;
     type ExtraInfo = ();

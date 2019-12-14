@@ -109,7 +109,9 @@ impl ::walk_mode::WalkElt for Irr {
 impl ::walk_mode::WalkMode for Irr {
     fn name() -> &'static str { icp!() }
     type Elt = Irr;
-    type Negated = Irr;
+    type Negated = NegIrr;
+    type AsPositive = Irr;
+    type AsNegative = NegIrr;
     type Err = Irr;
     type D = ::walk_mode::Positive<Irr>;
     type ExtraInfo = Irr;
@@ -118,6 +120,35 @@ impl ::walk_mode::WalkMode for Irr {
     fn automatically_extend_env() -> bool { icp!() }
 
     fn underspecified(_: Name) -> Irr { icp!() }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+pub enum NegIrr {}
+
+impl Reifiable for NegIrr {
+    fn ty_name() -> Name { icp!() }
+    fn reify(&self) -> Value { icp!() }
+    fn reflect(_: &Value) -> Self { icp!() }
+}
+
+impl ::walk_mode::WalkMode for NegIrr {
+    fn name() -> &'static str { icp!() }
+    type Elt = Irr;
+    type Negated = Irr;
+    type AsPositive = Irr;
+    type AsNegative = NegIrr;
+    type Err = Irr;
+    type D = ::walk_mode::Negative<NegIrr>;
+    type ExtraInfo = Irr;
+
+    fn get_walk_rule(_: &::form::Form) -> ::ast_walk::WalkRule<NegIrr> { icp!() }
+    fn automatically_extend_env() -> bool { icp!() }
+
+    fn underspecified(_: Name) -> Irr { icp!() }
+}
+
+impl ::walk_mode::NegativeWalkMode for NegIrr {
+    fn needs_pre_match() -> bool { panic!() }
 }
 
 basic_reifiability!(BigInt, "Int", Int);

@@ -48,6 +48,23 @@ pub trait WalkMode: Debug + Copy + Reifiable {
         Negated = Self,
     >;
 
+    /// If this walk is positive, `Self`; otherwise `Self::Negated`
+    type AsPositive: WalkMode<
+        Elt = Self::Elt,
+        Err = Self::Err,
+        ExtraInfo = Self::ExtraInfo,
+        D = ::walk_mode::Positive<Self::AsPositive>,
+    >;
+
+    /// If this walk is positive, `Self::Negated`; otherwise `Self`
+    type AsNegative: NegativeWalkMode
+        + WalkMode<
+            Elt = Self::Elt,
+            Err = Self::Err,
+            ExtraInfo = Self::ExtraInfo,
+            D = ::walk_mode::Negative<Self::AsNegative>,
+        >;
+
     /// Any extra information the walk needs
     type ExtraInfo: ::std::default::Default + Reifiable + Clone + Debug;
 
