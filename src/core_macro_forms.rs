@@ -308,39 +308,39 @@ pub fn make_core_macro_forms() -> SynEnv {
     let beta_grammar = forms_to_form_pat_export![
         syntax_syntax!( ((lit "nothing")) Nothing ) => [],
         syntax_syntax!(
-            ([(named "name", (call "DefaultName")),
-              (lit ":"), (named "type", (call "DefaultName"))]) Basic {
+            ([(named "name", (call "DefaultReference")),
+              (lit ":"), (named "type", (call "DefaultReference"))]) Basic {
             |_| icp!("Betas are not typed")
         } {
             |parts| {
-                Ok(Basic(ast_to_name(&parts.get_term(n("name"))),
-                         ast_to_name(&parts.get_term(n("type")))).reify())
+                Ok(Basic(vr_to_name(&parts.get_term(n("name"))),
+                         vr_to_name(&parts.get_term(n("type")))).reify())
             }
         }) => [],
         syntax_syntax!(
-            ([(named "name", (call "DefaultName")),
-              (lit "="), (named "type", (call "DefaultName"))]) SameAs {
+            ([(named "name", (call "DefaultReference")),
+              (lit "="), (named "type", (call "DefaultReference"))]) SameAs {
             |_| icp!("Betas are not typed")
         } {
             |parts| {
-                Ok(SameAs(ast_to_name(&parts.get_term(n("name"))),
-                          ast_to_name(&parts.get_term(n("type")))).reify())
+                Ok(SameAs(vr_to_name(&parts.get_term(n("name"))),
+                          vr_to_name(&parts.get_term(n("type")))).reify())
             }
         }) => [],
         syntax_syntax!(
-            ([(lit "prot"), (named "name", (call "DefaultName"))]) Protected {
+            ([(lit "prot"), (named "name", (call "DefaultReference"))]) Protected {
             |_| icp!("Betas are not typed")
         } {
             |parts| {
-                Ok(Protected(ast_to_name(&parts.get_term(n("name")))).reify())
+                Ok(Protected(vr_to_name(&parts.get_term(n("name")))).reify())
             }
         }) => [],
         syntax_syntax!(
-            ([(lit "forall"), (named "name", (call "DefaultName"))]) Underspecified {
+            ([(lit "forall"), (named "name", (call "DefaultReference"))]) Underspecified {
             |_| icp!("Betas are not typed")
         } {
             |parts| {
-                Ok(Underspecified(ast_to_name(&parts.get_term(n("name")))).reify())
+                Ok(Underspecified(vr_to_name(&parts.get_term(n("name")))).reify())
             }
         }) => [],
         syntax_syntax!(
@@ -525,10 +525,12 @@ pub fn make_core_macro_forms() -> SynEnv {
         // TODO: implement syntax for ComputeSyntax
         // Not sure if `Scope` syntax should be positive or negative.
         syntax_syntax!( ([(lit "forall"), (star (named "param", atom)), (lit "."),
-                          (delim "'{", "{",
-                              (named "syntax", (import [* [forall "param"]],  (call "Syntax")))),
                           // We need an arbitrary negative_ret_val:
                           (named "unused_type", (anyways {trivial_type_form ; } )),
+                          (delim "'{", "{",
+                              (named "syntax",
+                                  (import [unusable "syntax"],
+                                      (import [* [forall "param"]],  (call "Syntax"))))),
                           (named "macro_name", atom), (lit "->"),
                           (delim ".{", "{", (named "implementation",
                               // TODO `beta!` needs `Shadow` so we can combine these `import`s:

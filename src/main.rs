@@ -689,4 +689,80 @@ fn language_building() {
         ),
         Ok(val!(i 5))
     );
+
+    let bound_wrong_prog = "extend_syntax
+            Expr ::=also forall T S . '{
+                [
+                    lit ,{ DefaultToken }, = 'let'
+                    [
+                        pat := ( ,{ Pat <[ S ]< }, )
+                        lit ,{ DefaultToken }, = '='
+                        value := ( ,{ Expr <[ S ]< }, )
+                        lit ,{ DefaultToken }, = ';'
+                    ] *
+                    lit ,{ DefaultToken }, = 'in'
+                    body := ( ,{ Expr <[ T ]< }, <-- ...[pat = value]... )
+                ]
+            }' let_macro -> .{
+                '[Expr |
+                    match ...[, value , >> ,[value], ]...
+                        { ...[, pat , >> ,[pat],]... => ,[body], } ]'
+            }. ;
+        in
+        let x = eight ;
+            y = times ;
+        in (plus x y)";
+    let bound_wrong_ast = grammar::parse(
+        &core_forms::outermost_form(),
+        &core_forms::get_core_forms(),
+        runtime::core_values::get_core_envs(),
+        bound_wrong_prog,
+    )
+    .unwrap();
+
+    assert_m!(
+        ty::synth_type(&bound_wrong_ast, ::runtime::core_values::core_types()),
+        ty_err_p!(Mismatch(x, y)) => {
+            assert_eq!(x, uty!({Int :}));
+            assert_eq!(y, uty!({fn : [{Int :}; {Int :}] {Int :}}));
+        }
+    );
+
+    let inner_expr_wrong_prog = "extend_syntax
+            Expr ::=also forall T S . '{
+                [
+                    lit ,{ DefaultToken }, = 'let'
+                    [
+                        pat := ( ,{ Pat <[ S ]< }, )
+                        lit ,{ DefaultToken }, = '='
+                        value := ( ,{ Expr <[ S ]< }, )
+                        lit ,{ DefaultToken }, = ';'
+                    ] *
+                    lit ,{ DefaultToken }, = 'in'
+                    body := ( ,{ Expr <[ T ]< }, <-- ...[pat = value]... )
+                ]
+            }' let_macro -> .{
+                '[Expr |
+                    match ...[, value , >> ,[value], ]...
+                        { ...[, pat , >> ,[pat],]... => ,[body], } ]'
+            }. ;
+        in
+        let x = eight ;
+            y = four ;
+        in (plus x times)";
+    let inner_expr_wrong_ast = grammar::parse(
+        &core_forms::outermost_form(),
+        &core_forms::get_core_forms(),
+        runtime::core_values::get_core_envs(),
+        inner_expr_wrong_prog,
+    )
+    .unwrap();
+
+    assert_m!(
+        ty::synth_type(&inner_expr_wrong_ast, ::runtime::core_values::core_types()),
+        ty_err_p!(Mismatch(x, times)) => {
+            assert_eq!(x, uty!({Int :}));
+            assert_eq!(times, uty!({fn : [{Int :}; {Int :}] {Int :}}));
+        }
+    );
 }

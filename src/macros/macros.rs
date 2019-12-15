@@ -55,11 +55,15 @@ macro_rules! beta {
         }
     };
     ( [ forall $name:tt $( $rest:tt )*] ) => {
-        ::beta::Shadow(Box::new(::beta::Underspecified(::name::n(expr_ify!($name)))),
+        ::beta::Shadow(Box::new(::beta::Underspecified(  ::name::n(expr_ify!($name)))),
                Box::new(beta!( [ $( $rest )* ] )))
     };
     ( [ prot $name:tt $( $rest:tt )*] ) => {
-        ::beta::Shadow(Box::new(::beta::Protected(     ::name::n(expr_ify!($name)))),
+        ::beta::Shadow(Box::new(::beta::Protected(       ::name::n(expr_ify!($name)))),
+               Box::new(beta!( [ $( $rest )* ] )))
+    };
+    ( [ unusable $name:tt $( $rest:tt )*] ) => {
+        ::beta::Shadow(Box::new(::beta::BoundButNotUsable(::name::n(expr_ify!($name)))),
                Box::new(beta!( [ $( $rest )* ] )))
     };
     // Just makes things prettier by not ending everything in " ▷ ∅":
@@ -650,6 +654,18 @@ macro_rules! cop_out_reifiability {
 // Testing
 
 macro_rules! assert_m {
+    ($got:expr, $expected:pat => $body:stmt) => {{
+        let got = $got;
+        match got.clone() {
+            $expected => {
+                // The `()` is actually a unit to avoid an "unnecessary trailing semicolon warning".
+                // The `;` is to keep `cargo fmt` from removing the non-unnecessary `{}`.
+                $body();
+            }
+            _ => assert!(false, "{:#?} does not match {:#?}", got, quote!($expected).as_str()),
+        }
+    }};
+    // Deprecated:
     ($got:expr, $expected:pat, $body:expr) => {{
         let got = $got;
         match got.clone() {

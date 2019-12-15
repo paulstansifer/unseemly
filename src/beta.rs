@@ -25,6 +25,8 @@ custom_derive! {
     (b) where to get the type annotation (`Basic`)
         or an expression producting the type (`SameAs`)
         for that name.
+    The more exotic leaf nodes, `Underspecified`, `Protected`, and `BoundButNotUsable`
+     do various weird things.
 
     I have no idea where the name "β" came from, and whether it has any connection to α-equivalence.
 
@@ -41,9 +43,13 @@ custom_derive! {
         /// which should be typechecked, and whose type the new name gets.
         /// (This can be used write to `let` without requiring a type annotation.)
         SameAs(Name, Name),
-        /// Name is introduced here, and its meaning is figured out from usage.
+        /// Names are introduced here, but not bound to anything in particular
+        /// (This can be useful for things that import themselves, to avoid infinite regress)
+        BoundButNotUsable(Name),
+        /// Name is introduced here (must be a single `Atom`),
+        ///  and its meaning is figured out from usage.
         Underspecified(Name),
-        /// Name is left alone (only makes sense in `LiteralLike` regimes, where var refs are okay)
+        /// Name is left alone (must be a single `VarRef`, and already bound)
         Protected(Name),
         /// Shadow the names from two `Beta`s.
         Shadow(Box<Beta>, Box<Beta>),
@@ -67,6 +73,7 @@ impl fmt::Debug for Beta {
             }
             Basic(ref name, ref ty) => write!(f, "{:#?}:{:#?}", name, ty),
             SameAs(ref name, ref ty_source) => write!(f, "{:#?}={:#?}", name, ty_source),
+            BoundButNotUsable(ref name) => write!(f, "!{:#}", name),
             Underspecified(ref name) => write!(f, "∀{:#?}", name),
             Protected(ref name) => write!(f, "↫{:#?}", name),
         }
@@ -86,6 +93,7 @@ impl Beta {
             ShadowAll(_, ref drivers) => drivers.clone(),
             Basic(n, v) => vec![n, v],
             SameAs(n, v_source) => vec![n, v_source],
+            BoundButNotUsable(n) => vec![n],
             Underspecified(n) => vec![n],
             Protected(n) => vec![n],
         }
@@ -104,6 +112,7 @@ impl Beta {
             ShadowAll(ref sub, _) => sub.names_mentioned_and_bound(), // drivers is too broad!
             Basic(n, v) => vec![n, v],
             SameAs(n, v_source) => vec![n, v_source],
+            BoundButNotUsable(n) => vec![n],
             Underspecified(n) => vec![n],
         }
     }
@@ -128,9 +137,11 @@ impl Beta {
                 }
                 res
             }
-            Basic(n_s, _) | SameAs(n_s, _) | Underspecified(n_s) | Protected(n_s) => {
-                f(parts.get_leaf_or_panic(&n_s)).clone()
-            }
+            Basic(n_s, _)
+            | SameAs(n_s, _)
+            | BoundButNotUsable(n_s)
+            | Underspecified(n_s)
+            | Protected(n_s) => f(parts.get_leaf_or_panic(&n_s)).clone(),
         }
     }
 }
@@ -158,15 +169,15 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(
             }
             Ok(res)
         }
-        Basic(name_source, ty_source) => {
+        Basic(name_source, rhs_source) => {
             if let LazilyWalkedTerm { term: Atom(ref name), .. } =
                 **parts.parts.get_leaf_or_panic(&name_source)
             {
-                // let LazilyWalkedTerm {term: ref ty_stx, ..}
-                //    = **parts.parts.get_leaf_or_panic(ty_source);
-                let ty = parts.switch_to_positive().get_res(ty_source)?;
+                // let LazilyWalkedTerm {term: ref rhs_stx, ..}
+                //    = **parts.parts.get_leaf_or_panic(rhs_source);
+                let rhs = parts.switch_to_positive().get_res(rhs_source)?;
 
-                Ok(Assoc::new().set(*name, ty.clone()))
+                Ok(Assoc::new().set(*name, rhs.clone()))
             } else {
                 panic!(
                     "User error: {:#?} is supposed to supply names, but is not an Atom.",
@@ -212,6 +223,18 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(
             if count != expected_res_keys.len() {
                 // TODO: Likewise:
                 panic!("expected {:?} exports, got {}", expected_res_keys, count)
+            }
+
+            Ok(res)
+        }
+
+        BoundButNotUsable(name_source) => {
+            // For our purposes, this syntax is "real", so `quote_depth` is 0:
+            let expected_res_keys = names_exported_by(parts.get_term_ref(name_source), 0);
+
+            let mut res = Assoc::new();
+            for name in expected_res_keys {
+                res = res.set(name, <Mode::Elt as ::walk_mode::WalkElt>::from_ast(&::ast::Trivial));
             }
 
             Ok(res)
@@ -365,7 +388,7 @@ pub fn bound_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>, quote_depth: i16) -
             }
             res
         }
-        SameAs(ref n_s, _) => {
+        SameAs(ref n_s, _) | BoundButNotUsable(ref n_s) => {
             // Can be a non-atom
             names_exported_by(parts.get_leaf_or_panic(n_s), quote_depth)
         }
@@ -429,7 +452,7 @@ pub fn freshening_from_beta(
             res
         }
         Protected(_n_s) => unimplemented!("Not hard, just not used yet"),
-        Basic(n_s, _) | SameAs(n_s, _) | Underspecified(n_s) => {
+        Basic(n_s, _) | SameAs(n_s, _) | Underspecified(n_s) | BoundButNotUsable(n_s) => {
             let this_name = ::core_forms::ast_to_name(parts.get_leaf_or_panic(&n_s));
 
             Assoc::new().set(
