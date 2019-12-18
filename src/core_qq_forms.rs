@@ -505,7 +505,8 @@ pub fn quote(pos: bool) -> Rc<Form> {
     Rc::new(Form {
         name: if pos { n("quote_expr") } else { n("quote_pat") },
         grammar: Rc::new(form_pat!((delim "'[", "[",
-            [(extend (named "nt", varref), "QuotationBody", perform_quotation)]))),
+            // TODO: use `extend`, not `extend_nt`. Can it resolve the HACK above?
+            [(extend_nt (named "nt", varref), "QuotationBody", perform_quotation)]))),
         type_compare: ::form::Both(NotWalked, NotWalked), // Not a type
         synth_type: if pos {
             ::form::Positive(cust_rc_box!(|quote_parts| {

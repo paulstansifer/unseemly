@@ -646,7 +646,7 @@ pub fn extend_syntax() -> Rc<Form> {
         name: n("extend_syntax"),
         grammar: Rc::new(form_pat!(
             [(lit "extend_syntax"),
-             (extend
+             (extend_nt
                 [(star [(named "nt", atom),
                    (named "operator", (alt (lit "::="), (lit "::=also"))),
                    (named "rhs", (call "Syntax")),

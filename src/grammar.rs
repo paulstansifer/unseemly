@@ -51,7 +51,7 @@ custom_derive! {
         /// This is where syntax gets extensible.
         /// Parses its body in the named NT of the syntax environment computed from
         ///  the LHS and the current syntax environment.
-        SynImport(Rc<FormPat>, Name, SyntaxExtension),
+        SynImport(Rc<FormPat>, Rc<FormPat>, SyntaxExtension),
 
         /// Makes a node and limits the region where names are meaningful. `Beta` defines export.
         Scope(Rc<Form>, ExportBeta),
@@ -382,7 +382,7 @@ fn extensible_parsing() {
     }
 
     assert_eq!(
-        parse_top(&form_pat!((extend [], "b", static_synex)), tokens_s!("BB")),
+        parse_top(&form_pat!((extend_nt [], "b", static_synex)), tokens_s!("BB")),
         Ok(ast!("BB"))
     );
 
@@ -390,7 +390,7 @@ fn extensible_parsing() {
         "o" => Rc::new(form_pat!(
             (star (named "c",
                 (alt (lit_aat "O"), [(lit_aat "Extend"),
-                                     (extend [], "a", static_synex), (lit_aat "#")])))))));
+                                     (extend_nt [], "a", static_synex), (lit_aat "#")])))))));
 
     assert_eq!(
         parse(
@@ -443,7 +443,7 @@ fn extensible_parsing() {
 
     assert_m!(
         parse(
-            &form_pat!((extend (star (named "n", (lit_aat "X"))), "count", counter_synex)),
+            &form_pat!((extend_nt (star (named "n", (lit_aat "X"))), "count", counter_synex)),
             &mt_syn_env,
             ::earley::empty__code_envs(),
             tokens_s!("X" "X" "X" "4")
@@ -453,7 +453,7 @@ fn extensible_parsing() {
 
     assert_eq!(
         parse(
-            &form_pat!((extend (star (named "n", (lit_aat "X"))), "count", counter_synex)),
+            &form_pat!((extend_nt (star (named "n", (lit_aat "X"))), "count", counter_synex)),
             &mt_syn_env,
             ::earley::empty__code_envs(),
             tokens_s!("X" "X" "X" "X" "4")
@@ -463,7 +463,7 @@ fn extensible_parsing() {
 
     assert_m!(
         parse(
-            &form_pat!((extend (star (named "n", (lit_aat "X"))), "count", counter_synex)),
+            &form_pat!((extend_nt (star (named "n", (lit_aat "X"))), "count", counter_synex)),
             &mt_syn_env,
             ::earley::empty__code_envs(),
             tokens_s!("X" "X" "X" "X" "X" "4")

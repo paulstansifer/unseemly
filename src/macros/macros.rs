@@ -396,8 +396,16 @@ macro_rules! form_pat {
     ((-- $depth:tt $body:tt)) => {
         ::grammar::FormPat::QuoteEscape(::std::rc::Rc::new(form_pat!($body)), $depth)
     };
-    ((extend $lhs:tt, $n:expr, $f:expr)) => {
-        ::grammar::FormPat::SynImport(::std::rc::Rc::new(form_pat!($lhs)), ::name::n($n),
+    ((extend_nt $lhs:tt, $n:expr, $f:expr)) => {
+        ::grammar::FormPat::SynImport(
+            ::std::rc::Rc::new(form_pat!($lhs)),
+            ::std::rc::Rc::new(::grammar::FormPat::Call(::name::n($n))),
+            ::grammar::SyntaxExtension(::std::rc::Rc::new(Box::new($f))))
+    };
+    ((extend $lhs:tt, $body:tt, $f:expr)) => {
+        ::grammar::FormPat::SynImport(
+            ::std::rc::Rc::new(form_pat!($lhs)),
+            ::std::rc::Rc::new(form_pat!($body)),
             ::grammar::SyntaxExtension(::std::rc::Rc::new(Box::new($f))))
     };
     ( [$($body:tt),*] ) => {

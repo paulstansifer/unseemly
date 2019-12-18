@@ -598,7 +598,7 @@ impl Item {
                 self.start(&f.grammar, cur_idx)
             }
             (0, &SynImport(ref lhs, _, _)) => self.start(&lhs, cur_idx),
-            (1, &SynImport(_, ref name, ref f)) => {
+            (1, &SynImport(_, ref body, ref f)) => {
                 // TODO: handle errors properly! Probably need to memoize, also!
                 let partial_parse = match *self.local_parse.borrow() {
                     NothingYet | Ambiguous(_, _) => return vec![],
@@ -626,7 +626,7 @@ impl Item {
                 vec![(
                     Item {
                         start_idx: cur_idx,
-                        rule: new_ctxt.grammar.find_or_panic(name).clone(),
+                        rule: body.clone(),
                         pos: 0,
                         done: RefCell::new(false),
                         grammar: new_ctxt.grammar.clone(),
