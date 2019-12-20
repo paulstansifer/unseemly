@@ -106,6 +106,18 @@ impl fmt::Display for Ast {
                 );
                 write!(f, "{}", s)
             }
+            Shape(ref v) => {
+                write!(f, "(")?;
+                let mut first = true;
+                for elt in v {
+                    if !first {
+                        write!(f, " ")?
+                    }
+                    elt.fmt(f)?;
+                    first = false;
+                }
+                write!(f, ")")
+            }
             ExtendEnv(ref body, _) => write!(f, "{}↓", body),
             _ => write!(f, "{:#?}", self),
         }
