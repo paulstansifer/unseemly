@@ -703,13 +703,10 @@ impl Item {
                 ::ast::Atom(a) => Ok(::ast::VariableReference(a)),
                 _ => icp!("no atom saved"),
             },
-            Literal(_, _)
-            | Alt(_)
-            | Biased(_, _)
-            | Call(_)
-            | SynImport(_, _, _)
-            | Reserved(_, _) => self.find_wanted(chart, done_tok).c_parse(chart, done_tok),
-            Seq(_) | Star(_) | Plus(_) => {
+            Literal(_, _) | Alt(_) | Biased(_, _) | Call(_) | Reserved(_, _) => {
+                self.find_wanted(chart, done_tok).c_parse(chart, done_tok)
+            }
+            Seq(_) | Star(_) | Plus(_) | SynImport(_, _, _) => {
                 let mut step = self;
                 let mut subtrees: Vec<Ast> = vec![];
                 let mut pos = done_tok;
@@ -752,7 +749,7 @@ impl Item {
                 subtrees.reverse();
 
                 match *self.rule {
-                    Seq(_) => Ok(Ast::Shape(subtrees)),
+                    Seq(_) | SynImport(_, _, _) => Ok(Ast::Shape(subtrees)),
                     Star(_) | Plus(_) => {
                         Ok(Ast::IncompleteNode(::util::mbe::EnvMBE::new_from_anon_repeat(
                             subtrees.into_iter().map(|a| a.flatten()).collect(),

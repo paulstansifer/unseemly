@@ -383,7 +383,7 @@ fn extensible_parsing() {
 
     assert_eq!(
         parse_top(&form_pat!((extend_nt [], "b", static_synex)), tokens_s!("BB")),
-        Ok(ast!("BB"))
+        Ok(ast_shape!(() "BB"))
     );
 
     let orig = Rc::new(assoc_n!(
@@ -400,7 +400,7 @@ fn extensible_parsing() {
             tokens_s!("O" "O" "Extend" "AA" "AA" "Back" "O" "#" "AA" "#" "O")
         )
         .unwrap(),
-        ast!({- "c" => ["O", "O", ("Extend" {- "c" => ["AA", "AA", ("Back" {- "c" => ["O"]} "#"), "AA"]} "#"), "O"]})
+        ast!({- "c" => ["O", "O", ("Extend" (() {- "c" => ["AA", "AA", ("Back" {- "c" => ["O"]} "#"), "AA"]}) "#"), "O"]})
     );
 
     assert_eq!(
@@ -458,7 +458,7 @@ fn extensible_parsing() {
             ::earley::empty__code_envs(),
             tokens_s!("X" "X" "X" "X" "4")
         ),
-        Ok(ast!("4"))
+        Ok(ast_shape!({- "n" => ["X", "X", "X", "X"]} "4"))
     );
 
     assert_m!(
