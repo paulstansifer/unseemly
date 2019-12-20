@@ -133,7 +133,6 @@ fn macro_type(forall_ty_vars: &[Name], arguments: Vec<(Name, Ty)>, output: Ty) -
 }
 
 fn type_macro_invocation(
-    macro_name: Name,
     parts: &LazyWalkReses<::ty::SynthTy>,
     expected_return: Ty,
     grammar: &FormPat,
@@ -161,7 +160,7 @@ fn type_macro_invocation(
 
     let _ = ::ty_compare::must_subtype(
         &macro_type(&[], q_arguments.clone(), expected_return),
-        &SynthTy::walk_var(macro_name, &parts)?,
+        &parts.get_res(n("macro_name"))?,
         parts.env.clone(),
     )
     .map_err(|e| ::util::err::sp(e, parts.this_ast.clone()))?;
@@ -191,16 +190,22 @@ pub fn macro_invocation(
     let grammar2 = grammar.clone();
     Rc::new(Form {
         name: n("macro_invocation"), // TODO: maybe generate a fresh name?
-        grammar: Rc::new(grammar.clone()),
+        grammar: Rc::new(form_pat!([
+            // `type_macro_invocation` expects "macro_name" to be set
+            (named "macro_name", (anyways (,
+                ::ast::VariableReference(macro_name)
+            ))),
+            (, grammar.clone())
+        ])),
         type_compare: ::form::Both(NotWalked, NotWalked),
         // Invoked at typechecking time.
-        // `macro_name` will be bound to a type of the form
+        // The macro_name part will be bound to a type of the form
         //     ∀ T . [*[x : Nt <[T]< ⋯ ]* -> Nt <[T]<]
         // ... which you can imagine is the type of the implementation of the macro
         synth_type: ::form::Both(
             cust_rc_box!(move |parts| {
                 let return_type = ::ty_compare::Subtype::underspecified(n("<return_type>"));
-                let _ = type_macro_invocation(macro_name, &parts, return_type.clone(), &grammar1)?;
+                let _ = type_macro_invocation(&parts, return_type.clone(), &grammar1)?;
 
                 // What return type made that work?
                 let q_result = ::ty_compare::unification.with(|unif| {
@@ -222,12 +227,8 @@ pub fn macro_invocation(
                 let parts_positive = parts.switch_mode::<SynthTy>();
                 let expected_return_type = more_quoted_ty(parts.context_elt(), n("Pat"));
 
-                let arguments = type_macro_invocation(
-                    macro_name,
-                    &parts_positive,
-                    expected_return_type,
-                    &grammar2,
-                )?;
+                let arguments =
+                    type_macro_invocation(&parts_positive, expected_return_type, &grammar2)?;
 
                 // What argument types made that work?
                 let mut res: Assoc<Name, Ty> = Assoc::new();
@@ -604,22 +605,7 @@ pub fn extend_syntax() -> Rc<Form> {
             .collect();
         let rhses: Vec<&Ast> = bnf_parts.get_rep_leaf_or_panic(n("rhs"));
 
-        // TODO: change signature and thread errors through the parser, instead of doing `unwrap`s.
-
-        // Types pass for the syntax extension:
-        let mut new_ty_env = pc.type_ctxt.env.clone();
-        for rhs in &rhses {
-            // `Syntax` (at least, outside of `Named`s) is type-unpacked, producing macro types.
-            new_ty_env = new_ty_env.set_assoc(
-                &::ast_walk::walk::<::ty::UnpackTy>(
-                    rhs,
-                    &pc.type_ctxt.switch_mode::<::ty::UnpackTy>().with_context(Ty(::ast::Trivial)),
-                )
-                .unwrap(),
-            );
-        }
-
-        // Evaluation pass for the syntax extension:
+        // Figure out the  the syntax extension:
         let mut syn_env = pc.grammar;
         for ((nt, extend), rhs) in nts.into_iter().zip(ops.into_iter()).zip(rhses.into_iter()) {
             let rhs_form_pat = FormPat::reflect(&::ast_walk::walk(rhs, &pc.eval_ctxt).unwrap());
@@ -633,33 +619,33 @@ pub fn extend_syntax() -> Rc<Form> {
             )
         }
 
-        ParseContext {
-            // Gotta add a `(named "body" ⋯)`, so that `extend_syntax` can use it.
-            grammar: syn_env
-                .set(n("SyntaxExtensionBody"), Rc::new(form_pat!([(named "body", (call "Expr"))]))),
-            type_ctxt: pc.type_ctxt.with_environment(new_ty_env),
-            eval_ctxt: pc.eval_ctxt, // no change! (Macro implementations are in `syn_env`.)
-        }
+        ParseContext { grammar: syn_env, type_ctxt: pc.type_ctxt, eval_ctxt: pc.eval_ctxt }
     };
+
+    let trivial_type_form = ::core_type_forms::type_defn("unused", form_pat!((impossible)));
 
     Rc::new(Form {
         name: n("extend_syntax"),
         grammar: Rc::new(form_pat!(
             [(lit "extend_syntax"),
-             (extend_nt
+             (extend
                 [(star [(named "nt", atom),
                    (named "operator", (alt (lit "::="), (lit "::=also"))),
                    (named "rhs", (call "Syntax")),
+                   (named "unused_type", (anyways {trivial_type_form ; } )),
                    (lit ";")]),
                  (lit "in")],
-                "SyntaxExtensionBody", // just `(named "body", (call "Expr"))`
+                (named "body", (import [* ["rhs" = "unused_type"]], (call "Expr"))),
                 perform_extension)])),
         type_compare: ::form::Both(NotWalked, NotWalked),
-        synth_type: ::form::Positive(cust_rc_box!(|extend_syntax_parts| {
-            // `extension` is typechecked in `perform_extension`
-            extend_syntax_parts.get_res(n("body"))
+        synth_type: ::form::Positive(Body(n("body"))),
+        eval: ::form::Positive(cust_rc_box!(move |extend_syntax_parts| {
+            // HACK: since the macros have been expanded away, `rhs` should be unbound
+            ::runtime::eval::eval(
+                ::core_forms::strip_ee(extend_syntax_parts.get_term_ref(n("body"))),
+                extend_syntax_parts.env.clone(),
+            )
         })),
-        eval: ::form::Positive(Body(n("body"))),
         quasiquote: ::form::Both(LiteralLike, LiteralLike),
     })
 }
@@ -820,6 +806,7 @@ fn type_basic_macro_invocation() {
                 macro_invocation(
                     form_pat!([(lit "invoke basic_int_macro"), (named "a", (call "Expr"))]),
                     n("basic_int_macro"), impl_clo.clone(), vec![]) ;
+                "macro_name" => (vr "basic_int_macro"),
                 "a" => (vr "int_var")
             }),
             env.clone()
@@ -833,6 +820,7 @@ fn type_basic_macro_invocation() {
                 macro_invocation(
                     form_pat!([(lit "invoke basic_t_macro"), (named "a", (call "Expr"))]),
                     n("basic_t_macro"), impl_clo.clone(), vec![]) ;
+                "macro_name" => (vr "basic_t_macro"),
                 "a" => (vr "nat_var")
             }),
             env.clone()
@@ -846,6 +834,7 @@ fn type_basic_macro_invocation() {
                 macro_invocation(
                     form_pat!([(lit "invoke basic_int_macro"), (named "a", (call "Expr"))]),
                     n("basic_int_macro"), impl_clo.clone(), vec![]) ;
+                "macro_name" => (vr "basic_int_macro"),
                 "a" => (vr "nat_var")
             }),
             env.clone()
@@ -859,6 +848,7 @@ fn type_basic_macro_invocation() {
                 macro_invocation(
                     form_pat!([(lit "invoke basic_pattern_macro"), (named "a", (call "Pat"))]),
                     n("basic_pattern_macro"), impl_clo.clone(), vec![n("a")]) => ["a"];
+                "macro_name" => (vr "basic_pattern_macro"),
                 "a" => "should_be_nat"
             }),
             env.clone().set(negative_ret_val(), ty!({"Type" "Nat" :}))
@@ -875,6 +865,7 @@ fn type_basic_macro_invocation() {
                                (named "binding", (call "Pat")),
                                (named "body", (import ["binding" = "val"], (call "Expr")))]),
                     n("let_like_macro"), impl_clo.clone(), vec![]) ;
+                "macro_name" => (vr "let_like_macro"),
                 "val" => (vr "nat_var"),
                 "binding" => "x",
                 "body" => (import ["binding" = "val"] (vr "x"))
@@ -893,6 +884,7 @@ fn type_basic_macro_invocation() {
                                (named "body", (call "Pat")),
                                (named "cond_expr", (import ["body" : "t"], (call "Expr")))]),
                     n("pattern_cond_like_macro"), impl_clo.clone(), vec![n("body")]) ;
+                "macro_name" => (vr "pattern_cond_like_macro"),
                 "t" => {"Type" "Int" :},
                 "body" => "x",
                 "cond_expr" => (import ["body" : "t"] (vr "x"))
@@ -931,6 +923,7 @@ fn type_ddd_macro() {
                                 (star (named "binding", (call "Pat"))),
                                 (named "body", (import [* ["binding" = "val"]], (call "Expr")))]),
                     n("let_like_macro"), impl_clo, vec![]) ;
+                "macro_name" => (vr "let_like_macro"),
                 "val" => [@"arm" (vr "nat_var"), (vr "nat_var")],
                 "binding" => [@"arm" "x1", "x2"],
                 "body" => (import [* ["binding" = "val"]] (vr "x1"))
