@@ -226,11 +226,9 @@ pub fn walk<Mode: WalkMode>(
                 icp!("{:#?} is not a walkable AST in {}", a, Mode::name());
             }
 
-            // TODO: `env_from_beta` only works in positive modes... what should we do otherwise?
             ExtendEnv(ref body, ref beta) => {
                 let new_env = if Mode::automatically_extend_env() {
-                    walk_ctxt.env.set_assoc(
-                        &env_from_beta(beta, &walk_ctxt)?)
+                    walk_ctxt.env.set_assoc(&env_from_beta(beta, &walk_ctxt)?)
                 } else {
                     walk_ctxt.env.clone()
                 };
