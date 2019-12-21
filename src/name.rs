@@ -73,6 +73,12 @@ impl Name {
     pub fn sp(self) -> String { spellings.with(|us| us.borrow()[self.id].unique.clone()) }
     pub fn orig_sp(self) -> String { spellings.with(|us| us.borrow()[self.id].orig.clone()) }
 
+    /// This extracts the "original" `Name`, prior to any freshening.
+    /// This is probably not ever the *right* thing to do, but may be needed as a workaround.
+    pub fn unhygienic_orig(self) -> Name {
+        spellings.with(|us| Name::new(&us.borrow()[self.id].orig, false))
+    }
+
     // Printable names are unique, like `unique_spelling`s, but are assigned during printing.
     // This way if the compiler freshens some name a bunch of times, producing a tomato-filled mess,
     // but only prints one version of the name, it gets to print an unadorned name.
@@ -165,11 +171,13 @@ fn name_interning() {
     assert_eq!(a, a);
     assert_eq!(a, n("a"));
     assert_ne!(a, a.freshen());
+    assert_eq!(a, a.freshen().unhygienic_orig());
 
     assert_ne!(a, n("x🍅"));
     assert_ne!(a.freshen(), a.freshen());
 
     assert_ne!(n("a"), n("y"));
+
 
     enable_fake_freshness(true);
 
