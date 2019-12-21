@@ -113,7 +113,13 @@ macro_rules! syntax_syntax {
 fn macro_type(forall_ty_vars: &[Name], arguments: Vec<(Name, Ty)>, output: Ty) -> Ty {
     let mut components = vec![];
     for (k, v) in arguments.iter() {
-        components.push(mbe!("component_name" => (, Atom(*k)), "component" => (, v.to_ast())));
+        // The fields in a struct type are not renamed like normal during freshening,
+        //  so roll back any freshening that happened during evaluation, hence `unhygienic_orig`.
+        // TODO: this can go wrong if a macro-defining macro collides two term names.
+        // Fixing this probably requires rethinking how "component_name" works.
+        // Perhaps not using structs at all might also work.
+        components.push(mbe!("component_name" => (, Atom(k.unhygienic_orig())),
+                             "component" => (, v.to_ast())));
     }
     let argument_struct = Node(
         ::core_forms::find_core_form("Type", "struct"),
