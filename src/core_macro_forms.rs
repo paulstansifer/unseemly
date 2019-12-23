@@ -150,15 +150,29 @@ fn type_macro_invocation(
     for (binder, depth) in grammar.binders() {
         let nt = grammar.find_named_call(binder).unwrap();
         let term_ty = if ::core_type_forms::nt_is_positive(nt) {
-            parts.flatten_res_at_depth(binder, depth, &|ty_vec: Vec<Ty>| {
-                ty!({"Type" "tuple" :
-                    "component" => (,seq ty_vec.iter().map(|ty| ty.concrete()))
-                })
-            })?
+            parts.flatten_res_at_depth(
+                binder,
+                depth,
+                &|ty: Ty| more_quoted_ty(&ty, nt),
+                &|ty_vec: Vec<Ty>| {
+                    ty!({"Type" "tuple" :
+                        "component" => (,seq ty_vec.iter().map(|ty| ty.concrete()))
+                    })
+                },
+            )?
         } else {
-            ::ty_compare::Subtype::underspecified(binder)
+            parts.flatten_generate_at_depth(
+                binder,
+                depth,
+                &|| ::ty_compare::Subtype::underspecified(binder),
+                &|ty_vec: Vec<Ty>| {
+                    ty!({"Type" "tuple" :
+                        "component" => (,seq ty_vec.iter().map(|ty| ty.concrete()))
+                    })
+                },
+            )
         };
-        q_arguments.push((binder, more_quoted_ty(&term_ty, nt)));
+        q_arguments.push((binder, term_ty));
     }
 
     // This is lifted almost verbatim from "Expr" "apply". Maybe they should be unified?
@@ -903,9 +917,9 @@ fn type_basic_macro_invocation() {
 
 #[test]
 fn type_ddd_macro() {
-    let t_expr_type = uty!({type_apply : (prim Expr) [T]});
+    let t_rep_expr_type = uty!({dotdotdot : [T] {type_apply : (prim Expr) [T]}});
     let s_expr_type = uty!({type_apply : (prim Expr) [S]});
-    let t_pat_type = uty!({type_apply : (prim Pat) [T]});
+    let t_rep_pat_type = uty!({dotdotdot : [T] {type_apply : (prim Pat) [T]}});
 
     let impl_clo =
         ::runtime::eval::Closure { body: ast!((trivial)), params: vec![], env: Assoc::new() };
@@ -915,8 +929,8 @@ fn type_ddd_macro() {
         "nat_var" => uty!({Nat :}),
         "let_like_macro" =>
             macro_type(&vec![n("T"), n("S")],
-                       vec![(n("val"), t_expr_type.clone()),
-                            (n("binding"), t_pat_type.clone()),
+                       vec![(n("val"), t_rep_expr_type.clone()),
+                            (n("binding"), t_rep_pat_type.clone()),
                             (n("body"), s_expr_type.clone())],
                        s_expr_type.clone()));
 

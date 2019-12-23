@@ -564,21 +564,46 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         &self,
         part_name: Name,
         depth: u8,
-        f: &dyn Fn(Vec<<Mode::D as Dir>::Out>) -> <Mode::D as Dir>::Out,
+        map: &dyn Fn(<Mode::D as Dir>::Out) -> <Mode::D as Dir>::Out,
+        flatten: &dyn Fn(Vec<<Mode::D as Dir>::Out>) -> <Mode::D as Dir>::Out,
     ) -> Result<<Mode::D as Dir>::Out, Mode::Err>
     {
         self.parts.map_flatten_rep_leaf_or_panic(
             part_name,
             depth,
             &|lwt: &Rc<LazilyWalkedTerm<Mode>>| -> Result<<Mode::D as Dir>::Out, Mode::Err> {
-                return lwt.get_res(self);
+                return lwt.get_res(self).map(map);
             },
             &|v: Vec<Result<<Mode::D as Dir>::Out, Mode::Err>>| {
                 let mut accum = vec![];
                 for elt in v {
                     accum.push(elt?);
                 }
-                Ok(f(accum))
+                Ok(flatten(accum))
+            },
+        )
+    }
+
+    /// Like `flatten_res_at_depth`, but uses `leaf` instead of doing `get_res`
+    /// TODO: this is used in only one place, and feels really awkward.
+    pub fn flatten_generate_at_depth(
+        &self,
+        part_name: Name,
+        depth: u8,
+        generate: &dyn Fn() -> <Mode::D as Dir>::Out,
+        flatten: &dyn Fn(Vec<<Mode::D as Dir>::Out>) -> <Mode::D as Dir>::Out,
+    ) -> <Mode::D as Dir>::Out
+    {
+        self.parts.map_flatten_rep_leaf_or_panic(
+            part_name,
+            depth,
+            &|_| -> <Mode::D as Dir>::Out { generate() },
+            &|v: Vec<<Mode::D as Dir>::Out>| {
+                let mut accum = vec![];
+                for elt in v {
+                    accum.push(elt);
+                }
+                flatten(accum)
             },
         )
     }
