@@ -220,103 +220,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         "tuple",
         form_pat!((delim "**[", "[", (star (named "component", (call "Type"))))),
         LiteralLike,
-        Both(
-            LiteralLike,
-            cust_rc_box!(move |tuple_parts| {
-                use ast_walk::Clo;
-                let ddd_parts = match tuple_parts.context_elt() {
-                    Ty(Node(ref f, ref ddd_parts, _))
-                        if f == &::core_forms::find("Type", "dotdotdot") =>
-                    {
-                        ddd_parts
-                    }
-                    _ => {
-                        // Just do normal LiteralLike walk:
-                        return Subtype::walk_quasi_literally(
-                            tuple_parts.this_ast.clone(),
-                            &tuple_parts,
-                        );
-                    }
-                };
-
-                let tuple_size = tuple_parts.get_rep_term(n("component")).len();
-                let mut driver_components: Vec<Vec<Ty>> = vec![];
-
-                ::ty_compare::unification.with(|unif| {
-                    for driver in ddd_parts.get_rep_leaf_or_panic(n("driver")) {
-                        let driver_resolved = ::ty_compare::resolve(
-                            Clo { it: Ty(driver.clone()), env: tuple_parts.env.clone() },
-                            &unif.borrow(),
-                        );
-                        if let Clo { it: Ty(Node(ref f, ref driver_parts, _)), env: _ } =
-                            driver_resolved
-                        {
-                            if f == &::ty_compare::underdetermined_form.with(Clone::clone) {
-                                // Force the underdetermined driver to be a
-                                //  tuple whose elements are still underdetermined.
-                                let mut undet_components = vec![];
-                                for _ in 0..tuple_size {
-                                    undet_components.push(Subtype::underspecified(n("tup")));
-                                }
-                                let blank_tuple = ty!({"Type" "tuple" :
-                                "component" => (,seq
-                                    undet_components
-                                        .iter().map(|t| t.concrete()).collect::<Vec<_>>())});
-
-                                unif.borrow_mut().insert(
-                                    ast_to_name(driver_parts.get_leaf_or_panic(&n("id"))),
-                                    Clo { it: blank_tuple, env: Assoc::new() }, // has no var refs
-                                );
-                                driver_components.push(undet_components);
-                            } else if f == &::core_forms::find("Expr", "tuple") {
-                                driver_components.push(
-                                    driver_parts
-                                        .get_rep_leaf_or_panic(n("component"))
-                                        .into_iter()
-                                        .map(|c| Ty(c.clone()))
-                                        .collect(),
-                                );
-                            } else {
-                                return Err(::ty::TyErr::UnableToDestructure(
-                                    driver_resolved.it,
-                                    n("tuple"),
-                                ));
-                            }
-                        } else {
-                            return Err(::ty::TyErr::UnableToDestructure(
-                                driver_resolved.it,
-                                n("tuple"),
-                            ));
-                        }
-                    }
-
-                    let per_component_parts = tuple_parts.march_parts(&vec![n("component")]);
-
-                    let mut reses = Assoc::new();
-
-                    for i in 0..tuple_size {
-                        let mut env = tuple_parts.env.clone();
-                        for (driver, components) in ddd_parts
-                            .get_rep_leaf_or_panic(n("driver"))
-                            .iter()
-                            .zip(driver_components.iter())
-                        {
-                            let driver_name = vr_to_name(&driver);
-                            env = env.set(driver_name, components[i].clone());
-                        }
-
-                        reses = reses.set_assoc(
-                            &per_component_parts[i]
-                                .with_environment(env)
-                                .with_context(Ty(ddd_parts.get_leaf_or_panic(&n("body")).clone()))
-                                .get_res(n("component"))?,
-                        );
-                    }
-
-                    Ok(reses)
-                })
-            }),
-        ),
+        Both(LiteralLike, LiteralLike),
     );
 
     let forall_type = type_defn_complex(
@@ -506,7 +410,102 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 }))
             }
         }),
-        Both(LiteralLike, LiteralLike),
+        Both(
+            LiteralLike,
+            cust_rc_box!(move |ddd_parts| {
+                use ast_walk::Clo;
+                let tuple_parts = match ddd_parts.context_elt() {
+                    Ty(Node(ref f, ref tuple_parts, _))
+                        if f == &::core_forms::find("Type", "tuple") =>
+                    {
+                        tuple_parts
+                    }
+                    _ => {
+                        // Just do normal LiteralLike walk:
+                        return Subtype::walk_quasi_literally(
+                            ddd_parts.this_ast.clone(),
+                            &ddd_parts,
+                        );
+                    }
+                };
+
+                let tuple_size = tuple_parts.get_rep_leaf_or_panic(n("component")).len();
+                let mut driver_components: Vec<Vec<Ty>> = vec![];
+
+                ::ty_compare::unification.with(|unif| {
+                    for driver in ddd_parts.get_rep_term(n("driver")) {
+                        let driver_resolved = ::ty_compare::resolve(
+                            Clo { it: Ty(driver.clone()), env: ddd_parts.env.clone() },
+                            &unif.borrow(),
+                        );
+                        if let Clo { it: Ty(Node(ref f, ref driver_parts, _)), env: _ } =
+                            driver_resolved
+                        {
+                            if f == &::ty_compare::underdetermined_form.with(Clone::clone) {
+                                // Force the underdetermined driver to be a
+                                //  tuple whose elements are still underdetermined.
+                                let mut undet_components = vec![];
+                                for _ in 0..tuple_size {
+                                    undet_components.push(Subtype::underspecified(n("tup")));
+                                }
+                                let blank_tuple = ty!({"Type" "tuple" :
+                            "component" => (,seq
+                                undet_components
+                                    .iter().map(|t| t.concrete()).collect::<Vec<_>>())});
+
+                                unif.borrow_mut().insert(
+                                    ast_to_name(driver_parts.get_leaf_or_panic(&n("id"))),
+                                    Clo { it: blank_tuple, env: Assoc::new() }, // has no var refs
+                                );
+                                driver_components.push(undet_components);
+                            } else if f == &::core_forms::find("Type", "tuple") {
+                                driver_components.push(
+                                    driver_parts
+                                        .get_rep_leaf_or_panic(n("component"))
+                                        .into_iter()
+                                        .map(|c| Ty(c.clone()))
+                                        .collect(),
+                                );
+                            } else {
+                                return Err(::ty::TyErr::UnableToDestructure(
+                                    driver_resolved.it,
+                                    n("tuple"),
+                                ));
+                            }
+                        } else {
+                            return Err(::ty::TyErr::UnableToDestructure(
+                                driver_resolved.it,
+                                n("tuple"),
+                            ));
+                        }
+                    }
+
+                    let mut reses = Assoc::new();
+
+                    for i in 0..tuple_size {
+                        let mut env = ddd_parts.env.clone();
+                        for (driver, components) in
+                            ddd_parts.get_rep_term(n("driver")).iter().zip(driver_components.iter())
+                        {
+                            let driver_name = vr_to_name(&driver);
+                            env = env.set(driver_name, components[i].clone());
+                        }
+
+                        let this_component =
+                            Ty(tuple_parts.get_rep_leaf_or_panic(n("component"))[i].clone());
+
+                        reses = reses.set_assoc(
+                            &ddd_parts
+                                .with_environment(env)
+                                .with_context(this_component)
+                                .get_res(n("body"))?,
+                        );
+                    }
+
+                    Ok(reses)
+                })
+            }),
+        ),
     );
 
     let forall_type_0 = forall_type.clone();

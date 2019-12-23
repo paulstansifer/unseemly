@@ -704,21 +704,24 @@ fn subtype_dotdotdot() {
     let threeple = ty!({"Type" "tuple" :
         "component" => [{"Type" "Int" :}, {"Type" "Float" :}, {"Type" "Nat" :}]
     });
-    let dddple = ty!({"Type" "dotdotdot" : "driver" => [(vr "T")], "body" => (vr "T")});
+    let dddple = uty!({forall_type : [T] {dotdotdot : [T] T}});
 
-    assert_m!(
-        must_subtype(&dddple, &threeple, assoc_n!("T" => Subtype::underspecified(n("-")))),
-        Ok(_)
-    );
+    assert_m!(must_subtype(&threeple, &dddple, Assoc::new()), Ok(_));
 
-    // TODO #15: this panics in mbe.rs; it ought to error instead
-    // assert_m!(must_subtype(&threeple, &dddple, assoc_n!("T" => Subtype::underspecified(n("-")))),
+    // TODO #15: this panics in mbe.rs; it ought to error instead (might not still be true)
+    // assert_m!(must_subtype(&dddple, &threeple, assoc_n!("T" => Subtype::underspecified(n("-")))),
     //     Err(_));
 
-    assert_m!(
-        must_subtype(&dddple, &dddple, assoc_n!("T" => Subtype::underspecified(n("-")))),
-        Ok(_)
-    );
+    assert_m!(must_subtype(&dddple, &dddple, Assoc::new()), Ok(_));
+
+    let expr_threeple = uty!({tuple : [{type_apply : (prim Expr) [{Int :}]};
+                                       {type_apply : (prim Expr) [{Float :}]};
+                                       {type_apply : (prim Expr) [{Nat :}]}]});
+    let expr_dddple = uty!({forall_type : [T] {dotdotdot : [T] {type_apply : (prim Expr) [T]}}});
+
+    assert_m!(must_subtype(&expr_threeple, &dddple, Assoc::new()), Ok(_));
+
+    assert_m!(must_subtype(&expr_threeple, &expr_dddple, Assoc::new()), Ok(_));
 }
 
 #[test]
