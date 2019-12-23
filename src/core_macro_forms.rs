@@ -575,6 +575,8 @@ pub fn make_core_macro_forms() -> SynEnv {
                 // TODO: This is the right thing to do, right?
                 let macro_params = ::beta::bound_from_export_beta(
                     &ebeta!(["syntax"]), &parts.this_ast.node_parts(), 0);
+                let implementation = ::core_forms::strip_ee(
+                    &::core_forms::strip_ee(&parts.get_term(n("implementation")))).clone();
 
                 let mut export = ::beta::ExportBeta::Nothing;
                 let export_names = parts.get_rep_term(n("export")).iter()
@@ -589,7 +591,7 @@ pub fn make_core_macro_forms() -> SynEnv {
                 Ok(Scope(macro_invocation(
                         FormPat::reflect(&parts.get_res(n("syntax"))?),
                         ast_to_name(&parts.get_term(n("macro_name"))),
-                        ::runtime::eval::Closure{ body: parts.get_term(n("implementation")),
+                        ::runtime::eval::Closure{ body: implementation,
                             params: macro_params,
                             env: parts.env.clone()
                         },
