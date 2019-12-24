@@ -765,4 +765,30 @@ fn language_building() {
             assert_eq!(times, uty!({fn : [{Int :}; {Int :}] {Int :}}));
         }
     );
+
+    // TODO: leaving out the `**[ ]**` results in an ICP; it should be a static error.
+
+    let let_macro_prog = "extend_syntax
+            Expr ::=also forall T S . '{
+                [
+                    lit ,{ DefaultToken }, = 'let'
+                    [
+                        pat := ( ,{ Pat <[ S ]< }, )
+                        lit ,{ DefaultToken }, = '='
+                        value := ( ,{ Expr <[ S ]< }, )
+                        lit ,{ DefaultToken }, = ';'
+                    ] *
+                    lit ,{ DefaultToken }, = 'in'
+                    body := ( ,{ Expr <[ T ]< }, <-- ...[pat = value]... )
+                ]
+            }' let_macro -> .{
+                '[Expr |
+                    match **[...[, value , >> ,[value], ]... ]**
+                        { **[...[, pat , >> ,[pat],]... ]** => ,[body], } ]'
+            }. ;
+        in
+        let x = eight ;
+            y = four ;
+        in (plus y (plus x y))";
+    assert_eq!(eval_unseemly_program(let_macro_prog), Ok(val!(i 16)));
 }

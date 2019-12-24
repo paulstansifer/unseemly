@@ -331,7 +331,13 @@ pub fn dotdotdot(nt: Name) -> Rc<FormPat> {
 macro_rules! ddd_type__body {
     ($ddd_parts:expr) => {
         {
-            let drivers = $ddd_parts.get_rep_term(n("driver"));
+            let drivers : Vec<Name> = $ddd_parts.get_rep_term(n("driver")).into_iter().map(|a| {
+                match a {
+                    ::ast::QuoteLess(ref d, _) => ::core_forms::vr_to_name(d),
+                    _ => icp!()
+                }
+            }).collect();
+
 
             // HACK: we want to operate on the environment one level less quoted
             //  (that's why we put commas around the drivers)
@@ -340,7 +346,7 @@ macro_rules! ddd_type__body {
 
             let mut walked_env = Assoc::new();
 
-            let repeats = match ddd_parts_uq.env.find(&::core_forms::vr_to_name(&drivers[0])) {
+            let repeats = match ddd_parts_uq.env.find(&drivers[0]) {
                 Some(&Ty(::ast::Node(ref form, ref parts, _))) if form.name == n("tuple") => {
                     parts.get_rep_leaf_or_panic(n("component")).len()
                 }
@@ -350,13 +356,12 @@ macro_rules! ddd_type__body {
                     ty_err!(UnableToDestructure(other_t.clone(), n("tuple"))
                                 at ddd_parts_uq.this_ast);
                 }
-                _ => ty_err!(UnboundName(::core_forms::vr_to_name(&drivers[0]))
-                                 at ddd_parts_uq.this_ast),
+                _ => ty_err!(UnboundName(drivers[0]) at ddd_parts_uq.this_ast),
             };
 
             for i in 0..repeats {
                 for (name, ty) in ddd_parts_uq.env.iter_pairs() {
-                    if drivers.contains(&::ast::VariableReference(*name)) {
+                    if drivers.contains(name) {
                         walked_env = walked_env.set(*name, match ty {
                             Ty(::ast::Node(ref form, ref parts, _)) if form.name == n("tuple") => {
                                 Ty(parts.get_rep_leaf_or_panic(n("component"))[i].clone())
@@ -383,7 +388,7 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
     Rc::new(Form {
         name: n("dotdotdot"),
         grammar: Rc::new(form_pat!((delim "...[", "[",
-            [(star [(lit ","), (named "driver", varref), (lit ",")]), (lit ">>"),
+            [(star [(lit ","), (named "driver", (-- 1 varref)), (lit ",")]), (lit ">>"),
              (named "body", (call_by_name nt))]))),
         type_compare: Positive(NotWalked), // this is not a type form
         synth_type: Both(
@@ -400,21 +405,27 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
 
             let (_, ddd_parts_uq) = ddd_parts.quote_less();
 
-            let drivers = ddd_parts_uq.get_rep_term(n("driver"));
+            let drivers: Vec<Name> = ddd_parts_uq
+                .get_rep_term(n("driver"))
+                .into_iter()
+                .map(|a| match a {
+                    ::ast::QuoteLess(ref d, _) => ::core_forms::vr_to_name(d),
+                    _ => icp!(),
+                })
+                .collect();
 
             // TODO: the typechecker should reject dotdotdotds with no drivers,
             // or where a driver isn't in scope.
-            let count =
-                match *ddd_parts_uq.env.find_or_panic(&::core_forms::vr_to_name(&drivers[0])) {
-                    Sequence(ref contents) => contents.len(),
-                    _ => icp!("type error"),
-                };
+            let count = match *ddd_parts_uq.env.find_or_panic(&drivers[0]) {
+                Sequence(ref contents) => contents.len(),
+                _ => icp!("type error"),
+            };
             let mut reps = vec![];
 
             for i in 0..count {
                 let mut walked_env = Assoc::new();
                 for (n, val) in ddd_parts_uq.env.iter_pairs() {
-                    let walked_val = if drivers.contains(&::ast::VariableReference(*n)) {
+                    let walked_val = if drivers.contains(n) {
                         match *val {
                             Sequence(ref contents) => (*contents[i]).clone(),
                             _ => icp!("type error"),
@@ -1159,7 +1170,7 @@ fn use_dotdotdot() {
                     "p" => [@"c" "x"],
                     "arm" => [@"c" (import ["p" = "scrutinee"]
                         {dotdotdot_form(n("Expr")) ;
-                            "driver" => [(vr "ns")],
+                            "driver" => [(-- 1 (vr "ns"))],
                             "body" =>
                                 {unquote_form(n("Expr"), pos, 1) ;
                                  "body" => (-- 1 (vr "ns"))}})]})}),
@@ -1177,7 +1188,7 @@ fn use_dotdotdot() {
                         "p" => [@"c" "x"],
                         "arm" => [@"c" (import ["p" = "scrutinee"]
                             {dotdotdot_form(n("Expr")) ;
-                                "driver" => [(vr "ns")],
+                                "driver" => [(-- 1 (vr "ns"))],
                                 "body" =>
                                     {unquote_form(n("Expr"), pos, 1) ;
                                      "body" => (-- 1 (vr "ns"))}})]})}),
@@ -1222,19 +1233,19 @@ fn use_dotdotdot() {
             {"Expr" "apply" :
                 "rator" => {"Expr" "lambda" :
                     "param" => [@"p" {dotdotdot_form(n("Ident")) ;
-                        "driver" => [(vr "names")],
+                        "driver" => [(-- 1 (vr "names"))],
                         "body" => {unquote_form(n("Ident"), pos, 1);
                             "body" => (-- 1 (vr "names"))}
                     }],
                     "p_t" => [@"p" {dotdotdot_form(n("Type")) ;
-                        "driver" => [(vr "types")],
+                        "driver" => [(-- 1 (vr "types"))],
                         "body" => {unquote_form(n("Type"), pos, 1);
                             "body" => (-- 1 (vr "types"))}
                     }],
                     "body" => (vr "five")
                 },
                 "rand" => [{dotdotdot_form(n("Expr")) ;
-                    "driver" => [(vr "args")],
+                    "driver" => [(-- 1 (vr "args"))],
                     "body" => {unquote_form(n("Expr"), pos, 1);
                         "body" => (-- 1 (vr "args"))}}]
             })}),
