@@ -68,7 +68,7 @@ pub trait WalkMode: Debug + Copy + Reifiable {
     /// Any extra information the walk needs
     type ExtraInfo: ::std::default::Default + Reifiable + Clone + Debug;
 
-    fn get_walk_rule(&Form) -> WalkRule<Self>
+    fn get_walk_rule(form: &Form) -> WalkRule<Self>
     where Self: Sized;
 
     /// Should the walker extend the environment based on imports?
@@ -111,7 +111,7 @@ pub trait WalkMode: Debug + Copy + Reifiable {
     /// If that happens, all copies of this `Elt` will act like that other one.
     ///
     /// Side-effects under the covers make this work.
-    fn underspecified(Name) -> Self::Elt { icp!("no underspecified_elt") }
+    fn underspecified(_: Name) -> Self::Elt { icp!("no underspecified_elt") }
 
     fn name() -> &'static str;
 }
@@ -131,16 +131,16 @@ where Self: ::std::marker::Sized
     ///  and and mode-specific leaf-processing
     fn pre_walk(node: Ast, cnc: LazyWalkReses<Self::Mode>) -> (Ast, LazyWalkReses<Self::Mode>);
 
-    fn walk_quasi_literally(Ast, &LazyWalkReses<Self::Mode>) -> Res<Self::Mode>;
+    fn walk_quasi_literally(node: Ast, cnc: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode>;
 
     /// Look up variable in the environment!
-    fn walk_var(Name, &LazyWalkReses<Self::Mode>) -> Res<Self::Mode>;
+    fn walk_var(name: Name, cnc: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode>;
 
-    fn walk_atom(Name, &LazyWalkReses<Self::Mode>) -> Res<Self::Mode>;
+    fn walk_atom(name: Name, cnc: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode>;
 
-    fn out_as_elt(Self::Out) -> <Self::Mode as WalkMode>::Elt;
-    fn out_as_env(Self::Out) -> Assoc<Name, <Self::Mode as WalkMode>::Elt>;
-    fn env_as_out(Assoc<Name, <Self::Mode as WalkMode>::Elt>) -> Self::Out;
+    fn out_as_elt(out: Self::Out) -> <Self::Mode as WalkMode>::Elt;
+    fn out_as_env(out: Self::Out) -> Assoc<Name, <Self::Mode as WalkMode>::Elt>;
+    fn env_as_out(env: Assoc<Name, <Self::Mode as WalkMode>::Elt>) -> Self::Out;
 
     /// For when we hackishly need to execute some code depending on the direction
     fn is_positive() -> bool;
