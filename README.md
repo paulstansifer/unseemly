@@ -93,7 +93,7 @@ Unseemly macros are typechecked before expansion, but are the only macro system 
 Wyvern's primary motivating example
  (write SQL, not strings containing SQL, in your general-purpose code)
  is a lot like Unseemly's vision of inline syntax extension.
-Wyvern is a full-fledge language, not a core language.
+Wyvern is a full-fledged language, not a core language.
 I believe that writing new embedded languages is not as easy as macro definition.
 
 Wyvern also includes a number of features that are outside the scope of Unseemly.
