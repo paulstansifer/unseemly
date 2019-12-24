@@ -1,6 +1,0 @@
-forall T . '{ (lit if)   cond = ,{Expr <[Bool]<},
-              (lit then) then_e = ,{Expr <[T]<},
-              (lit else) else_e = ,{Expr <[T]<}, }'
- conditional -> .{ '[Expr | match ,[cond], {
-                                +[True]+ => ,[then_e],
-                                +[False]+ => ,[else_e], } ]' }.
