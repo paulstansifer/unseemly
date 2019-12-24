@@ -4,10 +4,13 @@
 
 #![macro_use]
 
-use beta::{Beta, ExportBeta};
-use name::*;
+use crate::{
+    beta::{Beta, ExportBeta},
+    form::Form,
+    name::*,
+    util::mbe::EnvMBE,
+};
 use std::{fmt, iter};
-use util::mbe::EnvMBE;
 
 // TODO: This really ought to be an `Rc` around an `enum`
 #[derive(Clone, PartialEq)]
@@ -24,7 +27,7 @@ pub enum Ast {
 
     /// A meaningful chunk of syntax, governed by a form, containing an environment,
     ///  potentially exporting some names.
-    Node(::std::rc::Rc<::form::Form>, EnvMBE<Ast>, ExportBeta),
+    Node(std::rc::Rc<Form>, EnvMBE<Ast>, ExportBeta),
 
     /// For parsing purposes.
     IncompleteNode(EnvMBE<Ast>),
@@ -37,15 +40,15 @@ pub enum Ast {
 
 // Reification macros would totally work for this,
 //  but it's worth having a special case in `Value` in order to make this faster.
-impl ::runtime::reify::Reifiable for Ast {
+impl crate::runtime::reify::Reifiable for Ast {
     fn ty_name() -> Name { n("Ast") }
 
-    fn reify(&self) -> ::runtime::eval::Value {
-        ::runtime::eval::Value::AbstractSyntax(self.clone())
+    fn reify(&self) -> crate::runtime::eval::Value {
+        crate::runtime::eval::Value::AbstractSyntax(self.clone())
     }
 
-    fn reflect(v: &::runtime::eval::Value) -> Ast {
-        extract!((v) ::runtime::eval::Value::AbstractSyntax = (ref ast) => (ast.clone()))
+    fn reflect(v: &crate::runtime::eval::Value) -> Ast {
+        extract!((v) crate::runtime::eval::Value::AbstractSyntax = (ref ast) => (ast.clone()))
     }
 }
 
@@ -72,7 +75,7 @@ impl fmt::Debug for Ast {
             Node(ref form, ref body, ref export) => {
                 write!(f, "{{ ({}); {:#?}", form.name.sp(), body)?;
                 match *export {
-                    ::beta::ExportBeta::Nothing => {}
+                    crate::beta::ExportBeta::Nothing => {}
                     _ => write!(f, " ⇑{:#?}", export)?,
                 }
                 write!(f, "}}")
@@ -98,11 +101,11 @@ impl fmt::Display for Ast {
             Atom(ref n) => write!(f, "{}", n.print()),
             VariableReference(ref v) => write!(f, "{}", v.print()),
             Node(ref form, ref body, _) => {
-                let s = ::unparse::unparse_mbe(
+                let s = crate::unparse::unparse_mbe(
                     &form.grammar,
                     self,
                     body,
-                    &::core_forms::get_core_forms(),
+                    &crate::core_forms::get_core_forms(),
                 );
                 write!(f, "{}", s)
             }
@@ -152,8 +155,8 @@ impl Ast {
     // TODO: use this more
     pub fn destructure(
         &self,
-        expd_form: ::std::rc::Rc<::form::Form>,
-    ) -> Option<::util::mbe::EnvMBE<Ast>>
+        expd_form: std::rc::Rc<Form>,
+    ) -> Option<crate::util::mbe::EnvMBE<Ast>>
     {
         if let Node(ref f, ref parts, _) = self {
             if f == &expd_form {
@@ -170,7 +173,7 @@ impl Ast {
             _ => icp!(),
         }
     }
-    pub fn node_form(&self) -> &::form::Form {
+    pub fn node_form(&self) -> &Form {
         match *self {
             Node(ref form, _, _) => form,
             _ => icp!(),
@@ -253,7 +256,7 @@ fn star_construction() {
 
 #[test]
 fn mbe_r_and_r_roundtrip() {
-    use runtime::reify::Reifiable;
+    use crate::runtime::reify::Reifiable;
     let mbe1 = mbe!( "a" => [@"duo" "1", "2"], "b" => [@"duo" "11", "22"]);
     assert_eq!(mbe1, EnvMBE::<Ast>::reflect(&mbe1.reify()));
 }

@@ -1,15 +1,17 @@
-use ast::*;
-use ast_walk::{
-    walk, Clo, LazyWalkReses,
-    WalkRule::{self, *},
+use crate::{
+    ast::*,
+    ast_walk::{
+        walk, Clo, LazyWalkReses,
+        WalkRule::{self, *},
+    },
+    core_forms::{ast_to_name, find_core_form},
+    form::{Both, Form},
+    name::*,
+    ty::{Ty, TyErr},
+    util::assoc::Assoc,
+    walk_mode::WalkMode,
 };
-use core_forms::{ast_to_name, find_core_form};
-use form::Form;
-use name::*;
-use std::{cell::RefCell, collections::HashMap};
-use ty::{Ty, TyErr};
-use util::assoc::Assoc;
-use walk_mode::WalkMode;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 // Let me write down an example subtyping hierarchy, to stop myself from getting confused.
 // ⊤ (any type/dynamic type/"dunno"/∀X.X)
@@ -135,13 +137,15 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
                     // This kind of thing is necessary because
                     //  we wish to avoid aliasing problems at the type level.
                     // In System F, this is avoided by performing capture-avoiding substitution.
-                    let mut new__tapp_parts = ::util::mbe::EnvMBE::new_from_leaves(
+                    use crate::util::mbe::EnvMBE;
+
+                    let mut new__tapp_parts = EnvMBE::new_from_leaves(
                         assoc_n!("type_rator" => VariableReference(rator_vr)),
                     );
 
                     let mut args = vec![];
                     for individual__arg_res in arg_terms {
-                        args.push(::util::mbe::EnvMBE::new_from_leaves(
+                        args.push(EnvMBE::new_from_leaves(
                             assoc_n!("arg" => individual__arg_res.clone()),
                         ));
                     }
@@ -150,7 +154,7 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
                     let res = Ty::new(Node(
                         find_core_form("Type", "type_apply"),
                         new__tapp_parts,
-                        ::beta::ExportBeta::Nothing,
+                        crate::beta::ExportBeta::Nothing,
                     ));
 
                     if res != t {
@@ -178,8 +182,8 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
                             }
 
                             Some(Clo {
-                                it: Ty(::alpha::substitute(
-                                    ::core_forms::strip_ee(
+                                it: Ty(crate::alpha::substitute(
+                                    crate::core_forms::strip_ee(
                                         got_forall.get_leaf_or_panic(&n("body")),
                                     ),
                                     &actual_params,
@@ -210,10 +214,10 @@ thread_local! {
     // Invariant: `underdetermined_form`s in the HashMap must not form a cycle.
     pub static unification: RefCell<HashMap<Name, Clo<Ty>>>
         = RefCell::new(HashMap::new());
-    pub static underdetermined_form : ::std::rc::Rc<Form> = ::std::rc::Rc::new(Form {
+    pub static underdetermined_form : Rc<Form> = Rc::new(Form {
         name: n("<underdetermined>"),
-        grammar: ::std::rc::Rc::new(form_pat!((named "id", atom))),
-        type_compare: ::form::Both(
+        grammar: Rc::new(form_pat!((named "id", atom))),
+        type_compare: Both(
             // pre-match handles the negative case; we need to do the positive case manually:
             cust_rc_box!(|udet_parts| {
                 let id = ast_to_name(&udet_parts.get_term(n("id")));
@@ -224,10 +228,10 @@ thread_local! {
                     canonicalize(&clo.it, clo.env.clone())
                 })
             }),
-            WalkRule::NotWalked),
-        synth_type:   ::form::Both(WalkRule::NotWalked,WalkRule::NotWalked),
-        eval:         ::form::Both(WalkRule::NotWalked,WalkRule::NotWalked),
-        quasiquote:   ::form::Both(WalkRule::NotWalked,WalkRule::NotWalked)
+            NotWalked),
+        synth_type:   Both(NotWalked, NotWalked),
+        eval:         Both(NotWalked, NotWalked),
+        quasiquote:   Both(NotWalked, NotWalked)
     })
 }
 
@@ -250,7 +254,7 @@ impl WalkMode for Canonicalize {
     type AsPositive = Canonicalize;
     type AsNegative = Subtype;
     type Err = TyErr;
-    type D = ::walk_mode::Positive<Canonicalize>;
+    type D = crate::walk_mode::Positive<Canonicalize>;
     type ExtraInfo = ();
 
     // Actually, always `LiteralLike`, but need to get the lifetime as long as `f`'s
@@ -278,7 +282,7 @@ impl WalkMode for Subtype {
     type AsPositive = Canonicalize;
     type AsNegative = Subtype;
     type Err = TyErr;
-    type D = ::walk_mode::Negative<Subtype>;
+    type D = crate::walk_mode::Negative<Subtype>;
     type ExtraInfo = ();
 
     fn get_walk_rule(f: &Form) -> WalkRule<Subtype> { f.type_compare.neg().clone() }
@@ -291,7 +295,7 @@ impl WalkMode for Subtype {
                 // TODO: we need `gensym`!
                 let new_name = n(format!("{}⚁{}", name, *id.borrow()).as_str());
 
-                ty!({ u_f.clone() ; "id" => (, ::ast::Atom(new_name))})
+                ty!({ u_f.clone() ; "id" => (, Atom(new_name))})
             })
         })
     }
@@ -311,7 +315,7 @@ impl WalkMode for Subtype {
     }
 }
 
-impl ::walk_mode::NegativeWalkMode for Subtype {
+impl crate::walk_mode::NegativeWalkMode for Subtype {
     fn qlit_mismatch_error(got: Ty, expd: Ty) -> Self::Err { TyErr::Mismatch(got, expd) }
 
     fn needs_pre_match() -> bool { true }
@@ -389,8 +393,7 @@ pub fn must_equal(lhs: &Ty, rhs: &Ty, env: Assoc<Name, Ty>) -> Result<(), TyErr>
 
 #[test]
 fn basic_subtyping() {
-    use ty::TyErr::*;
-    use util::assoc::Assoc;
+    use crate::{ty::TyErr::*, util::assoc::Assoc};
 
     let mt_ty_env = Assoc::new();
     let int_ty = ty!({ "Type" "Int" : });
@@ -456,7 +459,7 @@ fn basic_subtyping() {
     assert_m!(must_subtype(&incomplete_fn_ty(), &id_fn_ty, mt_ty_env.clone()), Ok(_));
 
     assert_eq!(
-        ::ty::synth_type(
+        crate::ty::synth_type(
             &ast!({"Expr" "apply" : "rator" => (vr "identity"),
                                                         "rand" => [(vr "some_int")]}),
             parametric_ty_env.clone()
@@ -508,7 +511,7 @@ fn misc_subtyping_problems() {
     let basic_enum = ty!({"Type" "enum" :
         "name" => [@"arm" "Aa", "Bb"],
         "component" => [@"arm" [{"Type" "Int" :}], []]});
-    assert_m!(must_subtype(&basic_enum, &basic_enum, ::util::assoc::Assoc::new()), Ok(_));
+    assert_m!(must_subtype(&basic_enum, &basic_enum, crate::util::assoc::Assoc::new()), Ok(_));
 
     let basic_mu = ty!({"Type" "mu_type" :
         "param" => [(import [prot "param"] (vr "X"))],

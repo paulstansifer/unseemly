@@ -1,13 +1,15 @@
 #![macro_use]
 
-use ast::Ast;
-use ast_walk::{walk, LazyWalkReses, WalkRule};
-use form::Form;
-use name::*;
+use crate::{
+    ast::Ast,
+    ast_walk::{walk, LazyWalkReses, WalkRule},
+    form::Form,
+    name::*,
+    util::assoc::Assoc,
+    walk_mode::{NegativeWalkMode, WalkMode},
+};
 use num::bigint::BigInt;
 use std::{self, rc::Rc};
-use util::assoc::Assoc;
-use walk_mode::{NegativeWalkMode, WalkMode};
 
 /// Values in Unseemly.
 
@@ -79,7 +81,7 @@ impl std::fmt::Debug for BIF {
     }
 }
 
-impl ::walk_mode::WalkElt for Value {
+impl crate::walk_mode::WalkElt for Value {
     fn from_ast(a: &Ast) -> Value { AbstractSyntax(a.clone()) }
     fn to_ast(&self) -> Ast {
         match *self {
@@ -88,7 +90,7 @@ impl ::walk_mode::WalkElt for Value {
         }
     }
 
-    fn core_env() -> Assoc<Name, Self> { ::runtime::core_values::core_values() }
+    fn core_env() -> Assoc<Name, Self> { crate::runtime::core_values::core_values() }
 }
 
 custom_derive! {
@@ -108,7 +110,7 @@ impl WalkMode for Eval {
     type AsPositive = Eval;
     type AsNegative = Destructure;
     type Err = ();
-    type D = ::walk_mode::Positive<Eval>;
+    type D = crate::walk_mode::Positive<Eval>;
     type ExtraInfo = ();
 
     fn get_walk_rule(f: &Form) -> WalkRule<Eval> {
@@ -139,7 +141,7 @@ impl WalkMode for Destructure {
     type AsPositive = Eval;
     type AsNegative = Destructure;
     type Err = ();
-    type D = ::walk_mode::Negative<Destructure>;
+    type D = crate::walk_mode::Negative<Destructure>;
     type ExtraInfo = ();
 
     /// The whole point of program evaluation is that the enviornment
@@ -153,7 +155,7 @@ impl NegativeWalkMode for Destructure {
     fn needs_pre_match() -> bool { false } // Values don't have binding (in this mode!)
 }
 
-impl ::walk_mode::WalkElt for Ast {
+impl crate::walk_mode::WalkElt for Ast {
     fn from_ast(a: &Ast) -> Ast { a.clone() }
     fn to_ast(&self) -> Ast { self.clone() }
 }
@@ -186,7 +188,7 @@ impl WalkMode for QQuote {
     type AsPositive = QQuote;
     type AsNegative = QQuoteDestr;
     type Err = ();
-    type D = ::walk_mode::Positive<QQuote>;
+    type D = crate::walk_mode::Positive<QQuote>;
     type ExtraInfo = ();
 
     fn walk_var(n: Name, _: &LazyWalkReses<Self>) -> Result<Value, ()> {
@@ -210,7 +212,7 @@ impl WalkMode for QQuoteDestr {
     type AsPositive = QQuote;
     type AsNegative = QQuoteDestr;
     type Err = ();
-    type D = ::walk_mode::Negative<QQuoteDestr>;
+    type D = crate::walk_mode::Negative<QQuoteDestr>;
     type ExtraInfo = ();
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Self>) -> Result<Assoc<Name, Value>, ()> {

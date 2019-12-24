@@ -1,14 +1,12 @@
 #![macro_use]
 
-use ast_walk::WalkRule;
-use grammar::FormPat;
-use name::*;
+use crate::{
+    ast_walk::WalkRule, grammar::FormPat, name::*, util::assoc::Assoc, walk_mode::WalkMode,
+};
 use std::{
     fmt::{Debug, Error, Formatter},
     rc::Rc,
 };
-use util::assoc::Assoc;
-use walk_mode::WalkMode;
 
 pub type NMap<T> = Assoc<Name, T>;
 
@@ -25,14 +23,14 @@ custom_derive! {
         /// This contains information about bindings and syntax extension:
         pub grammar: Rc<FormPat>,
         /// (type only) Compare types
-        pub type_compare: BiDiWR<::ty_compare::Canonicalize, ::ty_compare::Subtype>,
+        pub type_compare: BiDiWR<crate::ty_compare::Canonicalize, crate::ty_compare::Subtype>,
         /// From a type environment, construct the type of this term.
-        pub synth_type: BiDiWR<::ty::SynthTy, ::ty::UnpackTy>,
+        pub synth_type: BiDiWR<crate::ty::SynthTy, crate::ty::UnpackTy>,
         /// (expr and pat only) From a value environment, evaluate this term.
         /// Or, (HACK) macro expansion, for macro invocations (just so we don't need another field)
-        pub eval: BiDiWR<::runtime::eval::Eval, ::runtime::eval::Destructure>,
+        pub eval: BiDiWR<crate::runtime::eval::Eval, crate::runtime::eval::Destructure>,
         /// At runtime, pick up code to use it as a value
-        pub quasiquote: BiDiWR<::runtime::eval::QQuote, ::runtime::eval::QQuoteDestr>,
+        pub quasiquote: BiDiWR<crate::runtime::eval::QQuote, crate::runtime::eval::QQuoteDestr>,
     }
 }
 
@@ -87,12 +85,13 @@ impl Debug for Form {
 }
 
 pub fn simple_form(form_name: &str, p: FormPat) -> Rc<Form> {
+    use WalkRule::*;
     Rc::new(Form {
         name: n(form_name),
         grammar: Rc::new(p),
-        type_compare: ::form::Both(WalkRule::NotWalked, WalkRule::NotWalked),
-        synth_type: ::form::Positive(WalkRule::NotWalked),
-        eval: ::form::Positive(WalkRule::NotWalked),
-        quasiquote: ::form::Both(WalkRule::LiteralLike, WalkRule::LiteralLike),
+        type_compare: Both(NotWalked, NotWalked),
+        synth_type: Positive(NotWalked),
+        eval: Positive(NotWalked),
+        quasiquote: Both(LiteralLike, LiteralLike),
     })
 }

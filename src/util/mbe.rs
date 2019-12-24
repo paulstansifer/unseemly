@@ -68,9 +68,8 @@
 // So, if you set a particular index is `ddd`, that will be repeated 0 or more times
 //  in order to match the length of whatever is on the other side.
 
-use name::*;
+use crate::{name::*, util::assoc::Assoc};
 use std::{fmt, rc::Rc};
-use util::assoc::Assoc;
 
 // How on earth can one data structure need so many variations on `map`?
 // There's got to be a better way!
@@ -115,11 +114,11 @@ pub struct EnvMBE<T: Clone> {
 //}
 
 // `custom_derive!` (or maybe `Reifiable!`) can't handle type bounds, so we need to do this manually
-impl<T: Clone + ::runtime::reify::Reifiable> ::runtime::reify::Reifiable for EnvMBE<T> {
+impl<T: Clone + crate::runtime::reify::Reifiable> crate::runtime::reify::Reifiable for EnvMBE<T> {
     fn ty_name() -> Name { n("EnvMBE") }
-    fn concrete_arguments() -> Option<Vec<::ast::Ast>> { Some(vec![T::ty_invocation()]) }
-    fn reify(&self) -> ::runtime::eval::Value {
-        ::runtime::eval::Value::Sequence(vec![
+    fn concrete_arguments() -> Option<Vec<crate::ast::Ast>> { Some(vec![T::ty_invocation()]) }
+    fn reify(&self) -> crate::runtime::eval::Value {
+        crate::runtime::eval::Value::Sequence(vec![
             Rc::new(self.leaves.reify()),
             Rc::new(self.repeats.reify()),
             Rc::new(self.ddd_rep_idxes.reify()),
@@ -127,8 +126,8 @@ impl<T: Clone + ::runtime::reify::Reifiable> ::runtime::reify::Reifiable for Env
             Rc::new(self.named_repeats.reify()),
         ])
     }
-    fn reflect(v: &::runtime::eval::Value) -> Self {
-        extract!((v) ::runtime::eval::Value::Sequence = (ref parts) => {
+    fn reflect(v: &crate::runtime::eval::Value) -> Self {
+        extract!((v) crate::runtime::eval::Value::Sequence = (ref parts) => {
             EnvMBE {
                leaves: <Assoc<Name, T>>::reflect(&*parts[0]),
                repeats: <Vec<Rc<Vec<EnvMBE<T>>>>>::reflect(&*parts[1]),
@@ -216,7 +215,7 @@ impl<T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
 
 /// An iterator that expands a dotdotdot a certain number of times.
 struct DddIter<'a, S: 'a> {
-    underlying: ::std::slice::Iter<'a, S>,
+    underlying: std::slice::Iter<'a, S>,
     cur_idx: usize,
     rep_idx: usize,
     repeated: Option<&'a S>,
@@ -224,7 +223,7 @@ struct DddIter<'a, S: 'a> {
 }
 
 impl<'a, S: Clone> DddIter<'a, S> {
-    fn new(und: ::std::slice::Iter<'a, S>, rep_idx: usize, extra: usize) -> DddIter<'a, S> {
+    fn new(und: std::slice::Iter<'a, S>, rep_idx: usize, extra: usize) -> DddIter<'a, S> {
         DddIter {
             underlying: und,
             cur_idx: 0,
@@ -493,13 +492,13 @@ impl<T: Clone> EnvMBE<T> {
     }
 
     /// Map, but march the `ctxt` along with the structure of `self`
-    pub fn map_marched_against<NewT: Clone, Mode: ::walk_mode::WalkMode, F>(
+    pub fn map_marched_against<NewT: Clone, Mode: crate::walk_mode::WalkMode, F>(
         &self,
         f: &mut F,
-        ctxt: &::ast_walk::LazyWalkReses<Mode>,
+        ctxt: &crate::ast_walk::LazyWalkReses<Mode>,
     ) -> EnvMBE<NewT>
     where
-        F: FnMut(&T, &::ast_walk::LazyWalkReses<Mode>) -> NewT,
+        F: FnMut(&T, &crate::ast_walk::LazyWalkReses<Mode>) -> NewT,
     {
         EnvMBE {
             leaves: self.leaves.map_borrow_f(&mut |t: &T| f(t, ctxt)),
@@ -517,7 +516,7 @@ impl<T: Clone> EnvMBE<T> {
                             .map(
                                 |(mbe, marched_ctxt): (
                                     &EnvMBE<T>,
-                                    ::ast_walk::LazyWalkReses<Mode>,
+                                    crate::ast_walk::LazyWalkReses<Mode>,
                                 )| {
                                     mbe.map_marched_against(f, &marched_ctxt)
                                 },
@@ -709,11 +708,11 @@ impl<T: Clone> EnvMBE<T> {
 
     // TODO: we should just have the relevant functions return None...
     pub fn can_map_with(&self, o: &EnvMBE<T>) -> bool {
-        let mut lhs_keys = ::std::collections::HashSet::<Name>::new();
+        let mut lhs_keys = std::collections::HashSet::<Name>::new();
         for (k, _) in self.leaves.iter_pairs() {
             lhs_keys.insert(*k);
         }
-        let mut rhs_keys = ::std::collections::HashSet::<Name>::new();
+        let mut rhs_keys = std::collections::HashSet::<Name>::new();
         for (k, _) in o.leaves.iter_pairs() {
             rhs_keys.insert(*k);
         }
@@ -880,8 +879,8 @@ impl<T: Clone> EnvMBE<T> {
     }
 
     fn update_leaf_locs(&mut self, idx: usize, sub: &[EnvMBE<T>]) {
-        let mut already_placed_leaves = ::std::collections::HashSet::<Name>::new();
-        let mut already_placed_repeats = ::std::collections::HashSet::<Name>::new();
+        let mut already_placed_leaves = std::collections::HashSet::<Name>::new();
+        let mut already_placed_repeats = std::collections::HashSet::<Name>::new();
 
         for sub_mbe in sub {
             for leaf_name in sub_mbe.leaf_locations.iter_keys().chain(sub_mbe.leaves.iter_keys()) {
@@ -1245,9 +1244,9 @@ fn splice_healing() {
         )
     );
 
-    let steal_from_other = |a: &::ast::Ast,
-                            other__a_vec__thunk: &dyn Fn() -> Vec<::ast::Ast>|
-     -> Option<Vec<::ast::Ast>> {
+    let steal_from_other = |a: &crate::ast::Ast,
+                            other__a_vec__thunk: &dyn Fn() -> Vec<crate::ast::Ast>|
+     -> Option<Vec<crate::ast::Ast>> {
         if a == &ast!((vr "c")) {
             Some(other__a_vec__thunk())
         } else {
@@ -1296,7 +1295,7 @@ fn ddd_iter() {
 
 #[test]
 fn mbe_ddd_map_with() {
-    use ast::{Ast, Atom};
+    use crate::ast::{Ast, Atom};
 
     let lhs = mbe!( "a" => ["0", "1", "2", "3", "4"] );
     let rhs = mbe!( "a" => ["0" ...("1")..., "4"] );

@@ -58,13 +58,15 @@
 // Everything should be ambidextrous under quasiquotation,
 //  because all syntax should be constructable and matchable.
 
-use ast::Ast::{self, *};
-use beta::*;
-use name::*;
-use runtime::{eval, reify};
+use crate::{
+    ast::Ast::{self, *},
+    beta::*,
+    name::*,
+    runtime::{eval, reify},
+    util::{assoc::Assoc, mbe::EnvMBE},
+    walk_mode::{Dir, WalkElt, WalkMode},
+};
 use std::{cell::RefCell, rc::Rc};
-use util::{assoc::Assoc, mbe::EnvMBE};
-use walk_mode::{Dir, WalkElt, WalkMode};
 
 /// A closed `Elt`; an `Elt` paired with an environment with which to interpret its free names.
 #[derive(Clone, Debug, PartialEq)]
@@ -85,14 +87,14 @@ impl<Elt: WalkElt> Clo<Elt> {
         let mut fresh_o_env = Assoc::new();
         for (o_name, o_val) in o_different_env.iter_pairs() {
             fresh_o_env = fresh_o_env.set(
-                ::core_forms::vr_to_name(o_renaming.find(o_name).unwrap()), // HACK: VR -> Name
-                Elt::from_ast(&::alpha::substitute(&Elt::to_ast(o_val), &o_renaming)),
+                crate::core_forms::vr_to_name(o_renaming.find(o_name).unwrap()), // HACK: VR -> Name
+                Elt::from_ast(&crate::alpha::substitute(&Elt::to_ast(o_val), &o_renaming)),
             );
         }
 
         (
             self.it,
-            Elt::from_ast(&::alpha::substitute(&Elt::to_ast(&other.it), &o_renaming)),
+            Elt::from_ast(&crate::alpha::substitute(&Elt::to_ast(&other.it), &o_renaming)),
             self.env.set_assoc(&fresh_o_env),
         )
     }
@@ -342,8 +344,8 @@ impl<Mode: WalkMode + Copy + 'static> reify::Reifiable for WalkRule<Mode> {
     }
 }
 
-impl<Mode: WalkMode> ::std::fmt::Debug for WalkRule<Mode> {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+impl<Mode: WalkMode> std::fmt::Debug for WalkRule<Mode> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
             NotWalked => write!(f, "NotWalked"),
             Body(ref n) => write!(f, "Body({})", n),
@@ -500,7 +502,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             less_quoted_out_env: vec![],
             parts: parts_unwalked.map(&mut LazilyWalkedTerm::new),
             this_ast: this_ast,
-            extra_info: ::std::default::Default::default(),
+            extra_info: std::default::Default::default(),
         }
     }
 
@@ -513,7 +515,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             less_quoted_out_env: vec![],
             parts: EnvMBE::new(),
             this_ast: ast!("wrapper"),
-            extra_info: ::std::default::Default::default(),
+            extra_info: std::default::Default::default(),
         }
     }
 
@@ -529,7 +531,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             less_quoted_out_env: vec![], // If we want a `lqe`, we need to fill this in, too!
             parts: EnvMBE::new(),
             this_ast: ast!("wrapper"),
-            extra_info: ::std::default::Default::default(),
+            extra_info: std::default::Default::default(),
         }
     }
 
@@ -539,7 +541,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         LazyWalkReses { parts: parts.map(&mut LazilyWalkedTerm::new), this_ast: this_ast, ..self }
     }
 
-    pub fn this_form(&self) -> Rc<::form::Form> {
+    pub fn this_form(&self) -> Rc<crate::form::Form> {
         match self.this_ast {
             Node(ref f, _, _) => f.clone(),
             _ => icp!(),
@@ -817,7 +819,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
 
 #[test]
 fn quote_more_and_less() {
-    let parts = LazyWalkReses::<::ty::UnpackTy>::new(
+    let parts = LazyWalkReses::<crate::ty::UnpackTy>::new(
         assoc_n!("a" => ty!({"Type" "Nat" :})),
         // we'll pretend this is under an unquote or something:
         &mbe!("body" => "bind_me"),
@@ -826,8 +828,7 @@ fn quote_more_and_less() {
 
     let parts = parts.with_context(ty!({"Type" "Int" :}));
 
-    let interpolation_accumulator =
-        Rc::new(::std::cell::RefCell::new(Assoc::<Name, ::ty::Ty>::new()));
+    let interpolation_accumulator = Rc::new(RefCell::new(Assoc::<Name, crate::ty::Ty>::new()));
 
     assert_eq!(parts.env.find(&n("a")), Some(&ty!({"Type" "Nat" :})));
 
@@ -841,7 +842,7 @@ fn quote_more_and_less() {
     assert_eq!(res, assoc_n!("bind_me" => ty!({"Type" "Int" :})));
 
     // the other thing `unquote` needs to do; save the result for out-of-band retrieval
-    squirrel_away::<::ty::UnpackTy>(squirreler, res);
+    squirrel_away::<crate::ty::UnpackTy>(squirreler, res);
 
     // check that we successfully squirreled it away:
     assert_eq!(*interpolation_accumulator.borrow(), assoc_n!("bind_me" => ty!({"Type" "Int" :})));

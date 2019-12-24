@@ -1,22 +1,24 @@
-use ast::{Ast, Atom, Node};
-use ast_walk::{
-    LazyWalkReses,
-    WalkRule::{Body, Custom, LiteralLike, NotWalked},
+use crate::{
+    ast::{Ast, Atom, Node},
+    ast_walk::{
+        LazyWalkReses,
+        WalkRule::{Body, Custom, LiteralLike, NotWalked},
+    },
+    beta::{Beta, Beta::*, ExportBeta},
+    core_forms::{ast_to_name, strip_ee, vr_to_name},
+    core_type_forms::{less_quoted_ty, more_quoted_ty},
+    form::{EitherPN::*, Form},
+    grammar::{
+        FormPat::{self, *},
+        SynEnv,
+    },
+    name::*,
+    runtime::{eval::Closure, reify::Reifiable},
+    ty::{SynthTy, Ty, TyErr},
+    util::assoc::Assoc,
+    walk_mode::WalkElt,
 };
-use beta::Beta::*;
-use core_forms::{ast_to_name, vr_to_name};
-use core_type_forms::{less_quoted_ty, more_quoted_ty};
-use form::{EitherPN::Both, Form};
-use grammar::{
-    FormPat::{self, *},
-    SynEnv,
-};
-use name::*;
-use runtime::{eval::Closure, reify::Reifiable};
 use std::rc::Rc;
-use ty::{SynthTy, Ty};
-use util::assoc::Assoc;
-use walk_mode::WalkElt;
 
 // Macros!
 //
@@ -63,13 +65,13 @@ macro_rules! syntax_syntax {
         Rc::new(Form {
             name: n(&stringify!($syntax_name).to_lowercase()),
             grammar: Rc::new(form_pat!( $($gram)* )),
-            type_compare: ::form::Both(NotWalked,NotWalked), // Not a type
+            type_compare: Both(NotWalked,NotWalked), // Not a type
             // Binds nothing
-            synth_type: ::form::Both(NotWalked, cust_rc_box!(|_parts| { Ok(Assoc::new())}) ),
-            eval: ::form::Positive(cust_rc_box!(|_parts| {
+            synth_type: Both(NotWalked, cust_rc_box!(|_parts| { Ok(Assoc::new())}) ),
+            eval: Positive(cust_rc_box!(|_parts| {
                 Ok($syntax_name.reify())}
             )),
-            quasiquote: ::form::Both(LiteralLike, LiteralLike)
+            quasiquote: Both(LiteralLike, LiteralLike)
         })
     };
 
@@ -78,20 +80,20 @@ macro_rules! syntax_syntax {
         Rc::new(Form {
             name: n(&stringify!($syntax_name).to_lowercase()),
             grammar: Rc::new(form_pat!( $($gram)* )),
-            type_compare: ::form::Both(NotWalked,NotWalked), // Not a type
-            synth_type: ::form::Negative(cust_rc_box!(|parts| {
-                let mut out = ::util::assoc::Assoc::<Name, ::ty::Ty>::new();
+            type_compare: Both(NotWalked,NotWalked), // Not a type
+            synth_type: Negative(cust_rc_box!(|parts| {
+                let mut out = Assoc::<Name, Ty>::new();
                 $(
                     out = out.set_assoc(&parts.get_res(n(&stringify!($arg)))?);
                 )*
                 Ok(out)
             })),
-            eval: ::form::Positive(cust_rc_box!(|parts| {
+            eval: Positive(cust_rc_box!(|parts| {
                 Ok($syntax_name(
                     $( { let $arg = parts.get_res(n(&stringify!($arg)))?; $e } ),*
                 ).reify())}
             )),
-            quasiquote: ::form::Both(LiteralLike, LiteralLike)
+            quasiquote: Both(LiteralLike, LiteralLike)
         })
     };
     // FormPat with arguments, and just doing `get_res` on everything doesn't work:
@@ -99,10 +101,10 @@ macro_rules! syntax_syntax {
         Rc::new(Form {
             name: n(&stringify!($syntax_name).to_lowercase()),
             grammar: Rc::new(form_pat!( $($gram)* )),
-            type_compare: ::form::Both(NotWalked,NotWalked), // Not a type
-            synth_type: ::form::Negative(cust_rc_box!( $type )), // Produces a typed value
-            eval: ::form::Positive(cust_rc_box!( $eval )),
-            quasiquote: ::form::Both(LiteralLike, LiteralLike)
+            type_compare: Both(NotWalked,NotWalked), // Not a type
+            synth_type: Negative(cust_rc_box!( $type )), // Produces a typed value
+            eval: Positive(cust_rc_box!( $eval )),
+            quasiquote: Both(LiteralLike, LiteralLike)
         })
     };
 }
@@ -122,9 +124,9 @@ fn macro_type(forall_ty_vars: &[Name], arguments: Vec<(Name, Ty)>, output: Ty) -
                              "component" => (, v.to_ast())));
     }
     let argument_struct = Node(
-        ::core_forms::find_core_form("Type", "struct"),
-        ::util::mbe::EnvMBE::new_from_anon_repeat(components),
-        ::beta::ExportBeta::Nothing,
+        crate::core_forms::find_core_form("Type", "struct"),
+        crate::util::mbe::EnvMBE::new_from_anon_repeat(components),
+        ExportBeta::Nothing,
     );
     let mac_fn = u!({Type fn : [(, argument_struct)] (, output.to_ast())});
 
@@ -139,17 +141,17 @@ fn macro_type(forall_ty_vars: &[Name], arguments: Vec<(Name, Ty)>, output: Ty) -
 }
 
 fn type_macro_invocation(
-    parts: &LazyWalkReses<::ty::SynthTy>,
+    parts: &LazyWalkReses<SynthTy>,
     expected_return: Ty,
     grammar: &FormPat,
-) -> Result<Assoc<Name, Ty>, ::ty::TypeError>
+) -> Result<Assoc<Name, Ty>, crate::ty::TypeError>
 {
     // Typecheck the subterms, and then quote them:
     let mut q_arguments = vec![];
 
     for (binder, depth) in grammar.binders() {
         let nt = grammar.find_named_call(binder).unwrap();
-        let term_ty = if ::core_type_forms::nt_is_positive(nt) {
+        let term_ty = if crate::core_type_forms::nt_is_positive(nt) {
             parts.flatten_res_at_depth(
                 binder,
                 depth,
@@ -164,7 +166,7 @@ fn type_macro_invocation(
             parts.flatten_generate_at_depth(
                 binder,
                 depth,
-                &|| ::ty_compare::Subtype::underspecified(binder),
+                &|| crate::ty_compare::Subtype::underspecified(binder),
                 &|ty_vec: Vec<Ty>| {
                     ty!({"Type" "tuple" :
                         "component" => (,seq ty_vec.iter().map(|ty| ty.concrete()))
@@ -176,14 +178,14 @@ fn type_macro_invocation(
     }
 
     // This is lifted almost verbatim from "Expr" "apply". Maybe they should be unified?
-    use walk_mode::WalkMode;
+    use crate::walk_mode::WalkMode;
 
-    let _ = ::ty_compare::must_subtype(
+    let _ = crate::ty_compare::must_subtype(
         &macro_type(&[], q_arguments.clone(), expected_return),
         &parts.get_res(n("macro_name"))?,
         parts.env.clone(),
     )
-    .map_err(|e| ::util::err::sp(e, parts.this_ast.clone()))?;
+    .map_err(|e| crate::util::err::sp(e, parts.this_ast.clone()))?;
 
     // TODO: I think `Assoc` should implement `From<Vec<(K,V)>>`, maybe?
     let mut res = Assoc::new();
@@ -200,11 +202,11 @@ fn type_macro_invocation(
 pub fn macro_invocation(
     grammar: FormPat,
     macro_name: Name,
-    implementation: ::runtime::eval::Closure,
+    implementation: crate::runtime::eval::Closure,
     export_names: Vec<Name>,
 ) -> Rc<Form>
 {
-    use walk_mode::WalkMode;
+    use crate::{ty_compare, walk_mode::WalkMode};
 
     let grammar1 = grammar.clone();
     let grammar2 = grammar.clone();
@@ -213,30 +215,30 @@ pub fn macro_invocation(
         grammar: Rc::new(form_pat!([
             // `type_macro_invocation` expects "macro_name" to be set
             (named "macro_name", (anyways (,
-                ::ast::VariableReference(macro_name)
+                Ast::VariableReference(macro_name)
             ))),
             (, grammar.clone())
         ])),
-        type_compare: ::form::Both(NotWalked, NotWalked),
+        type_compare: Both(NotWalked, NotWalked),
         // Invoked at typechecking time.
         // The macro_name part will be bound to a type of the form
         //     ∀ T . [*[x : Nt <[T]< ⋯ ]* -> Nt <[T]<]
         // ... which you can imagine is the type of the implementation of the macro
-        synth_type: ::form::Both(
+        synth_type: Both(
             cust_rc_box!(move |parts| {
-                let return_type = ::ty_compare::Subtype::underspecified(n("<return_type>"));
+                let return_type = ty_compare::Subtype::underspecified(n("<return_type>"));
                 let _ = type_macro_invocation(&parts, return_type.clone(), &grammar1)?;
 
                 // What return type made that work?
-                let q_result = ::ty_compare::unification.with(|unif| {
-                    let resolved = ::ty_compare::resolve(
-                        ::ast_walk::Clo { it: return_type, env: parts.env.clone() },
+                let q_result = ty_compare::unification.with(|unif| {
+                    let resolved = ty_compare::resolve(
+                        crate::ast_walk::Clo { it: return_type, env: parts.env.clone() },
                         &unif.borrow(),
                     );
 
                     // Canonicalize the type in its environment:
-                    let resolved = ::ty_compare::canonicalize(&resolved.it, resolved.env);
-                    resolved.map_err(|e| ::util::err::sp(e, parts.this_ast.clone()))
+                    let resolved = ty_compare::canonicalize(&resolved.it, resolved.env);
+                    resolved.map_err(|e| crate::util::err::sp(e, parts.this_ast.clone()))
                 })?;
 
                 less_quoted_ty(&q_result, Some(n("Expr")), &parts.this_ast)
@@ -252,15 +254,15 @@ pub fn macro_invocation(
 
                 // What argument types made that work?
                 let mut res: Assoc<Name, Ty> = Assoc::new();
-                ::ty_compare::unification.with(|unif| {
+                ty_compare::unification.with(|unif| {
                     for binder in &export_names {
                         let ty = arguments.find_or_panic(binder);
-                        let binder_clo = ::ty_compare::resolve(
-                            ::ast_walk::Clo { it: ty.clone(), env: parts.env.clone() },
+                        let binder_clo = ty_compare::resolve(
+                            crate::ast_walk::Clo { it: ty.clone(), env: parts.env.clone() },
                             &unif.borrow(),
                         );
-                        let binder_ty = ::ty_compare::canonicalize(&binder_clo.it, binder_clo.env)
-                            .map_err(|e| ::util::err::sp(e, parts.this_ast.clone()))?;
+                        let binder_ty = ty_compare::canonicalize(&binder_clo.it, binder_clo.env)
+                            .map_err(|e| crate::util::err::sp(e, parts.this_ast.clone()))?;
 
                         for (ty_n, ty) in
                             parts.with_context(binder_ty).get_res(*binder)?.iter_pairs()
@@ -275,8 +277,8 @@ pub fn macro_invocation(
             }),
         ),
         // Kind of a HACK, but we re-use `eval` instead of having a separate field.
-        eval: ::form::Positive(cust_rc_box!(move |parts| {
-            use runtime::eval::Value;
+        eval: Positive(cust_rc_box!(move |parts| {
+            use crate::runtime::eval::Value;
             // This code is like that for "apply".
             let mut env = implementation.env.clone();
             for (param, depth) in &grammar.binders() {
@@ -294,22 +296,22 @@ pub fn macro_invocation(
                     env = env.set(*param, rhs);
                 }
             }
-            let expanded = Ast::reflect(&::runtime::eval::eval(&implementation.body, env)?);
+            let expanded = Ast::reflect(&crate::runtime::eval::eval(&implementation.body, env)?);
 
             // Expand any macros that were produced by expansion, or were already present in subterms:
-            Ok(::expand::expand(&expanded)?.reify())
+            Ok(crate::expand::expand(&expanded)?.reify())
         })),
-        quasiquote: ::form::Both(LiteralLike, LiteralLike),
+        quasiquote: Both(LiteralLike, LiteralLike),
     })
 }
 
 /// What should `t` be, if matched under a repetition?
 /// A tuple, driven by whatever names are `forall`ed in `env`.
-fn repeated_type(t: &Ty, env: &Assoc<Name, Ty>) -> Result<Ty, ::ty::TypeError> {
+fn repeated_type(t: &Ty, env: &Assoc<Name, Ty>) -> Result<Ty, crate::ty::TypeError> {
     let mut drivers = vec![];
     for v in t.0.free_vrs() {
-        if env.find(&v) == Some(&Ty(::ast::VariableReference(v))) {
-            drivers.push(::ast::VariableReference(v));
+        if env.find(&v) == Some(&Ty(Ast::VariableReference(v))) {
+            drivers.push(Ast::VariableReference(v));
         }
     }
 
@@ -324,7 +326,7 @@ fn repeated_type(t: &Ty, env: &Assoc<Name, Ty>) -> Result<Ty, ::ty::TypeError> {
 }
 
 pub fn make_core_macro_forms() -> SynEnv {
-    let trivial_type_form = ::core_type_forms::type_defn("unused", form_pat!((impossible)));
+    let trivial_type_form = crate::core_type_forms::type_defn("unused", form_pat!((impossible)));
 
     let beta_grammar = forms_to_form_pat_export![
         syntax_syntax!( ((lit "nothing")) Nothing ) => [],
@@ -369,7 +371,7 @@ pub fn make_core_macro_forms() -> SynEnv {
             |_| icp!("Betas are not typed")
         } {
             |parts| {
-                let sub = ::beta::Beta::reflect(&parts.get_res(n("sub"))?);
+                let sub = Beta::reflect(&parts.get_res(n("sub"))?);
                 let drivers = sub.names_mentioned();
                 Ok(ShadowAll(Box::new(sub), drivers).reify())
             }
@@ -380,9 +382,9 @@ pub fn make_core_macro_forms() -> SynEnv {
             |_| icp!("Betas are not typed")
         } {
             |parts| {
-                Ok(::beta::Beta::Shadow(
-                    Box::new(::beta::Beta::reflect(&parts.get_res(n("over"))?)),
-                    Box::new(::beta::Beta::reflect(&parts.get_res(n("under"))?))).reify())
+                Ok(Beta::Shadow(
+                    Box::new(Beta::reflect(&parts.get_res(n("over"))?)),
+                    Box::new(Beta::reflect(&parts.get_res(n("under"))?))).reify())
             }
         }) => []
     ];
@@ -391,7 +393,7 @@ pub fn make_core_macro_forms() -> SynEnv {
     //  but lacking a `negative_ret_val`.
     let grammar_grammar = forms_to_form_pat_export![
         syntax_syntax!( ( (delim "anyways,{", "{", (named "body", (call "Expr"))) ) Anyways (
-            body => ::ast::Ast::reflect(&body)
+            body => Ast::reflect(&body)
         )) => ["body"],
         syntax_syntax!( ((lit "impossible")) Impossible ) => [],
         syntax_syntax!( (  // TODO: this might have to be both positive and negative
@@ -413,8 +415,8 @@ pub fn make_core_macro_forms() -> SynEnv {
             |_| { Ok(Assoc::new()) }
         } {
             |parts| {
-                Ok(::grammar::new_scan(
-                    &::core_forms::ast_to_name(&parts.get_term(n("pat"))).orig_sp()).reify())
+                Ok(crate::grammar::new_scan(
+                    &ast_to_name(&parts.get_term(n("pat"))).orig_sp()).reify())
             }
         }) => [],
         syntax_syntax!( ([(lit "vr"), (named "body", (call "Syntax"))]) VarRef (
@@ -492,7 +494,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         } {
             |parts| {
                 Ok(Named(
-                    ::core_forms::ast_to_name(&parts.get_term(n("part_name"))),
+                    ast_to_name(&parts.get_term(n("part_name"))),
                     Rc::new(FormPat::reflect(&parts.get_res(n("body"))?))).reify())
             }
         }) => ["part_name"],
@@ -503,7 +505,7 @@ pub fn make_core_macro_forms() -> SynEnv {
             }
         } {
             |parts| {
-                Ok(Call(::core_forms::ast_to_name(&parts.get_term(n("nt")))).reify())
+                Ok(Call(ast_to_name(&parts.get_term(n("nt")))).reify())
             }
         }) => [],
 
@@ -514,34 +516,34 @@ pub fn make_core_macro_forms() -> SynEnv {
             grammar: Rc::new(form_pat!(
                 (delim ",{", "{",
                     [(named "nt", atom), (delim "<[", "[", (named "ty_annot", (call "Type")))]))),
-            type_compare: ::form::Both(NotWalked,NotWalked), // Not a type
+            type_compare: Both(NotWalked,NotWalked), // Not a type
             synth_type: Both(cust_rc_box!(|parts| {
                 let expected_type = parts.get_res(n("ty_annot"))?;
                 let nt = ast_to_name(&parts.get_term(n("nt")));
 
                 Ok(more_quoted_ty(&expected_type, nt))
             }), NotWalked),
-            eval: ::form::Positive(cust_rc_box!(|parts| {
+            eval: Positive(cust_rc_box!(|parts| {
                 let nt = ast_to_name(&parts.get_term(n("nt")));
                 Ok(Rc::new(Call(nt)).reify())
             })),
-            quasiquote: ::form::Both(LiteralLike, LiteralLike)
+            quasiquote: Both(LiteralLike, LiteralLike)
         }) => [],
         // `Import` is positive (has to be under a `Named`)
         Rc::new(Form {
             name: n("import"),
             grammar: Rc::new(form_pat!(
                 [(named "body", (call "Syntax")), (lit "<--"), (named "imported", (call "Beta"))])),
-            type_compare: ::form::Both(NotWalked,NotWalked), // Not a type
+            type_compare: Both(NotWalked,NotWalked), // Not a type
             synth_type: Both(cust_rc_box!(|parts| {
                 parts.get_res(n("body"))
             }),
             cust_rc_box!(|_| panic!("TODO prevent `import`s outside of `named`s"))),
-            eval: ::form::Positive(cust_rc_box!(|parts| {
+            eval: Positive(cust_rc_box!(|parts| {
                 Ok(NameImport(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?)),
-                              ::beta::Beta::reflect(&parts.get_res(n("imported"))?)).reify())
+                              Beta::reflect(&parts.get_res(n("imported"))?)).reify())
             })),
-            quasiquote: ::form::Both(LiteralLike, LiteralLike)
+            quasiquote: Both(LiteralLike, LiteralLike)
         }) => [],
         // TODO: implement syntax for ComputeSyntax
         // Not sure if `Scope` syntax should be positive or negative.
@@ -561,7 +563,7 @@ pub fn make_core_macro_forms() -> SynEnv {
                                [(lit "=>"), (star (named "export", atom))])])
         Scope {
             |parts| {
-                let return_ty = parts.switch_mode::<::ty::SynthTy>().get_res(n("implementation"))?;
+                let return_ty = parts.switch_mode::<SynthTy>().get_res(n("implementation"))?;
                 let mut arguments : Vec<(Name, Ty)> = parts.get_res(n("syntax"))?
                     .iter_pairs().cloned().collect();
                 arguments.sort_by(|lhs, rhs| lhs.0.cmp(&rhs.0) ); // Pick a canonical order
@@ -573,17 +575,17 @@ pub fn make_core_macro_forms() -> SynEnv {
         } {
             |parts| {
                 // TODO: This is the right thing to do, right?
-                let macro_params = ::beta::bound_from_export_beta(
+                let macro_params = crate::beta::bound_from_export_beta(
                     &ebeta!(["syntax"]), &parts.this_ast.node_parts(), 0);
-                let implementation = ::core_forms::strip_ee(
-                    &::core_forms::strip_ee(&parts.get_term(n("implementation")))).clone();
+                let implementation = strip_ee(
+                    &strip_ee(&parts.get_term(n("implementation")))).clone();
 
-                let mut export = ::beta::ExportBeta::Nothing;
+                let mut export = ExportBeta::Nothing;
                 let export_names = parts.get_rep_term(n("export")).iter()
                     .map(ast_to_name).collect::<Vec<Name>>();
                 for name in &export_names {
-                    export = ::beta::ExportBeta::Shadow(
-                        Box::new(::beta::ExportBeta::Use(*name)),
+                    export = ExportBeta::Shadow(
+                        Box::new(ExportBeta::Use(*name)),
                         Box::new(export));
                 }
 
@@ -591,7 +593,7 @@ pub fn make_core_macro_forms() -> SynEnv {
                 Ok(Scope(macro_invocation(
                         FormPat::reflect(&parts.get_res(n("syntax"))?),
                         ast_to_name(&parts.get_term(n("macro_name"))),
-                        ::runtime::eval::Closure{ body: implementation,
+                        crate::runtime::eval::Closure{ body: implementation,
                             params: macro_params,
                             env: parts.env.clone()
                         },
@@ -608,29 +610,27 @@ pub fn make_core_macro_forms() -> SynEnv {
 }
 
 pub fn extend_syntax() -> Rc<Form> {
-    use earley::ParseContext;
+    use crate::earley::ParseContext;
     let perform_extension = move |pc: ParseContext, extension_info: Ast| -> ParseContext {
         let bnf_parts =
             // TODO: getting a `Shape` (the second element is the `(lit "in")`) must be a parser bug
-            extract!((&extension_info) ::ast::Shape = (ref subs) =>
-                extract!((&subs[0]) ::ast::IncompleteNode = (ref parts) => parts));
+            extract!((&extension_info) Ast::Shape = (ref subs) =>
+                extract!((&subs[0]) Ast::IncompleteNode = (ref parts) => parts));
 
-        let nts: Vec<Name> = bnf_parts
-            .get_rep_leaf_or_panic(n("nt"))
-            .iter()
-            .map(|a| ::core_forms::ast_to_name(*a))
-            .collect();
+        let nts: Vec<Name> =
+            bnf_parts.get_rep_leaf_or_panic(n("nt")).iter().map(|a| ast_to_name(*a)).collect();
         let ops: Vec<bool> = bnf_parts
             .get_rep_leaf_or_panic(n("operator"))
             .iter()
-            .map(|a| a == &&::ast::Atom(n("::=also")))
+            .map(|a| a == &&Ast::Atom(n("::=also")))
             .collect();
         let rhses: Vec<&Ast> = bnf_parts.get_rep_leaf_or_panic(n("rhs"));
 
         // Figure out the  the syntax extension:
         let mut syn_env = pc.grammar;
         for ((nt, extend), rhs) in nts.into_iter().zip(ops.into_iter()).zip(rhses.into_iter()) {
-            let rhs_form_pat = FormPat::reflect(&::ast_walk::walk(rhs, &pc.eval_ctxt).unwrap());
+            let rhs_form_pat =
+                FormPat::reflect(&crate::ast_walk::walk(rhs, &pc.eval_ctxt).unwrap());
             syn_env = syn_env.set(
                 nt,
                 Rc::new(if extend {
@@ -644,7 +644,7 @@ pub fn extend_syntax() -> Rc<Form> {
         ParseContext { grammar: syn_env, type_ctxt: pc.type_ctxt, eval_ctxt: pc.eval_ctxt }
     };
 
-    let trivial_type_form = ::core_type_forms::type_defn("unused", form_pat!((impossible)));
+    let trivial_type_form = crate::core_type_forms::type_defn("unused", form_pat!((impossible)));
 
     Rc::new(Form {
         name: n("extend_syntax"),
@@ -659,25 +659,24 @@ pub fn extend_syntax() -> Rc<Form> {
                  (lit "in")],
                 (named "body", (import [* ["rhs" = "unused_type"]], (call "Expr"))),
                 perform_extension)])),
-        type_compare: ::form::Both(NotWalked, NotWalked),
-        synth_type: ::form::Positive(Body(n("body"))),
-        eval: ::form::Positive(cust_rc_box!(move |extend_syntax_parts| {
+        type_compare: Both(NotWalked, NotWalked),
+        synth_type: Positive(Body(n("body"))),
+        eval: Positive(cust_rc_box!(move |extend_syntax_parts| {
             // HACK: since the macros have been expanded away, `rhs` should be unbound
-            ::runtime::eval::eval(
-                ::core_forms::strip_ee(extend_syntax_parts.get_term_ref(n("body"))),
+            crate::runtime::eval::eval(
+                strip_ee(extend_syntax_parts.get_term_ref(n("body"))),
                 extend_syntax_parts.env.clone(),
             )
         })),
-        quasiquote: ::form::Both(LiteralLike, LiteralLike),
+        quasiquote: Both(LiteralLike, LiteralLike),
     })
 }
 
 #[test]
 fn formpat_reflection() {
-    use core_forms::find_form;
-    use runtime::eval::eval_top;
+    use crate::{core_forms::find_form, runtime::eval::eval_top};
     let macro_forms = make_core_macro_forms()
-        .set(n("DefaultToken"), Rc::new(::grammar::new_scan(r"\s*(\S+)")))
+        .set(n("DefaultToken"), Rc::new(crate::grammar::new_scan(r"\s*(\S+)")))
         .set(n("DefaultName"), Rc::new(FormPat::Call(n("DefaultToken"))))
         .set(n("DefaultReference"), Rc::new(VarRef(Rc::new(FormPat::Call(n("DefaultToken"))))))
         .set(n("Type"), Rc::new(FormPat::Call(n("DefaultToken"))));
@@ -701,17 +700,17 @@ fn formpat_reflection() {
 
     let string_to_form_pat = |s: &str| -> FormPat {
         syntax_to_form_pat(
-            ::earley::parse(
+            crate::earley::parse(
                 &form_pat!((call "Syntax")),
                 &macro_forms,
-                ::earley::empty__code_envs(),
+                crate::earley::empty__code_envs(),
                 s,
             )
             .unwrap(),
         )
     };
 
-    assert_eq!(string_to_form_pat(r"/\s*(\S+)/"), ::grammar::new_scan(r"\s*(\S+)"));
+    assert_eq!(string_to_form_pat(r"/\s*(\S+)/"), crate::grammar::new_scan(r"\s*(\S+)"));
     assert_eq!(string_to_form_pat(r"lit /\s*(\S+)/ = 'x'"), form_pat!((lit_aat "x")));
     assert_eq!(
         string_to_form_pat(r"[ lit /\s*(\S+)/ = 'write_this' ,{ Expr <[ Int ]< }, <-- nothing ]"),
@@ -735,7 +734,7 @@ fn macro_definitions() {
         .set(negative_ret_val(), ty!((trivial)));
 
     assert_eq!(
-        ::ty::neg_synth_type(
+        crate::ty::neg_synth_type(
             &u!({Syntax star => ["body"] :
                 {named => ["part_name"] : x {call_with_type : Expr T}}}),
             env.clone()
@@ -748,7 +747,7 @@ fn macro_definitions() {
     let t_pat_type = uty!({type_apply : (prim Pat) [T]});
 
     assert_eq!(
-        ::ty::neg_synth_type(
+        crate::ty::neg_synth_type(
             &u!({Syntax scope : [T; S]
                 {seq => [* ["elt"]] :
                     [{named => ["part_name"] : body {call_with_type : Expr S}};
@@ -821,9 +820,9 @@ fn type_basic_macro_invocation() {
     );
 
     let impl_clo =
-        ::runtime::eval::Closure { body: ast!((trivial)), params: vec![], env: Assoc::new() };
+        crate::runtime::eval::Closure { body: ast!((trivial)), params: vec![], env: Assoc::new() };
     assert_eq!(
-        ::ty::synth_type(
+        crate::ty::synth_type(
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke basic_int_macro"), (named "a", (call "Expr"))]),
@@ -837,7 +836,7 @@ fn type_basic_macro_invocation() {
     );
 
     assert_eq!(
-        ::ty::synth_type(
+        crate::ty::synth_type(
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke basic_t_macro"), (named "a", (call "Expr"))]),
@@ -851,7 +850,7 @@ fn type_basic_macro_invocation() {
     );
 
     assert_m!(
-        ::ty::synth_type(
+        crate::ty::synth_type(
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke basic_int_macro"), (named "a", (call "Expr"))]),
@@ -865,7 +864,7 @@ fn type_basic_macro_invocation() {
     );
 
     assert_eq!(
-        ::ty::neg_synth_type(
+        crate::ty::neg_synth_type(
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke basic_pattern_macro"), (named "a", (call "Pat"))]),
@@ -879,7 +878,7 @@ fn type_basic_macro_invocation() {
     );
 
     assert_eq!(
-        ::ty::synth_type(
+        crate::ty::synth_type(
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke let_like_macro"),
@@ -898,7 +897,7 @@ fn type_basic_macro_invocation() {
     );
 
     assert_eq!(
-        ::ty::neg_synth_type(
+        crate::ty::neg_synth_type(
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke pattern_cond_like_macro"),
@@ -924,7 +923,7 @@ fn type_ddd_macro() {
     let t_rep_pat_type = uty!({dotdotdot : [T] {type_apply : (prim Pat) [T]}});
 
     let impl_clo =
-        ::runtime::eval::Closure { body: ast!((trivial)), params: vec![], env: Assoc::new() };
+        crate::runtime::eval::Closure { body: ast!((trivial)), params: vec![], env: Assoc::new() };
 
     let env = assoc_n!(
         "int_var" => uty!({Int :}),
@@ -937,7 +936,7 @@ fn type_ddd_macro() {
                        s_expr_type.clone()));
 
     assert_eq!(
-        ::ty::synth_type(
+        crate::ty::synth_type(
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke let_like_macro"),
@@ -957,16 +956,16 @@ fn type_ddd_macro() {
 }
 #[test]
 fn define_and_parse_macros() {
-    let ty_ctxt = ::ast_walk::LazyWalkReses::<::ty::SynthTy>::new_wrapper(
-        ::runtime::core_values::core_types(),
+    let ty_ctxt = crate::ast_walk::LazyWalkReses::<crate::ty::SynthTy>::new_wrapper(
+        crate::runtime::core_values::core_types(),
     );
-    let ev_ctxt = ::ast_walk::LazyWalkReses::<::runtime::eval::Eval>::new_wrapper(
-        ::runtime::core_values::core_values(),
+    let ev_ctxt = crate::ast_walk::LazyWalkReses::<crate::runtime::eval::Eval>::new_wrapper(
+        crate::runtime::core_values::core_values(),
     );
 
-    ::grammar::parse(
+    crate::grammar::parse(
         &form_pat!((scope extend_syntax())),
-        &::core_forms::get_core_forms(),
+        &crate::core_forms::get_core_forms(),
         (ty_ctxt, ev_ctxt),
         "extend_syntax
              Expr ::=also forall T . '{

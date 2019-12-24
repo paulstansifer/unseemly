@@ -6,24 +6,24 @@
 //  or the actual value of AST nodes corresponding to types
 //   (i.e., type annotations).
 
-use ast::*;
-use ast_walk::{
-    walk, LazyWalkReses,
-    WalkRule::{self, *},
+use crate::{
+    ast::*,
+    ast_walk::{
+        walk, LazyWalkReses,
+        WalkRule::{self, *},
+    },
+    form::Form,
+    name::*,
+    util::assoc::Assoc,
+    walk_mode::WalkMode,
 };
-use form::Form;
-use name::*;
-use std::rc::Rc;
-use util::assoc::Assoc;
-use walk_mode::WalkMode;
+use std::{fmt, rc::Rc};
 
 #[derive(PartialEq, Clone)]
 pub struct Ty(pub Ast);
 
-impl ::std::fmt::Debug for Ty {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        write!(f, "[TYPE {:#?}]", self.0)
-    }
+impl fmt::Debug for Ty {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "[TYPE {:#?}]", self.0) }
 }
 
 impl Ty {
@@ -39,7 +39,7 @@ impl Ty {
         &self,
         expd_form: Rc<Form>,
         loc: &Ast,
-    ) -> Result<::util::mbe::EnvMBE<Ast>, TypeError>
+    ) -> Result<crate::util::mbe::EnvMBE<Ast>, TypeError>
     {
         self.0
             .destructure(expd_form.clone())
@@ -48,25 +48,25 @@ impl Ty {
 }
 
 // this kinda belongs in core_forms.rs
-impl ::std::fmt::Display for Ty {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result { write!(f, "{}", self.0) }
+impl fmt::Display for Ty {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{}", self.0) }
 }
 
-impl ::runtime::reify::Reifiable for Ty {
+impl crate::runtime::reify::Reifiable for Ty {
     fn ty() -> Ast { Ast::ty() }
 
     fn ty_name() -> Name { n("Type") }
 
-    fn reify(&self) -> ::runtime::eval::Value { self.0.reify() }
+    fn reify(&self) -> crate::runtime::eval::Value { self.0.reify() }
 
-    fn reflect(v: &::runtime::eval::Value) -> Self { Ty::new(Ast::reflect(v)) }
+    fn reflect(v: &crate::runtime::eval::Value) -> Self { Ty::new(Ast::reflect(v)) }
 }
 
-impl ::walk_mode::WalkElt for Ty {
+impl crate::walk_mode::WalkElt for Ty {
     fn from_ast(a: &Ast) -> Ty { Ty::new(a.clone()) }
     fn to_ast(&self) -> Ast { self.concrete() }
 
-    fn core_env() -> Assoc<Name, Ty> { ::runtime::core_values::core_types() }
+    fn core_env() -> Assoc<Name, Ty> { crate::runtime::core_values::core_types() }
 }
 
 custom_derive! {
@@ -85,15 +85,19 @@ impl WalkMode for SynthTy {
     type AsPositive = SynthTy;
     type AsNegative = UnpackTy;
     type Err = TypeError;
-    type D = ::walk_mode::Positive<SynthTy>;
+    type D = crate::walk_mode::Positive<SynthTy>;
     type ExtraInfo = ();
 
     fn get_walk_rule(f: &Form) -> WalkRule<SynthTy> { f.synth_type.pos().clone() }
     fn automatically_extend_env() -> bool { true }
 
-    fn walk_var(name: Name, parts: &::ast_walk::LazyWalkReses<SynthTy>) -> Result<Ty, TypeError> {
+    fn walk_var(
+        name: Name,
+        parts: &crate::ast_walk::LazyWalkReses<SynthTy>,
+    ) -> Result<Ty, TypeError>
+    {
         match parts.env.find(&name) {
-            None => Err(::util::err::sp(TyErr::UnboundName(name), parts.this_ast.clone())),
+            None => Err(crate::util::err::sp(TyErr::UnboundName(name), parts.this_ast.clone())),
             // If name is protected, stop:
             Some(ty) if &Ty(VariableReference(name)) == ty => Ok(ty.clone()),
             Some(ty) => synth_type(&ty.concrete(), parts.env.clone()),
@@ -111,7 +115,7 @@ impl WalkMode for UnpackTy {
     type AsPositive = SynthTy;
     type AsNegative = UnpackTy;
     type Err = TypeError;
-    type D = ::walk_mode::Negative<UnpackTy>;
+    type D = crate::walk_mode::Negative<UnpackTy>;
     type ExtraInfo = ();
 
     fn get_walk_rule(f: &Form) -> WalkRule<UnpackTy> { f.synth_type.neg().clone() }
@@ -120,7 +124,7 @@ impl WalkMode for UnpackTy {
     fn underspecified(name: Name) -> Ty { Ty(VariableReference(name)) }
 }
 
-impl ::walk_mode::NegativeWalkMode for UnpackTy {
+impl crate::walk_mode::NegativeWalkMode for UnpackTy {
     fn needs_pre_match() -> bool { true }
 }
 
@@ -155,8 +159,8 @@ custom_derive! {
     }
 }
 
-impl ::std::fmt::Display for TyErr {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+impl fmt::Display for TyErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::TyErr::*;
         match *self {
             Mismatch(ref got, ref exp) => {
@@ -203,10 +207,8 @@ impl ::std::fmt::Display for TyErr {
 }
 
 // temporary, until we get rid of `Debug` as the way of outputting errors
-impl ::std::fmt::Debug for TyErr {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        ::std::fmt::Display::fmt(self, f)
-    }
+impl fmt::Debug for TyErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { fmt::Display::fmt(self, f) }
 }
 
 // TODO: I hope I don't need this
@@ -216,13 +218,13 @@ impl ::std::fmt::Debug for TyErr {
 //     }
 // }
 
-pub type TypeError = ::util::err::Spanned<TyErr>;
+pub type TypeError = crate::util::err::Spanned<TyErr>;
 
 pub type TypeResult = Result<Ty, TypeError>;
 
 pub fn expect_type(expected: &Ty, got: &Ty, loc: &Ast) -> Result<(), TypeError> {
     if got != expected {
-        Err(::util::err::Spanned {
+        Err(crate::util::err::Spanned {
             loc: loc.clone(),
             body: TyErr::Mismatch(expected.clone(), got.clone()),
         })
@@ -235,10 +237,10 @@ pub fn expect_type(expected: &Ty, got: &Ty, loc: &Ast) -> Result<(), TypeError> 
 fn basic_type_synth() {
     let mt_ty_env = Assoc::new();
     let int_ty = ty!({
-        ::core_forms::find_core_form("Type", "Int");
+        crate::core_forms::find_core_form("Type", "Int");
     });
     let nat_ty = ty!({
-        ::core_forms::find_core_form("Type", "Nat");
+        crate::core_forms::find_core_form("Type", "Nat");
     });
 
     let simple_ty_env = mt_ty_env.set(n("x"), int_ty.clone());
@@ -275,7 +277,7 @@ fn basic_type_synth() {
                 basic_typed_form!(
                     atom,
                     Custom(Rc::new(Box::new(|_| Ok(ty!({
-                        ::core_forms::find_core_form("Type", "Nat");
+                        crate::core_forms::find_core_form("Type", "Nat");
                     }))))),
                     NotWalked
                 );
@@ -296,7 +298,7 @@ fn basic_type_synth() {
 fn type_specialization() {
     let nat_ty = ty!( { "Type" "Nat" : });
 
-    fn tbn(nm: &'static str) -> Ty { Ty(::ast::Ast::VariableReference(n(nm))) }
+    fn tbn(nm: &'static str) -> Ty { Ty(crate::ast::Ast::VariableReference(n(nm))) }
 
     let _para_ty_env = assoc_n!(
         "some_int" => ty!( { "Type" "Int" : }),

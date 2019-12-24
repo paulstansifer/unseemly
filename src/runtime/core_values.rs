@@ -1,13 +1,15 @@
-use ast::Ast;
-use name::*;
-use runtime::eval::{
-    eval,
-    Value::{self, *},
-    BIF,
+use crate::{
+    ast::Ast,
+    name::*,
+    runtime::eval::{
+        eval,
+        Value::{self, *},
+        BIF,
+    },
+    ty::Ty,
+    util::assoc::Assoc,
 };
 use std::rc::Rc;
-use ty::Ty;
-use util::assoc::Assoc;
 
 use num::BigInt;
 
@@ -34,7 +36,7 @@ pub fn core_typed_values() -> Assoc<Name, TypedValue> {
             ( Function(cl) ) => {
                 let new_env = cl.env.set(cl.params[0],
                     // reconstruct the invocation that caused this:
-                    Function(Rc::new(::runtime::eval::Closure {
+                    Function(Rc::new(crate::runtime::eval::Closure {
                         body: ast!({"Expr" "apply" :
                             "rator" => (vr "fix"),
                             "rand" => [(vr "orig_arg")]}),
@@ -87,8 +89,10 @@ macro_rules! reified_ty_env {
 }
 
 pub fn core_types() -> Assoc<Name, Ty> {
-    use core_type_forms::get__primitive_type;
-    use runtime::reify::{Irr, Reifiable};
+    use crate::{
+        core_type_forms::get__primitive_type,
+        runtime::reify::{Irr, Reifiable},
+    };
     core_typed_values()
         .map(&erase_value)
         .set(
@@ -105,28 +109,28 @@ pub fn core_types() -> Assoc<Name, Ty> {
         .set(n("Sequence"), get__primitive_type(n("Sequence")))
         .set_assoc(&reified_ty_env!(
             Option<Irr>, u8, usize,
-            ::util::assoc::Assoc<Irr, Irr>,
-            ::util::mbe::EnvMBE<Irr>,
-            Name, ::ast::Ast, ::beta::Beta, ::beta::ExportBeta,
-            ::grammar::FormPat, ::grammar::SyntaxExtension, ::grammar::Scanner,
-            ::form::Form, ::form::EitherPN<Irr, Irr>, ::ast_walk::WalkRule<Irr>,
-            ::runtime::eval::QQuote, ::runtime::eval::QQuoteDestr,
-            ::runtime::eval::Eval, ::runtime::eval::Destructure,
-            ::ty::SynthTy, ::ty::UnpackTy,
-            ::ty_compare::Canonicalize, ::ty_compare::Subtype
+            crate::util::assoc::Assoc<Irr, Irr>,
+            crate::util::mbe::EnvMBE<Irr>,
+            Name, crate::ast::Ast, crate::beta::Beta, crate::beta::ExportBeta,
+            crate::grammar::FormPat, crate::grammar::SyntaxExtension, crate::grammar::Scanner,
+            crate::form::Form, crate::form::EitherPN<Irr, Irr>, crate::ast_walk::WalkRule<Irr>,
+            crate::runtime::eval::QQuote, crate::runtime::eval::QQuoteDestr,
+            crate::runtime::eval::Eval, crate::runtime::eval::Destructure,
+            crate::ty::SynthTy, crate::ty::UnpackTy,
+            crate::ty_compare::Canonicalize, crate::ty_compare::Subtype
             ))
 }
 
-pub fn get_core_envs() -> ::earley::CodeEnvs {
+pub fn get_core_envs() -> crate::earley::CodeEnvs {
     (
-        ::ast_walk::LazyWalkReses::new_wrapper(core_types()),
-        ::ast_walk::LazyWalkReses::new_wrapper(core_values()),
+        crate::ast_walk::LazyWalkReses::new_wrapper(core_types()),
+        crate::ast_walk::LazyWalkReses::new_wrapper(core_values()),
     )
 }
 
 #[test]
 fn basic_core_value_evaluation() {
-    use core_forms::find_core_form;
+    use crate::core_forms::find_core_form;
 
     let cte = core_typed_values();
     let ce = cte.map(&erase_type);

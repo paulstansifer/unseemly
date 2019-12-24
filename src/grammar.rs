@@ -1,12 +1,15 @@
 #![macro_use]
 
-use ast::Ast::{self, *};
-use beta::{Beta, ExportBeta};
-use form::{simple_form, Form};
-use name::*;
-use read::DelimChar;
+use crate::{
+    ast::Ast::{self, *},
+    beta::{Beta, ExportBeta},
+    form::{simple_form, Form},
+    name::*,
+    read::DelimChar,
+    runtime::{eval::Value, reify},
+    util::assoc::Assoc,
+};
 use std::{boxed::Box, clone::Clone, rc::Rc};
-use util::assoc::Assoc;
 
 custom_derive! {
     /// `FormPat` defines a pattern in a grammar. Think EBNF, but more extended.
@@ -144,7 +147,7 @@ impl FormPat {
 
 #[derive(Clone)]
 pub struct SyntaxExtension(
-    pub Rc<Box<(dyn Fn(::earley::ParseContext, Ast) -> ::earley::ParseContext)>>,
+    pub Rc<Box<(dyn Fn(crate::earley::ParseContext, Ast) -> crate::earley::ParseContext)>>,
 );
 
 impl PartialEq for SyntaxExtension {
@@ -156,20 +159,16 @@ impl PartialEq for SyntaxExtension {
 
 // This kind of struct is theoretically possible to add to the `Reifiable!` macro,
 //  but is it worth the complexity?
-impl ::runtime::reify::Reifiable for SyntaxExtension {
+impl reify::Reifiable for SyntaxExtension {
     fn ty_name() -> Name { n("SyntaxExtension") }
 
-    fn reify(&self) -> ::runtime::eval::Value {
-        ::runtime::reify::reify_2ary_function(self.0.clone())
-    }
+    fn reify(&self) -> Value { reify::reify_2ary_function(self.0.clone()) }
 
-    fn reflect(v: &::runtime::eval::Value) -> Self {
-        SyntaxExtension(::runtime::reify::reflect_2ary_function(v.clone()))
-    }
+    fn reflect(v: &Value) -> Self { SyntaxExtension(reify::reflect_2ary_function(v.clone())) }
 }
 
-impl ::std::fmt::Debug for SyntaxExtension {
-    fn fmt(&self, formatter: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
+impl std::fmt::Debug for SyntaxExtension {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         formatter.write_str("[syntax extension]")
     }
 }
@@ -185,42 +184,38 @@ impl PartialEq for Scanner {
     fn eq(&self, other: &Scanner) -> bool { self.0.as_str() == other.0.as_str() }
 }
 
-impl ::runtime::reify::Reifiable for Scanner {
+impl reify::Reifiable for Scanner {
     fn ty_name() -> Name { n("Scanner") }
 
-    fn reify(&self) -> ::runtime::eval::Value {
-        <String as ::runtime::reify::Reifiable>::reify(&self.0.as_str().to_owned())
-    }
+    fn reify(&self) -> Value { <String as reify::Reifiable>::reify(&self.0.as_str().to_owned()) }
 
-    fn reflect(v: &::runtime::eval::Value) -> Self {
-        Scanner(regex::Regex::new(&<String as ::runtime::reify::Reifiable>::reflect(v)).unwrap())
+    fn reflect(v: &Value) -> Self {
+        Scanner(regex::Regex::new(&<String as reify::Reifiable>::reflect(v)).unwrap())
     }
 }
 
-impl ::std::fmt::Debug for Scanner {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
+impl std::fmt::Debug for Scanner {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "[scanner {:?}]", self.0.as_str())
     }
 }
 
 pub type SynEnv = Assoc<Name, Rc<FormPat>>;
 
-pub use earley::parse;
+pub use crate::earley::parse;
 
 /// Parse `tt` with the grammar `f` in an empty syntactic environment.
 /// `Call` patterns are errors.
-pub fn parse_top(f: &FormPat, toks: &str) -> Result<Ast, ::earley::ParseError> {
-    parse(f, &Assoc::new(), ::earley::empty__code_envs(), toks)
+pub fn parse_top(f: &FormPat, toks: &str) -> Result<Ast, crate::earley::ParseError> {
+    parse(f, &Assoc::new(), crate::earley::empty__code_envs(), toks)
 }
 
 use self::FormPat::*;
 
 #[test]
 fn basic_parsing() {
-    fn mk_lt(s: &str) -> Rc<FormPat> {
-        Rc::new(Literal(Rc::new(::grammar::new_scan(r"\s*(\S+)")), n(s)))
-    }
-    let atom = Rc::new(::grammar::new_scan(r"\s*(\S+)"));
+    fn mk_lt(s: &str) -> Rc<FormPat> { Rc::new(Literal(Rc::new(new_scan(r"\s*(\S+)")), n(s))) }
+    let atom = Rc::new(new_scan(r"\s*(\S+)"));
 
     assert_eq!(parse_top(&Seq(vec![atom.clone()]), tokens_s!("asdf")).unwrap(), ast_shape!("asdf"));
 
@@ -346,12 +341,12 @@ fn advanced_parsing() {
             &form_pat!((call "Expr")),
             &assoc_n!(
                          "other_1" => Rc::new(Scope(simple_form("o", form_pat!((lit_aat "other"))),
-                                                    ::beta::ExportBeta::Nothing)),
-                         "Expr" => Rc::new(Scope(pair_form.clone(), ::beta::ExportBeta::Nothing)),
+                                                    crate::beta::ExportBeta::Nothing)),
+                         "Expr" => Rc::new(Scope(pair_form.clone(), crate::beta::ExportBeta::Nothing)),
                          "other_2" =>
                              Rc::new(Scope(simple_form("o", form_pat!((lit_aat "otherother"))),
-                                           ::beta::ExportBeta::Nothing))),
-            ::earley::empty__code_envs(),
+                                           crate::beta::ExportBeta::Nothing))),
+            crate::earley::empty__code_envs(),
             &toks_a_b
         )
         .unwrap(),
@@ -367,7 +362,7 @@ fn advanced_parsing() {
 
 #[test]
 fn extensible_parsing() {
-    use earley::ParseContext;
+    use crate::earley::ParseContext;
     fn static_synex(pc: ParseContext, _: Ast) -> ParseContext {
         ParseContext {
             grammar: assoc_n!(
@@ -396,7 +391,7 @@ fn extensible_parsing() {
         parse(
             &form_pat!((call "o")),
             &orig,
-            ::earley::empty__code_envs(),
+            crate::earley::empty__code_envs(),
             tokens_s!("O" "O" "Extend" "AA" "AA" "Back" "O" "#" "AA" "#" "O")
         )
         .unwrap(),
@@ -407,7 +402,7 @@ fn extensible_parsing() {
         parse(
             &form_pat!((call "o")),
             &orig,
-            ::earley::empty__code_envs(),
+            crate::earley::empty__code_envs(),
             tokens_s!("O" "O" "Extend" "AA" "AA" "Back" "AA" "#" "AA" "#" "O")
         )
         .is_err(),
@@ -418,7 +413,7 @@ fn extensible_parsing() {
         parse(
             &form_pat!((call "o")),
             &orig,
-            ::earley::empty__code_envs(),
+            crate::earley::empty__code_envs(),
             tokens_s!("O" "O" "Extend" "O" "#" "O")
         )
         .is_err(),
@@ -436,7 +431,7 @@ fn extensible_parsing() {
         .len();
 
         ParseContext::new_from_grammar(
-            assoc_n!("count" => Rc::new(Literal(Rc::new(::grammar::new_scan(r"\s*(\S+)")),
+            assoc_n!("count" => Rc::new(Literal(Rc::new(new_scan(r"\s*(\S+)")),
                                             n(&count.to_string())))),
         )
     }
@@ -445,7 +440,7 @@ fn extensible_parsing() {
         parse(
             &form_pat!((extend_nt (star (named "n", (lit_aat "X"))), "count", counter_synex)),
             &mt_syn_env,
-            ::earley::empty__code_envs(),
+            crate::earley::empty__code_envs(),
             tokens_s!("X" "X" "X" "4")
         ),
         Err(_)
@@ -455,7 +450,7 @@ fn extensible_parsing() {
         parse(
             &form_pat!((extend_nt (star (named "n", (lit_aat "X"))), "count", counter_synex)),
             &mt_syn_env,
-            ::earley::empty__code_envs(),
+            crate::earley::empty__code_envs(),
             tokens_s!("X" "X" "X" "X" "4")
         ),
         Ok(ast_shape!({- "n" => ["X", "X", "X", "X"]} "4"))
@@ -465,7 +460,7 @@ fn extensible_parsing() {
         parse(
             &form_pat!((extend_nt (star (named "n", (lit_aat "X"))), "count", counter_synex)),
             &mt_syn_env,
-            ::earley::empty__code_envs(),
+            crate::earley::empty__code_envs(),
             tokens_s!("X" "X" "X" "X" "X" "4")
         ),
         Err(_)

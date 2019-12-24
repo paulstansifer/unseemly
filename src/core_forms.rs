@@ -1,25 +1,29 @@
 // This virtual machine kills cyber-fascists.
 
-use ast::*;
-use ast_walk::WalkRule::*;
-use core_type_forms::*;
-use form::Form;
-use grammar::{
-    FormPat::{self, *},
-    SynEnv,
+use crate::{
+    ast::*,
+    ast_walk::WalkRule::*,
+    core_type_forms::*,
+    form::Form,
+    grammar::{
+        FormPat::{self, *},
+        SynEnv,
+    },
+    name::*,
+    runtime::eval::*,
+    ty::*,
+    util::assoc::Assoc,
 };
-use name::*;
 use num::bigint::ToBigInt;
-use runtime::eval::*;
-use std::rc::Rc;
-use ty::*;
-use util::assoc::Assoc; // type forms are kinda bulky
+use std::rc::Rc; // type forms are kinda bulky
 
 // Core forms!
 //
 // This is the definition of Unseemly, the bizarre boiled-down programming language.
 //
 // Unseemly programs have expressions and types (and probably kinds, too).
+
+// TODO: these `&Ast`-consuming functions to `ast.rs`; possibly into an `impl` of `Ast`.
 
 pub fn ast_to_name(ast: &Ast) -> Name {
     match *ast {
@@ -49,7 +53,7 @@ pub fn make_core_syn_env() -> SynEnv {
     color_backtrace::install(); // HACK: this is around the first thing that happens in any test.
 
     let ctf: SynEnv = make_core_syn_env_types();
-    let cmf: SynEnv = ::core_macro_forms::make_core_macro_forms();
+    let cmf: SynEnv = crate::core_macro_forms::make_core_macro_forms();
 
     // This seems to be necessary to get separate `Rc`s into the closures.
     // TODO: surely there's a better way?
@@ -92,30 +96,30 @@ pub fn make_core_syn_env() -> SynEnv {
         (delim "(", "(", [(named "rator", (call "Expr")),
          (star (named "rand", (call "Expr")))]),
         cust_rc_box!(move | part_types | {
-            use walk_mode::WalkMode;
-            let return_type = ::ty_compare::Subtype::underspecified(n("<return_type>"));
+            use crate::walk_mode::WalkMode;
+            let return_type = crate::ty_compare::Subtype::underspecified(n("<return_type>"));
 
             // The `rator` must be a function that takes the `rand`s as arguments:
-            let _ = ::ty_compare::must_subtype(
+            let _ = crate::ty_compare::must_subtype(
                 &ty!({ "Type" "fn" :
                     "param" => (,seq part_types.get_rep_res(n("rand"))?
                          .iter().map(|t| t.concrete()).collect::<Vec<_>>() ),
                     "ret" => (, return_type.concrete() )}),
                 &part_types.get_res(n("rator"))?,
                 part_types.env.clone())
-                    .map_err(|e| ::util::err::sp(e, part_types.this_ast.clone()))?;
+                    .map_err(|e| crate::util::err::sp(e, part_types.this_ast.clone()))?;
 
 
             // TODO: write a test that exercises this (it's used in the prelude)
             // What return type made that work?
-            ::ty_compare::unification.with(|unif| {
-                let res = ::ty_compare::resolve(
-                    ::ast_walk::Clo{ it: return_type, env: part_types.env.clone()},
+            crate::ty_compare::unification.with(|unif| {
+                let res = crate::ty_compare::resolve(
+                    crate::ast_walk::Clo{ it: return_type, env: part_types.env.clone()},
                     &unif.borrow());
 
                 // Canonicalize the type in its environment:
-                let res = ::ty_compare::canonicalize(&res.it, res.env);
-                res.map_err(|e| ::util::err::sp(e, part_types.this_ast.clone()))
+                let res = crate::ty_compare::canonicalize(&res.it, res.env);
+                res.map_err(|e| crate::util::err::sp(e, part_types.this_ast.clone()))
             })
         }),
         cust_rc_box!( move | part_values | {
@@ -127,9 +131,9 @@ pub fn make_core_syn_env() -> SynEnv {
                         new_env = new_env.set(*p, v);
                     }
 
-                    ::runtime::eval::eval(&clos.body, new_env)
+                    crate::runtime::eval::eval(&clos.body, new_env)
                 },
-                BuiltInFunction(::runtime::eval::BIF(f)) => {
+                BuiltInFunction(crate::runtime::eval::BIF(f)) => {
                     Ok(f(part_values.get_rep_res(n("rand"))?))
                 }
                 other => {
@@ -253,7 +257,7 @@ pub fn make_core_syn_env() -> SynEnv {
                         .into_iter().map(|t| t.concrete()).collect() ]}))
             }),
             cust_rc_box!( move |part_values| {
-                Ok(::runtime::eval::Value::Sequence(
+                Ok(crate::runtime::eval::Value::Sequence(
                     part_values.get_rep_res(n("component"))?.into_iter().map(Rc::new).collect()))
             })
         ),
@@ -335,8 +339,8 @@ pub fn make_core_syn_env() -> SynEnv {
                 }))
             }),
             Body(n("body"))),
-        ::core_qq_forms::quote(/* positive= */ true),
-        ::core_macro_forms::extend_syntax()
+        crate::core_qq_forms::quote(/* positive= */ true),
+        crate::core_macro_forms::extend_syntax()
     ];
 
     let main_pat_forms = forms_to_form_pat_export![
@@ -490,7 +494,7 @@ pub fn make_core_syn_env() -> SynEnv {
 
         ) => [* ["component"]],
             // TODO #16: We need a pattern for destructuring tuples.
-            ::core_qq_forms::quote(/*positive=*/false) => ["body"]];
+            crate::core_qq_forms::quote(/*positive=*/false) => ["body"]];
 
     let reserved_names = vec![
         n("forall"),
@@ -538,7 +542,8 @@ pub fn make_core_syn_env() -> SynEnv {
         "DefaultReference" => Rc::new(VarRef(Rc::new(Call(n("DefaultName"))))),
         // TODO: Rename "DefaultName" -> "DefaultAtom"
         "DefaultName" => Rc::new(form_pat!((reserved_by_name_vec (call "DefaultToken"), reserved_names))),
-        "DefaultToken" => Rc::new(::grammar::new_scan(r"\s*([\]\)\}][^\[\]\(\)\{\}\s]*|[^\[\]\(\)\{\}\s]*[\[\(\{]|[^\[\]\(\)\{\}\s]+)"))
+        "DefaultToken" => Rc::new(crate::grammar::new_scan(
+            r"\s*([\]\)\}][^\[\]\(\)\{\}\s]*|[^\[\]\(\)\{\}\s]*[\[\(\{]|[^\[\]\(\)\{\}\s]+)"))
     )
     .set_assoc(&ctf)
     .set_assoc(&cmf) // throw in the types and macros!
@@ -629,13 +634,13 @@ pub fn get_core_forms() -> SynEnv { core_forms.with(|cf| cf.clone()) }
 #[test]
 fn form_grammar() {
     let cse = make_core_syn_env();
-    use read::{DelimChar::*, *};
+    use crate::read::{DelimChar::*, *};
 
     assert_eq!(
-        ::grammar::parse(
+        crate::grammar::parse(
             &form_pat!((call "Type")),
             &cse.clone(),
-            ::runtime::core_values::get_core_envs(),
+            crate::runtime::core_values::get_core_envs(),
             tokens_s!("[" "Ident" "->" "Ident" "]")
         ),
         Ok(ast!({ find_form(&cse, "Type", "fn");

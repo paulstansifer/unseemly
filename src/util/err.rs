@@ -3,12 +3,12 @@ use std::fmt::{Debug, Display, Formatter, Result};
 custom_derive! {
     #[derive(Reifiable, Clone, PartialEq)]
     pub struct Spanned<T> {
-        pub loc: ::ast::Ast, // TODO: implement spans!
+        pub loc: crate::ast::Ast, // TODO: implement spans!
         pub body: T
     }
 }
 
-pub fn sp<T>(t: T, a: ::ast::Ast) -> Spanned<T> { Spanned { loc: a, body: t } }
+pub fn sp<T>(t: T, a: crate::ast::Ast) -> Spanned<T> { Spanned { loc: a, body: t } }
 
 impl<T: Display> Display for Spanned<T> {
     fn fmt(&self, f: &mut Formatter) -> Result { write!(f, "{} at {}", self.body, self.loc) }

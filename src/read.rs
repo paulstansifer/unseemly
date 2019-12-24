@@ -1,4 +1,4 @@
-use name::*;
+use crate::name::*;
 
 custom_derive! {
     #[derive(Debug,PartialEq,Eq,Clone,Copy,Reifiable)]

@@ -42,23 +42,25 @@
 //
 // — Douglas Hofstadter, Gödel, Escher, Bach: an Eternal Golden Braid
 
-use ast::*;
-use ast_walk::{
-    walk,
-    WalkRule::{self, *},
+use crate::{
+    ast::*,
+    ast_walk::{
+        walk,
+        WalkRule::{self, *},
+    },
+    core_forms::{ast_to_name, vr_to_name},
+    form::{simple_form, BiDiWR, Both, Form, Positive},
+    grammar::{
+        FormPat::{self, *},
+        SynEnv,
+    },
+    name::*,
+    ty::{synth_type, SynthTy, Ty, TyErr},
+    ty_compare::{Canonicalize, Subtype},
+    util::assoc::Assoc,
+    walk_mode::{NegativeWalkMode, WalkMode},
 };
-use core_forms::{ast_to_name, vr_to_name};
-use form::{simple_form, BiDiWR, Both, Form, Positive};
-use grammar::{
-    FormPat::{self, *},
-    SynEnv,
-};
-use name::*;
 use std::rc::Rc;
-use ty::{synth_type, SynthTy, Ty, TyErr};
-use ty_compare::{Canonicalize, Subtype};
-use util::assoc::Assoc;
-use walk_mode::{NegativeWalkMode, WalkMode};
 
 // TODO #3: I think we need to extend `Form` with `synth_kind`...
 pub fn type_defn(form_name: &str, p: FormPat) -> Rc<Form> {
@@ -103,7 +105,7 @@ thread_local! {
 }
 
 pub fn get__primitive_type(called: Name) -> Ty {
-    ty!({primitive_type.with(|p_t| p_t.clone()) ; "name" => (, ::ast::Atom(called))})
+    ty!({primitive_type.with(|p_t| p_t.clone()) ; "name" => (, Atom(called))})
 }
 
 fn is_primitive(form: &Rc<Form>) -> bool { form == &primitive_type.with(|p_t| p_t.clone()) }
@@ -145,7 +147,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 }
                 for (p_expected, p_got) in expd_params.iter().zip(actl_params.iter()) {
                     // Parameters have reversed subtyping:
-                    let _: ::util::assoc::Assoc<Name, Ty> = walk::<Subtype>(
+                    let _: Assoc<Name, Ty> = walk::<Subtype>(
                         *p_got,
                         &fn_parts.with_context(Ty::new(p_expected.clone())),
                     )?;
@@ -330,7 +332,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
             let drivers: Vec<(Name, Ty)> = ddd_ty_parts
                 .get_rep_term(n("driver"))
                 .iter()
-                .map(|a: &Ast| ::core_forms::vr_to_name(a))
+                .map(|a: &Ast| vr_to_name(a))
                 .zip(ddd_ty_parts.get_rep_res(n("driver"))?)
                 .collect();
 
@@ -370,7 +372,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 let mut len = None;
                 for (name, ty) in drivers {
                     expect_ty_node!(
-                    (ty ; ::core_forms::find("Type", "tuple") ; &ddd_ty_parts.this_ast)
+                    (ty ; crate::core_forms::find("Type", "tuple") ; &ddd_ty_parts.this_ast)
                     tuple_type_parts ; {
                         let components: Vec<Ast>
                             = tuple_type_parts.get_rep_leaf_or_panic(n("component"))
@@ -413,10 +415,10 @@ pub fn make_core_syn_env_types() -> SynEnv {
         Both(
             LiteralLike,
             cust_rc_box!(move |ddd_parts| {
-                use ast_walk::Clo;
+                use crate::ast_walk::Clo;
                 let tuple_parts = match ddd_parts.context_elt() {
                     Ty(Node(ref f, ref tuple_parts, _))
-                        if f == &::core_forms::find("Type", "tuple") =>
+                        if f == &crate::core_forms::find("Type", "tuple") =>
                     {
                         tuple_parts
                     }
@@ -432,16 +434,16 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 let tuple_size = tuple_parts.get_rep_leaf_or_panic(n("component")).len();
                 let mut driver_components: Vec<Vec<Ty>> = vec![];
 
-                ::ty_compare::unification.with(|unif| {
+                crate::ty_compare::unification.with(|unif| {
                     for driver in ddd_parts.get_rep_term(n("driver")) {
-                        let driver_resolved = ::ty_compare::resolve(
+                        let driver_resolved = crate::ty_compare::resolve(
                             Clo { it: Ty(driver.clone()), env: ddd_parts.env.clone() },
                             &unif.borrow(),
                         );
                         if let Clo { it: Ty(Node(ref f, ref driver_parts, _)), env: _ } =
                             driver_resolved
                         {
-                            if f == &::ty_compare::underdetermined_form.with(Clone::clone) {
+                            if f == &crate::ty_compare::underdetermined_form.with(Clone::clone) {
                                 // Force the underdetermined driver to be a
                                 //  tuple whose elements are still underdetermined.
                                 let mut undet_components = vec![];
@@ -458,7 +460,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                                     Clo { it: blank_tuple, env: Assoc::new() }, // has no var refs
                                 );
                                 driver_components.push(undet_components);
-                            } else if f == &::core_forms::find("Type", "tuple") {
+                            } else if f == &crate::core_forms::find("Type", "tuple") {
                                 driver_components.push(
                                     driver_parts
                                         .get_rep_leaf_or_panic(n("component"))
@@ -467,16 +469,13 @@ pub fn make_core_syn_env_types() -> SynEnv {
                                         .collect(),
                                 );
                             } else {
-                                return Err(::ty::TyErr::UnableToDestructure(
+                                return Err(TyErr::UnableToDestructure(
                                     driver_resolved.it,
                                     n("tuple"),
                                 ));
                             }
                         } else {
-                            return Err(::ty::TyErr::UnableToDestructure(
-                                driver_resolved.it,
-                                n("tuple"),
-                            ));
+                            return Err(TyErr::UnableToDestructure(driver_resolved.it, n("tuple")));
                         }
                     }
 
@@ -525,6 +524,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
          (delim "<[", "[", (star (named "arg", (call "Type"))))]),
         // TODO: shouldn't it be "args"?
         cust_rc_box!(move |tapp_parts| {
+            use crate::util::mbe::EnvMBE;
             let arg_res = tapp_parts.get_rep_res(n("arg"))?;
             let rator_res = tapp_parts.get_res(n("type_rator"))?;
             match rator_res.0 {
@@ -535,13 +535,13 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     // This kind of thing is necessary because
                     //  we wish to avoid aliasing problems at the type level.
                     // In System F, this is avoided by performing capture-avoiding substitution.
-                    let mut new__tapp_parts = ::util::mbe::EnvMBE::new_from_leaves(
+                    let mut new__tapp_parts = EnvMBE::new_from_leaves(
                         assoc_n!("type_rator" => VariableReference(rator_vr)),
                     );
 
                     let mut args = vec![];
                     for individual__arg_res in arg_res {
-                        args.push(::util::mbe::EnvMBE::new_from_leaves(
+                        args.push(EnvMBE::new_from_leaves(
                             assoc_n!("arg" => individual__arg_res.concrete()),
                         ));
                     }
@@ -555,12 +555,11 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 }
                 Node(ref got_f, ref lhs_parts, ref exports) if is_primitive(got_f) => {
                     // Like the above; don't descend into `Expr`
-                    let mut new__tapp_parts =
-                        ::util::mbe::EnvMBE::new_from_leaves(assoc_n!("type_rator" =>
+                    let mut new__tapp_parts = EnvMBE::new_from_leaves(assoc_n!("type_rator" =>
                             Node(got_f.clone(), lhs_parts.clone(), exports.clone())));
                     let mut args = vec![];
                     for individual__arg_res in arg_res {
-                        args.push(::util::mbe::EnvMBE::new_from_leaves(
+                        args.push(EnvMBE::new_from_leaves(
                             assoc_n!("arg" => individual__arg_res.concrete()),
                         ));
                     }
@@ -585,7 +584,9 @@ pub fn make_core_syn_env_types() -> SynEnv {
 
                     // This bypasses the binding in the type, which is what we want:
                     synth_type(
-                        ::core_forms::strip_ee(forall_type__parts.get_leaf_or_panic(&n("body"))),
+                        crate::core_forms::strip_ee(
+                            forall_type__parts.get_leaf_or_panic(&n("body")),
+                        ),
                         new__ty_env,
                     )
                 }
@@ -642,9 +643,9 @@ pub fn nt_is_positive(nt: Name) -> bool {
     }
 }
 
-pub fn less_quoted_ty(t: &Ty, nt: Option<Name>, loc: &Ast) -> Result<Ty, ::ty::TypeError> {
+pub fn less_quoted_ty(t: &Ty, nt: Option<Name>, loc: &Ast) -> Result<Ty, crate::ty::TypeError> {
     // suppose that this is an expr, and `body` has the type `Expr <[String]<`:
-    expect_ty_node!( (t ; ::core_forms::find_core_form("Type", "type_apply") ; loc)
+    expect_ty_node!( (t ; crate::core_forms::find_core_form("Type", "type_apply") ; loc)
         tapp_parts;
         {
             if let Some(nt) = nt { // Check it if you got it
@@ -657,7 +658,8 @@ pub fn less_quoted_ty(t: &Ty, nt: Option<Name>, loc: &Ast) -> Result<Ty, ::ty::T
 
             let args = tapp_parts.get_rep_leaf_or_panic(n("arg"));
             if args.len() != 1 {
-                ty_err!(LengthMismatch(args.iter().map(|t| Ty::new((*t).clone())).collect(), 1) at loc);
+                ty_err!(LengthMismatch(args.iter().map(|t| Ty::new((*t).clone())).collect(), 1)
+                        at loc);
             }
 
             // ...returns `String` in that case

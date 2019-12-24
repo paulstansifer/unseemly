@@ -1,10 +1,12 @@
-use ast::Ast::{self, *};
-use grammar::{
-    FormPat::{self, *},
-    SynEnv,
+use crate::{
+    ast::Ast::{self, *},
+    grammar::{
+        FormPat::{self, *},
+        SynEnv,
+    },
+    name::*,
+    util::mbe::EnvMBE,
 };
-use name::*;
-use util::mbe::EnvMBE;
 
 fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
     match *pat {
@@ -40,11 +42,11 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
 
 pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv) -> String {
     // HACK: handle underdetermined forms
-    let undet = ::ty_compare::underdetermined_form.with(|u| u.clone());
+    let undet = crate::ty_compare::underdetermined_form.with(|u| u.clone());
     match *actl {
         Node(ref form, ref body, _) if form == &undet => {
-            return ::ty_compare::unification.with(|unif| {
-                let var = ::core_forms::ast_to_name(body.get_leaf_or_panic(&n("id")));
+            return crate::ty_compare::unification.with(|unif| {
+                let var = crate::core_forms::ast_to_name(body.get_leaf_or_panic(&n("id")));
                 let looked_up = unif.borrow().get(&var).cloned();
                 match looked_up {
                     // Apparently the environment is recursive; `{}`ing it stack-overflows

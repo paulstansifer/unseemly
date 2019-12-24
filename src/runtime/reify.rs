@@ -1,11 +1,10 @@
 // Designed for `use reify::*`
-pub use ast::Ast;
-pub use name::*;
-pub use runtime::eval::Value;
+pub use crate::{ast::Ast, name::*, runtime::eval::Value};
+
+use crate::{runtime::eval, util::assoc::Assoc};
 
 use num::bigint::BigInt;
 use std::rc::Rc;
-use util::assoc::Assoc;
 
 /// This is for parts of this compiler that need to be represented as object-level values.
 /// Almost all of it, turns out!
@@ -30,7 +29,7 @@ pub trait Reifiable {
     /// TODO: rename to `generic_ty`
     fn ty() -> Ast {
         // By default, this is an opaque primitive.
-        ::core_type_forms::get__primitive_type(Self::ty_name()).concrete()
+        crate::core_type_forms::get__primitive_type(Self::ty_name()).concrete()
     }
 
     /// A name for that type, so that recursive types are okay.
@@ -62,7 +61,7 @@ pub trait Reifiable {
     fn reify(&self) -> Value;
 
     /// Get a value from an Unseemly value
-    fn reflect(&Value) -> Self;
+    fn reflect(_: &Value) -> Self;
 }
 
 // Core values
@@ -87,7 +86,7 @@ macro_rules! basic_reifiability {
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum Irr {} // No values can be created.
 
-impl ::std::fmt::Display for Irr {
+impl std::fmt::Display for Irr {
     fn fmt(&self, _: &mut std::fmt::Formatter) -> std::fmt::Result { icp!() }
 }
 
@@ -101,22 +100,22 @@ impl Reifiable for Irr {
     fn reflect(_: &Value) -> Self { icp!() }
 }
 
-impl ::walk_mode::WalkElt for Irr {
+impl crate::walk_mode::WalkElt for Irr {
     fn from_ast(_: &Ast) -> Self { icp!() }
     fn to_ast(&self) -> Ast { icp!() }
 }
 
-impl ::walk_mode::WalkMode for Irr {
+impl crate::walk_mode::WalkMode for Irr {
     fn name() -> &'static str { icp!() }
     type Elt = Irr;
     type Negated = NegIrr;
     type AsPositive = Irr;
     type AsNegative = NegIrr;
     type Err = Irr;
-    type D = ::walk_mode::Positive<Irr>;
+    type D = crate::walk_mode::Positive<Irr>;
     type ExtraInfo = Irr;
 
-    fn get_walk_rule(_: &::form::Form) -> ::ast_walk::WalkRule<Irr> { icp!() }
+    fn get_walk_rule(_: &crate::form::Form) -> crate::ast_walk::WalkRule<Irr> { icp!() }
     fn automatically_extend_env() -> bool { icp!() }
 
     fn underspecified(_: Name) -> Irr { icp!() }
@@ -131,23 +130,23 @@ impl Reifiable for NegIrr {
     fn reflect(_: &Value) -> Self { icp!() }
 }
 
-impl ::walk_mode::WalkMode for NegIrr {
+impl crate::walk_mode::WalkMode for NegIrr {
     fn name() -> &'static str { icp!() }
     type Elt = Irr;
     type Negated = Irr;
     type AsPositive = Irr;
     type AsNegative = NegIrr;
     type Err = Irr;
-    type D = ::walk_mode::Negative<NegIrr>;
+    type D = crate::walk_mode::Negative<NegIrr>;
     type ExtraInfo = Irr;
 
-    fn get_walk_rule(_: &::form::Form) -> ::ast_walk::WalkRule<NegIrr> { icp!() }
+    fn get_walk_rule(_: &crate::form::Form) -> crate::ast_walk::WalkRule<NegIrr> { icp!() }
     fn automatically_extend_env() -> bool { icp!() }
 
     fn underspecified(_: Name) -> Irr { icp!() }
 }
 
-impl ::walk_mode::NegativeWalkMode for NegIrr {
+impl crate::walk_mode::NegativeWalkMode for NegIrr {
     fn needs_pre_match() -> bool { panic!() }
 }
 
@@ -156,9 +155,7 @@ basic_reifiability!(BigInt, "Int", Int);
 impl Reifiable for bool {
     fn ty_name() -> Name { n("Bool") }
 
-    fn reify(&self) -> Value {
-        ::runtime::eval::Value::Enum(n(if *self { "True" } else { "False" }), vec![])
-    }
+    fn reify(&self) -> Value { eval::Value::Enum(n(if *self { "True" } else { "False" }), vec![]) }
 
     fn reflect(v: &Value) -> Self {
         extract!((v) Value::Enum = (ref name, _) => name == &n("True"))
@@ -223,11 +220,11 @@ impl<T0: Reifiable, T1: Reifiable> Reifiable for (T0, T1) {
 impl Reifiable for String {
     fn ty_name() -> Name { n("Rust_str") }
 
-    fn reify(&self) -> Value { Value::AbstractSyntax(::ast::Atom(n(self))) }
+    fn reify(&self) -> Value { Value::AbstractSyntax(Ast::Atom(n(self))) }
 
     fn reflect(v: &Value) -> Self {
         match v {
-            ::runtime::eval::AbstractSyntax(::ast::Atom(name)) => name.orig_sp(),
+            eval::AbstractSyntax(Ast::Atom(name)) => name.orig_sp(),
             _ => icp!(),
         }
     }
@@ -247,7 +244,7 @@ impl Reifiable for Value {
 pub fn reify_1ary_function<A: Reifiable + 'static, R: Reifiable + 'static>(
     f: Rc<Box<(dyn Fn(A) -> R)>>,
 ) -> Value {
-    Value::BuiltInFunction(::runtime::eval::BIF(Rc::new(move |args: Vec<Value>| {
+    Value::BuiltInFunction(eval::BIF(Rc::new(move |args: Vec<Value>| {
         ((*f)(A::reflect(&args[0]))).reify()
     })))
 }
@@ -259,7 +256,7 @@ pub fn reflect_1ary_function<A: Reifiable + 'static, R: Reifiable + 'static>(
         extract!((&f_v)
         Value::BuiltInFunction = (ref bif) => R::reflect(&(*bif.0)(vec![a.reify()]));
         Value::Function = (ref closure) => {
-            R::reflect(&::runtime::eval::eval(&closure.body,
+            R::reflect(&eval::eval(&closure.body,
                 closure.env.clone().set(closure.params[0], a.reify())).unwrap())
         })
     }))
@@ -273,7 +270,7 @@ pub fn reify_2ary_function<
 >(
     f: Rc<Box<(dyn Fn(A, B) -> R)>>,
 ) -> Value {
-    Value::BuiltInFunction(::runtime::eval::BIF(Rc::new(move |args: Vec<Value>| {
+    Value::BuiltInFunction(eval::BIF(Rc::new(move |args: Vec<Value>| {
         ((*f)(A::reflect(&args[0]), B::reflect(&args[1]))).reify()
     })))
 }
@@ -290,7 +287,7 @@ pub fn reflect_2ary_function<
         Value::BuiltInFunction = (ref bif) =>
             R::reflect(&(*bif.0)(vec![a.reify(), b.reify()]));
         Value::Function = (ref closure) => {
-            R::reflect(&::runtime::eval::eval(&closure.body,
+            R::reflect(&eval::eval(&closure.body,
                 closure.env.clone().set(closure.params[0], a.reify())
                                    .set(closure.params[1], b.reify())).unwrap())
         })
@@ -333,7 +330,7 @@ macro_rules! fake_reifiability {
 
 // This feels a little awkward, just dropping the `Rc`ness on the floor.
 // But I think `Value` has enouch `Rc` inside that nothing can go wrong... right?
-impl<T: Reifiable> Reifiable for ::std::rc::Rc<T> {
+impl<T: Reifiable> Reifiable for Rc<T> {
     fn ty() -> Ast { T::ty() }
 
     fn ty_name() -> Name { T::ty_name() }
@@ -342,19 +339,23 @@ impl<T: Reifiable> Reifiable for ::std::rc::Rc<T> {
 
     fn reify(&self) -> Value { (**self).reify() }
 
-    fn reflect(v: &Value) -> Self { ::std::rc::Rc::new(T::reflect(v)) }
+    fn reflect(v: &Value) -> Self { Rc::new(T::reflect(v)) }
 }
 
 // for when we have a `Ty`, rather than a Rust type.
-pub fn sequence_type__of(ty: &::ty::Ty) -> ::ty::Ty {
+pub fn sequence_type__of(ty: &crate::ty::Ty) -> crate::ty::Ty {
     ty!({ "Type" "type_apply" :
-        "type_rator" => (, ::core_type_forms::get__primitive_type(n("Sequence")).concrete()),
+        "type_rator" => (, crate::core_type_forms::get__primitive_type(n("Sequence")).concrete()),
         "arg" => [(, ty.concrete()) ]})
 }
 
-pub fn un__sequence_type(ty: &::ty::Ty, loc: &Ast) -> Result<::ty::Ty, ::ty::TypeError> {
+pub fn un__sequence_type(
+    ty: &crate::ty::Ty,
+    loc: &Ast,
+) -> Result<crate::ty::Ty, crate::ty::TypeError>
+{
     // This is a hack; `Sequence` is not a nonterminal!
-    ::core_type_forms::less_quoted_ty(ty, Some(n("Sequence")), loc)
+    crate::core_type_forms::less_quoted_ty(ty, Some(n("Sequence")), loc)
 }
 
 impl<T: Reifiable> Reifiable for Vec<T> {
@@ -373,7 +374,7 @@ impl<T: Reifiable> Reifiable for Vec<T> {
     }
 }
 
-impl<T: Reifiable> Reifiable for ::std::boxed::Box<T> {
+impl<T: Reifiable> Reifiable for std::boxed::Box<T> {
     fn ty() -> Ast { T::ty() }
 
     fn ty_name() -> Name { T::ty_name() }
@@ -382,28 +383,28 @@ impl<T: Reifiable> Reifiable for ::std::boxed::Box<T> {
 
     fn reify(&self) -> Value { (**self).reify() }
 
-    fn reflect(v: &Value) -> Self { ::std::boxed::Box::new(T::reflect(v)) }
+    fn reflect(v: &Value) -> Self { std::boxed::Box::new(T::reflect(v)) }
 }
 
 // The roundtrip will de-alias the cell, sadly.
-impl<T: Reifiable> Reifiable for ::std::cell::RefCell<T> {
+impl<T: Reifiable> Reifiable for std::cell::RefCell<T> {
     fn ty_name() -> Name { n("Rust_RefCell") }
 
     fn concrete_arguments() -> Option<Vec<Ast>> { Some(vec![T::ty_invocation()]) }
 
     fn reify(&self) -> Value { self.borrow().reify() }
 
-    fn reflect(v: &Value) -> Self { ::std::cell::RefCell::<T>::new(T::reflect(v)) }
+    fn reflect(v: &Value) -> Self { std::cell::RefCell::<T>::new(T::reflect(v)) }
 }
 
-impl<T: Reifiable> Reifiable for ::std::marker::PhantomData<T> {
+impl<T: Reifiable> Reifiable for std::marker::PhantomData<T> {
     fn ty_name() -> Name { n("PhantomData") }
 
     fn concrete_arguments() -> Option<Vec<Ast>> { Some(vec![T::ty_invocation()]) }
 
     fn reify(&self) -> Value { Value::Int(BigInt::from(0)) }
 
-    fn reflect(_: &Value) -> Self { ::std::marker::PhantomData }
+    fn reflect(_: &Value) -> Self { std::marker::PhantomData }
 }
 
 // Hey, I know how to generate the implementation for this...
@@ -440,11 +441,9 @@ custom_derive! {
 #[derive(Debug, PartialEq, Eq, Clone)]
 struct OldName<'t> {
     actual: Name,
-    pd: ::std::marker::PhantomData<&'t u32>,
+    pd: std::marker::PhantomData<&'t u32>,
 }
-fn new_oldname<'t>(nm: Name) -> OldName<'t> {
-    OldName { actual: nm, pd: ::std::marker::PhantomData }
-}
+fn new_oldname<'t>(nm: Name) -> OldName<'t> { OldName { actual: nm, pd: std::marker::PhantomData } }
 
 impl<'t> Reifiable for OldName<'t> {
     fn ty_name() -> Name { n("OldName") }
@@ -511,14 +510,11 @@ fn basic_r_and_r_roundtrip() {
     assert_eq!(Some(BigInt::from(5)), Option::reflect(&Some(BigInt::from(5)).reify()));
     assert_eq!(Some(bev1.clone()), Option::reflect(&Some(bev1.clone()).reify()));
 
-    assert_eq!(
-        ::std::rc::Rc::new(bev0.clone()),
-        ::std::rc::Rc::reflect(&::std::rc::Rc::new(bev0.clone()).reify())
-    );
+    assert_eq!(Rc::new(bev0.clone()), Rc::reflect(&Rc::new(bev0.clone()).reify()));
 
     assert_eq!(
-        ::std::boxed::Box::new(bev0.clone()),
-        ::std::boxed::Box::reflect(&::std::boxed::Box::new(bev0.clone()).reify())
+        std::boxed::Box::new(bev0.clone()),
+        std::boxed::Box::reflect(&std::boxed::Box::new(bev0.clone()).reify())
     );
 
     let bleo = BasicLifetimeEnum::Only(new_oldname(n("AlexanderHamilton")));

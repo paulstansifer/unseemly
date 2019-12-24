@@ -9,11 +9,13 @@
 
 // It's not unsafe to use `u!` for runtime operations, but there's a runtime cost, so don't do it.
 
-use ast::Ast::{self, *};
-use grammar::FormPat;
-use name::*;
+use crate::{
+    ast::Ast::{self, *},
+    grammar::FormPat,
+    name::*,
+    util::mbe::EnvMBE,
+};
 use std::iter::{Iterator, Peekable};
-use util::mbe::EnvMBE;
 
 // First, transforms from `[a b c; d e f; g h i]` to `[g h i] {[a b c] [d e f]}`
 //   to get around a Rust macro parsing restriction,
@@ -27,11 +29,11 @@ macro_rules! u_rep {
     };
     ([] [] {}) => {
         // Empty repeat
-        ::ast::Shape(vec![::ast::Atom(n("REP"))])
+        crate::ast::Shape(vec![crate::ast::Atom(n("REP"))])
     };
     ([]  [ $( $acc_cur:tt )* ] { $( [ $( $acc_rest:tt )* ] )* }) => {
-        ::ast::Shape(vec![
-            ::ast::Atom(n("REP")),
+        crate::ast::Shape(vec![
+            crate::ast::Atom(n("REP")),
             $( u_shape_if_many!(  $($acc_rest)* ), )*
             u_shape_if_many!(  $($acc_cur)* )
         ])
@@ -57,13 +59,13 @@ thread_local! {
 macro_rules! u {
     ($atom:ident) => {
         // Default to this, because `Call` will use whatever it's given, without a grammar:
-        ::ast::VariableReference(n(stringify!($atom)))
+        crate::ast::VariableReference(n(stringify!($atom)))
     };
     ( [ , $seq:expr ] ) => {
         {
             let mut contents: Vec<Ast> = $seq;
-            contents.insert(0, ::ast::Atom(n("REP")));
-            ::ast::Shape(contents)
+            contents.insert(0, crate::ast::Atom(n("REP")));
+            crate::ast::Shape(contents)
         }
     };
     ( [ $( $ts:tt )*  ] ) => {
@@ -71,30 +73,30 @@ macro_rules! u {
     };
     ( { $form:ident : $( $ts:tt )*} ) => {
         {
-            let f = ::macros::flimsy_syntax::default_nt.with(|def_nt| {
-                ::core_forms::find_core_form(&def_nt.borrow(), stringify!($form))
+            let f = crate::macros::flimsy_syntax::default_nt.with(|def_nt| {
+                crate::core_forms::find_core_form(&def_nt.borrow(), stringify!($form))
             });
-            ::ast::Node(f.clone(),
-                ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
-                    .unwrap_or_else(::util::mbe::EnvMBE::new),
-                ::beta::ExportBeta::Nothing)
+            crate::ast::Node(f.clone(),
+                crate::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
+                    .unwrap_or_else(crate::util::mbe::EnvMBE::new),
+                crate::beta::ExportBeta::Nothing)
         }
     };
     ( { $nt:ident $form:ident : $( $ts:tt )*} ) => {
         {
             let mut old_default_nt = "".to_owned();
-            let f = ::macros::flimsy_syntax::default_nt.with(|def_nt| {
+            let f = crate::macros::flimsy_syntax::default_nt.with(|def_nt| {
                 old_default_nt = def_nt.borrow().clone();
                 let nt = stringify!($nt);
                 *def_nt.borrow_mut() = nt.to_string();
 
-                ::core_forms::find_core_form(&nt, stringify!($form))
+                crate::core_forms::find_core_form(&nt, stringify!($form))
             });
-            let res = ::ast::Node(f.clone(),
-                ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
-                    .unwrap_or_else(::util::mbe::EnvMBE::new),
-                ::beta::ExportBeta::Nothing);
-            ::macros::flimsy_syntax::default_nt.with(|def_nt| {
+            let res = crate::ast::Node(f.clone(),
+                crate::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
+                    .unwrap_or_else(crate::util::mbe::EnvMBE::new),
+                crate::beta::ExportBeta::Nothing);
+            crate::macros::flimsy_syntax::default_nt.with(|def_nt| {
                 *def_nt.borrow_mut() = old_default_nt;
             });
             res
@@ -104,12 +106,12 @@ macro_rules! u {
     //  that information is part of `Scope`, not `Form` (maybe we should change that?)
     ( { $form:ident => $ebeta:tt : $( $ts:tt )*} ) => {
         {
-            let f = ::macros::flimsy_syntax::default_nt.with(|def_nt| {
-                ::core_forms::find_core_form(&def_nt.borrow(), stringify!($form))
+            let f = crate::macros::flimsy_syntax::default_nt.with(|def_nt| {
+                crate::core_forms::find_core_form(&def_nt.borrow(), stringify!($form))
             });
-            ::ast::Node(f.clone(),
-                ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
-                    .unwrap_or_else(::util::mbe::EnvMBE::new),
+            crate::ast::Node(f.clone(),
+                crate::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
+                    .unwrap_or_else(crate::util::mbe::EnvMBE::new),
                 ebeta!($ebeta))
         }
     };
@@ -117,19 +119,19 @@ macro_rules! u {
         {
             // code duplication from above ) :
             let mut old_default_nt = "".to_owned();
-            let f = ::macros::flimsy_syntax::default_nt.with(|def_nt| {
+            let f = crate::macros::flimsy_syntax::default_nt.with(|def_nt| {
                 old_default_nt = def_nt.borrow().clone();
                 let nt = stringify!($nt);
                 *def_nt.borrow_mut() = nt.to_string();
 
-                ::core_forms::find_core_form(&nt, stringify!($form))
+                crate::core_forms::find_core_form(&nt, stringify!($form))
             });
 
-            let res =::ast::Node(f.clone(),
-                    ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
-                        .unwrap_or_else(::util::mbe::EnvMBE::new),
+            let res =crate::ast::Node(f.clone(),
+                    crate::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
+                        .unwrap_or_else(crate::util::mbe::EnvMBE::new),
                     ebeta!($ebeta));
-            ::macros::flimsy_syntax::default_nt.with(|def_nt| {
+            crate::macros::flimsy_syntax::default_nt.with(|def_nt| {
                 *def_nt.borrow_mut() = old_default_nt;
             });
             res
@@ -138,10 +140,10 @@ macro_rules! u {
     ( { $form:expr ; $( $ts:tt )*} ) => {
         {
             let f = $form;
-            ::ast::Node(f.clone(),
-                ::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
-                    .unwrap_or_else(::util::mbe::EnvMBE::new),
-                ::beta::ExportBeta::Nothing)
+            crate::ast::Node(f.clone(),
+                crate::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
+                    .unwrap_or_else(crate::util::mbe::EnvMBE::new),
+                crate::beta::ExportBeta::Nothing)
         }
     };
     ({ $( $anything:tt )* }) => {
@@ -149,16 +151,16 @@ macro_rules! u {
     };
     // Currently, nested `Seq`s need to correspond to nested `SEQ`s, so this creates one explicitly:
     ((~ $($ts:tt)*)) => {
-        ::ast::Shape(vec![
-            ::ast::Atom(n("SEQ")),
+        crate::ast::Shape(vec![
+            crate::ast::Atom(n("SEQ")),
             $( u!( $ts ) ),*
         ])
     };
     ((at $t:tt)) => {
-        ::ast::Atom(n(stringify!($t)))
+        crate::ast::Atom(n(stringify!($t)))
     };
     ((prim $t:tt)) => {
-        ::core_type_forms::get__primitive_type(n(stringify!($t))).concrete()
+        crate::core_type_forms::get__primitive_type(n(stringify!($t))).concrete()
     };
     ((, $interpolate:expr)) => {
         $interpolate
@@ -176,13 +178,13 @@ macro_rules! uty {
     ($( $ts:tt )*) => {
         {
             let mut old_default_nt = "".to_owned();
-            ::macros::flimsy_syntax::default_nt.with(|def_nt| {
+            crate::macros::flimsy_syntax::default_nt.with(|def_nt| {
                 old_default_nt = def_nt.borrow().clone();
                 *def_nt.borrow_mut() = "Type".to_owned();
             });
             let res = Ty(u!( $($ts)* ));
 
-            ::macros::flimsy_syntax::default_nt.with(|def_nt| {
+            crate::macros::flimsy_syntax::default_nt.with(|def_nt| {
                 *def_nt.borrow_mut() = old_default_nt;
             });
             res
@@ -192,7 +194,7 @@ macro_rules! uty {
 
 fn parse_flimsy_seq<'a, I>(flimsy_seq: &mut Peekable<I>, grammar: &FormPat) -> EnvMBE<Ast>
 where I: Iterator<Item = &'a Ast> {
-    use grammar::FormPat::*;
+    use crate::grammar::FormPat::*;
 
     match grammar {
         Seq(ref grammar_parts) => {
@@ -230,7 +232,7 @@ where I: Iterator<Item = &'a Ast> {
 }
 
 pub fn parse_flimsy_mbe(flimsy: &Ast, grammar: &FormPat) -> Option<EnvMBE<Ast>> {
-    use grammar::FormPat::*;
+    use crate::grammar::FormPat::*;
 
     match grammar {
         Literal(_, _) => None,
@@ -266,7 +268,7 @@ pub fn parse_flimsy_mbe(flimsy: &Ast, grammar: &FormPat) -> Option<EnvMBE<Ast>> 
             parse_flimsy_mbe(flimsy, &*subs[0])
         }
         Named(name, ref body) => Some(EnvMBE::new_from_leaves(
-            ::util::assoc::Assoc::new().set(*name, parse_flimsy_ast(flimsy, &*body)),
+            crate::util::assoc::Assoc::new().set(*name, parse_flimsy_ast(flimsy, &*body)),
         )),
         SynImport(_, _, _) => panic!("`SynImport` can't work without a real parser"),
         NameImport(_, _) => panic!("`NameImport` should live underneath `Named`: {:?}", grammar),
@@ -275,7 +277,7 @@ pub fn parse_flimsy_mbe(flimsy: &Ast, grammar: &FormPat) -> Option<EnvMBE<Ast>> 
 }
 
 fn parse_flimsy_ast(flimsy: &Ast, grammar: &FormPat) -> Ast {
-    use grammar::FormPat::*;
+    use crate::grammar::FormPat::*;
 
     match grammar {
         Anyways(ref a) => a.clone(),

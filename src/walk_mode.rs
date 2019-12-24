@@ -1,11 +1,13 @@
-use alpha::{freshen, freshen_with};
-use ast::Ast::{self, *};
-use ast_walk::{walk, Clo, LazyWalkReses, OutEnvHandle, WalkRule};
-use form::Form;
-use name::*;
-use runtime::reify::Reifiable;
+use crate::{
+    alpha::{freshen, freshen_with},
+    ast::Ast::{self, *},
+    ast_walk::{walk, Clo, LazyWalkReses, OutEnvHandle, WalkRule},
+    form::Form,
+    name::*,
+    runtime::reify::Reifiable,
+    util::{assoc::Assoc, mbe::EnvMBE},
+};
 use std::fmt::{Debug, Display};
-use util::{assoc::Assoc, mbe::EnvMBE};
 
 /// This trait makes a type producable by positive and negative walks.
 pub trait WalkElt: Clone + Debug + Display + Reifiable + PartialEq {
@@ -53,7 +55,7 @@ pub trait WalkMode: Debug + Copy + Reifiable {
         Elt = Self::Elt,
         Err = Self::Err,
         ExtraInfo = Self::ExtraInfo,
-        D = ::walk_mode::Positive<Self::AsPositive>,
+        D = Positive<Self::AsPositive>,
     >;
 
     /// If this walk is positive, `Self::Negated`; otherwise `Self`
@@ -62,11 +64,11 @@ pub trait WalkMode: Debug + Copy + Reifiable {
             Elt = Self::Elt,
             Err = Self::Err,
             ExtraInfo = Self::ExtraInfo,
-            D = ::walk_mode::Negative<Self::AsNegative>,
+            D = Negative<Self::AsNegative>,
         >;
 
     /// Any extra information the walk needs
-    type ExtraInfo: ::std::default::Default + Reifiable + Clone + Debug;
+    type ExtraInfo: std::default::Default + Reifiable + Clone + Debug;
 
     fn get_walk_rule(form: &Form) -> WalkRule<Self>
     where Self: Sized;
@@ -117,7 +119,7 @@ pub trait WalkMode: Debug + Copy + Reifiable {
 }
 
 pub trait Dir: Debug + Copy + Clone
-where Self: ::std::marker::Sized
+where Self: std::marker::Sized
 {
     type Mode: WalkMode;
 
@@ -174,7 +176,8 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
                     .map_marched_against(
                         &mut |p: &Ast, cnc_m: &LazyWalkReses<Self::Mode>| {
                             match *p {
-                                // Yes, `walk`, not `w_q_l`; the mode is in charge of figuring things out.
+                                // Yes, `walk`, not `w_q_l`;
+                                //  the mode is in charge of figuring things out.
                                 Node(_, _, _) | VariableReference(_) | ExtendEnv(_, _) => {
                                     walk(p, cnc_m)
                                 }
@@ -325,10 +328,9 @@ impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
     fn env_as_out(e: Assoc<Name, <Self::Mode as WalkMode>::Elt>) -> Self::Out { e }
 
     fn oeh_if_negative() -> Option<OutEnvHandle<Self::Mode>> {
-        Some(::std::rc::Rc::new(::std::cell::RefCell::new(Assoc::<
-            Name,
-            <Self::Mode as WalkMode>::Elt,
-        >::new())))
+        Some(std::rc::Rc::new(std::cell::RefCell::new(
+            Assoc::<Name, <Self::Mode as WalkMode>::Elt>::new(),
+        )))
     }
     fn is_positive() -> bool { false }
 }

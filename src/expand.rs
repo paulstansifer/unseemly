@@ -1,10 +1,12 @@
-use ast::Ast;
-use ast_walk::{LazyWalkReses, WalkRule::LiteralLike};
-use form::Form;
-use name::{n, Name};
-use runtime::eval::Value;
-use util::assoc::Assoc;
-use walk_mode::{NegativeWalkMode, WalkElt, WalkMode};
+use crate::{
+    ast::Ast,
+    ast_walk::{LazyWalkReses, WalkRule, WalkRule::LiteralLike},
+    form::Form,
+    name::{n, Name},
+    runtime::{eval, eval::Value},
+    util::assoc::Assoc,
+    walk_mode::{NegativeWalkMode, WalkElt, WalkMode},
+};
 
 custom_derive! {
     #[derive(Copy, Clone, Debug, Reifiable)]
@@ -21,18 +23,16 @@ impl WalkMode for ExpandMacros {
     type Negated = UnusedNegativeExpandMacros;
     type AsPositive = ExpandMacros;
     type AsNegative = UnusedNegativeExpandMacros;
-    type Err = <::runtime::eval::Eval as WalkMode>::Err;
-    type D = ::walk_mode::Positive<ExpandMacros>;
+    type Err = <eval::Eval as WalkMode>::Err;
+    type D = crate::walk_mode::Positive<ExpandMacros>;
     type ExtraInfo = ();
 
-    fn get_walk_rule(f: &Form) -> ::ast_walk::WalkRule<ExpandMacros> {
+    fn get_walk_rule(f: &Form) -> WalkRule<ExpandMacros> {
         if f.name == n("macro_invocation") {
             let rule = f.eval.pos().clone();
             cust_rc_box!(move |parts| {
                 match rule {
-                    ::ast_walk::WalkRule::Custom(ref ts_fn) => {
-                        ts_fn(parts.switch_mode::<::runtime::eval::Eval>())
-                    }
+                    WalkRule::Custom(ref ts_fn) => ts_fn(parts.switch_mode::<eval::Eval>()),
                     _ => icp!(),
                 }
             })
@@ -47,11 +47,11 @@ impl WalkMode for ExpandMacros {
 
     fn walk_var(
         name: Name,
-        _parts: &::ast_walk::LazyWalkReses<ExpandMacros>,
+        _parts: &crate::ast_walk::LazyWalkReses<ExpandMacros>,
     ) -> Result<Value, Self::Err>
     {
-        use runtime::reify::Reifiable;
-        Ok(::ast::VariableReference(name).reify()) // Even variables are literal in macro expansion!
+        use crate::runtime::reify::Reifiable;
+        Ok(crate::ast::VariableReference(name).reify()) // Even variables are literal in macro expansion!
     }
 }
 impl WalkMode for UnusedNegativeExpandMacros {
@@ -60,10 +60,10 @@ impl WalkMode for UnusedNegativeExpandMacros {
     type Negated = ExpandMacros;
     type AsPositive = ExpandMacros;
     type AsNegative = UnusedNegativeExpandMacros;
-    type Err = <::runtime::eval::Eval as WalkMode>::Err;
-    type D = ::walk_mode::Negative<UnusedNegativeExpandMacros>;
+    type Err = <eval::Eval as WalkMode>::Err;
+    type D = crate::walk_mode::Negative<UnusedNegativeExpandMacros>;
     type ExtraInfo = ();
-    fn get_walk_rule(_: &Form) -> ::ast_walk::WalkRule<UnusedNegativeExpandMacros> { icp!() }
+    fn get_walk_rule(_: &Form) -> WalkRule<UnusedNegativeExpandMacros> { icp!() }
     fn automatically_extend_env() -> bool { icp!() }
 }
 
@@ -73,18 +73,20 @@ impl NegativeWalkMode for UnusedNegativeExpandMacros {
 
 // I *think* the environment doesn't matter
 pub fn expand(ast: &Ast) -> Result<Ast, ()> {
-    use runtime::reify::Reifiable;
-    Ok(Ast::reflect(&::ast_walk::walk::<ExpandMacros>(ast, &LazyWalkReses::new_empty())?))
+    use crate::runtime::reify::Reifiable;
+    Ok(Ast::reflect(&crate::ast_walk::walk::<ExpandMacros>(ast, &LazyWalkReses::new_empty())?))
 }
 
 #[test]
 fn expand_basic_macros() {
+    use crate::core_macro_forms::macro_invocation;
+
     // Quasiquotation doesn't work with `u!`, so we have to use `ast!`:
     let macro_body_0_args = ast!({"Expr" "quote_expr" : "nt" => (vr "Expr"),
         "body" => (++ true (,u!({apply : plus [one ; two]})))});
 
-    let uqef = ::core_qq_forms::unquote_form(n("Expr"), true, 1);
-    let uqpf = ::core_qq_forms::unquote_form(n("Pat"), true, 1);
+    let uqef = crate::core_qq_forms::unquote_form(n("Expr"), true, 1);
+    let uqpf = crate::core_qq_forms::unquote_form(n("Pat"), true, 1);
 
     let macro_def_0_args = u!({Syntax scope :
         [] {literal => [] : {call : DefaultToken} (at just_add_1_and_2)}
@@ -93,18 +95,14 @@ fn expand_basic_macros() {
     });
 
     // Full of closures, so hard to compare:
-    assert_m!(::runtime::eval::eval_top(&macro_def_0_args), Ok(_));
+    assert_m!(eval::eval_top(&macro_def_0_args), Ok(_));
 
     assert_eq!(
         expand(&u!({
-            ::core_macro_forms::macro_invocation(
+            macro_invocation(
                 form_pat!((lit "just_add_1_and_2")),
                 n("just_add_1_and_2_macro"),
-                ::runtime::eval::Closure {
-                    body: macro_body_0_args,
-                    params: vec![],
-                    env: Assoc::new(),
-                },
+                eval::Closure { body: macro_body_0_args, params: vec![], env: Assoc::new() },
                 vec![],
             );
         })),
@@ -124,19 +122,15 @@ fn expand_basic_macros() {
     });
 
     // Full of closures, so hard to compare:
-    assert_m!(::runtime::eval::eval_top(&macro_def_1_arg), Ok(_));
+    assert_m!(eval::eval_top(&macro_def_1_arg), Ok(_));
 
     assert_eq!(
         expand(&u!({
-            ::core_macro_forms::macro_invocation(
+            macro_invocation(
                 // duplicates the syntax syntax above
                 form_pat!([(lit "add_1"), (named "e", (call "Expr"))]),
                 n("add_1_macro"),
-                ::runtime::eval::Closure {
-                    body: macro_body_1_arg,
-                    params: vec![n("e")],
-                    env: Assoc::new(),
-                },
+                eval::Closure { body: macro_body_1_arg, params: vec![n("e")], env: Assoc::new() },
                 vec![],
             );
             five // syntax argument for e
@@ -161,16 +155,16 @@ fn expand_basic_macros() {
     });
 
     // Full of closures, so hard to compare:
-    assert_m!(::runtime::eval::eval_top(&macro_def_let), Ok(_));
+    assert_m!(eval::eval_top(&macro_def_let), Ok(_));
 
     assert_eq!(
         expand(&u!({
-            ::core_macro_forms::macro_invocation(
+            macro_invocation(
                 // duplicates the syntax syntax above
                 form_pat!([(lit "let"), (named "let_pat", (call "Pat")),
                            (named "let_val", (call "Expr")), (named "let_body", (call "Expr"))]),
                 n("let_macro"),
-                ::runtime::eval::Closure {
+                eval::Closure {
                     body: macro_body_let,
                     params: vec![n("let_val"), n("let_pat"), n("let_body")],
                     env: Assoc::new(),
@@ -186,8 +180,8 @@ fn expand_basic_macros() {
 
     // An n-ary let macro:
 
-    let dddef = ::core_qq_forms::dotdotdot_form(n("Expr"));
-    let dddpf = ::core_qq_forms::dotdotdot_form(n("Pat"));
+    let dddef = crate::core_qq_forms::dotdotdot_form(n("Expr"));
+    let dddpf = crate::core_qq_forms::dotdotdot_form(n("Pat"));
 
     let macro_body_nary_let = ast!({"Expr" "quote_expr" : "nt" => (vr "Expr"),
      "body" => (++ true (, u!(
@@ -206,17 +200,17 @@ fn expand_basic_macros() {
     });
 
     // Full of closures, so hard to compare:
-    assert_m!(::runtime::eval::eval_top(&macro_def_nary_let), Ok(_));
+    assert_m!(eval::eval_top(&macro_def_nary_let), Ok(_));
 
     assert_eq!(
         expand(&u!({
-            ::core_macro_forms::macro_invocation(
+            macro_invocation(
                 // duplicates the syntax syntax above
                 form_pat!([(lit "let"), (star (named "let_pat", (call "Pat"))),
                            (star (named "let_val", (call "Expr"))),
                            (named "let_body", (call "Expr"))]),
                 n("nary_let_macro"),
-                ::runtime::eval::Closure {
+                eval::Closure {
                     body: macro_body_nary_let,
                     params: vec![n("let_val"), n("let_pat"), n("let_body")],
                     env: Assoc::new(),

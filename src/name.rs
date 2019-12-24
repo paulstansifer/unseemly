@@ -33,16 +33,16 @@ thread_local! {
     static fake_freshness: RefCell<bool> = RefCell::new(false);
 }
 
-impl ::runtime::reify::Reifiable for Name {
+impl crate::runtime::reify::Reifiable for Name {
     fn ty_name() -> Name { n("Name") }
 
-    fn reify(&self) -> ::runtime::eval::Value {
-        ::runtime::eval::Value::AbstractSyntax(::ast::Ast::Atom(*self))
+    fn reify(&self) -> crate::runtime::eval::Value {
+        crate::runtime::eval::Value::AbstractSyntax(crate::ast::Ast::Atom(*self))
     }
 
-    fn reflect(v: &::runtime::eval::Value) -> Name {
-        extract!((v) ::runtime::eval::Value::AbstractSyntax = (ref ast)
-                          => ::core_forms::ast_to_name(ast))
+    fn reflect(v: &crate::runtime::eval::Value) -> Name {
+        extract!((v) crate::runtime::eval::Value::AbstractSyntax = (ref ast)
+                          => crate::core_forms::ast_to_name(ast))
     }
 }
 

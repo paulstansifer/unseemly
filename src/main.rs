@@ -12,20 +12,14 @@
 // #![feature(log_syntax, trace_macros)]
 // trace_macros!(true);
 
-// unstable; only for testing
-// #[macro_use] extern crate log;
-
+// TODO: turn these into `use` statements in the appropriate places
 #[macro_use]
 extern crate lazy_static;
-extern crate num;
 #[macro_use]
 extern crate custom_derive;
 #[macro_use]
 extern crate quote;
-extern crate dirs;
-extern crate regex;
-extern crate rustyline;
-extern crate tap;
+
 
 use std::{fs::File, io::Read, path::Path};
 
@@ -59,14 +53,17 @@ mod core_macro_forms;
 mod core_qq_forms;
 mod core_type_forms;
 
-use name::{n, Name};
-use runtime::{
-    core_values,
-    eval::{eval, Value},
+use crate::{
+    ast::Ast,
+    name::{n, Name},
+    runtime::{
+        core_values,
+        eval::{eval, Value},
+    },
+    ty::Ty,
+    util::assoc::Assoc,
 };
 use std::{borrow::Cow, cell::RefCell, io::BufRead};
-use ty::Ty;
-use util::assoc::Assoc;
 
 thread_local! {
     pub static ty_env : RefCell<Assoc<Name, Ty>> = RefCell::new(core_values::core_types());
@@ -214,7 +211,7 @@ fn main() {
                 match assign_variable(&caps[2], &caps[3]) {
                     Ok(_) => {
                         use std::io::Write;
-                        let mut prel_file = ::std::fs::OpenOptions::new()
+                        let mut prel_file = std::fs::OpenOptions::new()
                             .create(true)
                             .append(true)
                             .open(&prelude_filename)
@@ -230,7 +227,7 @@ fn main() {
                 match assign_t_var(&caps[2], &caps[3]) {
                     Ok(_) => {
                         use std::io::Write;
-                        let mut prel_file = ::std::fs::OpenOptions::new()
+                        let mut prel_file = std::fs::OpenOptions::new()
                             .create(true)
                             .append(true)
                             .open(&prelude_filename)
@@ -344,7 +341,7 @@ fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
 }
 
 fn eval_unseemly_program_without_typechecking(program: &str) -> Result<Value, String> {
-    let ast: ::ast::Ast = grammar::parse(
+    let ast: Ast = grammar::parse(
         &core_forms::outermost_form(),
         &core_forms::get_core_forms(),
         runtime::core_values::get_core_envs(),
@@ -352,13 +349,13 @@ fn eval_unseemly_program_without_typechecking(program: &str) -> Result<Value, St
     )
     .map_err(|e| e.msg)?;
 
-    let core_ast = ::expand::expand(&ast).map_err(|e| format!("{:#?}", e))?;
+    let core_ast = crate::expand::expand(&ast).map_err(|e| format!("{:#?}", e))?;
 
     val_env.with(|vals| eval(&core_ast, vals.borrow().clone()).map_err(|_| "???".to_string()))
 }
 
 fn eval_unseemly_program(program: &str) -> Result<Value, String> {
-    let ast: ::ast::Ast = grammar::parse(
+    let ast: Ast = grammar::parse(
         &core_forms::outermost_form(),
         &core_forms::get_core_forms(),
         runtime::core_values::get_core_envs(),
@@ -369,13 +366,13 @@ fn eval_unseemly_program(program: &str) -> Result<Value, String> {
     let _type = ty_env
         .with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e)))?;
 
-    let core_ast = ::expand::expand(&ast).map_err(|e| format!("{:#?}", e))?;
+    let core_ast = crate::expand::expand(&ast).map_err(|e| format!("{:#?}", e))?;
 
     val_env.with(|vals| eval(&core_ast, vals.borrow().clone()).map_err(|_| "???".to_string()))
 }
 
 fn type_and_expand_unseemly_program(program: &str) -> Result<ast::Ast, String> {
-    let ast: ::ast::Ast = grammar::parse(
+    let ast: Ast = grammar::parse(
         &core_forms::outermost_form(),
         &core_forms::get_core_forms(),
         runtime::core_values::get_core_envs(),
@@ -386,7 +383,7 @@ fn type_and_expand_unseemly_program(program: &str) -> Result<ast::Ast, String> {
     let _type = ty_env
         .with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e)))?;
 
-    ::expand::expand(&ast).map_err(|e| format!("{:#?}", e))
+    crate::expand::expand(&ast).map_err(|e| format!("{:#?}", e))
 }
 
 #[test]
@@ -721,7 +718,7 @@ fn language_building() {
     .unwrap();
 
     assert_m!(
-        ty::synth_type(&bound_wrong_ast, ::runtime::core_values::core_types()),
+        ty::synth_type(&bound_wrong_ast, crate::runtime::core_values::core_types()),
         ty_err_p!(Mismatch(x, y)) => {
             assert_eq!(x, uty!({Int :}));
             assert_eq!(y, uty!({fn : [{Int :}; {Int :}] {Int :}}));
@@ -759,7 +756,7 @@ fn language_building() {
     .unwrap();
 
     assert_m!(
-        ty::synth_type(&inner_expr_wrong_ast, ::runtime::core_values::core_types()),
+        ty::synth_type(&inner_expr_wrong_ast, crate::runtime::core_values::core_types()),
         ty_err_p!(Mismatch(x, times)) => {
             assert_eq!(x, uty!({Int :}));
             assert_eq!(times, uty!({fn : [{Int :}; {Int :}] {Int :}}));

@@ -25,9 +25,9 @@ macro_rules! expr_ify {
 }
 
 macro_rules! assoc_n {
-    () => { ::util::assoc::Assoc::new() };
+    () => { crate::util::assoc::Assoc::new() };
     ( $k:tt => $v:expr $(, $k_cdr:tt => $v_cdr:expr)* ) => {
-        assoc_n!( $( $k_cdr => $v_cdr ),* ).set(::name::n(expr_ify!($k)), $v)
+        assoc_n!( $( $k_cdr => $v_cdr ),* ).set(crate::name::n(expr_ify!($k)), $v)
     };
     ( ($k:expr) => $v:expr $(, $k_cdr:tt => $v_cdr:expr)* ) => {
         assoc_n!( $( $k_cdr => $v_cdr ),* ).set(::name::n($k), $v)
@@ -38,58 +38,61 @@ macro_rules! assoc_n {
 
 macro_rules! beta_connector {
     ( : ) => {
-        ::beta::Basic
+        crate::beta::Basic
     };
     ( = ) => {
-        ::beta::SameAs
+        crate::beta::SameAs
     };
 }
 
 macro_rules! beta {
-    ( [] ) => { ::beta::Nothing };
+    ( [] ) => { crate::beta::Nothing };
     ( [* $body:tt ]) => {
         {
             let sub = beta!($body);
             let drivers = sub.names_mentioned();
-            ::beta::ShadowAll(Box::new(sub), drivers)
+            crate::beta::ShadowAll(Box::new(sub), drivers)
         }
     };
     ( [ forall $name:tt $( $rest:tt )*] ) => {
-        ::beta::Shadow(Box::new(::beta::Underspecified(  ::name::n(expr_ify!($name)))),
+        crate::beta::Shadow(Box::new(
+            crate::beta::Underspecified(  crate::name::n(expr_ify!($name)))),
                Box::new(beta!( [ $( $rest )* ] )))
     };
     ( [ prot $name:tt $( $rest:tt )*] ) => {
-        ::beta::Shadow(Box::new(::beta::Protected(       ::name::n(expr_ify!($name)))),
+        crate::beta::Shadow(Box::new(
+            crate::beta::Protected(       crate::name::n(expr_ify!($name)))),
                Box::new(beta!( [ $( $rest )* ] )))
     };
     ( [ unusable $name:tt $( $rest:tt )*] ) => {
-        ::beta::Shadow(Box::new(::beta::BoundButNotUsable(::name::n(expr_ify!($name)))),
+        crate::beta::Shadow(Box::new(
+            crate::beta::BoundButNotUsable(crate::name::n(expr_ify!($name)))),
                Box::new(beta!( [ $( $rest )* ] )))
     };
     // Just makes things prettier by not ending everything in " ▷ ∅":
     ( [ $name:tt $connector:tt $t:tt ] ) => {
-        beta_connector!($connector)(::name::n(expr_ify!($name)), ::name::n(expr_ify!($t)))
+        beta_connector!($connector)(crate::name::n(expr_ify!($name)), crate::name::n(expr_ify!($t)))
     };
     ( [ $name:tt $connector:tt $t:tt
         $( $rest:tt )*
          ] ) => {
-        ::beta::Shadow(Box::new(beta_connector!($connector)(::name::n(expr_ify!($name)),
-                                                    ::name::n(expr_ify!($t)))),
+        crate::beta::Shadow(Box::new(beta_connector!($connector)(::name::n(expr_ify!($name)),
+                                                    crate::name::n(expr_ify!($t)))),
                Box::new(beta!( [ $( $rest )* ] )))
     };
 }
 
 macro_rules! ebeta {
-    ( [] ) => { ::beta::ExportBeta::Nothing };
+    ( [] ) => { crate::beta::ExportBeta::Nothing };
     ( [* $body:tt ]) => {
         {
             let sub = ebeta!($body);
             let drivers = sub.names_mentioned();
-            ::beta::ExportBeta::ShadowAll(Box::new(sub), drivers)
+            crate::beta::ExportBeta::ShadowAll(Box::new(sub), drivers)
         }
     };
     ( [ $name:tt $( $rest:tt )*] ) => {
-        ::beta::ExportBeta::Shadow(Box::new(::beta::ExportBeta::Use(::name::n(expr_ify!($name)))),
+        crate::beta::ExportBeta::Shadow(Box::new(crate::beta::ExportBeta::Use(crate::name::n(expr_ify!($name)))),
                Box::new(ebeta!( [ $( $rest )* ] )))
     };
 }
@@ -136,19 +139,19 @@ macro_rules! t_elt {
 // Ast
 
 macro_rules! ast_shape {
-    ($($contents:tt)*) => { ::ast::Shape(vec![ $(  ast!($contents) ),* ] )};
+    ($($contents:tt)*) => { crate::ast::Shape(vec![ $(  ast!($contents) ),* ] )};
 }
 
 macro_rules! ast {
-    ( (trivial) ) => { ::ast::Trivial };
+    ( (trivial) ) => { crate::ast::Trivial };
     ( (++ $pos:tt $sub:tt) ) => {
-        ::ast::QuoteMore(Box::new(ast!($sub)), $pos)
+        crate::ast::QuoteMore(Box::new(ast!($sub)), $pos)
     };
     ( (-- $depth:tt $sub:tt ) ) => {
-        ::ast::QuoteLess(Box::new(ast!($sub)), $depth)
+        crate::ast::QuoteLess(Box::new(ast!($sub)), $depth)
     };
     ( (import $beta:tt $sub:tt) ) => {
-        ::ast::ExtendEnv(Box::new(ast!($sub)), beta!($beta))
+        crate::ast::ExtendEnv(Box::new(ast!($sub)), beta!($beta))
     };
     /* // not sure we'll need this
     ( (* $env:expr => $new_env:ident / $($n:expr),* ; $($sub_ar"gs:tt)*) ) => {
@@ -162,31 +165,31 @@ macro_rules! ast {
             Shape(res)
         }
     };*/
-    ( (vr $var:expr) ) => { ::ast::VariableReference(::name::n($var)) };
+    ( (vr $var:expr) ) => { crate::ast::VariableReference(crate::name::n($var)) };
     ( (, $interpolate:expr)) => { $interpolate };
     // TODO: maybe we should use commas for consistency:
     ( ( $( $list:tt )* ) ) => { ast_shape!($($list)*)};
     ( { - $($mbe_arg:tt)* } ) => {
-        ::ast::IncompleteNode(mbe!( $($mbe_arg)* ))
+        crate::ast::IncompleteNode(mbe!( $($mbe_arg)* ))
     };
     ( { $nt:tt $form:tt => $beta:tt : $($mbe_arg:tt)*} ) => {
-        ::ast::Node(::core_forms::find($nt, $form), mbe!( $($mbe_arg)* ),
+        crate::ast::Node(crate::core_forms::find($nt, $form), mbe!( $($mbe_arg)* ),
                     ebeta!($beta))
     };
     ( { $form:expr => $beta:tt ; $($mbe_arg:tt)*} ) => {
-        ::ast::Node($form, mbe!( $($mbe_arg)* ), ebeta!($beta))
+        crate::ast::Node($form, mbe!( $($mbe_arg)* ), ebeta!($beta))
     };
     ( { $form:expr; [ $($mbe_arg:tt)* ] }) => {
         ast!( { $form ; $($mbe_arg)* } )
     };
     ( { $form:expr; $($mbe_arg:tt)* }) => {
-        ::ast::Node($form, mbe!( $($mbe_arg)* ), ::beta::ExportBeta::Nothing)
+        crate::ast::Node($form, mbe!( $($mbe_arg)* ), crate::beta::ExportBeta::Nothing)
     };
     ( { $nt:tt $form:tt : $($mbe_arg:tt)* }) => {
-        ::ast::Node(::core_forms::find($nt, $form), mbe!( $($mbe_arg)* ),
-                    ::beta::ExportBeta::Nothing)
+        crate::ast::Node(crate::core_forms::find($nt, $form), mbe!( $($mbe_arg)* ),
+                    crate::beta::ExportBeta::Nothing)
     };
-    ($e:expr) => { ::ast::Atom(::name::n($e))}
+    ($e:expr) => { crate::ast::Atom(crate::name::n($e))}
 }
 
 // Ty
@@ -194,14 +197,14 @@ macro_rules! ast {
 // Note that interpolations into this have to be `Ast`, not `Ty`.
 // This isn't ideal, but the macrology involved in fixing that is a bridge too far for me
 macro_rules! ty {
-    ( $($contents:tt)* ) => { ::ty::Ty::new(ast!($($contents)*)) }
+    ( $($contents:tt)* ) => { crate::ty::Ty::new(ast!($($contents)*)) }
 }
 
 // These construct spanned type errors (so, for type synthesis, not subtyping)
 
 macro_rules! ty_err_val {
     ( $name:tt ( $($arg:expr),* ) at $loc:expr) => {
-        ::util::err::sp(::ty::TyErr::$name( $($arg),* ), $loc.clone())
+        crate::util::err::sp(crate::ty::TyErr::$name( $($arg),* ), $loc.clone())
     }
 }
 
@@ -221,7 +224,7 @@ macro_rules! ty_exp { // type expectation
 
 macro_rules! ty_err_p { // type error pattern
     ( $name:tt ( $($arg:pat),* ) ) => {
-        Err( ::util::err::Spanned { body: ::ty::TyErr::$name( $($arg),* ), loc: _ } )
+        Err( crate::util::err::Spanned { body: crate::ty::TyErr::$name( $($arg),* ), loc: _ } )
     }
 }
 
@@ -245,23 +248,23 @@ macro_rules! mbe_one_name {
     ($k:tt => [* $env:expr =>($($n:expr),*) $new_env:ident : $elt:tt]) => {
         {
             let mut v = vec![];
-            let marchee = vec![$(::name::n($n)),*];
+            let marchee = vec![$(crate::name::n($n)),*];
             for $new_env in $env.march_all(&marchee) {
                 v.push( mbe_one_name!($k => $elt));
             }
-            ::util::mbe::EnvMBE::new_from_anon_repeat(v)
+            crate::util::mbe::EnvMBE::new_from_anon_repeat(v)
         }
     };
 
     ($k:tt => [@ $n:tt $($elt:tt),*]) => {
-        ::util::mbe::EnvMBE::new_from_named_repeat(
-            ::name::n(expr_ify!($n)),
+        crate::util::mbe::EnvMBE::new_from_named_repeat(
+            crate::name::n(expr_ify!($n)),
             vec![ $( mbe_one_name!($k => $elt) ),* ]
         )
     };
 
     ($k:tt => [...($elt_rep:tt)... $(, $elt_post:tt)*]) => { // (the stanza below won't parse it)
-        ::util::mbe::EnvMBE::new_from_anon_repeat_ddd(
+        crate::util::mbe::EnvMBE::new_from_anon_repeat_ddd(
             vec![ mbe_one_name!($k => $elt_rep) ,
                     $( mbe_one_name!($k => $elt_post) ),* ],
               Some(0)
@@ -269,7 +272,7 @@ macro_rules! mbe_one_name {
     };
 
     ($k:tt => [$($elt_pre:tt),* ...($elt_rep:tt)... $(, $elt_post:tt)*]) => {
-        ::util::mbe::EnvMBE::new_from_anon_repeat_ddd(
+        crate::util::mbe::EnvMBE::new_from_anon_repeat_ddd(
             vec![ $( mbe_one_name!($k => $elt_pre) ),* ,
                   mbe_one_name!($k => $elt_rep) ,
                   $( mbe_one_name!($k => $elt_post) ),* ],
@@ -278,7 +281,7 @@ macro_rules! mbe_one_name {
     };
 
     ($k:tt => [$($elt:tt),*]) => {
-        ::util::mbe::EnvMBE::new_from_anon_repeat(
+        crate::util::mbe::EnvMBE::new_from_anon_repeat(
             vec![ $( mbe_one_name!($k => $elt) ),* ])
     };
 
@@ -287,9 +290,9 @@ macro_rules! mbe_one_name {
         {
             let mut v = vec![];
             for elt in $e {
-                v.push(::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => elt)))
+                v.push(crate::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => elt)))
             }
-            ::util::mbe::EnvMBE::new_from_anon_repeat(v)
+            crate::util::mbe::EnvMBE::new_from_anon_repeat(v)
         }
     };
 
@@ -297,9 +300,9 @@ macro_rules! mbe_one_name {
         {
             let mut v = vec![];
             for elt in $e {
-                v.push(::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => elt)))
+                v.push(crate::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => elt)))
             }
-            ::util::mbe::EnvMBE::new_from_named_repeat(::name::n(expr_ify!($rep_n)), v)
+            crate::util::mbe::EnvMBE::new_from_named_repeat(crate::name::n(expr_ify!($rep_n)), v)
         }
     };
 
@@ -307,7 +310,7 @@ macro_rules! mbe_one_name {
     // It's hard to generalize the `mbe!` interface so that it accepts exprs
     // or `[]`-surrounded trees of them.
     ($k:tt => $leaf:tt) => {
-        ::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => ast!($leaf)))
+        crate::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => ast!($leaf)))
     }
 }
 
@@ -315,7 +318,7 @@ macro_rules! mbe_one_name {
 macro_rules! mbe {
     ( $( $lhs:tt => $rhs:tt ),* ) => {{
         let single_name_mbes = vec![ $( mbe_one_name!($lhs => $rhs) ),*];
-        let mut res = ::util::mbe::EnvMBE::new();
+        let mut res = crate::util::mbe::EnvMBE::new();
         for m in &single_name_mbes {
             res = res.merge(m);
         }
@@ -328,88 +331,88 @@ macro_rules! mbe {
 // TODO #8: `ast!` and `form_pat!` are inconsistent with each other.
 macro_rules! form_pat {
     ((lit $e:expr)) => {
-        ::grammar::FormPat::Literal(
-            ::std::rc::Rc::new(::grammar::FormPat::Call(::name::n("DefaultToken"))),
-            ::name::n($e))
+        crate::grammar::FormPat::Literal(
+            std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("DefaultToken"))),
+            crate::name::n($e))
     };
     ((lit_aat $e:expr)) => {
-        ::grammar::FormPat::Literal(::std::rc::Rc::new(::grammar::new_scan(r"\s*(\S+)")),
-                                    ::name::n($e))
+        crate::grammar::FormPat::Literal(std::rc::Rc::new(crate::grammar::new_scan(r"\s*(\S+)")),
+                                    crate::name::n($e))
     };
     ((lit_by_name $e:expr)) => {
-        ::grammar::FormPat::Literal(
-            ::std::rc::Rc::new(::grammar::FormPat::Call(::name::n("DefaultToken"))),
+        crate::grammar::FormPat::Literal(
+            std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("DefaultToken"))),
             $e)
     };
     ((scan $e:expr)) => {
-        ::grammar::new_scan($e)
+        crate::grammar::new_scan($e)
     };
     ((reserved $body:tt, $( $res:tt )*)) => {
-        ::grammar::FormPat::Reserved(::std::rc::Rc::new(form_pat!($body)), vec![$( n($res) ),*])
+        crate::grammar::FormPat::Reserved(std::rc::Rc::new(form_pat!($body)), vec![$( n($res) ),*])
     };
     ((reserved_by_name_vec $body:tt, $names:expr)) => {
-        ::grammar::FormPat::Reserved(::std::rc::Rc::new(form_pat!($body)), $names)
+        crate::grammar::FormPat::Reserved(std::rc::Rc::new(form_pat!($body)), $names)
     };
-    ((anyways $a:tt)) => { ::grammar::FormPat::Anyways(ast!($a)) };
-    ((impossible)) => { ::grammar::FormPat::Impossible };
-    (atom) => { ::grammar::FormPat::Call(::name::n("DefaultName")) };
-    (varref) => { ::grammar::FormPat::VarRef(
-        ::std::rc::Rc::new(::grammar::FormPat::Call(::name::n("DefaultName")))
+    ((anyways $a:tt)) => { crate::grammar::FormPat::Anyways(ast!($a)) };
+    ((impossible)) => { crate::grammar::FormPat::Impossible };
+    (atom) => { crate::grammar::FormPat::Call(crate::name::n("DefaultName")) };
+    (varref) => { crate::grammar::FormPat::VarRef(
+        std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("DefaultName")))
     ) };
-    (varref_aat) => { ::grammar::FormPat::VarRef(
-        ::std::rc::Rc::new(::grammar::new_scan(r"\s*(\S+)"))
+    (varref_aat) => { crate::grammar::FormPat::VarRef(
+        std::rc::Rc::new(crate::grammar::new_scan(r"\s*(\S+)"))
     ) };
     ((delim $n:expr, $d:expr, $body:tt)) => {
-        ::grammar::FormPat::Seq(vec![
-            ::std::rc::Rc::new(::grammar::FormPat::Literal(
-                ::std::rc::Rc::new(::grammar::FormPat::Call(::name::n("DefaultToken"))),
-                ::name::n($n))),
-            ::std::rc::Rc::new(form_pat!($body)),
+        crate::grammar::FormPat::Seq(vec![
+            std::rc::Rc::new(crate::grammar::FormPat::Literal(
+                std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("DefaultToken"))),
+                crate::name::n($n))),
+            std::rc::Rc::new(form_pat!($body)),
             {
                 let mut main_tok = $n.to_owned();
                 main_tok.pop();
-                ::std::rc::Rc::new(::grammar::FormPat::Literal(
-                    ::std::rc::Rc::new(::grammar::FormPat::Call(::name::n("DefaultToken"))),
-                    ::name::n(&format!("{}{}", ::read::delim($d).close(), main_tok))))
+                std::rc::Rc::new(crate::grammar::FormPat::Literal(
+                    std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("DefaultToken"))),
+                    crate::name::n(&format!("{}{}", crate::read::delim($d).close(), main_tok))))
             }])
     };
-    ((star $body:tt)) => { ::grammar::FormPat::Star(::std::rc::Rc::new(form_pat!($body))) };
-    ((plus $body:tt)) => { ::grammar::FormPat::Plus(::std::rc::Rc::new(form_pat!($body))) };
-    ((alt $($body:tt),* )) => { ::grammar::FormPat::Alt(vec![
-        $( ::std::rc::Rc::new(form_pat!($body)) ),* ] )};
+    ((star $body:tt)) => { crate::grammar::FormPat::Star(std::rc::Rc::new(form_pat!($body))) };
+    ((plus $body:tt)) => { crate::grammar::FormPat::Plus(std::rc::Rc::new(form_pat!($body))) };
+    ((alt $($body:tt),* )) => { crate::grammar::FormPat::Alt(vec![
+        $( std::rc::Rc::new(form_pat!($body)) ),* ] )};
     ((biased $lhs:tt, $rhs:tt)) => {
-        ::grammar::FormPat::Biased(::std::rc::Rc::new(form_pat!($lhs)),
-                                 ::std::rc::Rc::new(form_pat!($rhs))) };
-    ((call $n:expr)) => { ::grammar::FormPat::Call(::name::n($n)) };
-    ((call_by_name $n:expr)) => { ::grammar::FormPat::Call($n) };
-    ((scope $f:expr)) => { ::grammar::FormPat::Scope($f, ::beta::ExportBeta::Nothing) };
-    ((scope $f:expr, $ebeta:tt)) => { ::grammar::FormPat::Scope($f, ebeta!($ebeta)) };
+        crate::grammar::FormPat::Biased(std::rc::Rc::new(form_pat!($lhs)),
+                                 std::rc::Rc::new(form_pat!($rhs))) };
+    ((call $n:expr)) => { crate::grammar::FormPat::Call(crate::name::n($n)) };
+    ((call_by_name $n:expr)) => { crate::grammar::FormPat::Call($n) };
+    ((scope $f:expr)) => { crate::grammar::FormPat::Scope($f, crate::beta::ExportBeta::Nothing) };
+    ((scope $f:expr, $ebeta:tt)) => { crate::grammar::FormPat::Scope($f, ebeta!($ebeta)) };
     ((named $n:expr, $body:tt)) => {
-        ::grammar::FormPat::Named(::name::n($n), ::std::rc::Rc::new(form_pat!($body)))
+        crate::grammar::FormPat::Named(crate::name::n($n), std::rc::Rc::new(form_pat!($body)))
     };
     ((import $beta:tt, $body:tt)) => {
-        ::grammar::FormPat::NameImport(::std::rc::Rc::new(form_pat!($body)), beta!($beta))
+        crate::grammar::FormPat::NameImport(std::rc::Rc::new(form_pat!($body)), beta!($beta))
     };
     ((++ $pos:tt $body:tt)) => { // `pos` should be an expr, but I didn't want a comma. Name it.
-        ::grammar::FormPat::QuoteDeepen(::std::rc::Rc::new(form_pat!($body)), $pos)
+        crate::grammar::FormPat::QuoteDeepen(std::rc::Rc::new(form_pat!($body)), $pos)
     };
     ((-- $depth:tt $body:tt)) => {
-        ::grammar::FormPat::QuoteEscape(::std::rc::Rc::new(form_pat!($body)), $depth)
+        crate::grammar::FormPat::QuoteEscape(std::rc::Rc::new(form_pat!($body)), $depth)
     };
     ((extend_nt $lhs:tt, $n:expr, $f:expr)) => {
-        ::grammar::FormPat::SynImport(
-            ::std::rc::Rc::new(form_pat!($lhs)),
-            ::std::rc::Rc::new(::grammar::FormPat::Call(::name::n($n))),
-            ::grammar::SyntaxExtension(::std::rc::Rc::new(Box::new($f))))
+        crate::grammar::FormPat::SynImport(
+            std::rc::Rc::new(form_pat!($lhs)),
+            std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n($n))),
+            crate::grammar::SyntaxExtension(std::rc::Rc::new(Box::new($f))))
     };
     ((extend $lhs:tt, $body:tt, $f:expr)) => {
-        ::grammar::FormPat::SynImport(
-            ::std::rc::Rc::new(form_pat!($lhs)),
-            ::std::rc::Rc::new(form_pat!($body)),
-            ::grammar::SyntaxExtension(::std::rc::Rc::new(Box::new($f))))
+        crate::grammar::FormPat::SynImport(
+            std::rc::Rc::new(form_pat!($lhs)),
+            std::rc::Rc::new(form_pat!($body)),
+            crate::grammar::SyntaxExtension(std::rc::Rc::new(Box::new($f))))
     };
     ( [$($body:tt),*] ) => {
-        ::grammar::FormPat::Seq(vec![ $( ::std::rc::Rc::new(form_pat!($body)) ),* ])};
+        crate::grammar::FormPat::Seq(vec![ $( std::rc::Rc::new(form_pat!($body)) ),* ])};
     ((, $interpolate:expr)) => { $interpolate }
 }
 
@@ -417,7 +420,7 @@ macro_rules! form_pat {
 // This has to be a macro for type reasons involving sizedness I don't understand.
 macro_rules! cust_rc_box {
     ($contents:expr) => {
-        ::ast_walk::WalkRule::Custom(::std::rc::Rc::new(Box::new($contents)))
+        crate::ast_walk::WalkRule::Custom(std::rc::Rc::new(Box::new($contents)))
     };
 }
 
@@ -426,15 +429,15 @@ macro_rules! cust_rc_box {
 macro_rules! basic_typed_form {
     ( $p:tt, $gen_type:expr, $eval:expr ) => {
         Rc::new(Form {
-            name: ::name::n("unnamed form"),
+            name: crate::name::n("unnamed form"),
             grammar: Rc::new(form_pat!($p)),
-            type_compare: ::form::Positive(::ast_walk::WalkRule::NotWalked),
-            synth_type: ::form::Positive($gen_type),
-            quasiquote: ::form::Both(
-                ::ast_walk::WalkRule::LiteralLike,
-                ::ast_walk::WalkRule::LiteralLike,
+            type_compare: crate::form::Positive(crate::ast_walk::WalkRule::NotWalked),
+            synth_type: crate::form::Positive($gen_type),
+            quasiquote: crate::form::Both(
+                crate::ast_walk::WalkRule::LiteralLike,
+                crate::ast_walk::WalkRule::LiteralLike,
             ),
-            eval: ::form::Positive($eval),
+            eval: crate::form::Positive($eval),
         })
     };
 }
@@ -442,15 +445,15 @@ macro_rules! basic_typed_form {
 macro_rules! typed_form {
     ( $name:expr, $p:tt, $gen_type:expr, $eval:expr ) => {
         Rc::new(Form {
-            name: ::name::n($name),
+            name: crate::name::n($name),
             grammar: Rc::new(form_pat!($p)),
-            type_compare: ::form::Positive(::ast_walk::WalkRule::NotWalked),
-            synth_type: ::form::Positive($gen_type),
-            quasiquote: ::form::Both(
-                ::ast_walk::WalkRule::LiteralLike,
-                ::ast_walk::WalkRule::LiteralLike,
+            type_compare: crate::form::Positive(crate::ast_walk::WalkRule::NotWalked),
+            synth_type: crate::form::Positive($gen_type),
+            quasiquote: crate::form::Both(
+                crate::ast_walk::WalkRule::LiteralLike,
+                crate::ast_walk::WalkRule::LiteralLike,
             ),
-            eval: ::form::Positive($eval),
+            eval: crate::form::Positive($eval),
         })
     };
 }
@@ -458,15 +461,15 @@ macro_rules! typed_form {
 macro_rules! negative_typed_form {
     ( $name:expr, $p:tt, $gen_type:expr, $eval:expr ) => {
         Rc::new(Form {
-            name: ::name::n($name),
+            name: crate::name::n($name),
             grammar: Rc::new(form_pat!($p)),
-            type_compare: ::form::Positive(::ast_walk::WalkRule::NotWalked),
-            synth_type: ::form::Negative($gen_type),
-            quasiquote: ::form::Both(
-                ::ast_walk::WalkRule::LiteralLike,
-                ::ast_walk::WalkRule::LiteralLike,
+            type_compare: crate::form::Positive(crate::ast_walk::WalkRule::NotWalked),
+            synth_type: crate::form::Negative($gen_type),
+            quasiquote: crate::form::Both(
+                crate::ast_walk::WalkRule::LiteralLike,
+                crate::ast_walk::WalkRule::LiteralLike,
             ),
-            eval: ::form::Negative($eval),
+            eval: crate::form::Negative($eval),
         })
     };
 }
@@ -474,29 +477,31 @@ macro_rules! negative_typed_form {
 // Value
 
 macro_rules! val {
-    (i $i:expr) => { ::runtime::eval::Value::Int(::num::bigint::BigInt::from($i)) };
+    (i $i:expr) => { crate::runtime::eval::Value::Int(::num::bigint::BigInt::from($i)) };
     (b $b:expr) => {
-        ::runtime::eval::Value::Enum( ::name::n(if $b {"True"} else {"False"}), vec![])
+        crate::runtime::eval::Value::Enum( crate::name::n(if $b {"True"} else {"False"}), vec![])
     };
-    (cons $a:tt, $d:tt) => { ::runtime::eval::Value::Cons(Rc::new(val!($a)), Rc::new(val! $d )) };
+    (cons $a:tt, $d:tt) => {
+        crate::runtime::eval::Value::Cons(Rc::new(val!($a)), Rc::new(val! $d ))
+    };
     (f $body:tt, $params:expr, $env:tt) => {
-        ::runtime::eval::Value::Function(
+        crate::runtime::eval::Value::Function(
             Rc::new(::runtime::eval::Closure(ast!($body), $params, assoc_n! $env)))
     };
     (bif $f:expr) => {
-        ::runtime::eval::Value::BuiltInFunction(::runtime::eval::BIF(Rc::new($f)))
+        crate::runtime::eval::Value::BuiltInFunction(::runtime::eval::BIF(Rc::new($f)))
     };
     (ast $body:tt) => {
-        ::runtime::eval::Value::AbstractSyntax(ast!($body))
+        crate::runtime::eval::Value::AbstractSyntax(ast!($body))
     };
     (struct $( $k:tt => $v:tt ),* ) => {
-        ::runtime::eval::Value::Struct(assoc_n!( $( $k => val! $v),* ))
+        crate::runtime::eval::Value::Struct(assoc_n!( $( $k => val! $v),* ))
     };
     (enum $nm:expr, $($v:tt),*) => {
-        ::runtime::eval::Value::Enum(::name::n($nm), vec![ $( val! $v ),* ])
+        crate::runtime::eval::Value::Enum(crate::name::n($nm), vec![ $( val! $v ),* ])
     };
     (seq $($v:tt)*) => {
-        ::runtime::eval::Value::Sequence(vec![ $( Rc::new(val! $v) ),* ])
+        crate::runtime::eval::Value::Sequence(vec![ $( Rc::new(val! $v) ),* ])
     };
     (, $interpolate:expr) => { $interpolate }
 }
@@ -505,7 +510,7 @@ macro_rules! val {
 
 macro_rules! mk_type { // TODO: maybe now use find_core_form and un-thread $se?
     ( [ ( $( $param:tt ),* )  -> $ret_t:tt ] ) => {
-        ast!( { ::core_forms::find_core_form("Type", "fn") ;
+        ast!( { crate::core_forms::find_core_form("Type", "fn") ;
                   "param" => [ $((, mk_type!($param) )),*],
                   "ret" => (, mk_type!($ret_t))
         })
@@ -565,12 +570,12 @@ macro_rules! core_fn {
 macro_rules! without_freshening {
     ($( $body:tt )*) => {{
         let mut orig: bool = false;
-        ::alpha::freshening_enabled.with(|f| {
+        crate::alpha::freshening_enabled.with(|f| {
             orig = *f.borrow();
             *f.borrow_mut() = false;
         });
         { $( $body )* }
-        ::alpha::freshening_enabled.with(|f| {
+        crate::alpha::freshening_enabled.with(|f| {
             *f.borrow_mut() = orig;
         });
     }}

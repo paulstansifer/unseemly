@@ -4,9 +4,11 @@
 // `freshen` gets a value ready for destructuring.
 // `freshen_rec` gets a value and its pattern ready for destructuring.
 
-use ast::Ast::{self, *};
-use name::*;
-use util::{assoc::Assoc, mbe::EnvMBE};
+use crate::{
+    ast::Ast::{self, *},
+    name::*,
+    util::{assoc::Assoc, mbe::EnvMBE},
+};
 
 // A renaming that only affects names at the "current" quotation level
 #[derive(Clone, Debug, PartialEq)]
@@ -66,7 +68,7 @@ fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Ren) -> Ast
         VariableReference(n) => env.find(n).unwrap_or(&node.clone()).clone(),
         ExtendEnv(ref body, ref beta) => {
             let mut new_env = env.clone();
-            for bound_name in ::beta::bound_from_beta(beta, cur_node_contents, 0) {
+            for bound_name in crate::beta::bound_from_beta(beta, cur_node_contents, 0) {
                 new_env = new_env.unset(bound_name);
             }
 
@@ -136,7 +138,7 @@ fn freshen_rec(node: &Ast, renamings: &EnvMBE<(Ast, Ren)>, env: Ren) -> Ast {
 }
 
 thread_local! {
-    pub static freshening_enabled: ::std::cell::RefCell<bool> = ::std::cell::RefCell::new(true);
+    pub static freshening_enabled: std::cell::RefCell<bool> = std::cell::RefCell::new(true);
 }
 
 pub fn freshen(a: &Ast) -> Ast {
@@ -257,7 +259,7 @@ pub fn freshen_binders(a: &Ast) -> (Ast, Ren) {
             (Atom(new_name), Ren::single(old_name, VariableReference(new_name)))
         }
         Node(ref f, ref parts, ref export) => {
-            if export == &::beta::ExportBeta::Nothing {
+            if export == &crate::beta::ExportBeta::Nothing {
                 return (a.clone(), Ren::new()); // short-circuit (should this at least warn?)
             }
             let exported = export.names_mentioned(); // Unmentioned atoms shouldn't be touched
@@ -309,7 +311,7 @@ pub fn freshen_binders_with(lhs: &Ast, rhs: &Ast) -> Option<(Ast, Ren, Ast, Ren)
                 return None;
             }
 
-            if export == &::beta::ExportBeta::Nothing {
+            if export == &crate::beta::ExportBeta::Nothing {
                 // short-circuit:
                 return Some((lhs.clone(), Ren::new(), rhs.clone(), Ren::new()));
             }
@@ -377,7 +379,7 @@ pub fn freshen_binders_with(lhs: &Ast, rhs: &Ast) -> Option<(Ast, Ren, Ast, Ren)
 
 #[test]
 fn basic_substitution() {
-    ::name::enable_fake_freshness(true);
+    crate::name::enable_fake_freshness(true);
 
     assert_eq!(
         substitute(
@@ -415,7 +417,7 @@ fn basic_substitution() {
 
 #[test]
 fn basic_binder_freshening() {
-    ::name::enable_fake_freshness(true);
+    crate::name::enable_fake_freshness(true);
 
     assert_eq!(freshen_binders(&ast!((vr "a"))), (ast!((vr "a")), Ren::new()));
 
@@ -437,7 +439,7 @@ fn basic_binder_freshening() {
 
 #[test]
 fn basic_freshening() {
-    ::name::enable_fake_freshness(true);
+    crate::name::enable_fake_freshness(true);
 
     assert_eq!(
         freshen(&ast!({"Expr" "lambda" :
@@ -488,7 +490,7 @@ fn basic_freshening() {
 
 #[test]
 fn basic_freshening_with() {
-    ::name::enable_fake_freshness(true);
+    crate::name::enable_fake_freshness(true);
 
     assert_eq!(
         freshen_with(&ast!({"Type" "Int" :}), &ast!({"Type" "Float" :})),
@@ -599,7 +601,7 @@ fn mu_substitution() {
 
 #[test]
 fn alpha_quote_more_or_less() {
-    ::name::enable_fake_freshness(true);
+    crate::name::enable_fake_freshness(true);
 
     assert_eq!(
         freshen(&ast!({"Expr" "lambda" :

@@ -90,13 +90,13 @@ macro_rules! Reifiable {
     ((make_impl) struct $name:ident
          $(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)*
          { $( $field:ident : $t:ty),* }) => {
-        impl<'t $($(, $ty_param_ty : ::runtime::reify::Reifiable)*)*>
-                ::runtime::reify::Reifiable
+        impl<'t $($(, $ty_param_ty : crate::runtime::reify::Reifiable)*)*>
+                crate::runtime::reify::Reifiable
                 for $name<$($($ty_param),*)*> {
-            fn ty() -> ::ast::Ast {
+            fn ty() -> crate::ast::Ast {
                 type_defn_wrapper!($(<$($ty_param_ty),*>)* => { "Type" "struct" :
                    "component_name" => [@"c" $(
-                       (, ::ast::Ast::Atom(::name::n(stringify!($field)))) ),* ],
+                       (, crate::ast::Ast::Atom(crate::name::n(stringify!($field)))) ),* ],
                    "component" =>
                    // TODO: unless we specify arguments with the same name as parameters,
                    //  we get bogus results
@@ -104,13 +104,13 @@ macro_rules! Reifiable {
                    //   ∀ K V. μ Assoc. struct{ n: Option<[AssocNode<[ident rust_usize]<]< }
                    //  rather than
                    //   ∀ K V. μ Assoc. struct{ n: Option<[AssocNode<[K V]<]< }
-                   [@"c" $( (, <$t as ::runtime::reify::Reifiable>::ty_invocation() ) ),*]
+                   [@"c" $( (, <$t as crate::runtime::reify::Reifiable>::ty_invocation() ) ),*]
                 })
             }
 
-            fn ty_name() -> ::name::Name { ::name::n(stringify!($name)) }
+            fn ty_name() -> crate::name::Name { crate::name::n(stringify!($name)) }
 
-            fn concrete_arguments() -> Option<Vec<::ast::Ast>> {
+            fn concrete_arguments() -> Option<Vec<crate::ast::Ast>> {
                 // HACK: at runtime, check to see if we need type parameters by making a vector
                 let argument_list : Vec<&str> = vec![$( $( stringify!($ty_param_ty) ),* )*];
                 if argument_list.len() > 0 {
@@ -120,18 +120,18 @@ macro_rules! Reifiable {
                 }
             }
 
-            fn reify(&self) -> ::runtime::eval::Value {
-                ::runtime::eval::Struct(assoc_n!(
+            fn reify(&self) -> crate::runtime::eval::Value {
+                crate::runtime::eval::Struct(assoc_n!(
                     $( (stringify!($field)) => self.$field.reify()),* ))
             }
 
             #[allow(unused_variables)]
-            fn reflect(v: &::runtime::eval::Value) -> Self {
-                extract!((v) ::runtime::eval::Struct = (ref env) =>
+            fn reflect(v: &crate::runtime::eval::Value) -> Self {
+                extract!((v) crate::runtime::eval::Struct = (ref env) =>
                     $name {
                         $( $field :
-                            <$t as ::runtime::reify::Reifiable>::reflect(
-                                env.find(&::name::n(stringify!($field))).unwrap())),*
+                            <$t as crate::runtime::reify::Reifiable>::reflect(
+                                env.find(&crate::name::n(stringify!($field))).unwrap())),*
                     })
             }
         }
@@ -189,23 +189,23 @@ macro_rules! Reifiable {
     ((make_impl) enum $name:ident$(<$($ty_param:tt),*>)* @ $(<$($ty_param_ty:ident),*>)* {
         $($choice:ident$(( $($part:ty),* ))* ,)*
     }) => {
-        impl<'t $($(, $ty_param_ty : ::runtime::reify::Reifiable)*)*>
-                ::runtime::reify::Reifiable
+        impl<'t $($(, $ty_param_ty : crate::runtime::reify::Reifiable)*)*>
+                crate::runtime::reify::Reifiable
                 for $name<$($($ty_param),*)*> {
 
-            fn ty() -> ::ast::Ast {
+            fn ty() -> crate::ast::Ast {
                 type_defn_wrapper!($(<$($ty_param_ty),*>)* => { "Type" "enum" :
                     "name" => [@"c" $(
-                        (, ::ast::Ast::Atom(::name::n(stringify!($choice)))) ),* ],
+                        (, crate::ast::Ast::Atom(crate::name::n(stringify!($choice)))) ),* ],
                     "component" => [@"c" $( [ $($(
-                        (, <$part as ::runtime::reify::Reifiable>::ty_invocation() )
+                        (, <$part as crate::runtime::reify::Reifiable>::ty_invocation() )
                     ),*)*]),*]
                 })
             }
 
-            fn ty_name() -> ::name::Name { ::name::n(stringify!($name)) }
+            fn ty_name() -> crate::name::Name { crate::name::n(stringify!($name)) }
 
-            fn concrete_arguments() -> Option<Vec<::ast::Ast>> {
+            fn concrete_arguments() -> Option<Vec<crate::ast::Ast>> {
                 // HACK: at runtime, check to see if we need type parameters by making a vector
                 let argument_list : Vec<&str> = vec![$( $( stringify!($ty_param_ty) ),* )*];
                 if argument_list.len() > 0 {
@@ -216,7 +216,7 @@ macro_rules! Reifiable {
             }
 
             #[allow(unused_mut)] // rustc bug! `v` has to be mutable, but it complains
-            fn reify(&self) -> ::runtime::eval::Value {
+            fn reify(&self) -> crate::runtime::eval::Value {
                 match *self { $(
                     choice_pat!( ( $($($part),*)* ) (a b c d e f g h i j k l m n o p q r s t)
                                  $name::$choice ; ())
@@ -224,14 +224,14 @@ macro_rules! Reifiable {
                         let mut v = vec![];
                         choice_vec!( ( $($($part),*)* ) (a b c d e f g h i j k l m n o p q r s t)
                                      v);
-                        ::runtime::eval::Value::Enum(::name::n(stringify!($choice)), v)
+                        crate::runtime::eval::Value::Enum(crate::name::n(stringify!($choice)), v)
                     }
                 ),* }
             }
 
             #[allow(unused_variables)]
-            fn reflect(v: &::runtime::eval::Value) -> Self {
-                extract!((v) ::runtime::eval::Enum = (ref choice, ref parts) => {
+            fn reflect(v: &crate::runtime::eval::Value) -> Self {
+                extract!((v) crate::runtime::eval::Enum = (ref choice, ref parts) => {
                     make_enum_reflect!(choice; parts; $name$(<$($ty_param),*>)*/**/
                         { $($choice $(( $($part),* ))*),* } )
                 })
@@ -290,7 +290,7 @@ macro_rules! unpack_parts {
     ( ($t_car:ty $(, $t_cdr:ty)*) $v:expr; $idx:expr; $ctor:expr; ($($accum:expr),*)) => {
         unpack_parts!( ( $($t_cdr),* ) $v; ($idx + 1); $ctor;
             ($($accum, )*
-             <$t_car as ::runtime::reify::Reifiable>::reflect(& $v[$idx])))
+             <$t_car as crate::runtime::reify::Reifiable>::reflect(& $v[$idx])))
     };
     ( () $v:expr; $idx:expr; $ctor:expr; ($($accum:expr),*)) => {
         $ctor($($accum),*)
@@ -308,10 +308,10 @@ macro_rules! type_defn_wrapper {
         //   (because they're actually `Irr`, since they are irrelevant).
         $( $(
             struct $ty_param_ty {}
-            impl ::runtime::reify::Reifiable for $ty_param_ty {
-                fn ty_name() -> ::name::Name { ::name::n(stringify!($ty_param_ty)) }
-                fn reify(&self) -> ::runtime::eval::Value { icp!() }
-                fn reflect(_: &::runtime::eval::Value) -> Self { icp!() }
+            impl crate::runtime::reify::Reifiable for $ty_param_ty {
+                fn ty_name() -> crate::name::Name { crate::name::n(stringify!($ty_param_ty)) }
+                fn reify(&self) -> crate::runtime::eval::Value { icp!() }
+                fn reflect(_: &crate::runtime::eval::Value) -> Self { icp!() }
             }
         )* )*
         // All types will be ∀, even if in Rust they have no parameters;
@@ -319,11 +319,11 @@ macro_rules! type_defn_wrapper {
         // All types will be μ. I think this is the way things work in most languages.
         ast!({"Type" "forall_type" :
             "param" => [ $($(
-                (, ::ast::Ast::Atom(::name::n(stringify!($ty_param_ty))))
+                (, crate::ast::Ast::Atom(crate::name::n(stringify!($ty_param_ty))))
             ),*)*],
             "body" => (import [* [forall "param"]] {"Type" "mu_type" :
                  "param" => [(import [prot "param"]
-                              (, ::ast::Ast::VariableReference(Self::ty_name())))],
+                              (, crate::ast::Ast::VariableReference(Self::ty_name())))],
                  "body" => (import [* [prot "param"]] $body)
              })
         })

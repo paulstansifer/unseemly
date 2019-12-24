@@ -1,12 +1,14 @@
 #![macro_use]
 
-use alpha::Ren;
-use ast::{Ast, Atom, ExtendEnv, VariableReference};
-use ast_walk::{LazilyWalkedTerm, LazyWalkReses};
-use name::*;
+use crate::{
+    alpha::Ren,
+    ast::{Ast, Atom, ExtendEnv, VariableReference},
+    ast_walk::{LazilyWalkedTerm, LazyWalkReses},
+    name::*,
+    util::{assoc::Assoc, mbe::EnvMBE},
+    walk_mode::Dir,
+};
 use std::fmt;
-use util::{assoc::Assoc, mbe::EnvMBE};
-use walk_mode::Dir;
 
 custom_derive! {
     /**
@@ -118,7 +120,7 @@ impl Beta {
     }
 
     // alpha::freshen_binders wants this to extract from complex payloads, hence `f`
-    pub fn extract_from_mbe<T: Clone + ::std::fmt::Debug>(
+    pub fn extract_from_mbe<T: Clone + std::fmt::Debug>(
         &self,
         parts: &EnvMBE<T>,
         f: &dyn Fn(&T) -> &Ren,
@@ -149,7 +151,7 @@ impl Beta {
 /// Find the environment represented by `b`.
 /// `SameAs` and `Basic` nodes will cause walking in `Mode`, which should be positive.
 /// TODO: Unfortunately, this means that they don't work well in the subtyping walk, for instance.
-pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(
+pub fn env_from_beta<Mode: crate::walk_mode::WalkMode>(
     b: &Beta,
     parts: &LazyWalkReses<Mode>,
 ) -> Result<Assoc<Name, Mode::Elt>, Mode::Err>
@@ -189,7 +191,7 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(
         // `res_source` should be positive and `name_source` should be negative.
         // Gets the names from `name_source`, treating `res_source` as the context.
         SameAs(name_source, res_source) => {
-            use walk_mode::WalkMode;
+            use crate::walk_mode::WalkMode;
 
             let ctxt: Mode::Elt = parts.switch_to_positive().get_res(res_source)?;
 
@@ -234,7 +236,10 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(
 
             let mut res = Assoc::new();
             for name in expected_res_keys {
-                res = res.set(name, <Mode::Elt as ::walk_mode::WalkElt>::from_ast(&::ast::Trivial));
+                res = res.set(
+                    name,
+                    <Mode::Elt as crate::walk_mode::WalkElt>::from_ast(&crate::ast::Trivial),
+                );
             }
 
             Ok(res)
@@ -258,13 +263,15 @@ pub fn env_from_beta<Mode: ::walk_mode::WalkMode>(
             if let LazilyWalkedTerm { term: ExtendEnv(ref boxed_vr, _), .. } =
                 **parts.parts.get_leaf_or_panic(name_source)
             {
-                use walk_mode::WalkElt;
+                use crate::walk_mode::WalkElt;
 
                 // HACK: rely on the fact that `walk_var`
                 //  won't recursively substitute until it "hits bottom"
                 // Drop the variable reference right into the environment.
-                Ok(Assoc::new()
-                    .set(::core_forms::vr_to_name(&*boxed_vr), Mode::Elt::from_ast(&*boxed_vr)))
+                Ok(Assoc::new().set(
+                    crate::core_forms::vr_to_name(&*boxed_vr),
+                    Mode::Elt::from_ast(&*boxed_vr),
+                ))
             } else {
                 panic!(
                     "{:#?} is supposed to supply names, but is not an EE(VR()).",
@@ -321,7 +328,7 @@ impl ExportBeta {
 
     // This has an overly-specific type to match implementation details of alpha::freshen_binders.
     // Not sure if we need a generalization, though.
-    pub fn extract_from_mbe<T: Clone + ::std::fmt::Debug>(
+    pub fn extract_from_mbe<T: Clone + std::fmt::Debug>(
         &self,
         parts: &EnvMBE<T>,
         f: &dyn Fn(&T) -> &Ren,
@@ -372,7 +379,7 @@ fn names_exported_by(ast: &Ast, quote_depth: i16) -> Vec<Name> {
 
 // Like just taking the (non-Protected) keys from `env_from_beta`, but faster and non-failing.
 // It's a runtime error if the definition of a form causes `env_from_beta` to diverge from this.
-pub fn bound_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>, quote_depth: i16) -> Vec<Name> {
+pub fn bound_from_beta(b: &Beta, parts: &EnvMBE<crate::ast::Ast>, quote_depth: i16) -> Vec<Name> {
     match *b {
         Nothing => vec![],
         Shadow(ref lhs, ref rhs) => {
@@ -394,7 +401,7 @@ pub fn bound_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>, quote_depth: i16) -
         }
         Protected(ref _n_s) => vec![], // Non-binding
         Basic(ref n_s, _) | Underspecified(ref n_s) => {
-            vec![::core_forms::ast_to_name(parts.get_leaf_or_panic(n_s))]
+            vec![crate::core_forms::ast_to_name(parts.get_leaf_or_panic(n_s))]
         }
     }
 }
@@ -402,7 +409,7 @@ pub fn bound_from_beta(b: &Beta, parts: &EnvMBE<::ast::Ast>, quote_depth: i16) -
 // Like just taking the keys from `env_from_export_beta`, but faster and non-failing
 pub fn bound_from_export_beta(
     b: &ExportBeta,
-    parts: &EnvMBE<::ast::Ast>,
+    parts: &EnvMBE<crate::ast::Ast>,
     quote_depth: i16,
 ) -> Vec<Name>
 {
@@ -436,8 +443,8 @@ pub fn bound_from_export_beta(
 // As long as betas can't select a different shadowing direction, this isn't a problem.
 pub fn freshening_from_beta(
     b: &Beta,
-    parts: &EnvMBE<::ast::Ast>,
-    memo: &mut ::std::collections::HashMap<(Name, Name), Name>,
+    parts: &EnvMBE<crate::ast::Ast>,
+    memo: &mut std::collections::HashMap<(Name, Name), Name>,
 ) -> Assoc<Name, Ast>
 {
     match *b {
@@ -453,11 +460,11 @@ pub fn freshening_from_beta(
         }
         Protected(_n_s) => unimplemented!("Not hard, just not used yet"),
         Basic(n_s, _) | SameAs(n_s, _) | Underspecified(n_s) | BoundButNotUsable(n_s) => {
-            let this_name = ::core_forms::ast_to_name(parts.get_leaf_or_panic(&n_s));
+            let this_name = crate::core_forms::ast_to_name(parts.get_leaf_or_panic(&n_s));
 
             Assoc::new().set(
                 this_name,
-                ::ast::VariableReference(
+                crate::ast::VariableReference(
                     *memo.entry((n_s, this_name)).or_insert_with(|| this_name.freshen()),
                 ),
             )

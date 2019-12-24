@@ -16,12 +16,16 @@
 //
 // Also, it turns out that implementing an Earley parser goes pretty smoothly. Yay!
 
-use ast::Ast;
-use grammar::{
-    FormPat::{self, *},
-    SynEnv,
+use crate::{
+    ast::Ast,
+    ast_walk::LazyWalkReses,
+    grammar::{
+        FormPat::{self, *},
+        SynEnv,
+    },
+    name::*,
+    util::{assoc::Assoc, mbe::EnvMBE},
 };
-use name::*;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 // TODO: This UniqueId stuff is great, but we could make things faster
@@ -51,8 +55,8 @@ fn get_next_id() -> UniqueId {
 #[derive(PartialEq, Eq)]
 pub struct UniqueId(u32);
 
-impl ::std::fmt::Debug for UniqueId {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result { write!(f, "{}", self.0) }
+impl std::fmt::Debug for UniqueId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result { write!(f, "{}", self.0) }
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
@@ -64,18 +68,17 @@ impl UniqueId {
     fn is(&self, other: UniqueIdRef) -> bool { self.0 == other.0 }
 }
 
-impl ::std::fmt::Debug for UniqueIdRef {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result { write!(f, "{}", self.0) }
+impl std::fmt::Debug for UniqueIdRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result { write!(f, "{}", self.0) }
 }
 
 // TODO: eliminate this; just use `ParseContext` everwhere
-pub type CodeEnvs =
-    (::ast_walk::LazyWalkReses<::ty::SynthTy>, ::ast_walk::LazyWalkReses<::runtime::eval::Eval>);
+pub type CodeEnvs = (LazyWalkReses<crate::ty::SynthTy>, LazyWalkReses<crate::runtime::eval::Eval>);
 
 pub fn empty__code_envs() -> CodeEnvs {
     (
-        ::ast_walk::LazyWalkReses::<::ty::SynthTy>::new_empty(),
-        ::ast_walk::LazyWalkReses::<::runtime::eval::Eval>::new_empty(),
+        LazyWalkReses::<crate::ty::SynthTy>::new_empty(),
+        LazyWalkReses::<crate::runtime::eval::Eval>::new_empty(),
     )
 }
 
@@ -85,8 +88,8 @@ custom_derive! {
     #[derive(Clone, Reifiable)]
     pub struct ParseContext {
         pub grammar: SynEnv,
-        pub type_ctxt: ::ast_walk::LazyWalkReses<::ty::SynthTy>,
-        pub eval_ctxt: ::ast_walk::LazyWalkReses<::runtime::eval::Eval>
+        pub type_ctxt: LazyWalkReses<crate::ty::SynthTy>,
+        pub eval_ctxt: LazyWalkReses<crate::runtime::eval::Eval>
     }
 }
 
@@ -97,8 +100,8 @@ impl ParseContext {
     pub fn new_from_grammar(se: SynEnv) -> ParseContext {
         ParseContext {
             grammar: se,
-            type_ctxt: ::ast_walk::LazyWalkReses::<::ty::SynthTy>::new_empty(),
-            eval_ctxt: ::ast_walk::LazyWalkReses::<::runtime::eval::Eval>::new_empty(),
+            type_ctxt: LazyWalkReses::<crate::ty::SynthTy>::new_empty(),
+            eval_ctxt: LazyWalkReses::<crate::runtime::eval::Eval>::new_empty(),
         }
     }
     pub fn with_grammar(self, se: SynEnv) -> ParseContext { ParseContext { grammar: se, ..self } }
@@ -166,7 +169,7 @@ impl PartialOrd for LocalParse {
     /// `Biased` allows one to find a "Plan B" parse that gets overwritten by "Plan A".
     /// But there's also `NothingYet`, for ... (TODO: only leaves and just-started nodes?)
     /// ... and `Ambiguous`, when we know that there are multiple justifications for a single node
-    fn partial_cmp(&self, other: &LocalParse) -> Option<::std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &LocalParse) -> Option<std::cmp::Ordering> {
         use std::cmp::Ordering::*;
         if self == other {
             return Some(Equal);
@@ -210,7 +213,7 @@ fn create_chart(
 {
     let toks = toks.trim(); // HACK: tokens don't consume trailing whitespace
     let mut chart: Vec<Vec<Item>> = vec![];
-    chart.resize_with(toks.len() + 1, ::std::default::Default::default);
+    chart.resize_with(toks.len() + 1, std::default::Default::default);
 
     let start_but_startier = get_next_id();
 
@@ -289,8 +292,8 @@ fn merge_into_state_set(item: Item, items: &mut Vec<Item>) -> bool {
     true
 }
 
-impl ::std::fmt::Debug for Item {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+impl std::fmt::Debug for Item {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
             "[({:#?}){}({:#?}.{}){}<{:#?} - {:#?}>]",
@@ -470,7 +473,7 @@ impl Item {
                         // Using `c_parse` instead of `local_parse` here is weird,
                         //  but probably necessary to allow `Call` under `Reserved`.
                         Reserved(_, ref name_list) => match self.c_parse(chart, cur_idx) {
-                            Ok(::ast::Atom(name)) | Ok(::ast::VariableReference(name)) => {
+                            Ok(Ast::Atom(name)) | Ok(Ast::VariableReference(name)) => {
                                 if name_list.contains(&name) {
                                     vec![]
                                 } else {
@@ -483,7 +486,7 @@ impl Item {
                             }
                         },
                         Literal(_, expected) => match self.c_parse(chart, cur_idx) {
-                            Ok(::ast::Atom(name)) => {
+                            Ok(Ast::Atom(name)) => {
                                 if name == expected {
                                     waiting_item.finish_with(me_justif, 0)
                                 } else {
@@ -539,14 +542,14 @@ impl Item {
             (0, &Anyways(ref a)) => self.finish_with(ParsedAtom(a.clone()), 0),
             (_, &Impossible) => vec![],
             (0, &Literal(ref sub, _)) => self.start(sub, cur_idx),
-            (0, &Scan(::grammar::Scanner(ref regex))) => {
+            (0, &Scan(crate::grammar::Scanner(ref regex))) => {
                 let mut caps = regex.capture_locations();
                 if regex.captures_read(&mut caps, &toks[cur_idx..]).is_some() {
                     match caps.get(1) {
                         Some((start, end)) => {
                             // These are byte indices!
                             self.finish_with(
-                                ParsedAtom(::ast::Atom(n(&toks[cur_idx + start..cur_idx + end]))),
+                                ParsedAtom(Ast::Atom(n(&toks[cur_idx + start..cur_idx + end]))),
                                 end,
                             )
                         }
@@ -700,7 +703,7 @@ impl Item {
                 _ => icp!("no simple parse saved"),
             },
             VarRef(_) => match self.find_wanted(chart, done_tok).c_parse(chart, done_tok)? {
-                ::ast::Atom(a) => Ok(::ast::VariableReference(a)),
+                Ast::Atom(a) => Ok(Ast::VariableReference(a)),
                 _ => icp!("no atom saved"),
             },
             Literal(_, _) | Alt(_) | Biased(_, _) | Call(_) | Reserved(_, _) => {
@@ -750,19 +753,15 @@ impl Item {
 
                 match *self.rule {
                     Seq(_) | SynImport(_, _, _) => Ok(Ast::Shape(subtrees)),
-                    Star(_) | Plus(_) => {
-                        Ok(Ast::IncompleteNode(::util::mbe::EnvMBE::new_from_anon_repeat(
-                            subtrees.into_iter().map(|a| a.flatten()).collect(),
-                        )))
-                    }
+                    Star(_) | Plus(_) => Ok(Ast::IncompleteNode(EnvMBE::new_from_anon_repeat(
+                        subtrees.into_iter().map(|a| a.flatten()).collect(),
+                    ))),
                     _ => icp!("seriously, this can't happen"),
                 }
             }
             Named(name, _) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
-                Ok(Ast::IncompleteNode(::util::mbe::EnvMBE::new_from_leaves(
-                    ::util::assoc::Assoc::single(name, sub_parsed),
-                )))
+                Ok(Ast::IncompleteNode(EnvMBE::new_from_leaves(Assoc::single(name, sub_parsed))))
             }
             Scope(ref form, ref export) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
@@ -825,12 +824,12 @@ pub fn parse(rule: &FormPat, grammar: &SynEnv, envs: CodeEnvs, toks: &str) -> Pa
 }
 
 fn parse_top(rule: &FormPat, toks: &str) -> ParseResult {
-    parse(rule, &::util::assoc::Assoc::new(), empty__code_envs(), toks)
+    parse(rule, &Assoc::new(), empty__code_envs(), toks)
 }
 
 #[test]
 fn earley_merging() {
-    let one_rule = ::grammar::new_scan("whatever");
+    let one_rule = crate::grammar::new_scan("whatever");
     let another_rule = Impossible;
     let main_grammar = assoc_n!("a" => Rc::new(form_pat!((scan "irrelevant"))));
     let another_grammar = assoc_n!("a" => Rc::new(form_pat!((scan "irrelevant"))));
@@ -841,10 +840,7 @@ fn earley_merging() {
         rule: Rc::new(one_rule),
         pos: 0,
         grammar: main_grammar.clone(),
-        envs: Rc::new((
-            ::ast_walk::LazyWalkReses::new_empty(),
-            ::ast_walk::LazyWalkReses::new_empty(),
-        )),
+        envs: Rc::new((LazyWalkReses::new_empty(), LazyWalkReses::new_empty())),
         id: get_next_id(),
         done: RefCell::new(false),
         local_parse: RefCell::new(LocalParse::NothingYet),
@@ -958,15 +954,15 @@ fn earley_merging() {
 
 #[test]
 fn earley_simple_recognition() {
-    let main_grammar = ::util::assoc::Assoc::new();
+    let main_grammar = Assoc::new();
 
-    let atom = Rc::new(::grammar::new_scan(r"\s*(\S+)"));
+    let atom = Rc::new(crate::grammar::new_scan(r"\s*(\S+)"));
 
     // 0-length strings
 
     assert_eq!(recognize(&*atom, &main_grammar, tokens_s!()), false);
 
-    assert_eq!(recognize(&Anyways(::ast::Trivial), &main_grammar, tokens_s!()), true);
+    assert_eq!(recognize(&Anyways(Ast::Trivial), &main_grammar, tokens_s!()), true);
 
     assert_eq!(recognize(&Seq(vec![]), &main_grammar, tokens_s!()), true);
 
@@ -1107,7 +1103,7 @@ fn earley_simple_recognition() {
 #[test]
 fn earley_env_recognition() {
     fn mk_lt(s: &str) -> Rc<FormPat> {
-        Rc::new(Literal(Rc::new(::grammar::new_scan(r"\s*(\S+)")), n(s)))
+        Rc::new(Literal(Rc::new(crate::grammar::new_scan(r"\s*(\S+)")), n(s)))
     }
     let env = assoc_n!(
         "empty" => Rc::new(Seq(vec![])),
@@ -1179,10 +1175,10 @@ fn earley_env_recognition() {
 #[test]
 fn basic_parsing_e() {
     fn mk_lt(s: &str) -> Rc<FormPat> {
-        Rc::new(Literal(Rc::new(::grammar::new_scan(r"\s*(\S+)")), n(s)))
+        Rc::new(Literal(Rc::new(crate::grammar::new_scan(r"\s*(\S+)")), n(s)))
     }
 
-    let atom = Rc::new(::grammar::new_scan(r"\s*(\S+)"));
+    let atom = Rc::new(crate::grammar::new_scan(r"\s*(\S+)"));
 
     assert_eq!(parse_top(&*atom, tokens_s!("asdf")), Ok(ast!("asdf")));
 
@@ -1275,8 +1271,8 @@ fn basic_parsing_e() {
     );
 
     let code_envs = (
-        ::ast_walk::LazyWalkReses::<::ty::SynthTy>::new_empty(),
-        ::ast_walk::LazyWalkReses::<::runtime::eval::Eval>::new_empty(),
+        LazyWalkReses::<crate::ty::SynthTy>::new_empty(),
+        LazyWalkReses::<crate::runtime::eval::Eval>::new_empty(),
     );
 
     let env = assoc_n!(

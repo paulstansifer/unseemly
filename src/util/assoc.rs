@@ -1,4 +1,4 @@
-use runtime::reify::Reifiable;
+use crate::runtime::reify::Reifiable;
 use std::{clone::Clone, fmt, hash::Hash, rc::Rc};
 
 extern crate im_rc;
@@ -43,23 +43,23 @@ impl<K: Eq + Hash + Clone, V: Clone> Default for Assoc<K, V> {
 }
 
 impl<K: Eq + Hash + Clone + Reifiable, V: Clone + Reifiable> Reifiable for Assoc<K, V> {
-    fn ty_name() -> ::name::Name { ::name::n("Assoc") }
+    fn ty_name() -> crate::name::Name { crate::name::n("Assoc") }
 
-    fn concrete_arguments() -> Option<Vec<::ast::Ast>> {
+    fn concrete_arguments() -> Option<Vec<crate::ast::Ast>> {
         Some(vec![K::ty_invocation(), V::ty_invocation()])
     }
 
-    fn reify(&self) -> ::runtime::eval::Value {
+    fn reify(&self) -> crate::runtime::eval::Value {
         let res: Vec<_> =
             self.hamt.iter().map(|(k, v)| Rc::new((k.clone(), v.clone()).reify())).collect();
 
-        ::runtime::eval::Value::Sequence(res)
+        crate::runtime::eval::Value::Sequence(res)
     }
 
-    fn reflect(v: &::runtime::eval::Value) -> Self {
+    fn reflect(v: &crate::runtime::eval::Value) -> Self {
         let mut res = Assoc::<K, V>::new();
 
-        extract!((v) ::runtime::eval::Value::Sequence = (ref parts) => {
+        extract!((v) crate::runtime::eval::Value::Sequence = (ref parts) => {
             for part in parts {
                 let (k_part, v_part) = <(K,V)>::reflect(&**part);
                 res = res.set(k_part, v_part);
