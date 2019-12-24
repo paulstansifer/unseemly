@@ -209,8 +209,6 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
 }
 
 thread_local! {
-    pub static next_id: RefCell<u32> = RefCell::new(0);
-
     // Invariant: `underdetermined_form`s in the HashMap must not form a cycle.
     pub static unification: RefCell<HashMap<Name, Clo<Ty>>>
         = RefCell::new(HashMap::new());
@@ -289,14 +287,10 @@ impl WalkMode for Subtype {
     fn automatically_extend_env() -> bool { true }
 
     fn underspecified(name: Name) -> Ty {
-        next_id.with(|id| {
-            underdetermined_form.with(|u_f| {
-                *id.borrow_mut() += 1;
-                // TODO: we need `gensym`!
-                let new_name = n(format!("{}⚁{}", name, *id.borrow()).as_str());
+        underdetermined_form.with(|u_f| {
+            let new_name = Name::gensym(&format!("{}⚁", name));
 
-                ty!({ u_f.clone() ; "id" => (, Atom(new_name))})
-            })
+            ty!({ u_f.clone() ; "id" => (, Atom(new_name))})
         })
     }
 
