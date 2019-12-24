@@ -178,7 +178,6 @@ fn name_interning() {
 
     assert_ne!(n("a"), n("y"));
 
-
     enable_fake_freshness(true);
 
     let x = n("x");

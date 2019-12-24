@@ -192,7 +192,7 @@ fn expand_basic_macros() {
     let macro_body_nary_let = ast!({"Expr" "quote_expr" : "nt" => (vr "Expr"),
      "body" => (++ true (, u!(
          {match : {tuple_expr : [{dddef.clone() ; [(~ let_val)] { uqef.clone(); (~) let_val}}]}
-            [{Pat tuple_pat : [{dddpf.clone() ; [(~ let_pat)] { uqpf.clone(); (~) let_pat }}]} 
+            [{Pat tuple_pat : [{dddpf.clone() ; [(~ let_pat)] { uqpf.clone(); (~) let_pat }}]}
              { uqef.clone(); (~) let_body}]})))});
 
     let macro_def_nary_let = u!({Syntax scope :
