@@ -340,12 +340,12 @@ fn advanced_parsing() {
         parse(
             &form_pat!((call "Expr")),
             &assoc_n!(
-                         "other_1" => Rc::new(Scope(simple_form("o", form_pat!((lit_aat "other"))),
-                                                    crate::beta::ExportBeta::Nothing)),
-                         "Expr" => Rc::new(Scope(pair_form.clone(), crate::beta::ExportBeta::Nothing)),
-                         "other_2" =>
-                             Rc::new(Scope(simple_form("o", form_pat!((lit_aat "otherother"))),
-                                           crate::beta::ExportBeta::Nothing))),
+                "other_1" => Rc::new(Scope(simple_form("o", form_pat!((lit_aat "other"))),
+                                        crate::beta::ExportBeta::Nothing)),
+                "Expr" => Rc::new(Scope(pair_form.clone(), crate::beta::ExportBeta::Nothing)),
+                "other_2" =>
+                    Rc::new(Scope(simple_form("o", form_pat!((lit_aat "otherother"))),
+                                crate::beta::ExportBeta::Nothing))),
             crate::earley::empty__code_envs(),
             &toks_a_b
         )

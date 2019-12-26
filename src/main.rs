@@ -20,7 +20,6 @@ extern crate custom_derive;
 #[macro_use]
 extern crate quote;
 
-
 use std::{fs::File, io::Read, path::Path};
 
 mod macros;
@@ -144,6 +143,7 @@ fn main() {
         rl.set_helper(Some(LineHelper::new()));
 
         let just_parse = regex::Regex::new("^:p (.*)$").unwrap();
+        let just_parse_debug_print = regex::Regex::new("^:pd (.*)$").unwrap();
 
         let just_type = regex::Regex::new("^:t (.*)$").unwrap();
         let just_eval = regex::Regex::new("^:e (.*)$").unwrap();
@@ -166,7 +166,8 @@ fn main() {
         println!("    `<name> t= <type>` to bind a type for this session.");
         println!("    `:s <name> := <expr>` to save a binding to the prelude for the future.");
         println!("    `:s <name> t= <expr>` to save a type binding to the prelude.");
-        println!("    `:p <expr>` to parse `<expr>` and print its debug AST output.");
+        println!("    `:p <expr>` to parse `<expr>` and pretty-print its AST output.");
+        println!("    `:pd <expr>` to parse `<expr>` and debug-print its AST output.");
         println!("    Command history is saved over sessions.");
         println!("    Tab-completion works on variables, and lots of Bash-isms work.");
         println!();
@@ -196,7 +197,9 @@ fn main() {
             rl.add_history_entry(line.clone());
 
             let result_display = if let Some(caps) = just_parse.captures(&line) {
-                parse_unseemly_program(&caps[1])
+                parse_unseemly_program(&caps[1], true)
+            } else if let Some(caps) = just_parse_debug_print.captures(&line) {
+                parse_unseemly_program(&caps[1], false)
             } else if let Some(caps) = just_type.captures(&line) {
                 type_unseemly_program(&caps[1]).map(|x| format!("{}", x))
             } else if let Some(caps) = just_eval.captures(&line) {
@@ -316,7 +319,7 @@ fn canonicalize_type(t: &str) -> Result<ty::Ty, String> {
     ty_env.with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e)))
 }
 
-fn parse_unseemly_program(program: &str) -> Result<String, String> {
+fn parse_unseemly_program(program: &str, pretty: bool) -> Result<String, String> {
     let ast = grammar::parse(
         &core_forms::outermost_form(),
         &core_forms::get_core_forms(),
@@ -325,7 +328,11 @@ fn parse_unseemly_program(program: &str) -> Result<String, String> {
     )
     .map_err(|e| e.msg)?;
 
-    Ok(format!("▵ {:#?}\n∴ {}\n", ast, ast))
+    if pretty {
+        Ok(format!("{}", ast))
+    } else {
+        Ok(format!("{:#?}", ast))
+    }
 }
 
 fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
