@@ -1,3 +1,4 @@
+// TODO: This file should be absorbed into `grammar.rs`.
 use crate::name::*;
 
 custom_derive! {
@@ -29,6 +30,6 @@ pub fn delim(s: &str) -> DelimChar {
         "(" | ")" => Paren,
         "[" | "]" => SquareBracket,
         "{" | "}" => CurlyBracket,
-        _ => panic!("not a delimiter!"),
+        _ => icp!("not a delimiter!"),
     }
 }

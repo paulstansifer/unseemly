@@ -7,6 +7,13 @@ use std::{
     string::String,
 };
 
+/// An interned, freshenable identifier.
+/// Generally, one creates names with `n()` (short for `Name::global()`);
+///  two names created this way with the same spelling will be treated as the same name.
+/// Hygiene comes from freshening (implemented in `alpha.rs`, invoked in `walk_mode.rs`).
+/// If a name is created in an unusual way that might cause it to collide,
+///  `Name::gensym()` ensures uniqueness.
+/// Only names that were copied or clone from the original will compare equal.
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Name {
     id: usize,

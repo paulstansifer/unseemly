@@ -22,11 +22,11 @@ custom_derive! {
         /// The grammar the programmer should use to invoke this form.
         /// This contains information about bindings and syntax extension:
         pub grammar: Rc<FormPat>,
-        /// (type only) Compare types
+        /// (Meaningful for types only) Subtype.
         pub type_compare: BiDiWR<crate::ty_compare::Canonicalize, crate::ty_compare::Subtype>,
         /// From a type environment, construct the type of this term.
         pub synth_type: BiDiWR<crate::ty::SynthTy, crate::ty::UnpackTy>,
-        /// (expr and pat only) From a value environment, evaluate this term.
+        /// (Meaningful for exprs and pats only) From a value environment, evaluate this term.
         /// Or, (HACK) macro expansion, for macro invocations (just so we don't need another field)
         pub eval: BiDiWR<crate::runtime::eval::Eval, crate::runtime::eval::Destructure>,
         /// At runtime, pick up code to use it as a value

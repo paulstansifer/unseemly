@@ -159,7 +159,7 @@ fn main() {
         println!("                  \x1b[1;38mUnseemly\x1b[0m");
         println!("    `<expr>` to (typecheck and expand and) evaluate `<expr>`.");
         println!("    `:x <expr>` to (typecheck and) expand `<expr>`.");
-        println!("    `:e <expr>` to evaluate `<expr>` without typechecking.");
+        println!("    `:e <expr>` to (expand and) evaluate `<expr>` without typechecking.");
         println!("    `<name> := <expr>` to bind a name for this session.");
         println!("    `:t <expr>` to synthesize the type of <expr>.");
         println!("    `:tt <type>` to canonicalize <type>.");
