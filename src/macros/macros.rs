@@ -355,9 +355,9 @@ macro_rules! form_pat {
     };
     ((anyways $a:tt)) => { crate::grammar::FormPat::Anyways(ast!($a)) };
     ((impossible)) => { crate::grammar::FormPat::Impossible };
-    (atom) => { crate::grammar::FormPat::Call(crate::name::n("DefaultName")) };
+    (atom) => { crate::grammar::FormPat::Call(crate::name::n("DefaultAtom")) };
     (varref) => { crate::grammar::FormPat::VarRef(
-        std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("DefaultName")))
+        std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("DefaultAtom")))
     ) };
     (varref_aat) => { crate::grammar::FormPat::VarRef(
         std::rc::Rc::new(crate::grammar::new_scan(r"\s*(\S+)"))

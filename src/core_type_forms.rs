@@ -616,7 +616,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         dotdotdot_type.clone(),
         mu_type.clone(),
         type_apply.clone()
-        ]), Rc::new(VarRef(Rc::new(Call(n("DefaultName"))))))))
+        ]), Rc::new(VarRef(Rc::new(Call(n("DefaultAtom"))))))))
 }
 
 // TODO #4: this should be extensible for when the syntax environment is extended...
@@ -634,9 +634,9 @@ pub fn nt_to_type(nt: Name) -> Ty {
 pub fn nt_is_positive(nt: Name) -> bool {
     if nt == n("Type") || nt == n("Expr") || nt == n("DefaultReference") {
         true
-    } else if nt == n("Pat") || nt == n("Ident") || nt == n("DefaultName") {
-        // TODO: Rename "DefaultName" to "Ident" globally.
-        // HACK: "Ident" and "DefaultName" are just not walked; this should probably be three-armed
+    } else if nt == n("Pat") || nt == n("Ident") || nt == n("DefaultAtom") {
+        // TODO: Remove "Ident" entirely.
+        // HACK: "Ident" and "DefaultAtom" are just not walked; this should probably be three-armed
         false
     } else {
         icp!("unknown NT {}", nt)

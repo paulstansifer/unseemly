@@ -536,12 +536,11 @@ pub fn make_core_syn_env() -> SynEnv {
     ];
 
     assoc_n!(
-        "Pat" => Rc::new(Biased(Rc::new(main_pat_forms), Rc::new(Call(n("DefaultName"))))),
+        "Pat" => Rc::new(Biased(Rc::new(main_pat_forms), Rc::new(Call(n("DefaultAtom"))))),
         "Expr" => Rc::new(Biased(Rc::new(main_expr_forms), Rc::new(Call(n("DefaultReference"))))),
-        "Ident" => Rc::new(Call(n("DefaultName"))),
-        "DefaultReference" => Rc::new(VarRef(Rc::new(Call(n("DefaultName"))))),
-        // TODO: Rename "DefaultName" -> "DefaultAtom"
-        "DefaultName" => Rc::new(form_pat!((reserved_by_name_vec (call "DefaultToken"), reserved_names))),
+        "Ident" => Rc::new(Call(n("DefaultAtom"))),
+        "DefaultReference" => Rc::new(VarRef(Rc::new(Call(n("DefaultAtom"))))),
+        "DefaultAtom" => Rc::new(form_pat!((reserved_by_name_vec (call "DefaultToken"), reserved_names))),
         "DefaultToken" => Rc::new(crate::grammar::new_scan(
             r"\s*([\]\)\}][^\[\]\(\)\{\}\s]*|[^\[\]\(\)\{\}\s]*[\[\(\{]|[^\[\]\(\)\{\}\s]+)"))
     )

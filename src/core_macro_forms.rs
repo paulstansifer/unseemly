@@ -284,7 +284,7 @@ pub fn macro_invocation(
             for (param, depth) in &grammar.binders() {
                 let nt = grammar.find_named_call(*param).unwrap();
 
-                if nt != n("DefaultName") && nt != n("Ident") {
+                if nt != n("DefaultAtom") && nt != n("Ident") {
                     // TODO: why not for those two NTs?
                     let rhs = parts.map_flatten_term_at_depth(
                         *param,
@@ -677,7 +677,7 @@ fn formpat_reflection() {
     use crate::{core_forms::find_form, runtime::eval::eval_top};
     let macro_forms = make_core_macro_forms()
         .set(n("DefaultToken"), Rc::new(crate::grammar::new_scan(r"\s*(\S+)")))
-        .set(n("DefaultName"), Rc::new(FormPat::Call(n("DefaultToken"))))
+        .set(n("DefaultAtom"), Rc::new(FormPat::Call(n("DefaultToken"))))
         .set(n("DefaultReference"), Rc::new(VarRef(Rc::new(FormPat::Call(n("DefaultToken"))))))
         .set(n("Type"), Rc::new(FormPat::Call(n("DefaultToken"))));
 

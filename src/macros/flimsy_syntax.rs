@@ -295,8 +295,8 @@ fn parse_flimsy_ast(flimsy: &Ast, grammar: &FormPat) -> Ast {
         QuoteEscape(body, depth) => QuoteLess(Box::new(parse_flimsy_ast(flimsy, &*body)), *depth),
 
         Call(name) => {
-            // HACK: don't descend into `Call(n("DefaultName"))
-            if *name == n("DefaultName") {
+            // HACK: don't descend into `Call(n("DefaultAtom"))
+            if *name == n("DefaultAtom") {
                 match flimsy {
                     VariableReference(a) => Atom(*a),
                     non_atom => panic!("Needed an atom, got {}", non_atom),
