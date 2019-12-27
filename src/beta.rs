@@ -35,7 +35,7 @@ custom_derive! {
     There's probably a very elegant way to make `Beta` just another kind of `Ast`.
     Finding it might require some time in the math mines, though.
     */
-    #[derive(PartialEq, Eq, Clone, Reifiable)]
+    #[derive(PartialEq, Clone, Reifiable)]
     pub enum Beta {
         /// Both of these `Name`s refer to named terms in the current `Scope`
         ///  (or `ResEnv`, for `Ast`s).
@@ -93,8 +93,8 @@ impl Beta {
                 res
             }
             ShadowAll(_, ref drivers) => drivers.clone(),
-            Basic(n, v) => vec![n, v],
-            SameAs(n, v_source) => vec![n, v_source],
+            Basic(n, v) => vec![n],
+            SameAs(n, v_source) => vec![n],
             BoundButNotUsable(n) => vec![n],
             Underspecified(n) => vec![n],
             Protected(n) => vec![n],
@@ -112,8 +112,8 @@ impl Beta {
                 res
             }
             ShadowAll(ref sub, _) => sub.names_mentioned_and_bound(), // drivers is too broad!
-            Basic(n, v) => vec![n, v],
-            SameAs(n, v_source) => vec![n, v_source],
+            Basic(n, v) => vec![n],
+            SameAs(n, v_source) => vec![n],
             BoundButNotUsable(n) => vec![n],
             Underspecified(n) => vec![n],
         }
