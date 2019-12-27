@@ -39,6 +39,7 @@ thread_local! {
     static all_parse_contexts: RefCell<HashMap<UniqueIdRef, ParseContext>>
         = RefCell::new(HashMap::new());
 
+    // For parse error reporting: how far have we gotten?
     static best_token: RefCell<(usize, Rc<FormPat>, usize)>
         = RefCell::new((0, Rc::new(Impossible), 0));
 }
@@ -809,12 +810,16 @@ pub fn parse(rule: &FormPat, grammar: &SynEnv, envs: CodeEnvs, toks: &str) -> Pa
         None => best_token.with(|bt| {
             let (idx, ref grammar, pos) = *bt.borrow();
 
+            let line_begin = toks[0..idx].rfind('\n').map(|n| n+1).unwrap_or(0);
+            let line_end = toks[idx..toks.len()].find('\n').map(|n| n+idx).unwrap_or(toks.len());
+            let line_number = toks[0..idx].matches('\n').count()+1;
+
             Err(ParseError {
                 msg: format!(
-                    "Could not parse past token {}  “{}•{}” {:?} at {}",
-                    idx,
-                    &toks[0..idx],
-                    &toks[idx..toks.len()],
+                    "Could not parse past “{}•{}” (on line {}) \nin rule {:?} at {}",
+                    &toks[line_begin..idx],
+                    &toks[idx..line_end],
+                    line_number,
                     grammar,
                     pos
                 ),
