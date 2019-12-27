@@ -52,7 +52,7 @@ custom_derive! {
         /// Lookup a nonterminal in the current syntactic environment.
         Call(Name),
         /// This is where syntax gets extensible.
-        /// Parses its body in the named NT of the syntax environment computed from
+        /// Parses its body in the syntax environment computed from
         ///  the LHS and the current syntax environment.
         SynImport(Rc<FormPat>, Rc<FormPat>, SyntaxExtension),
 

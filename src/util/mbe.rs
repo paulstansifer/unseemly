@@ -14,21 +14,14 @@
 //  The original syntactic structure is irrelevant.
 //   but there's only one name (e.g. `arg_t`) for the entire list of matched syntax.
 //
-//  But that's okay:
-//   We will let the user put Kleene stars inside syntax quotation (macro transcription).
-//   The named pieces of syntax under the Kleene star control the number of repetitions:
-//    if each identifier either repeats `n` times or wasn't matched under a `*` at all,
-//     the star repeats `n` times, with the repeated syntax "marching in lockstep",
-//     and the non-`*`ed syntax duplicated
+// This whole thing nicely generalizes to nesting: we use variable-arity trees instead of lists,
+//  resulting in an `EnvMBE` (a March By Example Enviornment)
 //
-// This whole thing nicely generalizes to nesting: we use variable-arity trees instead of lists.
-//
-// This also generalizes outside the context of transcription:
-//  we will store an environment mapping names to variable-arity trees,
-//   and provide an operation ("march") that, given a set of names
-//     ("driving names", presumably the names "under the `*`")
-//    produces `n` environments, in which each of those names has a tree
-//     that is shorter by one level.
+// For getting information *out* of an `EnvMBE`,
+//  we provide an operation ("march") that, given a set of names
+//    ("driving names", presumably the names "under the `*`")
+//   produces `n` environments, in which each of those names has a tree
+//    that is shorter by one level.
 //
 // One problem: what if two of the "driving names" repeat a different numbers of times?
 // Traditionally, this is a runtime error,
@@ -74,19 +67,18 @@ use std::{fmt, rc::Rc};
 // How on earth can one data structure need so many variations on `map`?
 // There's got to be a better way!
 
-// custom_derive! {
-// `Clone` needs to traverse the whole `Vec` ):
 /// `EnvMBE` is like an environment,
-/// except that some of its contents are "repeats",
-/// which represent _n_ different values
-/// (or repeats of repeats, etc.).
+///  except that some of its contents are "repeats",
+///   which represent _n_ different values
+///    (or repeats of repeats, etc.).
 /// Non-repeated values may be retrieved by `get_leaf`.
 /// To access repeated values, one must `march` them,
-/// which produces _n_ different environments,
-/// in which the marched values are not repeated (or one layer less repeated).
+///  which produces _n_ different environments,
+///   in which the marched values are not repeated (or one layer less repeated).
 /// Marching multiple repeated values at once
-/// is only permitted if they were constructed to repeat the same number of times.
+///  is only permitted if they were constructed to repeat the same number of times.
 #[derive(Eq, Clone)]
+// `Clone` needs to traverse the whole `Vec` ):
 pub struct EnvMBE<T: Clone> {
     /// Non-repeated values
     leaves: Assoc<Name, T>,
@@ -111,7 +103,6 @@ pub struct EnvMBE<T: Clone> {
     /// The location in `repeats` that represents a specific repetition name.
     named_repeats: Assoc<Name, Option<usize>>,
 }
-//}
 
 // `custom_derive!` (or maybe `Reifiable!`) can't handle type bounds, so we need to do this manually
 impl<T: Clone + crate::runtime::reify::Reifiable> crate::runtime::reify::Reifiable for EnvMBE<T> {

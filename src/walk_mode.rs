@@ -14,7 +14,8 @@ pub trait WalkElt: Clone + Debug + Display + Reifiable + PartialEq {
     fn from_ast(a: &Ast) -> Self;
     fn to_ast(&self) -> Ast;
 
-    // Is this a hack?
+    // The default environment in a phase not previously visited.
+    // TODO: We should also use this to get the enviornment for the original phase!
     fn core_env() -> Assoc<Name, Self> { Assoc::<Name, Self>::new() }
 }
 
@@ -375,10 +376,6 @@ pub trait NegativeWalkMode: WalkMode {
             (&Node(ref f, _, _), &Node(ref f_actual, ref parts_actual, _)) if *f == *f_actual => {
                 Ok(parts_actual.clone())
             }
-            // // Why did we need this? Do we still need this?
-            // (VariableReference(n_lhs), VariableReference(n_rhs)) if n_lhs == n_rhs => {
-            //     Ok(EnvMBE::new()) // Nothing left to match. Is this a hack?
-            // }
             _ => {
                 // TODO: wouldn't it be nice to have match failures that
                 //  contained useful `diff`-like information for debugging,
