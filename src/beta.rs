@@ -6,7 +6,7 @@ use crate::{
     ast_walk::{LazilyWalkedTerm, LazyWalkReses},
     name::*,
     util::{assoc::Assoc, mbe::EnvMBE},
-    walk_mode::Dir,
+    walk_mode::{Dir, WalkElt},
 };
 use std::fmt;
 
@@ -44,7 +44,7 @@ custom_derive! {
         /// Like `Basic`, but here the second part is another expression
         /// which should be typechecked, and whose type the new name gets.
         /// (This can be used write to `let` without requiring a type annotation.)
-        SameAs(Name, Name),
+        SameAs(Name, Box<Ast>),
         /// Names are introduced here, but not bound to anything in particular
         /// (This can be useful for things that import themselves, to avoid infinite regress)
         BoundButNotUsable(Name),
@@ -83,18 +83,19 @@ impl fmt::Debug for Beta {
 }
 
 impl Beta {
+    // TODO: alpha.rs needs a version of this that o,ots the RHS of `Basic` and `SameAs`.
+    //  but macro.rs needds this version.
     pub fn names_mentioned(&self) -> Vec<Name> {
         match *self {
             Nothing => vec![],
             Shadow(ref lhs, ref rhs) => {
-                let mut res = lhs.names_mentioned();
-                let mut r_res = rhs.names_mentioned();
-                res.append(&mut r_res);
-                res
+                lhs.names_mentioned().into_iter().chain(rhs.names_mentioned().into_iter()).collect()
             }
             ShadowAll(_, ref drivers) => drivers.clone(),
-            Basic(n, v) => vec![n],
-            SameAs(n, v_source) => vec![n],
+            Basic(n, v) => vec![n, v],
+            SameAs(n, ref v_source) => {
+                vec![n].into_iter().chain(v_source.free_vrs().into_iter()).collect()
+            }
             BoundButNotUsable(n) => vec![n],
             Underspecified(n) => vec![n],
             Protected(n) => vec![n],
@@ -112,8 +113,8 @@ impl Beta {
                 res
             }
             ShadowAll(ref sub, _) => sub.names_mentioned_and_bound(), // drivers is too broad!
-            Basic(n, v) => vec![n],
-            SameAs(n, v_source) => vec![n],
+            Basic(n, _) => vec![n],
+            SameAs(n, _) => vec![n],
             BoundButNotUsable(n) => vec![n],
             Underspecified(n) => vec![n],
         }
@@ -190,10 +191,21 @@ pub fn env_from_beta<Mode: crate::walk_mode::WalkMode>(
 
         // `res_source` should be positive and `name_source` should be negative.
         // Gets the names from `name_source`, treating `res_source` as the context.
-        SameAs(name_source, res_source) => {
+        SameAs(name_source, ref res_source) => {
             use crate::walk_mode::WalkMode;
 
-            let ctxt: Mode::Elt = parts.switch_to_positive().get_res(res_source)?;
+            // TODO: isn't this unhygienic in the case of collisions between part names and
+            //  names already in the environment?
+            // Probably ought to just use `susbsitute` anyways.
+            let mut env_for_parts = parts.env.clone();
+            for n in res_source.free_vrs() {
+                env_for_parts = env_for_parts.set(n, parts.switch_to_positive().get_res(n)?);
+            }
+
+            let rhs_parts =
+                LazyWalkReses::<<Mode as WalkMode>::AsPositive>::new_wrapper(env_for_parts);
+            let ctxt: Mode::Elt =
+                crate::ast_walk::walk::<<Mode as WalkMode>::AsPositive>(&res_source, &rhs_parts)?;
 
             // Do the actual work:
             let res = parts.switch_to_negative().with_context(ctxt).get_res(name_source)?;
@@ -213,9 +225,7 @@ pub fn env_from_beta<Mode: crate::walk_mode::WalkMode>(
                 if !expected_res_keys.contains(k) {
                     panic!(
                         "{} was exported (we only wanted {:#?} via {:#?})",
-                        k,
-                        expected_res_keys,
-                        parts.get_term(res_source)
+                        k, expected_res_keys, res_source
                     );
                     // TODO: make this an `Err`. And test it with ill-formed `Form`s
                 }
@@ -236,10 +246,7 @@ pub fn env_from_beta<Mode: crate::walk_mode::WalkMode>(
 
             let mut res = Assoc::new();
             for name in expected_res_keys {
-                res = res.set(
-                    name,
-                    <Mode::Elt as crate::walk_mode::WalkElt>::from_ast(&crate::ast::Trivial),
-                );
+                res = res.set(name, <Mode::Elt as WalkElt>::from_ast(&crate::ast::Trivial));
             }
 
             Ok(res)
@@ -263,8 +270,6 @@ pub fn env_from_beta<Mode: crate::walk_mode::WalkMode>(
             if let LazilyWalkedTerm { term: ExtendEnv(ref boxed_vr, _), .. } =
                 **parts.parts.get_leaf_or_panic(name_source)
             {
-                use crate::walk_mode::WalkElt;
-
                 // HACK: rely on the fact that `walk_var`
                 //  won't recursively substitute until it "hits bottom"
                 // Drop the variable reference right into the environment.
@@ -470,6 +475,55 @@ pub fn freshening_from_beta(
             )
         }
     }
+}
+
+#[test]
+fn env_from_beta_basics() {
+    let trivial_form = crate::core_type_forms::type_defn("unused", form_pat!((impossible)));
+
+    let complex_ast = ast!({trivial_form;
+        "a" => "aa",
+        "b" => "bb",
+        "c" => (vr "my_int"),
+        "d" => (vr "S"),
+        "e" => [@"3" "e0", "e1", "e2"],
+        "f" => [@"3" (vr "S"), (vr "T"), (vr "S")],
+        "g" => [@"3" (vr "my_int"), (vr "my_int"), (vr "my_int")],
+        "S" => {"Type" "Nat" :} // same name as a varable in the environment
+    });
+
+    let lwr = LazyWalkReses::<crate::ty::SynthTy>::new(
+        assoc_n!("my_int" => uty!({Int :}), "S" => uty!(T), "T" => uty!({Int :})),
+        complex_ast.node_parts(),
+        complex_ast.clone(),
+    );
+
+    assert_eq!(env_from_beta(&beta!([]), &lwr), Ok(assoc_n!()));
+
+    assert_eq!(env_from_beta(&beta!(["a" : "d"]), &lwr), Ok(assoc_n!("aa" => uty!({Int :}))));
+
+    assert_eq!(
+        env_from_beta(&beta!([* ["e" : "f"]]), &lwr),
+        Ok(assoc_n!("e0" => uty!({Int :}), "e1" => uty!({Int :}), "e2" => uty!({Int :})))
+    );
+
+    assert_eq!(
+        env_from_beta(&beta!([*["e" = "g"]]), &lwr),
+        Ok(assoc_n!("e0" => uty!({Int :}), "e1" => uty!({Int :}), "e2" => uty!({Int :})))
+    );
+
+    assert_eq!(
+        env_from_beta(&beta!(["a" += {Type fn : [d] d}]), &lwr),
+        Ok(assoc_n!("aa" => uty!({fn : [{Int :}] {Int :}})))
+    );
+
+    // Name collision: why isn't this failing?
+    assert_eq!(
+        env_from_beta(&beta!(["a" += {Type fn : [d] S}]), &lwr),
+        Ok(assoc_n!("aa" => uty!({fn : [{Int :}] {Nat:}})))
+    );
+
+    assert_eq!(env_from_beta(&beta!(["a" : "S"]), &lwr), Ok(assoc_n!("aa" => uty!({Nat :}))));
 }
 
 // fn fold_beta<T>(b: Beta, over: Assoc<Name, T>,

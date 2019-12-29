@@ -347,7 +347,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         } {
             |parts| {
                 Ok(SameAs(vr_to_name(&parts.get_term(n("name"))),
-                          vr_to_name(&parts.get_term(n("type")))).reify())
+                          Box::new(parts.get_term(n("type")))).reify())
             }
         }) => [],
         syntax_syntax!(

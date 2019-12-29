@@ -37,11 +37,21 @@ macro_rules! assoc_n {
 // Beta
 
 macro_rules! beta_connector {
-    ( : ) => {
-        crate::beta::Basic
+    ($lhs:tt : $rhs:tt) => {
+        crate::beta::Basic(crate::name::n(expr_ify!($lhs)), crate::name::n(expr_ify!($rhs)))
     };
-    ( = ) => {
-        crate::beta::SameAs
+    ($lhs:tt = $rhs:tt) => {
+        crate::beta::SameAs(
+            crate::name::n(expr_ify!($lhs)),
+            Box::new(crate::ast::VariableReference(crate::name::n(expr_ify!($rhs)))),
+        )
+    };
+    // TODO: this needs a better notation, somehow
+    ($lhs:tt == $rhs:tt) => {
+        crate::beta::SameAs(crate::name::n(expr_ify!($lhs)), Box::new(ast!($rhs)))
+    };
+    ($lhs:tt += $rhs:tt) => {
+        crate::beta::SameAs(crate::name::n(expr_ify!($lhs)), Box::new(u!($rhs)))
     };
 }
 
@@ -71,14 +81,13 @@ macro_rules! beta {
     };
     // Just makes things prettier by not ending everything in " ▷ ∅":
     ( [ $name:tt $connector:tt $t:tt ] ) => {
-        beta_connector!($connector)(crate::name::n(expr_ify!($name)), crate::name::n(expr_ify!($t)))
+        beta_connector!($name $connector $t)
     };
     ( [ $name:tt $connector:tt $t:tt
         $( $rest:tt )*
          ] ) => {
-        crate::beta::Shadow(Box::new(beta_connector!($connector)(::name::n(expr_ify!($name)),
-                                                    crate::name::n(expr_ify!($t)))),
-               Box::new(beta!( [ $( $rest )* ] )))
+        crate::beta::Shadow(Box::new(beta_connector!($name $connector $t)),
+                            Box::new(beta!( [ $( $rest )* ] )))
     };
 }
 

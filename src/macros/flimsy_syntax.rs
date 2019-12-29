@@ -182,7 +182,7 @@ macro_rules! uty {
                 old_default_nt = def_nt.borrow().clone();
                 *def_nt.borrow_mut() = "Type".to_owned();
             });
-            let res = Ty(u!( $($ts)* ));
+            let res = crate::ty::Ty(u!( $($ts)* ));
 
             crate::macros::flimsy_syntax::default_nt.with(|def_nt| {
                 *def_nt.borrow_mut() = old_default_nt;
