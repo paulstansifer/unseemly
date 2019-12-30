@@ -342,7 +342,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         }) => [],
         syntax_syntax!(
             ([(named "name", (call "DefaultReference")),
-              (lit "="), (named "type", (call "DefaultReference"))]) SameAs {
+              (lit "="), (named "type", (call "Type"))]) SameAs {
             |_| icp!("Betas are not typed")
         } {
             |parts| {
@@ -548,8 +548,6 @@ pub fn make_core_macro_forms() -> SynEnv {
         // TODO: implement syntax for ComputeSyntax
         // Not sure if `Scope` syntax should be positive or negative.
         syntax_syntax!( ([(lit "forall"), (star (named "param", atom)), (lit "."),
-                          // We need an arbitrary negative_ret_val:
-                          (named "unused_type", (anyways {trivial_type_form ; } )),
                           (delim "'{", "{",
                               (named "syntax",
                                   (import [unusable "syntax"],
@@ -558,7 +556,8 @@ pub fn make_core_macro_forms() -> SynEnv {
                           (delim ".{", "{", (named "implementation",
                               // TODO `beta!` needs `Shadow` so we can combine these `import`s:
                               (import [* [forall "param"]],
-                                  (import ["syntax" = "unused_type"], (call "Expr"))))),
+                                  // Arbitrary context element:
+                                  (import ["syntax" == {trivial_type_form ; }], (call "Expr"))))),
                           (alt [], // TODO: needs proper `beta` structure, not just a name list:
                                [(lit "=>"), (star (named "export", atom))])])
         Scope {
@@ -654,10 +653,9 @@ pub fn extend_syntax() -> Rc<Form> {
                 [(star [(named "nt", atom),
                    (named "operator", (alt (lit "::="), (lit "::=also"))),
                    (named "rhs", (call "Syntax")),
-                   (named "unused_type", (anyways {trivial_type_form ; } )),
                    (lit ";")]),
                  (lit "in")],
-                (named "body", (import [* ["rhs" = "unused_type"]], (call "Expr"))),
+                (named "body", (import [* ["rhs" == {trivial_type_form ; }]], (call "Expr"))),
                 perform_extension)])),
         type_compare: Both(NotWalked, NotWalked),
         synth_type: Positive(Body(n("body"))),
@@ -679,7 +677,7 @@ fn formpat_reflection() {
         .set(n("DefaultToken"), Rc::new(crate::grammar::new_scan(r"\s*(\S+)")))
         .set(n("DefaultAtom"), Rc::new(FormPat::Call(n("DefaultToken"))))
         .set(n("DefaultReference"), Rc::new(VarRef(Rc::new(FormPat::Call(n("DefaultToken"))))))
-        .set(n("Type"), Rc::new(FormPat::Call(n("DefaultToken"))));
+        .set(n("Type"), Rc::new(FormPat::Call(n("DefaultReference"))));
 
     fn syntax_to_form_pat(a: Ast) -> FormPat { FormPat::reflect(&eval_top(&a).unwrap()) }
 
