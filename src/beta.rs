@@ -85,6 +85,7 @@ impl fmt::Debug for Beta {
 impl Beta {
     // TODO: alpha.rs needs a version of this that o,ots the RHS of `Basic` and `SameAs`.
     //  but macro.rs needds this version.
+    // (maybe it just needs `names_mentioned_and_bound`)
     pub fn names_mentioned(&self) -> Vec<Name> {
         match *self {
             Nothing => vec![],
@@ -464,6 +465,7 @@ pub fn freshening_from_beta(
             res
         }
         Protected(_n_s) => unimplemented!("Not hard, just not used yet"),
+        // TODO: n_s isn't necessarily just one name in the `SameAs` case! This is an ICP for sure.
         Basic(n_s, _) | SameAs(n_s, _) | Underspecified(n_s) | BoundButNotUsable(n_s) => {
             let this_name = crate::core_forms::ast_to_name(parts.get_leaf_or_panic(&n_s));
 

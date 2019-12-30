@@ -25,13 +25,13 @@ Unseemly has a bare minimum of forms
  * Macro By Example (easily implement n-ary forms without writing boilerplate loops).
 ### Unique features
  * Typechecking under syntax quotation
-   (so `'[Expr | (plus one ,[Expr | e1],)]'` is a type error
+   (so `'[Expr | (plus one ,[e1],)]'` is a type error
      if `e1` has the type `Expr <[String]<`)
  * No type errors in generated code
    (if a macro invocation typechecks, the code it expands to doesn't need typechecking).
  * Extensible parsing and lexing (write real SQL or real regexes inline, not strings).
 ### Other features
- * Full-featured REPL, with command history and line editing (courtesy of `rustyline`).
+ * Full-featured REPL, with persistent command history and line editing (courtesy of `rustyline`).
 
 
 ## How to use it

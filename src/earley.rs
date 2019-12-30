@@ -810,9 +810,9 @@ pub fn parse(rule: &FormPat, grammar: &SynEnv, envs: CodeEnvs, toks: &str) -> Pa
         None => best_token.with(|bt| {
             let (idx, ref grammar, pos) = *bt.borrow();
 
-            let line_begin = toks[0..idx].rfind('\n').map(|n| n+1).unwrap_or(0);
-            let line_end = toks[idx..toks.len()].find('\n').map(|n| n+idx).unwrap_or(toks.len());
-            let line_number = toks[0..idx].matches('\n').count()+1;
+            let line_begin = toks[0..idx].rfind('\n').map(|n| n + 1).unwrap_or(0);
+            let line_end = toks[idx..toks.len()].find('\n').map(|n| n + idx).unwrap_or(toks.len());
+            let line_number = toks[0..idx].matches('\n').count() + 1;
 
             Err(ParseError {
                 msg: format!(

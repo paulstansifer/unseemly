@@ -6,8 +6,7 @@ The file extension for Unseemly source code is `.≉`.
 ## Low-level structure
 The default Unseemly tokenizer is very simple.
 Tokens are only separated by whitespace and the *inside edges* of `([{}])`.
-Furthermore, groupers are named. Thus `[]`, `.[ ].`, `hi[ ]hi` are all legal,
- but `x[ ]` is not.
+You'll tend to see constructs like, `.[ ].`, `<[ ]<`, and `hi[ ]hi`.
 You need to leave more spaces than you're used to in normal languages.
 Probably, there's a reason that they have tokenizers
  that can't be described in five sentences.
@@ -53,11 +52,12 @@ Probably, there's a reason that they have tokenizers
     `extended_expr` is an expression in that new environment.
 
 †The rule for when you need a type annotation is a little weird.
-You only need an annotation if the outside of the quotation/unquotation is an expression,
- and the inside is a pattern.
+Honestly, it's probably best to leave off type annotations unless the typechecker complains.
+But the rule is this:
+ you only need an annotation if the outside of the quotation/unquotation is an expression,
+  and the inside is a pattern.
 The confusing part is that *whether* it's a quotation or unquotation is irrelevant!
  (Except that when an unquotation doesn't need an annotation, it needs no `Nonterminal` at all.)
-Honestly, it's probably best to leave off type annotations unless the typechecker complains.
 
 ## Pre-defined values
 * `zero` through `ten` are integers. (What are these "literals" you speak of?)
@@ -74,7 +74,7 @@ Honestly, it's probably best to leave off type annotations unless the typechecke
 * `*[component : pat  ⋯]*` deconstructs a structure value.
 
 * Quotation and unquotation are also useful as patterns.
-  The `<[Type]<` annotation is always optional starting from a pattern.
+  The type annotation is always optional starting from a pattern.
 
 
 ## Types
@@ -95,8 +95,8 @@ Honestly, it's probably best to leave off type annotations unless the typechecke
     For example, `List <[Int]<` is a list of integers.
     The technical term for this operator is "Fish X-ray".
 
-* `:::[ T >> Type]:::` requires `T` to refer to a tuple type. Suppose `T` is `**[A B Int]**`:
-    `:::[T >> [T -> X]]:::` is `**[[A->X] [B->X] [Int->X]]**`.
+* `:::[, T , >> Type]:::` requires `T` to refer to a tuple type. Suppose `T` is `**[A B Int]**`:
+    `:::[, T , >> [T -> X]]:::` is `**[[A -> X] [B -> X] [Int -> X]]**`.
 
 ## Pre-defined types
 * `Int` is a built-in type.
