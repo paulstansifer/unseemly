@@ -16,6 +16,7 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
             res
         }
         Scope(_, _) => vec![],
+        Pick(_, _) => vec![],
         Star(ref body)
         | Plus(ref body)
         | NameImport(ref body, _)
@@ -134,6 +135,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
             }
         }
         (&Scope(_, _), _) => "".to_string(), // Non-match
+        (&Pick(ref body, _), _) => unparse_mbe(&*body, actl, context, s),
         (&NameImport(ref body, _), &ExtendEnv(ref actl_body, _)) => {
             unparse_mbe(&*body, &*actl_body, context, s)
         }

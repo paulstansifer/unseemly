@@ -396,6 +396,9 @@ macro_rules! form_pat {
     ((call_by_name $n:expr)) => { crate::grammar::FormPat::Call($n) };
     ((scope $f:expr)) => { crate::grammar::FormPat::Scope($f, crate::beta::ExportBeta::Nothing) };
     ((scope $f:expr, $ebeta:tt)) => { crate::grammar::FormPat::Scope($f, ebeta!($ebeta)) };
+    ((pick $body:tt, $n:expr)) => {
+        crate::grammar::FormPat::Pick(std::rc::Rc::new(form_pat!($body)), crate::name::n($n))
+    };
     ((named $n:expr, $body:tt)) => {
         crate::grammar::FormPat::Named(crate::name::n($n), std::rc::Rc::new(form_pat!($body)))
     };

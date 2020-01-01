@@ -466,6 +466,7 @@ impl Item {
                         | Alt(_)
                         | Call(_)
                         | Scope(_, _)
+                        | Pick(_, _)
                         | Named(_, _)
                         | SynImport(_, _, _)
                         | NameImport(_, _)
@@ -554,7 +555,7 @@ impl Item {
                                 end,
                             )
                         }
-                        None => panic!("`Scan` must have one capture group"),
+                        None => self.finish_with(NothingYet, caps.get(0).unwrap().1),
                     }
                 } else {
                     vec![]
@@ -601,6 +602,7 @@ impl Item {
                 // form.grammar is a FormPat. Confusing!
                 self.start(&f.grammar, cur_idx)
             }
+            (0, &Pick(ref body, _)) => self.start(&body, cur_idx),
             (0, &SynImport(ref lhs, _, _)) => self.start(&lhs, cur_idx),
             (1, &SynImport(_, ref body, ref f)) => {
                 // TODO: handle errors properly! Probably need to memoize, also!
@@ -701,7 +703,8 @@ impl Item {
             Impossible => icp!("Parser parsed the impossible!"),
             Scan(_) => match self.local_parse.borrow().clone() {
                 ParsedAtom(a) => Ok(a),
-                _ => icp!("no simple parse saved"),
+                NothingYet => Ok(Ast::Trivial),
+                _ => icp!(),
             },
             VarRef(_) => match self.find_wanted(chart, done_tok).c_parse(chart, done_tok)? {
                 Ast::Atom(a) => Ok(Ast::VariableReference(a)),
@@ -768,6 +771,16 @@ impl Item {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
                 // TODO #14: We should add zero-length repeats of missing `Named`s,
                 Ok(Ast::Node(form.clone(), sub_parsed.flatten(), export.clone()))
+            }
+            Pick(_, name) => {
+                let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
+                sub_parsed
+                    .flatten()
+                    .get_leaf(name)
+                    .ok_or_else(|| ParseError {
+                        msg: format!("Nothing named {} in {:?}", name, sub_parsed),
+                    })
+                    .map(std::clone::Clone::clone)
             }
             NameImport(_, ref beta) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;

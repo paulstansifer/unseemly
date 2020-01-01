@@ -60,6 +60,8 @@ custom_derive! {
         Scope(Rc<Form>, ExportBeta),
         /// Matches a pattern and gives it a name (inside the current `Scope`)
         Named(Name, Rc<FormPat>),
+        /// Like a `Scope`, but just returns whatever has the given name
+        Pick(Rc<FormPat>, Name),
 
         /// FOOTGUN:  NameImport(Named(...), ...) is almost always wrong.
         ///  (write Named(NameImport(..., ...)) instead)
@@ -85,7 +87,7 @@ impl FormPat {
                 }
                 res
             }
-            Scope(_, _) => vec![], // No more bindings in this scope
+            Scope(_, _) | Pick(_, _) => vec![], // No more bindings in this scope
             Star(ref body) | Plus(ref body) => {
                 body.binders().into_iter().map(|(n, depth)| (n, depth + 1)).collect()
             }
@@ -118,7 +120,7 @@ impl FormPat {
             }
             Named(_, _) => None, // Otherwise, skip
             Call(_) => None,
-            Scope(_, _) => None, // Only look in the current scope
+            Scope(_, _) | Pick(_, _) => None, // Only look in the current scope
             Anyways(_) | Impossible | Scan(_) => None,
             Star(ref body)
             | Plus(ref body)
@@ -328,6 +330,17 @@ fn advanced_parsing() {
              {igi.clone(); ["c" => "H"]}, {ttt.clone(); ["c" => "O"]},
              {ttt.clone(); ["c" => "X"]}, {igi; ["c" => "H"]},
              {ttt; ["c" => "O"]}]})
+    );
+
+    assert_eq!(
+        parse_top(
+            &form_pat!(
+                (star (named "it", (pick
+                    [(named "even", varref_aat), (named "odd", varref_aat)], "odd")))),
+            tokens_s!("A" "B" "C" "D" "E" "F")
+        )
+        .unwrap(),
+        ast!({- "it" => [(vr "B"), (vr "D"), (vr "F")]})
     );
 
     let pair_form = simple_form(
