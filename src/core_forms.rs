@@ -507,30 +507,6 @@ pub fn make_core_syn_env() -> SynEnv {
         n("struct"),
         n("fold"),
         n("unfold"),
-        n("("),
-        n(")"),
-        n("{"),
-        n("}"),
-        n("<["),
-        n("]<"),
-        n(".["),
-        n("]."),
-        n("'["),
-        n("]'"),
-        n(",["),
-        n("],"),
-        n("+["),
-        n("]+"),
-        n("*["),
-        n("]*"),
-        n("...["),
-        n("]..."),
-        n(">>"),
-        n("|"),
-        n("."),
-        n(":"),
-        n("=>"),
-        n("->"),
         n("extend_syntax"),
         n("in"),
     ];
@@ -540,9 +516,17 @@ pub fn make_core_syn_env() -> SynEnv {
         "Expr" => Rc::new(Biased(Rc::new(main_expr_forms), Rc::new(Call(n("DefaultReference"))))),
         "Ident" => Rc::new(Call(n("DefaultAtom"))),
         "DefaultReference" => Rc::new(VarRef(Rc::new(Call(n("DefaultAtom"))))),
-        "DefaultAtom" => Rc::new(form_pat!((reserved_by_name_vec (call "DefaultToken"), reserved_names))),
-        "DefaultToken" => Rc::new(crate::grammar::new_scan(
-            r"\s*([\]\)\}][^\[\]\(\)\{\}\s]*|[^\[\]\(\)\{\}\s]*[\[\(\{]|[^\[\]\(\)\{\}\s]+)"))
+        "DefaultSeparator" => Rc::new(crate::grammar::new_scan(r"(\s*)")),
+        "DefaultAtom" => Rc::new(form_pat!(
+            (pick [(call "DefaultSeparator"),
+                   (named "name", (reserved_by_name_vec
+                        (scan r"(\p{Letter}(?:\p{Letter}|\p{Number}|[_?])*)"), reserved_names))],
+            "name"))),
+        "DefaultToken" => Rc::new(form_pat!(
+            (pick [(call "DefaultSeparator"),
+                   (named "tok",
+                       (scan r"([\]\)\}][^\[\]\(\)\{\}\s]*|[^\[\]\(\)\{\}\s]*[\[\(\{]|[^\[\]\(\)\{\}\s]+)"))],
+            "tok")))
     )
     .set_assoc(&ctf)
     .set_assoc(&cmf) // throw in the types and macros!

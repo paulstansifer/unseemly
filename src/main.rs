@@ -428,17 +428,17 @@ fn end_to_end_int_list_tools() {
     );
 
     assert_m!(
-        assign_variable("3_ilist", "fold +[Cons three mt_ilist]+ : IntListUF : IntList"),
+        assign_variable("ilist_3", "fold +[Cons three mt_ilist]+ : IntListUF : IntList"),
         Ok(_)
     );
 
     assert_m!(
-        assign_variable("23_ilist", "fold +[Cons two 3_ilist]+ : IntListUF : IntList"),
+        assign_variable("ilist_23", "fold +[Cons two ilist_3]+ : IntListUF : IntList"),
         Ok(_)
     );
 
     assert_m!(
-        assign_variable("123_ilist", "fold +[Cons one 23_ilist]+ : IntListUF : IntList"),
+        assign_variable("ilist_123", "fold +[Cons one ilist_23]+ : IntListUF : IntList"),
         Ok(_)
     );
 
@@ -453,7 +453,7 @@ fn end_to_end_int_list_tools() {
         Ok(_)
     );
 
-    assert_eq!(eval_unseemly_program("(sum_int_list 123_ilist)"), Ok(val!(i 6)));
+    assert_eq!(eval_unseemly_program("(sum_int_list ilist_123)"), Ok(val!(i 6)));
 
     assert_m!(
         assign_variable(
@@ -466,7 +466,7 @@ fn end_to_end_int_list_tools() {
         Ok(_)
     );
 
-    assert_eq!(eval_unseemly_program("(int_list_len 123_ilist)"), Ok(val!(i 3)));
+    assert_eq!(eval_unseemly_program("(int_list_len ilist_123)"), Ok(val!(i 3)));
 }
 
 #[test]
@@ -487,17 +487,17 @@ fn end_to_end_list_tools() {
     );
 
     assert_m!(
-        assign_variable("3_list", "fold +[Cons three mt_list]+ : ListUF <[Int]< : List <[Int]<"),
+        assign_variable("list_3", "fold +[Cons three mt_list]+ : ListUF <[Int]< : List <[Int]<"),
         Ok(_)
     );
 
     assert_m!(
-        assign_variable("23_list", "fold +[Cons two 3_list]+ : ListUF <[Int]< : List <[Int]<"),
+        assign_variable("list_23", "fold +[Cons two list_3]+ : ListUF <[Int]< : List <[Int]<"),
         Ok(_)
     );
 
     assert_m!(
-        assign_variable("123_list", "fold +[Cons one 23_list]+ : ListUF <[Int]< : List <[Int]<"),
+        assign_variable("list_123", "fold +[Cons one list_23]+ : ListUF <[Int]< : List <[Int]<"),
         Ok(_)
     );
 
@@ -513,7 +513,7 @@ fn end_to_end_list_tools() {
         Ok(_)
     );
 
-    assert_eq!(eval_unseemly_program("(list_len 123_list)"), Ok(val!(i 3)));
+    assert_eq!(eval_unseemly_program("(list_len list_123)"), Ok(val!(i 3)));
 
     assert_m!(
         assign_variable(
@@ -531,9 +531,9 @@ fn end_to_end_list_tools() {
     // It should probably be an error to have a value typed with an underdetermined type.
 
     // TODO: it's way too much of a pain to define each different expected result list.
-    assert_m!(eval_unseemly_program("(map 123_list .[x : Int . (plus x one)]. )"), Ok(_));
+    assert_m!(eval_unseemly_program("(map list_123 .[x : Int . (plus x one)]. )"), Ok(_));
 
-    assert_m!(eval_unseemly_program("(map 123_list .[x : Int . (equal? x two)]. )"), Ok(_));
+    assert_m!(eval_unseemly_program("(map list_123 .[x : Int . (equal? x two)]. )"), Ok(_));
 }
 
 #[test]
@@ -686,7 +686,7 @@ fn language_building() {
     assert_eq!(
         eval_unseemly_program(
             r"extend_syntax
-                DefaultToken ::= /(?:\s|#[^\n]*)*(\S+)/ ;
+                DefaultSeparator ::= /((?:\s|#[^\n]*)*)/ ;
             in
                 # Now we have comments! (just not after the last token)
             five"

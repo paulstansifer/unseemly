@@ -10,9 +10,9 @@ ListUF t= forall T . enum { Nil () Cons (T List <[T]<) }
 nil := forall T . . fold +[Nil]+ : ListUF <[T]< : List <[T]<
 cons := forall T . .[hd : T  tl : List <[T]< . fold +[Cons hd tl]+ : ListUF <[T]< : List <[T]<].
 # `zero` through `ten`, `plus`, `minus`, `times`, `zero?`, and `equal?` are built-in. So are `false` and `true`.
-3_list := (cons three nil)
-23_list := (cons two 3_list)
-123_list := (cons one 23_list)
+list_3 := (cons three nil)
+list_23 := (cons two list_3)
+list_123 := (cons one list_23)
 # Matching a recursive type always requires unfolding it first.
 sum_list := (fix .[again : [-> [List <[Int]< -> Int]] . .[ lst : List <[Int]< . match unfold lst { +[Nil]+ => zero +[Cons hd tl]+ => (plus hd ((again) tl))} ]. ]. )
 list_len := forall T . (fix .[again : [-> [List <[T]< -> Int]] . .[ lst : List <[T]< . match unfold lst { +[Nil]+ => zero +[Cons hd tl]+ => (plus one ((again) tl))} ]. ].)
@@ -24,4 +24,4 @@ map := forall T S . (fix .[again : [-> [[T -> S] List <[T]< -> List <[S]<]] . .[
 
 
 # Example code that isn't a useful definition, and so doesn't belong in the prelude:
-#    (map .[x : Int . (times x two)]. 123_list)
+#    (map .[x : Int . (times x two)]. list_123)

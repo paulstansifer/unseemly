@@ -9,9 +9,9 @@ IntListUF t= enum { Nil () Cons (Int IntList) }
 
 # Constructing an enum requires a type annotation, as does `fold`.
 empty_ilist := fold +[Nil]+ : IntListUF : IntList
-3_ilist := fold +[Cons three empty_ilist]+ : IntListUF : IntList
-23_ilist := fold +[Cons two 3_ilist]+ : IntListUF : IntList
-123_ilist := fold +[Cons one 23_ilist]+ : IntListUF : IntList
+ilist_3 := fold +[Cons three empty_ilist]+ : IntListUF : IntList
+ilist_23 := fold +[Cons two ilist_3]+ : IntListUF : IntList
+ilist_123 := fold +[Cons one ilist_23]+ : IntListUF : IntList
 
 
 sum_int_list := (fix .[again : [-> [IntList -> Int]] . .[ lst : IntList . match unfold lst { +[Nil]+ => zero +[Cons hd tl]+ => (plus hd ((again) tl))} ]. ]. )
@@ -29,9 +29,9 @@ empty_int_list := fold +[Nil]+ : ListUF <[Int]< : List <[Int]<
 # In order to prevent having to write *two* type annotations every cons, let's define a helper function:
 cons := forall T . .[ car : T  cdr : List <[T]<  .  fold +[Cons car cdr]+ : ListUF <[T]< : List <[T]< ].
 
-3_list := (cons three empty_int_list)
-23_list := (cons two 3_list)
-123_list := (cons one 23_list)
+list_3 := (cons three empty_int_list)
+list_23 := (cons two list_3)
+list_123 := (cons one list_23)
 
-# Now try `(list_len 123_list)`!
+# Now try `(list_len list_123)`!
 # Remember to save useful things to the prelude!
