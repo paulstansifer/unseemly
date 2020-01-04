@@ -20,7 +20,7 @@ custom_derive! {
     ///   and `Scope` produces a `Node`, which maps names to what they got.
     #[derive(Debug, Clone, Reifiable, PartialEq)]
     pub enum FormPat {
-        /// Matches 0 tokens, produces the argument
+        /// Matches 0 tokens, produces the `Ast`
         Anyways(Ast),
         /// Never matches
         Impossible,
@@ -29,6 +29,10 @@ custom_derive! {
         /// The regex must have a single capturing group.
         /// The contents of the capturing group are
         Scan(Scanner),
+
+        /// Marks this rule as too commonly-used to be informative;
+        ///  prevents display of this rule in parse errors,
+        Common(Rc<FormPat>),
 
         /// Matches an atom or varref, but not if it's on the list of reserved words
         Reserved(Rc<FormPat>, Vec<Name>),
@@ -96,6 +100,7 @@ impl FormPat {
             | NameImport(ref body, _)
             | QuoteDeepen(ref body, _)
             | QuoteEscape(ref body, _)
+            | Common(ref body)
             | Reserved(ref body, _) => body.binders(),
             Biased(ref body_a, ref body_b) => {
                 body_a.binders().tap(|v| v.append(&mut body_b.binders()))
@@ -130,6 +135,7 @@ impl FormPat {
             | VarRef(ref body)
             | QuoteDeepen(ref body, _)
             | QuoteEscape(ref body, _)
+            | Common(ref body)
             | Reserved(ref body, _) => body.find_named_call(n),
             Seq(ref bodies) | Alt(ref bodies) => {
                 for body in bodies {

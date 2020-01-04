@@ -24,6 +24,7 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
         | Literal(ref body, _)
         | QuoteDeepen(ref body, _)
         | QuoteEscape(ref body, _)
+        | Common(ref body)
         | Reserved(ref body, _) => node_names_mentioned(&*body),
         Seq(ref sub_pats) | Alt(ref sub_pats) => {
             let mut res = vec![];
@@ -135,7 +136,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
             }
         }
         (&Scope(_, _), _) => "".to_string(), // Non-match
-        (&Pick(ref body, _), _) => unparse_mbe(&*body, actl, context, s),
+        (&Pick(ref body, _), _) | (&Common(ref body), _) => unparse_mbe(&*body, actl, context, s),
         (&NameImport(ref body, _), &ExtendEnv(ref actl_body, _)) => {
             unparse_mbe(&*body, &*actl_body, context, s)
         }

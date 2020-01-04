@@ -518,16 +518,16 @@ pub fn make_core_syn_env() -> SynEnv {
         "DefaultReference" => Rc::new(VarRef(Rc::new(Call(n("DefaultAtom"))))),
         "DefaultSeparator" => Rc::new(crate::grammar::new_scan(r"(\s*)")),
         "DefaultAtom" => Rc::new(
-            form_pat!((reserved_by_name_vec (call "DefaultWord"), reserved_names))),
-        "DefaultWord" => Rc::new(form_pat!((pick [(call "DefaultSeparator"),
+            form_pat!((common (reserved_by_name_vec (call "DefaultWord"), reserved_names)))),
+        "DefaultWord" => Rc::new(form_pat!((common (pick [(call "DefaultSeparator"),
             (named "name", (scan r"(\p{Letter}(?:\p{Letter}|\p{Number}|[_?])*)"))],
-                "name"))),
+                "name")))),
         // TODO: come up with more normal tokenization rules
         "DefaultToken" => Rc::new(form_pat!(
-            (pick [(call "DefaultSeparator"),
+           (common (pick [(call "DefaultSeparator"),
                    (named "tok",
                        (scan r"([\]\)\}][^\[\]\(\)\{\}\s]*|[^\[\]\(\)\{\}\s]*[\[\(\{]|[^\[\]\(\)\{\}\s]+)"))],
-            "tok")))
+            "tok"))))
     )
     .set_assoc(&ctf)
     .set_assoc(&cmf) // throw in the types and macros!

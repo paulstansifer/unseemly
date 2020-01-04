@@ -367,6 +367,9 @@ macro_rules! form_pat {
     ((reserved_by_name_vec $body:tt, $names:expr)) => {
         crate::grammar::FormPat::Reserved(std::rc::Rc::new(form_pat!($body)), $names)
     };
+    ((common $body:tt)) => {
+        crate::grammar::FormPat::Common(std::rc::Rc::new(form_pat!($body)))
+    };
     ((anyways $a:tt)) => { crate::grammar::FormPat::Anyways(ast!($a)) };
     ((impossible)) => { crate::grammar::FormPat::Impossible };
     (atom) => { crate::grammar::FormPat::Call(crate::name::n("DefaultAtom")) };

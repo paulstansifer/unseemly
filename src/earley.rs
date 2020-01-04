@@ -122,7 +122,11 @@ pub struct Item {
     /// Environments, for typing/evaluating syntax extensions
     envs: Rc<CodeEnvs>,
 
-    // Everything after this line is nonstandard, and is just here as an optimization
+    // -- Just for error messages --
+    /// This rule is too commonplace to be informative in a parse error
+    common: bool,
+
+    // -- Everything after this line is nonstandard, and is just here as an optimization--
     /// Identity for the purposes of `wanted_by` and `local_parse`
     id: UniqueId,
 
@@ -147,7 +151,7 @@ pub struct Item {
     ///
     /// This, uh, might be an excessively cocky design.
     /// But searching item lists is *hard* when your Earley parser
-    ///  has so many different kings of rules!
+    ///  has so many different kinds of rules!
     wanted_by: Rc<RefCell<Vec<UniqueIdRef>>>,
 }
 
@@ -195,6 +199,7 @@ impl Clone for Item {
             pos: self.pos,
             grammar: self.grammar.clone(),
             envs: self.envs.clone(),
+            common: self.common,
             id: get_next_id(),
             done: self.done.clone(),
             local_parse: RefCell::new(LocalParse::NothingYet),
@@ -224,6 +229,7 @@ fn create_chart(
         pos: 0,
         grammar: grammar,
         envs: Rc::new(envs),
+        common: false,
         id: get_next_id(),
         done: RefCell::new(false),
         local_parse: RefCell::new(LocalParse::NothingYet),
@@ -403,6 +409,7 @@ impl Item {
                 done: RefCell::new(false),
                 grammar: self.grammar.clone(),
                 envs: self.envs.clone(),
+                common: self.common,
                 local_parse: RefCell::new(LocalParse::NothingYet),
                 id: get_next_id(),
                 wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()])),
@@ -471,7 +478,8 @@ impl Item {
                         | SynImport(_, _, _)
                         | NameImport(_, _)
                         | QuoteDeepen(_, _)
-                        | QuoteEscape(_, _) => waiting_item.finish_with(me_justif, 0),
+                        | QuoteEscape(_, _)
+                        | Common(_) => waiting_item.finish_with(me_justif, 0),
                         // Using `c_parse` instead of `local_parse` here is weird,
                         //  but probably necessary to allow `Call` under `Reserved`.
                         Reserved(_, ref name_list) => match self.c_parse(chart, cur_idx) {
@@ -520,7 +528,7 @@ impl Item {
         if !res.is_empty() {
             if let Call(_) = *res[0].0.rule {
                 // HACK: I think that `Call` is uninformative
-            } else {
+            } else if !self.common {
                 best_token
                     .with(|bt| *bt.borrow_mut() = (cur_idx, res[0].0.rule.clone(), res[0].0.pos));
             }
@@ -637,6 +645,7 @@ impl Item {
                         done: RefCell::new(false),
                         grammar: new_ctxt.grammar.clone(),
                         envs: Rc::new((new_ctxt.type_ctxt.clone(), new_ctxt.eval_ctxt.clone())),
+                        common: false,
                         local_parse: RefCell::new(LocalParse::NothingYet),
                         id: get_next_id(),
                         wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()])),
@@ -649,6 +658,11 @@ impl Item {
             | (0, &QuoteDeepen(ref body, _))
             | (0, &QuoteEscape(ref body, _))
             | (0, &Reserved(ref body, _)) => self.start(&body, cur_idx),
+            (0, &Common(ref body)) => {
+                let mut res = self.start(&body, cur_idx);
+                res[0].0.common = true; // Only has one element
+                res
+            }
             // Rust rightly complains that this is unreachable; yay!
             // But how do I avoid a catch-all pattern for the pos > 0 case?
             //(0, _) =>  { icp!("unhandled FormPat") },
@@ -710,7 +724,7 @@ impl Item {
                 Ast::Atom(a) => Ok(Ast::VariableReference(a)),
                 _ => icp!("no atom saved"),
             },
-            Literal(_, _) | Alt(_) | Biased(_, _) | Call(_) | Reserved(_, _) => {
+            Literal(_, _) | Alt(_) | Biased(_, _) | Call(_) | Reserved(_, _) | Common(_) => {
                 self.find_wanted(chart, done_tok).c_parse(chart, done_tok)
             }
             Seq(_) | Star(_) | Plus(_) | SynImport(_, _, _) => {
@@ -859,6 +873,7 @@ fn earley_merging() {
         pos: 0,
         grammar: main_grammar.clone(),
         envs: Rc::new((LazyWalkReses::new_empty(), LazyWalkReses::new_empty())),
+        common: false,
         id: get_next_id(),
         done: RefCell::new(false),
         local_parse: RefCell::new(LocalParse::NothingYet),
