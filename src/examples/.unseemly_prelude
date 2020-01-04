@@ -17,17 +17,17 @@ ilist_123 := fold +[Cons one ilist_23]+ : IntListUF : IntList
 sum_int_list := (fix .[again : [-> [IntList -> Int]] . .[ lst : IntList . match unfold lst { +[Nil]+ => zero +[Cons hd tl]+ => (plus hd ((again) tl))} ]. ]. )
 
 # Parametric recursive types:
-# Note: There's no type relationship between `IntList` and `List <[Int]<`. Use the latter!
-List t= forall T . mu_type List . enum { Nil () Cons (T List <[T]<) }
-ListUF t= forall T . enum { Nil () Cons (T List <[T]<) }
+# Note: There's no type relationship between `IntList` and `List<Int>`. Use the latter!
+List t= forall T . mu_type List . enum { Nil () Cons (T List<T>) }
+ListUF t= forall T . enum { Nil () Cons (T List<T>) }
 
 # Accepting parametrically-typed arguments:
-list_len := forall T . (fix .[again : [-> [List <[T]< -> Int]] . .[ lst : List <[T]< . match unfold lst { +[Nil]+ => zero +[Cons hd tl]+ => (plus one ((again) tl))} ]. ].)
+list_len := forall T . (fix .[again : [-> [List<T> -> Int]] . .[ lst : List<T> . match unfold lst { +[Nil]+ => zero +[Cons hd tl]+ => (plus one ((again) tl))} ]. ].)
 
-empty_int_list := fold +[Nil]+ : ListUF <[Int]< : List <[Int]<
+empty_int_list := fold +[Nil]+ : ListUF<Int> : List<Int>
 
 # In order to prevent having to write *two* type annotations every cons, let's define a helper function:
-cons := forall T . .[ car : T  cdr : List <[T]<  .  fold +[Cons car cdr]+ : ListUF <[T]< : List <[T]< ].
+cons := forall T . .[ car : T  cdr : List<T>  .  fold +[Cons car cdr]+ : ListUF<T> : List<T> ].
 
 list_3 := (cons three empty_int_list)
 list_23 := (cons two list_3)

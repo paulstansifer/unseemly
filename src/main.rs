@@ -472,40 +472,40 @@ fn end_to_end_int_list_tools() {
 #[test]
 fn end_to_end_list_tools() {
     assert_m!(
-        assign_t_var("List", "forall T . mu_type List . enum { Nil () Cons (T List <[T]<) }"),
+        assign_t_var("List", "forall T . mu_type List . enum { Nil () Cons (T List<T>) }"),
         Ok(_)
     );
 
-    assert_m!(assign_t_var("ListUF", "forall T . enum { Nil () Cons (T List <[T]<) }"), Ok(_));
+    assert_m!(assign_t_var("ListUF", "forall T . enum { Nil () Cons (T List<T>) }"), Ok(_));
 
     assert_m!(
         assign_variable(
             "mt_list",
-            "fold +[Nil]+ : enum { Nil () Cons (Int List <[Int]<) } : List <[Int]<"
+            "fold +[Nil]+ : enum { Nil () Cons (Int List < Int > ) } : List < Int > "
         ),
         Ok(_)
     );
 
     assert_m!(
-        assign_variable("list_3", "fold +[Cons three mt_list]+ : ListUF <[Int]< : List <[Int]<"),
+        assign_variable("list_3", "fold +[Cons three mt_list]+ : ListUF<Int> : List<Int>"),
         Ok(_)
     );
 
     assert_m!(
-        assign_variable("list_23", "fold +[Cons two list_3]+ : ListUF <[Int]< : List <[Int]<"),
+        assign_variable("list_23", "fold +[Cons two list_3]+ : ListUF<Int> : List<Int>"),
         Ok(_)
     );
 
     assert_m!(
-        assign_variable("list_123", "fold +[Cons one list_23]+ : ListUF <[Int]< : List <[Int]<"),
+        assign_variable("list_123", "fold +[Cons one list_23]+ : ListUF<Int> : List<Int>"),
         Ok(_)
     );
 
     assert_m!(
         assign_variable(
             "list_len",
-            "forall S . (fix .[again : [-> [List <[S]< -> Int]] .
-            .[ lst : List <[S]< .
+            "forall S . (fix .[again : [-> [List<S> -> Int]] .
+            .[ lst : List<S> .
                 match unfold lst {
                     +[Nil]+ => zero
                     +[Cons hd tl]+ => (plus one ((again) tl))} ]. ].)"
@@ -518,12 +518,12 @@ fn end_to_end_list_tools() {
     assert_m!(
         assign_variable(
             "map",
-            "forall T S . (fix  .[again : [-> [List <[T]<  [T -> S] -> List <[S]< ]] .
-            .[ lst : List <[T]<   f : [T -> S] .
+            "forall T S . (fix  .[again : [-> [List<T>  [T -> S] -> List<S> ]] .
+            .[ lst : List<T>   f : [T -> S] .
                 match unfold lst {
-                    +[Nil]+ => fold +[Nil]+ : ListUF <[S]< : List <[S]<
+                    +[Nil]+ => fold +[Nil]+ : ListUF<S> : List<S>
                     +[Cons hd tl]+ =>
-                      fold +[Cons (f hd) ((again) tl f)]+ : ListUF <[S]< : List <[S]< } ]. ].)"
+                      fold +[Cons (f hd) ((again) tl f)]+ : ListUF<S> : List<S> } ]. ].)"
         ),
         Ok(_)
     );
@@ -544,7 +544,7 @@ fn end_to_end_quotation_basic() {
 
     assert_m!(eval_unseemly_program("'[Expr | '[Expr | (plus five five) ]' ]'"), Ok(_));
 
-    //≫ .[s : Expr <[Int]< . '[Expr | ( ,[Expr | s], '[Expr | ,[Expr | s], ]')]' ].
+    //≫ .[s : Expr<Int> . '[Expr | ( ,[Expr | s], '[Expr | ,[Expr | s], ]')]' ].
 }
 #[test]
 fn subtyping_direction() {
@@ -577,7 +577,7 @@ fn subtyping_direction() {
 fn end_to_end_quotation_advanced() {
     assert_eq!(
         eval_unseemly_program(
-            "(.[five_e : Expr <[Int]< .
+            "(.[five_e : Expr < Int >.
                 '[Expr | (plus five ,[five_e],) ]' ].
                 '[Expr | five]')"
         ),
@@ -587,7 +587,7 @@ fn end_to_end_quotation_advanced() {
     // Pass the wrong type (not really a test of quotation)
     assert_m!(
         type_unseemly_program(
-            "(.[five_e : Expr <[Int]< .
+            "(.[five_e : Expr<Int> .
                 '[Expr | (plus five ,[five_e],) ]' ].
                 '[Expr | true]')"
         ),
@@ -597,7 +597,7 @@ fn end_to_end_quotation_advanced() {
     // Interpolate the wrong type
     assert_m!(
         type_unseemly_program(
-            "(.[five_e : Expr <[Bool]< .
+            "(.[five_e : Expr<Bool> .
                 '[Expr | (plus five ,[five_e],) ]' ].
                 '[Expr | true]')"
         ),
@@ -606,25 +606,25 @@ fn end_to_end_quotation_advanced() {
 
     // Interpolate the wrong type (no application needed to find the error)
     assert_m!(
-        type_unseemly_program(".[five_e : Expr <[Bool]< . '[Expr | (plus five ,[five_e],) ]' ]."),
+        type_unseemly_program(".[five_e : Expr<Bool> . '[Expr | (plus five ,[five_e],) ]' ]."),
         Err(_)
     );
 
     assert_m!(
         eval_unseemly_program(
-            "forall T . .[type : Type <[T]<   rhs : Expr <[T]<
-                . '[Expr | (.[x : ,[Type <[T]< | type], . eight].  ,[rhs], )]' ]."
+            "forall T . .[type : Type<T>   rhs : Expr<T>
+                . '[Expr | (.[x : ,[Type<T> | type], . eight].  ,[rhs], )]' ]."
         ),
         Ok(_)
     );
 
-    assert_m!(eval_unseemly_program("'[Pat <[Nat]< | x]'"), Ok(_));
+    assert_m!(eval_unseemly_program("'[Pat<Nat> | x]'"), Ok(_));
 
     // Actually import a pattern of quoted syntax:
     assert_eq!(
         eval_unseemly_program(
             "match '[Expr | (plus one two) ]' {
-                 '[Expr <[Int]< | (plus ,[Expr <[Int]< | e], two) ]' => e }"
+                 '[Expr<Int> | (plus ,[Expr<Int> | e], two) ]' => e }"
         ),
         Ok(val!(ast (vr "one")))
     );
@@ -636,12 +636,12 @@ fn end_to_end_quotation_advanced() {
     assert_m!(
         assign_variable(
             "let",
-            "forall T S . .[binder : Pat <[T]<
-                        type : Type <[T]<
-                        rhs : Expr <[T]<
-                        body : Expr <[S]< .
+            "forall T S . .[binder : Pat<T>
+                        type : Type<T>
+                        rhs : Expr<T>
+                        body : Expr<S> .
              '[ Expr | (.[x : ,[type],
-                     . match x { ,[Pat <[T]< | binder], => ,[body], } ].
+                     . match x { ,[Pat<T> | binder], => ,[body], } ].
                  ,[rhs],)]' ]."
         ),
         Ok(_)
@@ -650,19 +650,19 @@ fn end_to_end_quotation_advanced() {
     without_freshening! {
         assert_eq!(
             eval_unseemly_program(
-                "(let  '[Pat <[Int]< | y]'
-                       '[Type <[Int]< | Int]'
-                       '[Expr <[Int]< | eight]'
-                       '[Expr <[Int]< | five]')"),
-            eval_unseemly_program("'[Expr <[Int]< | (.[x : Int . match x {y => five}].  eight)]'"));
+                "(let  '[Pat<Int> | y]'
+                       '[Type<Int> | Int]'
+                       '[Expr<Int> | eight]'
+                       '[Expr<Int> | five]')"),
+            eval_unseemly_program("'[Expr<Int> | (.[x : Int . match x {y => five}].  eight)]'"));
     }
 
     //  // We need tuple literals before we can test this:
     //  assert_m!(assign_variable("let-multi",
-    //      "forall T . .[ binder : **[ :::[T >> Ident <[T]< ]::: ]**
-    //                     type : **[ :::[T >> Type <[T]< ]::: ]**
-    //                     rhs : **[ :::[T >> Expr <[T]< ]::: ]**
-    //                     body : Expr <[S]< .
+    //      "forall T . .[ binder : **[ :::[T >> Ident<T> ]::: ]**
+    //                     type : **[ :::[T >> Type<T> ]::: ]**
+    //                     rhs : **[ :::[T >> Expr<T> ]::: ]**
+    //                     body : Expr<S> .
     //          '[Expr | (.[ ...[, binder , >> ,[Ident | binder],]...
     //                       : ...[, type , >> ,[Type | type], ]... .
     //                    ,[body], ].
@@ -673,11 +673,11 @@ fn end_to_end_quotation_advanced() {
     //  without_freshening! {
     //      assert_eq!(
     //          eval_unseemly_program(
-    //              "(let-multi  '[Ident <[Int]< | y]'
-    //                     '[Type <[Int]< | Int]'
-    //                     '[Expr <[Int]< | eight]'
-    //                     '[Expr <[Int]< | five]')"),
-    //          eval_unseemly_program("'[Expr <[Int]< | (.[x : Int . match x {y => five}].  eight)]'"));
+    //              "(let-multi  '[Ident<Int> | y]'
+    //                     '[Type<Int> | Int]'
+    //                     '[Expr<Int> | eight]'
+    //                     '[Expr<Int> | five]')"),
+    //          eval_unseemly_program("'[Expr<Int> | (.[x : Int . match x {y => five}].  eight)]'"));
     //  }
 }
 
@@ -699,13 +699,13 @@ fn language_building() {
                 [
                     lit ,{ DefaultToken }, = 'let'
                     [
-                        pat := ( ,{ Pat <[ S ]< }, )
+                        pat := ( ,{ Pat<S> }, )
                         lit ,{ DefaultToken }, = '='
-                        value := ( ,{ Expr <[ S ]< }, )
+                        value := ( ,{ Expr<S> }, )
                         lit ,{ DefaultToken }, = ';'
                     ] *
                     lit ,{ DefaultToken }, = 'in'
-                    body := ( ,{ Expr <[ T ]< }, <-- ...[pat = value]... )
+                    body := ( ,{ Expr<T> }, <-- ...[pat = value]... )
                 ]
             }' let_macro -> .{
                 '[Expr |
@@ -737,13 +737,13 @@ fn language_building() {
                 [
                     lit ,{ DefaultToken }, = 'let'
                     [
-                        pat := ( ,{ Pat <[ S ]< }, )
+                        pat := ( ,{ Pat<S> }, )
                         lit ,{ DefaultToken }, = '='
-                        value := ( ,{ Expr <[ S ]< }, )
+                        value := ( ,{ Expr<S> }, )
                         lit ,{ DefaultToken }, = ';'
                     ] *
                     lit ,{ DefaultToken }, = 'in'
-                    body := ( ,{ Expr <[ T ]< }, <-- ...[pat = value]... )
+                    body := ( ,{ Expr< T > }, <-- ...[pat = value]... )
                 ]
             }' let_macro -> .{
                 '[Expr |
@@ -777,13 +777,13 @@ fn language_building() {
                 [
                     lit ,{ DefaultToken }, = 'let'
                     [
-                        pat := ( ,{ Pat <[ S ]< }, )
+                        pat := ( ,{ Pat<S> }, )
                         lit ,{ DefaultToken }, = '='
-                        value := ( ,{ Expr <[ S ]< }, )
+                        value := ( ,{ Expr<S> }, )
                         lit ,{ DefaultToken }, = ';'
                     ] *
                     lit ,{ DefaultToken }, = 'in'
-                    body := ( ,{ Expr <[ T ]< }, <-- ...[pat = value]... )
+                    body := ( ,{ Expr<T> }, <-- ...[pat = value]... )
                 ]
             }' let_macro -> .{
                 '[Expr |

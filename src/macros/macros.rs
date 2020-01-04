@@ -344,13 +344,18 @@ macro_rules! form_pat {
             std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("DefaultToken"))),
             crate::name::n($e))
     };
+    ((name_lit $e:expr)) => {
+        crate::grammar::FormPat::Literal(
+            std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("DefaultWord"))),
+            crate::name::n($e))
+    };
     ((lit_aat $e:expr)) => {
         crate::grammar::FormPat::Literal(std::rc::Rc::new(crate::grammar::new_scan(r"\s*(\S+)")),
                                     crate::name::n($e))
     };
-    ((lit_by_name $e:expr)) => {
+    ((name_lit__by_name $e:expr)) => {
         crate::grammar::FormPat::Literal(
-            std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("DefaultToken"))),
+            std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("DefaultWord"))),
             $e)
     };
     ((scan $e:expr)) => {

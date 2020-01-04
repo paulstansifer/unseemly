@@ -101,9 +101,9 @@ macro_rules! Reifiable {
                    // TODO: unless we specify arguments with the same name as parameters,
                    //  we get bogus results
                    // (we get
-                   //   ∀ K V. μ Assoc. struct{ n: Option<[AssocNode<[ident rust_usize]<]< }
+                   //   ∀ K V. μ Assoc. struct{ n: Option<AssocNode<ident rust_usize>> }
                    //  rather than
-                   //   ∀ K V. μ Assoc. struct{ n: Option<[AssocNode<[K V]<]< }
+                   //   ∀ K V. μ Assoc. struct{ n: Option<AssocNode<K V>> }
                    [@"c" $( (, <$t as crate::runtime::reify::Reifiable>::ty_invocation() ) ),*]
                 })
             }

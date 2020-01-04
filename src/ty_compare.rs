@@ -48,11 +48,11 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 // In this forumlation, instead of writing `∀X. …`,
 // we paste `∀` in front of a negative-position variable:
 // id: ∀X ⇒ X
-// map: List<[∀X]< (X ⇒ ∀Y) ⇒ List<[Y]<   (need `letrec`-style binding!)
-// boring_map: List<[Int]< (Int ⇒ ∀Y) ⇒ List<[Y]<    (need `∀` to distinguish binders and refs!)
-// boring_map2: List<[∀X]< List<[X]< (X X ⇒ ∀Y) ⇒ List<[Y]<
-// let_macro: "[let :::[ ;[var ⇑ v]; = ;[ expr<[∀T]< ]; ]::: in ;[expr<[∀S]< ↓ ...{v = T}...]; ]"
-// -> expr<[S]<
+// map: List<∀X> (X ⇒ ∀Y) ⇒ List<Y>   (need `letrec`-style binding!)
+// boring_map: List<Int> (Int ⇒ ∀Y) ⇒ List<Y>    (need `∀` to distinguish binders and refs!)
+// boring_map2: List<∀X> List<X> (X X ⇒ ∀Y) ⇒ List<Y>
+// let_macro: "[let :::[ ;[var ⇑ v]; = ;[ expr<∀T> ]; ]::: in ;[expr<∀S> ↓ ...{v = T}...]; ]"
+// -> expr<S>
 //
 // Okay, let's walk through this. Let's suppose that we have some type variables in scope:
 // is `(A ⇒ B) ⇒ ((∀A ⇒ F) ⇒ D)` a subtype of `(∀EE ⇒ BB) ⇒ (CC ⇒ EE)`?
@@ -131,7 +131,7 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
 
             match resolved {
                 Clo { it: Ty(VariableReference(rator_vr)), env } => {
-                    // e.g. `X<[int, Y]<` underneath `mu X. ...`
+                    // e.g. `X<int, Y>` underneath `mu X. ...`
 
                     // Rebuild a type_apply, but evaulate its arguments
                     // This kind of thing is necessary because

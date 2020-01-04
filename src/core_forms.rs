@@ -264,7 +264,7 @@ pub fn make_core_syn_env() -> SynEnv {
         // e.g.
         // let_type
         //   pair = mu lhs rhs. {l: lhs, r: rhs}
-        //   point = pair <[int, int]<
+        //   point = pair<int, int>
         // in ...
         typed_form!("let_type",
         [(lit "let_type"),
@@ -280,8 +280,8 @@ pub fn make_core_syn_env() -> SynEnv {
         cust_rc_box!( move | let_type_parts | {
             eval(strip_ee(&let_type_parts.get_term(n("body"))), let_type_parts.env)
         })),
-        // e.g. where List = ∀ X. μ List. enum { Nil(), Cons(X, List<[X]<) }
-        // .[x : List <[X]<  . match (unfold x) ... ].
+        // e.g. where List = ∀ X. μ List. enum { Nil(), Cons(X, List<X>) }
+        // .[x : List<X>  . match (unfold x) ... ].
         // (unfold is needed because `match` wants an `enum`, not a `μ`)
         // Exposes the inside of a μ type by performing one level of substitution.
         typed_form!("unfold",
@@ -305,8 +305,8 @@ pub fn make_core_syn_env() -> SynEnv {
                     })
             }),
             Body(n("body"))),
-        // e.g. where List = ∀ X. μ List. enum { Nil (), Cons (X, List<[X]<) }
-        // (.[x : List <[X]< . ...]. (fold +[Nil]+) ) : List<[X]<
+        // e.g. where List = ∀ X. μ List. enum { Nil (), Cons (X, List<X>) }
+        // (.[x : List<X> . ...]. (fold +[Nil]+) ) : List<X>
         typed_form!("fold",
             [(lit "fold"), (named "body", (call "Expr")), (lit ":"), (named "t", (call "Type"))],
             cust_rc_box!( move |fold_parts| {
@@ -517,11 +517,12 @@ pub fn make_core_syn_env() -> SynEnv {
         "Ident" => Rc::new(Call(n("DefaultAtom"))),
         "DefaultReference" => Rc::new(VarRef(Rc::new(Call(n("DefaultAtom"))))),
         "DefaultSeparator" => Rc::new(crate::grammar::new_scan(r"(\s*)")),
-        "DefaultAtom" => Rc::new(form_pat!(
-            (pick [(call "DefaultSeparator"),
-                   (named "name", (reserved_by_name_vec
-                        (scan r"(\p{Letter}(?:\p{Letter}|\p{Number}|[_?])*)"), reserved_names))],
-            "name"))),
+        "DefaultAtom" => Rc::new(
+            form_pat!((reserved_by_name_vec (call "DefaultWord"), reserved_names))),
+        "DefaultWord" => Rc::new(form_pat!((pick [(call "DefaultSeparator"),
+            (named "name", (scan r"(\p{Letter}(?:\p{Letter}|\p{Number}|[_?])*)"))],
+                "name"))),
+        // TODO: come up with more normal tokenization rules
         "DefaultToken" => Rc::new(form_pat!(
             (pick [(call "DefaultSeparator"),
                    (named "tok",

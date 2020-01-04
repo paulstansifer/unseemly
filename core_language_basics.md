@@ -6,7 +6,7 @@ The file extension for Unseemly source code is `.≉`.
 ## Low-level structure
 The default Unseemly tokenizer is very simple.
 Tokens are only separated by whitespace and the *inside edges* of `([{}])`.
-You'll tend to see constructs like, `.[ ].`, `<[ ]<`, and `hi[ ]hi`.
+You'll tend to see constructs like, `.[ ].`, `'[ ]'`, and `hi[ ]hi`.
 You need to leave more spaces than you're used to in normal languages.
 Probably, there's a reason that they have tokenizers
  that can't be described in five sentences.
@@ -33,14 +33,14 @@ Probably, there's a reason that they have tokenizers
     It is almost exclusively used right after constructing an enum or struct.
     `Type` is the type you want after adding the `mu`.
 
-* `[Nonterminal <[Type]< | whatever_that_nonterminal_represents ]` is syntax quotation.
+* `[Nonterminal<Type> | whatever_that_nonterminal_represents ]` is syntax quotation.
     For example, `[Expr | (plus one one) ]`.
-    (The `<[Type]<` annotation is usually optional†).
+    (The `<Type>` annotation is usually optional†).
 
-    * Inside a quotation, `,[Nonterminal <[Type]< | expr ],` is an unquotation.
+    * Inside a quotation, `,[Nonterminal<Type> | expr ],` is an unquotation.
         For example `[Expr | (plus ,[syn_for_number], one)]` is the syntax for
          adding one to whatever `syn_for_number` represents.
-        (The whole `Nt <[Type]< |` annotation is usually optional†).
+        (The whole `Nt<Type> |` annotation is usually optional†).
     * Inside a quotation `...[x ⋯ >> whatever_that_nonterminal_represents ]...`
        is an abstract repetition;
        it's only valid at parts of the grammar that accept an arbitrary number of something.
@@ -91,8 +91,8 @@ The confusing part is that *whether* it's a quotation or unquotation is irreleva
 * `mu_type X ⋯ . Type` protects a recursive type from being infinitely large.
     It is typically used inside the definition of X.
 
-* `Type <[Type ⋯]<` applies an abstracted type.
-    For example, `List <[Int]<` is a list of integers.
+* `Type<Type ⋯>` applies an abstracted type.
+    For example, `List<Int>` is a list of integers.
     The technical term for this operator is "Fish X-ray".
 
 * `:::[, T , >> Type]:::` requires `T` to refer to a tuple type. Suppose `T` is `**[A B Int]**`:

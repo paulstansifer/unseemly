@@ -29,11 +29,11 @@ use std::rc::Rc;
 //
 // Examples of needed annotation:
 //
-//   (frobnicate_pat '[Pat <[List <[Int]<]< | (cons a b)]')
+//   (frobnicate_pat '[Pat<List<Int>> | (cons a b)]')
 // In this case, we need to know the type of the syntax quote,
 //  but the pattern wants to know its type so that it can tell us its environment.
 //
-//   match stx { '[Expr | 1 + 5 * ,[Expr <[Nat]< | stx_num], ]' => ... }
+//   match stx { '[Expr | 1 + 5 * ,[Expr<Nat> | stx_num], ]' => ... }
 // In this case (looking at the expression interpolation),
 //  we need to know the type of the interpolated expression syntax
 //    (a pattern, even though it's a pattern *for* an expression)
@@ -45,12 +45,12 @@ use std::rc::Rc;
 //   match stx { '[Expr | f x]' => ... }
 // In this case, we can check that the type of the scrutinee
 //  (which is the type of the syntax quotation pattern)
-//   equals `Expr<[ (whatever `f` returns) ]<`.
+//   equals `Expr< (whatever `f` returns) >`.
 //
 //   optimize_expr '[Expr | match stx { ,[my_pat], => ... } ]'
 // In this case (looking at the Pat interpolation),
 //  we can check that the type of the quoted scrutinee is the same as
-//   the type of `my_pat` (after peeling off its `Pat <[]<`).
+//   the type of `my_pat` (after peeling off its `Pat<>`).
 //
 // Note that it doesn't matter whether the boundary is a quotation or an unquotation!
 // The phase only matters inasmuch as variables don't leave their phase.
@@ -61,7 +61,7 @@ use std::rc::Rc;
 // OTOH, if you are using `,,,,[],,,,`, something has gone terribly wrong.
 
 // == Opacity! ==
-// Basically, ` ,[Expr <[T]< | a ], ` dumps an expression with the type `T` into the type checker,
+// Basically, ` ,[Expr<T> | a ], ` dumps an expression with the type `T` into the type checker,
 //  but at a different phase from where `T` was defined.
 // We don't want to capture the whole environment, but we do want the typechecker to be able
 //  to handle `T` (without trying to look it up),
@@ -205,15 +205,23 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
             Rc::new(if pos_quot {
                 form_pat!((delim form_delim_start, "[",
                     [(named "nt", (anyways (, VariableReference(nt)))),
-                     (alt [], [(lit_by_name nt),
-                               (delim "<[", "[", (named "ty_annot", (call "Type"))), (lit "|")]),
+                     (alt
+                        [],
+                        [(name_lit__by_name nt),
+                         (call "DefaultSeparator"), (scan r"(<)"),
+                         (named "ty_annot", (call "Type")),
+                         (call "DefaultSeparator"), (scan r"(>)"), (lit "|")]),
                      (named "body", (-- depth (call "Expr")))]))
             } else {
                 form_pat!((delim form_delim_start, "[",
                     [(named "nt", (anyways (, VariableReference(nt)))),
-                     (alt [], [(lit_by_name nt),
-                               (delim "<[", "[", (named "ty_annot", (call "Type"))),
-                               (lit "|")]),
+                     (alt
+                        [],
+                        [(name_lit__by_name nt),
+                         (call "DefaultSeparator"), (scan r"(<)"),
+                         (named "ty_annot", (call "Type")),
+                         (call "DefaultSeparator"), (scan r"(>)"),
+                         (lit "|")]),
                      (named "body", (-- depth (call "Pat")))]))
             }),
         type_compare: Positive(NotWalked), // this is not a type form
@@ -222,17 +230,17 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
             if nt_is_positive(nt) {
                 //  For example: (this quotation could be positive or negative)
                 // (nt_is_positive is true in this example, though)
-                // ` '[Expr | .[a : Int . ,[Expr <[String]< | body], ]. ]' `
-                //                        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+                // ` '[Expr | .[a : Int . ,[Expr<String> | body], ]. ]' `
+                //                        ^^^^^^^^^^^^^^^^^^^^^^^
                 Positive(
-                    // `body` has the type `Expr <[String]<` (annotation is superfluous):
+                    // `body` has the type `Expr<String>` (annotation is superfluous):
                     cust_rc_box!( move | unquote_parts | {
                         let ast_for_errors = unquote_parts.get_term(n("body"));
 
                         let res = if pos_quot {
                             // TODO: check annotation if present
 
-                            let mut res = unquote_parts.get_res(n("body"))?; // `Expr <[String]<`
+                            let mut res = unquote_parts.get_res(n("body"))?; // `Expr<String>`
                             for _ in 0..(depth-1) {
                                 res = less_quoted_ty(&res, None, &ast_for_errors)?;
                             } // HACK: we only know the last `nt` to expect
@@ -259,8 +267,8 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
                         Ok(adjust_opacity(&res, unquote_parts.env, i32::from(depth)))
                     }))
             } else {
-                // For example: ` '[Pat | (x, ,[Pat <[String]< | body], ) ]' `
-                //                            ^^^^^^^^^^^^^^^^^^^^^^^^^
+                // For example: ` '[Pat | (x, ,[Pat<String> | body], ) ]' `
+                //                            ^^^^^^^^^^^^^^^^^^^^^^
                 Negative(
                     cust_rc_box!( move | unquote_parts | {
                         let ast_for_errors = unquote_parts.get_term(n("body"));
@@ -293,7 +301,7 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
             },
 
             // Also, let's suppose that we have something like:
-            //   let some_pattern : pat <[int]< = ...
+            //   let some_pattern : pat<int> = ...
             //   let s = '[{pat} struct { a: ,[ some_pattern ],  b: b_var} ]'
             // ...what then?
         eval:
@@ -319,11 +327,8 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
 //
 // The first is the types and how to construct them:
 //  If `T` is `**[Int Float]**,
-//   then `:::[T >> Expr <[T]< ]:::` is `Expr <[Int]<  Expr<[Float]<`.
-//  Note that that is two types in a row, not a tuple! (On its own, `:::[]:::` is not a valid type.)
-//   (TODO: enforce not being able to write dotdotdot types on their own.)
-//   `[:::[T >> Expr<[T]<]::: Int -> Int]` is a three-argument function!
-//  If you match syntax under a `*`, you'll get something like `**[:::[T >> Expr <[T]< ]:::]**`.
+//   then `:::[T >> Expr<T> ]:::` is `**[Expr<Int>  Expr<Float>]**`.
+//  If you match syntax under a `*`, you'll get something like `::[T >> Expr<T> ]:::`.
 //
 // The second is how we use them:
 //  In a syntax quotation, you can write `...[, x , >> some_syntax]...`
@@ -514,7 +519,11 @@ pub fn quote(pos: bool) -> Rc<Form> {
                 Rc::new(form_pat!(
                     // HACK: The `nt` from outside isn't in the same Scope, it seems:
                     [(named "nt", (anyways (, VariableReference(starter_nt)))),
-                     (alt [], (delim "<[", "[", (named "ty_annot", (call "Type")))),
+                     (alt
+                        [],
+                        [(call "DefaultSeparator"), (scan r"(<)"),
+                         (named "ty_annot", (call "Type")),
+                         (call "DefaultSeparator"), (scan r"(>)")]),
                      (lit "|"),
                      (named "body", (++ pos_inside (call_by_name starter_nt)))])),
             );
@@ -553,7 +562,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
                         adjust_opacity(expected_type, quote_parts.env.clone(), 1);
 
                     // TODO: do we need this result environment somewhere?
-                    // Note that `Pat <[Point]<` (as opposed to `Pat <:[x: Real, y: Real]<:`)
+                    // Note that `Pat<Point>` (as opposed to `Pat <:[x: Real, y: Real>:`)
                     //  is what we want!
                     // In other words, syntax types don't care about positive vs. negative!
                     // There's a longer argument in the form of code to this effect elsewhere,
@@ -764,7 +773,7 @@ fn quote_type_basic() {
                     "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Int" :}]}]}))
     );
 
-    // '[Expr <[Nat]< | qn]'
+    // '[Expr<Nat> | qn]'
     // With type annotation, same result:
     assert_eq!(
         synth_type_two_phased(
@@ -819,7 +828,7 @@ fn quote_type_basic() {
     }
 
     // A trivial pattern containing an expression
-    // '[Expr <[ struct {} ]< | *[]* ]'
+    // '[Expr< struct {} > | *[]* ]'
     assert_eq!(
         unpack_type_two_phased(
             &ast!({quote(neg) ;
@@ -839,7 +848,7 @@ fn quote_type_basic() {
     );
 
     // A trivial pattern containing a pattern
-    // '[Pat <[ struct {} ]< | *[]* ]'
+    // '[Pat< struct {} > | *[]* ]'
     assert_eq!(
         unpack_type_two_phased(
             &ast!({quote(neg) ;
@@ -859,7 +868,7 @@ fn quote_type_basic() {
     );
 
     // A slightly-less trivial pattern containing a pattern (but still no unquotes)
-    // '[Pat <[ struct {x: Nat} ]< | *[x: qfoo]* ]'
+    // '[Pat< struct {x: Nat} > | *[x: qfoo]* ]'
     assert_eq!(
         unpack_type_two_phased(
             &ast!({quote(neg) ;
@@ -989,7 +998,7 @@ fn quote_unquote_type_basic() {
     }
 
     // A pattern containing a pattern
-    // '[Pat <[ struct {x : Nat y : Float z : Nat} ]< |
+    // '[Pat< struct {x : Nat y : Float z : Nat} > |
     //     *[x: ,[Pat | foo], y: ,[Pat | bar], z: baz]* ]'
     assert_eq!(
         unpack_type_two_phased(
@@ -1023,7 +1032,7 @@ fn quote_unquote_type_basic() {
     );
 
     // Interpolate a pattern
-    // '[Expr | match qn { ,[Pat <[Nat]< | pn], => qn }]
+    // '[Expr | match qn { ,[Pat<Nat> | pn], => qn }]
     assert_eq!(
         synth_type_two_phased(
             &ast!({quote(pos) ;
@@ -1045,7 +1054,7 @@ fn quote_unquote_type_basic() {
     );
 
     // Interpolate a pattern, with abstract types
-    // '[Expr | match qT { ,[Pat <[T]< | pT], => qT }]
+    // '[Expr | match qT { ,[Pat<T> | pT], => qT }]
     assert_eq!(
         synth_type_two_phased(
             &ast!({quote(pos) ;

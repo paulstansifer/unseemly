@@ -172,15 +172,15 @@ pub fn walk<Mode: WalkMode>(
                 let currently_positive = oeh_m.is_none(); // kinda a hack for "Is `Mode` positive?"
 
                 // Negative modes at quotation does some weird stuff. For example:
-                // `match e { `[Expr | (add 5 ,[Expr <[Nat]< | a],)]` => ⋯}`
-                //            ^--- `quote_more` here (`get_res` produces `Expr <[Nat]<`),
+                // `match e { `[Expr | (add 5 ,[Expr<Nat> | a],)]` => ⋯}`
+                //            ^--- `quote_more` here (`get_res` produces `Expr<Nat>`),
                 //                 which we already knew.
-                //                            ^--- `quote_less`, and we get {a => Expr <[Nat]<}
+                //                            ^--- `quote_less`, and we get {a => Expr<Nat>}
                 // We need to smuggle out what we know at each `quote_less` (there might be many),
-                //  so that `a` winds up bound to `Expr <[Nat]<` on the RHS.
+                //  so that `a` winds up bound to `Expr<Nat>` on the RHS.
 
                 // If the quotation (outside) is negative, we need to unsquirrel no matter the inside.
-                // If both are positive, return the result (so the form can do `Nat` → `Expr <[Nat]<`).
+                // If both are positive, return the result (so the form can do `Nat` → `Expr<Nat>`).
                 // Otherwise, the context (expected type) is the result.
 
                 if pos_inside == currently_positive { // stay in the same mode?

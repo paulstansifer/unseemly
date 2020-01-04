@@ -13,7 +13,7 @@ Unseemly has a bare minimum of forms
 ### From the ML family
  * Algebraic types (i.e., supports structs and (rich) enums)
  * Typesafe destructuring with `match`.
- * Generic types (or parametric types) (e.g. `List <[T]<` (Unseemly's syntax is weird))
+ * Generic types (or parametric types) (e.g. `List<T>` (Unseemly's syntax is weird))
  * Recursive types
 ### From the Scheme family
  * Syntax quasiquotation
@@ -26,7 +26,7 @@ Unseemly has a bare minimum of forms
 ### Unique features
  * Typechecking under syntax quotation
    (so `'[Expr | (plus one ,[e1],)]'` is a type error
-     if `e1` has the type `Expr <[String]<`)
+     if `e1` has the type `Expr<String>`)
  * No type errors in generated code
    (if a macro invocation typechecks, the code it expands to doesn't need typechecking).
  * Extensible parsing and lexing (write real SQL or real regexes inline, not strings).

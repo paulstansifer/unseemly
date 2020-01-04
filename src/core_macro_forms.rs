@@ -29,9 +29,9 @@ use std::rc::Rc;
 //
 // extend_syntax macro
 //     Expr :+:=
-//         forall T . '{ (lit if) ,{Expr <[Bool]< | cond},
-//             (lit then) ,{Expr <[T]< | then_e},
-//             (lit else) ,{Expr <[T]< | else_e}, }'
+//         forall T . '{ (lit if) ,{Expr<Bool> | cond},
+//             (lit then) ,{Expr<T> | then_e},
+//             (lit else) ,{Expr<T> | else_e}, }'
 //         conditional ->
 //         '[Expr | match ,[cond], {
 //             +[True]+ => ,[then_e],
@@ -42,14 +42,14 @@ use std::rc::Rc;
 // The parser parses the `if` as a macro invocation, but doesn't lose the '{…}'!
 //  It spits out an `Ast` in which the `extend` binds `conditional` and `if ⋯` references it.
 //   Under the hood, `conditional` has the type
-//    `∀ T . [ *[ cond : Expr <[Bool]<  then : Expr <[T]<  else : Expr <[T]<   -> Expr <[T]< ]* ]
+//    `∀ T . [ *[ cond : Expr<Bool>  then : Expr<T>  else : Expr<T>   -> Expr<T> ]* ]
 //   ... even though it's a macro, not a function. (A kind-checker is needed here!)
 //
 // Everything is typechecked (including the `.{ ⋯ }.` implementation and the invocation).
 //  The macro name (`conditional`) is a bit of a hack
 // The syntax extension is typechecked, much like a function definition is.
 //  (`cond`, `then_e`, and `else_e` are assumed to be their respective types,
-//    and the macro is shown to produce an `Expr <[T]<`.)
+//    and the macro is shown to produce an `Expr<T>`.)
 // So is the invocation, which subtypes away the `T`, checks its arguments, and produces `T`.
 //
 // Macro expansion evaluates the macro with its arguments, `(zero? five)`, `three`, and `eight`,
@@ -222,7 +222,7 @@ pub fn macro_invocation(
         type_compare: Both(NotWalked, NotWalked),
         // Invoked at typechecking time.
         // The macro_name part will be bound to a type of the form
-        //     ∀ T . [*[x : Nt <[T]< ⋯ ]* -> Nt <[T]<]
+        //     ∀ T . [*[x : Nt<T> ⋯ ]* -> Nt<T>]
         // ... which you can imagine is the type of the implementation of the macro
         synth_type: Both(
             cust_rc_box!(move |parts| {
@@ -515,7 +515,10 @@ pub fn make_core_macro_forms() -> SynEnv {
             name: n("call_with_type"),
             grammar: Rc::new(form_pat!(
                 (delim ",{", "{",
-                    [(named "nt", atom), (delim "<[", "[", (named "ty_annot", (call "Type")))]))),
+                    [(named "nt", atom),
+                     (call "DefaultSeparator"), (scan r"(<)"),
+                     (named "ty_annot", (call "Type")),
+                     (call "DefaultSeparator"), (scan r"(>)")]))),
             type_compare: Both(NotWalked,NotWalked), // Not a type
             synth_type: Both(cust_rc_box!(|parts| {
                 let expected_type = parts.get_res(n("ty_annot"))?;
@@ -677,7 +680,8 @@ fn formpat_reflection() {
         .set(n("DefaultToken"), Rc::new(crate::grammar::new_scan(r"\s*(\S+)")))
         .set(n("DefaultAtom"), Rc::new(FormPat::Call(n("DefaultToken"))))
         .set(n("DefaultReference"), Rc::new(VarRef(Rc::new(FormPat::Call(n("DefaultToken"))))))
-        .set(n("Type"), Rc::new(FormPat::Call(n("DefaultReference"))));
+        .set(n("Type"), Rc::new(FormPat::Call(n("DefaultReference"))))
+        .set(n("DefaultSeparator"), Rc::new(crate::grammar::new_scan(r"(\s*)")));
 
     fn syntax_to_form_pat(a: Ast) -> FormPat { FormPat::reflect(&eval_top(&a).unwrap()) }
 
@@ -711,16 +715,16 @@ fn formpat_reflection() {
     assert_eq!(string_to_form_pat(r"/\s*(\S+)/"), crate::grammar::new_scan(r"\s*(\S+)"));
     assert_eq!(string_to_form_pat(r"lit /\s*(\S+)/ = 'x'"), form_pat!((lit_aat "x")));
     assert_eq!(
-        string_to_form_pat(r"[ lit /\s*(\S+)/ = 'write_this' ,{ Expr <[ Int ]< }, <-- nothing ]"),
+        string_to_form_pat(r"[ lit /\s*(\S+)/ = 'write_this' ,{ Expr < Int > }, <-- nothing ]"),
         form_pat!([(lit_aat "write_this"), (import [], (call "Expr"))])
     );
 
     assert_eq!(
-        string_to_form_pat(r"[ lit /\s*(\S+)/ = 'write_this' ,{ Expr <[ Int ]< }, <-- a : b ]"),
+        string_to_form_pat(r"[ lit /\s*(\S+)/ = 'write_this' ,{ Expr < Int > }, <-- a : b ]"),
         form_pat!([(lit_aat "write_this"), (import ["a" : "b"], (call "Expr"))])
     );
     assert_eq!(
-        string_to_form_pat(r",{ Expr <[ Int ]< }, <-- [ forall thing o> a = b ]"),
+        string_to_form_pat(r",{ Expr < Int > }, <-- [ forall thing o> a = b ]"),
         form_pat!((import [forall "thing" "a" = "b"], (call "Expr")))
     );
 }
@@ -968,7 +972,7 @@ fn define_and_parse_macros() {
         "extend_syntax
              Expr ::=also forall T . '{
                  [ lit ,{ DefaultToken }, = '['
-                     body := ( ,{ Expr <[ Int ]< }, )
+                     body := ( ,{ Expr< Int > }, )
                    lit ,{ DefaultToken }, = ']'
                  ]
              }' add_one__macro -> .{ '[ Expr | (plus one ,[body], ) ]' }. ;

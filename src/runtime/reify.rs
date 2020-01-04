@@ -24,7 +24,7 @@ use std::rc::Rc;
 pub trait Reifiable {
     /// The Unseemly type that corresponds to to the `Reifiable` type.
     /// This leaves abstract the type parameters of `Self`; invoke like `Self::<Irr,Irr>::ty()`.
-    /// e.g. `∀ A. Pair <[A int]<`
+    /// e.g. `∀ A. Pair<A int>`
     /// TODO: this should return `Ty`
     /// TODO: rename to `generic_ty`
     fn ty() -> Ast {
@@ -40,7 +40,7 @@ pub trait Reifiable {
     /// How to refer to this type, given an environment in which
     ///  `ty_name()` is defined to be `ty()`.
     /// Parameters will be concrete.
-    /// e.g. `WithInteger<[Float]<`
+    /// e.g. `WithInteger<Float>`
     /// (Types using this type will use this, rather than `ty`)
     /// Don't override this.
     fn ty_invocation() -> Ast {
@@ -546,7 +546,7 @@ fake_reifiability!(S);
 
 #[test]
 fn reified_types() {
-    //"ParameterizedLifetimeStruct<[Option<[Rust_usize]< integer]<"
+    //"ParameterizedLifetimeStruct<Option<Rust_usize> integer>"
     assert_eq!(
         ParameterizedLifetimeStruct::<'static, Option<usize>, BigInt>::ty_invocation(),
         ast!({"Type" "type_apply" :

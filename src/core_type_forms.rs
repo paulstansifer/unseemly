@@ -93,7 +93,7 @@ fn type_defn_complex(
 
 thread_local! {
     // Not needed by the user.
-    // An internal type to keep the compiler from trying to dig into the `Expr` in `Expr <[X]<`.
+    // An internal type to keep the compiler from trying to dig into the `Expr` in `Expr<X>`.
     pub static primitive_type : Rc<Form> = Rc::new(Form {
         name: n("primitive_type"),
         grammar: Rc::new(form_pat!([(named "name", atom)])),
@@ -318,9 +318,9 @@ pub fn make_core_syn_env_types() -> SynEnv {
     // This only makes sense inside a concrete syntax type or during typechecking.
     // For example, the type of the `let` macro is (where `dotdotdot_type` is `:::[]:::`):
     // ∀ T . ∀ S .
-    //    '[let :::[ T >> ,[ var ⇑ v ], = ,[ expr<[T]< ], ]:::
-    //            in ,[ expr<[S]< ↓ ...{v = T}...], ]'
-    //        -> expr<[S]<
+    //    '[let :::[ T >> ,[ var ⇑ v ], = ,[ expr<T> ], ]:::
+    //            in ,[ expr<S> ↓ ...{v = T}...], ]'
+    //        -> expr<S>
     // TODO: add named repeats. Add type-level numbers!
     // TODO: We probably need kinds, to say that `T` is a tuple
     // TODO: we'll need dotdotdot inside betas, also, huh?
@@ -519,9 +519,11 @@ pub fn make_core_syn_env_types() -> SynEnv {
     // We restrict the LHS to being a name, because that's "normal". Should we?
     let type_apply = type_defn_complex(
         "type_apply",
-        // The technical term for `<[...]<` is "fish X-ray"
+        // TODO: invoking `scan` directly to ad-hoc tokenize ... isn't ideal.
         form_pat!([(named "type_rator", (call "Type")),
-         (delim "<[", "[", (star (named "arg", (call "Type"))))]),
+                   (call "DefaultSeparator"), (scan r"(<)"),
+                   (star (named "arg", (call "Type"))),
+                   (call "DefaultSeparator"), (scan r"(>)")]),
         // TODO: shouldn't it be "args"?
         cust_rc_box!(move |tapp_parts| {
             use crate::util::mbe::EnvMBE;
@@ -529,7 +531,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
             let rator_res = tapp_parts.get_res(n("type_rator"))?;
             match rator_res.0 {
                 VariableReference(rator_vr) => {
-                    // e.g. `X<[int, Y]<` underneath `mu X. ...`
+                    // e.g. `X<int, Y>` underneath `mu X. ...`
 
                     // Rebuild a type_apply, but evaulate its arguments
                     // This kind of thing is necessary because
@@ -605,10 +607,10 @@ pub fn make_core_syn_env_types() -> SynEnv {
         // First, we need a really simple core type environment for testing,
         //  and then to change all the `uty!({Type Int :})`s into `uty!(Int)`s
         //  (and `ast!({"Type" "Int" :})`s into `ast!((vr "Int"))`).
-        type_defn("Ident", form_pat!((lit "Ident"))),
-        type_defn("Int", form_pat!((lit "Int"))),
-        type_defn("Nat", form_pat!((lit "Nat"))),
-        type_defn("Float", form_pat!((lit "Float"))),
+        type_defn("Ident", form_pat!((name_lit "Ident"))),
+        type_defn("Int", form_pat!((name_lit "Int"))),
+        type_defn("Nat", form_pat!((name_lit "Nat"))),
+        type_defn("Float", form_pat!((name_lit "Float"))),
         enum_type.clone(),
         struct_type.clone(),
         tuple_type.clone(),
@@ -644,7 +646,7 @@ pub fn nt_is_positive(nt: Name) -> bool {
 }
 
 pub fn less_quoted_ty(t: &Ty, nt: Option<Name>, loc: &Ast) -> Result<Ty, crate::ty::TypeError> {
-    // suppose that this is an expr, and `body` has the type `Expr <[String]<`:
+    // suppose that this is an expr, and `body` has the type `Expr<String>`:
     expect_ty_node!( (t ; crate::core_forms::find_core_form("Type", "type_apply") ; loc)
         tapp_parts;
         {
@@ -702,7 +704,7 @@ fn parametric_types() {
                 "ret" => (, nat_ty.concrete()) })}));
     let mued_ty_env = assoc_n!("unary" => ty!((vr "unary")), "binary" => ty!((vr "binary")));
 
-    // If `unary` is `mu`ed, `unary <[ ident ]<` can't be simplified.
+    // If `unary` is `mu`ed, `unary< ident >` can't be simplified.
     assert_eq!(
         synth_type(
             &ast!( { "Type" "type_apply" :
@@ -715,7 +717,7 @@ fn parametric_types() {
             "arg" => [ (, ident_ty.concrete()) ]}))
     );
 
-    // If `unary` is `mu`ed, `unary <[ [nat -> nat] ]<` can't be simplified.
+    // If `unary` is `mu`ed, `unary< [nat -> nat] >` can't be simplified.
     assert_eq!(
         synth_type(
             &ast!( { "Type" "type_apply" :

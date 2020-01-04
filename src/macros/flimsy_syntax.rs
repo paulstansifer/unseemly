@@ -236,6 +236,7 @@ pub fn parse_flimsy_mbe(flimsy: &Ast, grammar: &FormPat) -> Option<EnvMBE<Ast>> 
 
     match grammar {
         Literal(_, _) => None,
+        Call(_) => None,
         Scan(_) => None,
         Seq(_) => match flimsy {
             Shape(flimsy_parts) => {
