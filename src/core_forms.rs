@@ -606,7 +606,10 @@ thread_local! {
     pub static core_forms: SynEnv = make_core_syn_env();
 }
 
-pub fn outermost_form() -> FormPat { Call(n("Expr")) }
+pub fn outermost_form() -> FormPat {
+    // `(call "Expr")`, except allowing whitespace (etc) at the end of a file:
+    form_pat!((pick [(named "program", (call "Expr")), (call "DefaultSeparator")], "program"))
+}
 
 pub fn find(nt: &str, name: &str) -> Rc<Form> { core_forms.with(|cf| find_form(cf, nt, name)) }
 
@@ -1041,7 +1044,7 @@ fn use__let_type() {
 }
 
 #[test]
-fn use_insert_form_pat() {
+fn use__insert_form_pat() {
     let se = assoc_n!("Pat" => Rc::new(form_pat!((impossible))),
                       "Expr" => Rc::new(form_pat!(
                           (biased (biased atom, atom),

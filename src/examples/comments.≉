@@ -1,0 +1,5 @@
+extend_syntax
+    DefaultSeparator ::= /((?s:[\s,]|%|#[^\n|][^\n]*|#\|.*?\|#)*)/ ;
+in
+  # Now we have full-line comments!
+(plus one  #| And terminated comments! |#  one)  
