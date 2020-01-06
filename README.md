@@ -8,12 +8,15 @@ For a more complete pitch, see http://unseemly.github.io
 Unseemly has a bare minimum of forms
  necessary to bootstrap the implementation of practical languages.
 
+Unseemly is still pretty early-stage, so, while all of the features below exist,
+ there are still a number of things that are janky or incomplete still.
+
 ## Features
 
 ### From the ML family
  * Algebraic types (i.e., supports structs and (rich) enums)
  * Typesafe destructuring with `match`.
- * Generic types (or parametric types) (e.g. `List<T>` (Unseemly's syntax is weird))
+ * Generic types (or parametric types) (e.g. `List<T>`)
  * Recursive types
 ### From the Scheme family
  * Syntax quasiquotation
@@ -25,11 +28,11 @@ Unseemly has a bare minimum of forms
  * Macro By Example (easily implement n-ary forms without writing boilerplate loops).
 ### Unique features
  * Typechecking under syntax quotation
-   (so `'[Expr | (plus one ,[e1],)]'` is a type error
-     if `e1` has the type `Expr<String>`)
+   (so `'[Expr | (plus one ,[e1],)]'` is a type error if `e1` has the type `Expr<String>`)
  * No type errors in generated code
-   (if a macro invocation typechecks, the code it expands to doesn't need typechecking).
+   (if a macro invocation typechecks, the code it expands to doesn't need typechecking)†.
  * Extensible parsing and lexing (write real SQL or real regexes inline, not strings).
+† There's one known serious deficiency in type soundness at the moment.
 ### Other features
  * Full-featured REPL, with persistent command history and line editing (courtesy of `rustyline`).
 
@@ -58,7 +61,8 @@ Look at core_language_basics.md for documentation of the language.
 
 ## Related work
 
-### FreshML / Romeo
+### Research projects
+#### FreshML / Romeo
 
 Unseemly is sort of a descendant of Romeo, which descends from FreshML.
  (Romeo is closer to Pure FreshML, but the "Pure" part is not present in Unseemly.)
@@ -67,7 +71,7 @@ Romeo allowed for manipulation of syntax types with complex binding information,
   * there was no macro system (so the syntax manipulation was pointless!)
   * it is just a core calculus
 
-### SugarJ / SoundX
+#### SugarJ / SoundX
 
 SoundX is a language with syntax extensions in which typechecking occurs before expansion.
 It provides sound language extensions, but
@@ -80,7 +84,8 @@ It provides sound language extensions, but
 (TODO: are the extensions themselves statically verified to be type-preserving?
  I think so, but I don't remember for sure.)
 
-### Scala
+### Practical languages
+#### Scala
 
 If I understand correctly, Scala's blackbox macros are typechecked before expansion,
  but they can't do everything that whitebox macros can.
@@ -88,7 +93,7 @@ Unseemly macros are typechecked before expansion, but are the only macro system 
  because they can (in particular) define new binding forms safely.
 (TODO: learn more about Scala's macro system)
 
-### Wyvern
+#### Wyvern
 
 Wyvern's primary motivating example
  (write SQL, not strings containing SQL, in your general-purpose code)
@@ -100,7 +105,7 @@ Wyvern also includes a number of features that are outside the scope of Unseemly
 
 (TODO: learn more about Wyvern)
 
-### Terra
+#### Terra
 
 Terra, from a quick glance (TODO: learn more),
  appears to be a language with a close relationship to Lua,
@@ -109,7 +114,7 @@ Terra, from a quick glance (TODO: learn more),
 In this case, it looks like the goal is to marry a high-level and low-level language together,
  without an FFI and with inline embedding.
 
-### Rust and SweetJS
+#### Rust and SweetJS
 
 Rust and SweetJS are non-S-expression-based languages with macro systems that allow rich syntax.
 
