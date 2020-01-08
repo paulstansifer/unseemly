@@ -434,6 +434,9 @@ pub struct LazyWalkReses<Mode: WalkMode> {
     /// The environment of the overall walk.
     pub env: ResEnv<Mode::Elt>,
 
+    /// The environment to use when entering a new phase.
+    /// It's like a prelude, except that it's affected by syntax extensions.
+    pub phaseless_env: ResEnv<Mode::Elt>,
     /// The environment for syntax quotation (deeper on the front, shallower on the back)
     pub more_quoted_env: Vec<ResEnv<Mode::Elt>>,
     /// The environment for interpolation (further out on the front, nearer on the back)
@@ -457,6 +460,7 @@ impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
 
     fn reify(&self) -> eval::Value {
         val!(struct "parts" => (, self.parts.reify()), "env" => (, self.env.reify()),
+                    "phaseless_env" => (,self.phaseless_env.reify()),
                     "more_quoted_env" => (,self.more_quoted_env.reify()),
                     "less_quoted_env" => (,self.less_quoted_env.reify()),
                     "less_quoted_out_env" => (,self.less_quoted_out_env.reify()),
@@ -469,6 +473,8 @@ impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
                                 contents.find_or_panic(&n("parts"))),
                             env: ResEnv::<Mode::Elt>::reflect(
                                 contents.find_or_panic(&n("env"))),
+                            phaseless_env: ResEnv::<Mode::Elt>::reflect(
+                                contents.find_or_panic(&n("phaseless_env"))),
                             more_quoted_env: Vec::<ResEnv<Mode::Elt>>::reflect(
                                 contents.find_or_panic(&n("more_quoted_env"))),
                             less_quoted_env: Vec::<ResEnv<Mode::Elt>>::reflect(
@@ -485,13 +491,15 @@ impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
 
 impl<Mode: WalkMode> LazyWalkReses<Mode> {
     pub fn new(
-        env: ResEnv<Mode::Elt>, // TODO: we could get rid of the middle argument
-        parts_unwalked: &EnvMBE<Ast>,
+        env: ResEnv<Mode::Elt>,
+        phaseless_env: ResEnv<Mode::Elt>,
+        parts_unwalked: &EnvMBE<Ast>, // TODO: get rid of this argument; use `this_ast`
         this_ast: Ast,
     ) -> LazyWalkReses<Mode>
     {
         LazyWalkReses {
             env: env,
+            phaseless_env: phaseless_env,
             more_quoted_env: vec![],
             less_quoted_env: vec![],
             less_quoted_out_env: vec![],
@@ -506,6 +514,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     pub fn new_wrapper(env: ResEnv<Mode::Elt>) -> LazyWalkReses<Mode> {
         LazyWalkReses {
             env: env,
+            phaseless_env: Mode::Elt::core_env(),
             more_quoted_env: vec![],
             less_quoted_env: vec![],
             less_quoted_out_env: vec![],
@@ -522,6 +531,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     {
         LazyWalkReses {
             env: env,
+            phaseless_env: Assoc::new(),
             more_quoted_env: mqe,
             less_quoted_env: vec![],
             less_quoted_out_env: vec![], // If we want a `lqe`, we need to fill this in, too!
@@ -688,6 +698,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         LazyWalkReses::<NewMode> {
             parts: new_parts,
             env: self.env.clone(),
+            phaseless_env: self.phaseless_env.clone(),
             more_quoted_env: self.more_quoted_env.clone(),
             less_quoted_env: self.less_quoted_env.clone(),
             less_quoted_out_env: self.less_quoted_out_env.clone(),
@@ -817,6 +828,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
 fn quote_more_and_less() {
     let parts = LazyWalkReses::<crate::ty::UnpackTy>::new(
         assoc_n!("a" => ty!({"Type" "Nat" :})),
+        Assoc::new(),
         // we'll pretend this is under an unquote or something:
         &mbe!("body" => "bind_me"),
         ast!("[ignored]"),

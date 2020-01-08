@@ -495,6 +495,7 @@ fn env_from_beta_basics() {
 
     let lwr = LazyWalkReses::<crate::ty::SynthTy>::new(
         assoc_n!("my_int" => uty!({Int :}), "S" => uty!(T), "T" => uty!({Int :})),
+        assoc_n!(),
         complex_ast.node_parts(),
         complex_ast.clone(),
     );
