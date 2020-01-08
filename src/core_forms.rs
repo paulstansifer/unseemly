@@ -100,13 +100,13 @@ pub fn make_core_syn_env() -> SynEnv {
             let return_type = crate::ty_compare::Subtype::underspecified(n("<return_type>"));
 
             // The `rator` must be a function that takes the `rand`s as arguments:
-            let _ = crate::ty_compare::must_subtype(
+            let _ = crate::ty_compare::is_subtype(
                 &ty!({ "Type" "fn" :
                     "param" => (,seq part_types.get_rep_res(n("rand"))?
                          .iter().map(|t| t.concrete()).collect::<Vec<_>>() ),
                     "ret" => (, return_type.concrete() )}),
                 &part_types.get_res(n("rator"))?,
-                part_types.env.clone())
+                &part_types)
                     .map_err(|e| crate::util::err::sp(e, part_types.this_ast.clone()))?;
 
 

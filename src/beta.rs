@@ -203,8 +203,7 @@ pub fn env_from_beta<Mode: crate::walk_mode::WalkMode>(
                 env_for_parts = env_for_parts.set(n, parts.switch_to_positive().get_res(n)?);
             }
 
-            let rhs_parts =
-                LazyWalkReses::<<Mode as WalkMode>::AsPositive>::new_wrapper(env_for_parts);
+            let rhs_parts = parts.switch_to_positive().with_environment(env_for_parts);
             let ctxt: Mode::Elt =
                 crate::ast_walk::walk::<<Mode as WalkMode>::AsPositive>(&res_source, &rhs_parts)?;
 

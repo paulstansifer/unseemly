@@ -130,7 +130,7 @@ pub fn walk<Mode: WalkMode>(
         // lc!(ast_walk_layer, "  from: {}", walk_ctxt.this_ast);
         // match walk_ctxt.env.find(&negative_ret_val()) {
         //     Some(ref ctxt) => lc!(ast_walk_layer, "  ctxt: {}", ctxt), _ => {}};
-        // lc!(ast_walk_layer, "  in: {:#?}", walk_ctxt.env.map_borrow_f(&mut |_| "…"));
+        // lc!(ast_walk_layer, "  in: {}", walk_ctxt.env /*.map_borrow_f(&mut |_| "…")*/);
 
         let literally : Option<bool> = // If we're under a wrapper, `this_ast` might not be a Node
             match a {
@@ -507,6 +507,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
 
     /// Slight hack: this is just to get a recursion started with some environment.
+    /// Only use this in tests or at the top level; this discards any non-phase-0-environments!
     pub fn new_wrapper(env: ResEnv<Mode::Elt>) -> LazyWalkReses<Mode> {
         LazyWalkReses {
             env: env,

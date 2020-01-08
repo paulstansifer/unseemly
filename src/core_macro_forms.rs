@@ -180,10 +180,10 @@ fn type_macro_invocation(
     // This is lifted almost verbatim from "Expr" "apply". Maybe they should be unified?
     use crate::walk_mode::WalkMode;
 
-    let _ = crate::ty_compare::must_subtype(
+    let _ = crate::ty_compare::is_subtype(
         &macro_type(&[], q_arguments.clone(), expected_return),
         &parts.get_res(n("macro_name"))?,
-        parts.env.clone(),
+        &parts,
     )
     .map_err(|e| crate::util::err::sp(e, parts.this_ast.clone()))?;
 

@@ -365,6 +365,17 @@ pub fn canonicalize(t: &Ty, env: Assoc<Name, Ty>) -> Result<Ty, TyErr> {
 }
 
 // `sub` must be a subtype of `sup`. (Note that `sub` becomes the context element!)
+pub fn is_subtype(
+    sub: &Ty,
+    sup: &Ty,
+    parts: &LazyWalkReses<crate::ty::SynthTy>,
+) -> Result<Assoc<Name, Ty>, TyErr>
+{
+    walk::<Subtype>(&sup.concrete(), &parts.switch_mode::<Subtype>().with_context(sub.clone()))
+}
+
+// `sub` must be a subtype of `sup`. (Note that `sub` becomes the context element!)
+// Only use this in tests or at the top level; this discards any non-phase-0-environments!
 pub fn must_subtype(sub: &Ty, sup: &Ty, env: Assoc<Name, Ty>) -> Result<Assoc<Name, Ty>, TyErr> {
     // TODO: I think we should be canonicalizing first...
     // TODO: they might need different environments?
