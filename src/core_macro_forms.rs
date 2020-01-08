@@ -13,7 +13,7 @@ use crate::{
         SynEnv,
     },
     name::*,
-    runtime::{eval::Closure, reify::Reifiable},
+    runtime::{eval::Closure, reify::Reifiable, eval::Eval},
     ty::{SynthTy, Ty, TyErr},
     util::assoc::Assoc,
     walk_mode::WalkElt,
@@ -663,10 +663,10 @@ pub fn extend_syntax() -> Rc<Form> {
         type_compare: Both(NotWalked, NotWalked),
         synth_type: Positive(Body(n("body"))),
         eval: Positive(cust_rc_box!(move |extend_syntax_parts| {
-            // HACK: since the macros have been expanded away, `rhs` should be unbound
-            crate::runtime::eval::eval(
+            // HACK: since the macros have been expanded away, `rhs` needs to be be unbound
+            crate::ast_walk::walk::<Eval>(
                 strip_ee(extend_syntax_parts.get_term_ref(n("body"))),
-                extend_syntax_parts.env.clone(),
+                &extend_syntax_parts,
             )
         })),
         quasiquote: Both(LiteralLike, LiteralLike),

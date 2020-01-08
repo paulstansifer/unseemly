@@ -131,6 +131,8 @@ pub fn make_core_syn_env() -> SynEnv {
                         new_env = new_env.set(*p, v);
                     }
 
+                    // TODO: this seems wrong; it discards other phase information.
+                    // But would it be correct to have closures capture at all phases?
                     crate::runtime::eval::eval(&clos.body, new_env)
                 },
                 BuiltInFunction(crate::runtime::eval::BIF(f)) => {
@@ -278,7 +280,8 @@ pub fn make_core_syn_env() -> SynEnv {
         // HACK: like `Body(n("body"))`, but ignoring the binding, since it's type-level.
         // This feels like it ought to be better-handled by `beta`, or maybe a kind system.
         cust_rc_box!( move | let_type_parts | {
-            eval(strip_ee(&let_type_parts.get_term(n("body"))), let_type_parts.env)
+            crate::ast_walk::walk::<Eval>(
+                strip_ee(&let_type_parts.get_term(n("body"))), &let_type_parts)
         })),
         // e.g. where List = ∀ X. μ List. enum { Nil(), Cons(X, List<X>) }
         // .[x : List<X>  . match (unfold x) ... ].
