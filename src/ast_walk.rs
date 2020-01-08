@@ -235,19 +235,6 @@ pub fn walk<Mode: WalkMode>(
                     walk_ctxt.env.clone()
                 };
 
-                let new__walk_ctxt = walk_ctxt.with_environment(new_env);
-                let new__walk_ctxt = // If the RHS is also binding, assume it's the same
-                // TODO: we should make this only happen if we're actually negative.
-                // The context element is sometimes leftover from a previous negative walk.
-                    match walk_ctxt.env.find(&negative_ret_val())
-                            .map(<Mode as WalkMode>::Elt::to_ast) {
-                        Some(ExtendEnv(ref rhs_body, _)) => {
-                            new__walk_ctxt.with_context(
-                                <Mode as WalkMode>::Elt::from_ast(&*rhs_body))
-                        }
-                        _ => new__walk_ctxt
-                };
-
                 fn extract__ee_body<Mode: WalkMode>(e: <Mode as WalkMode>::Elt)
                         -> <Mode as WalkMode>::Elt {
                     match e.to_ast() {
@@ -255,6 +242,14 @@ pub fn walk<Mode: WalkMode>(
                         _ => { e } // Match will fail
                     }
                 }
+
+                let new__walk_ctxt = walk_ctxt.with_environment(new_env);
+                let new__walk_ctxt = // If the RHS is also binding, assume it's the same
+                // TODO: we should make this only happen if we're actually negative.
+                // The context element is sometimes leftover from a previous negative walk.
+                    new__walk_ctxt.with_context(extract__ee_body::<Mode>(
+                        walk_ctxt.env.find(&negative_ret_val()).unwrap_or(
+                            &<Mode as WalkMode>::Elt::from_ast(&Trivial)).clone()));
 
                 maybe_literally__walk(&a, body, new__walk_ctxt,
                     walk_ctxt.maybe__context_elt().map(extract__ee_body::<Mode>), literally)
