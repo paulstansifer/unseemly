@@ -15,7 +15,7 @@ Probably, there's a reason that they have tokenizers
 ## Expressions
 * `(expr expr ⋯)` is function application.
 
-* `.[ x : Type  ⋯ . expr ].` is lambda.
+* `.[ x: Type  ⋯ . expr ].` is lambda.
 
 * `match expr { pat => expr  ⋯ }` is a pattern match.
 
@@ -65,13 +65,13 @@ The confusing part is that *whether* it's a quotation or unquotation is irreleva
 * `zero?` is a unary function.
 * `true` and `false` are boolean values.
 * `fix` is the fixpoint function. A simple way to run forever, calculating the largest number:
-    `(fix .[again : [ -> [Int -> Int]] . .[ n : Int . ((again) (plus n one))]. ].)`
+    `(fix .[again: [ -> [Int -> Int]] . .[ n: Int . ((again) (plus n one))]. ].)`
 
 
 ## Patterns
 * `+[Choice pat ⋯]+` deconstructs an enumerated value.
 
-* `*[component : pat  ⋯]*` deconstructs a structure value.
+* `*[component: pat  ⋯]*` deconstructs a structure value.
 
 * Quotation and unquotation are also useful as patterns.
   The type annotation is always optional starting from a pattern.
@@ -82,7 +82,7 @@ The confusing part is that *whether* it's a quotation or unquotation is irreleva
 
 * `enum { Choice (Type ⋯) ⋯ }` is the enumeration type.
 
-* `struct { component : Type  ⋯ }` is the structure type.
+* `struct { component: Type  ⋯ }` is the structure type.
 
 * `**[Type ⋯]**` is a tuple type.
 
@@ -106,13 +106,17 @@ The confusing part is that *whether* it's a quotation or unquotation is irreleva
 ## Example unseemly programs
 *(in `src/examples/`)*
 
-*  fact.≉ takes 5 factorial
+*  `fact.≉` takes 5 factorial
     Demonstrates recursion with `fix`
 
-*  sum_list.≉ sums the list "1, 2, 3"
+*  `sum_list.≉` sums the list "1, 2, 3"
     Demonstrates `let_type`, `match`, `fold`, `unfold`, and the need for a macro system.
 
-*  .unseemly_prelude is intended to be copied to your home directory.
+*  `if_macro.≉` introduces `if expr then expr else expr` to the language.
+
+*  `.unseemly_prelude` is intended to be copied to your home directory.
     It's automatically loaded by the REPL.
     You can add to it with `:s` commands from the REPL.
     It has comments, too! You have to add those manually.
+
+There are also some examples in the unit tests in `src/main.rs`.
