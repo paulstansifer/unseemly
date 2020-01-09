@@ -36,6 +36,9 @@ pub enum Ast {
 
     /// Variable binding
     ExtendEnv(Box<Ast>, Beta),
+    /// Variable binding, affects all phases.
+    /// This is weird, but needed for marcos, it seems.
+    ExtendEnvPhaseless(Box<Ast>, Beta),
 }
 
 // Reification macros would totally work for this,
@@ -90,6 +93,7 @@ impl fmt::Debug for Ast {
             QuoteLess(ref body, depth) => write!(f, ",,({}){:#?},,", depth, body),
             IncompleteNode(ref body) => write!(f, "{{ INCOMPLETE; {:#?} }}", body),
             ExtendEnv(ref body, ref beta) => write!(f, "{:#?}↓{:#?}", body, beta),
+            ExtendEnvPhaseless(ref body, ref beta) => write!(f, "{:#?}±↓{:#?}", body, beta),
         }
     }
 }
@@ -148,7 +152,7 @@ impl Ast {
             }
             QuoteMore(ref body, _) => body.flatten(),
             QuoteLess(ref body, _) => body.flatten(),
-            ExtendEnv(ref body, _) => body.flatten(),
+            ExtendEnv(ref body, _) | ExtendEnvPhaseless(ref body, _) => body.flatten(),
         }
     }
 
@@ -189,7 +193,7 @@ impl Ast {
             // This one is actually encounterable by real-world code
             //  (if a ∀ somehow ends up underneath a `*` in syntax.)
             // And we need to take a LazyWalkReses to do this right.
-            ExtendEnv(_, _) => unimplemented!("TODO"),
+            ExtendEnv(_, _) | ExtendEnvPhaseless(_, _) => unimplemented!("TODO"),
             Node(_, ref body, _) => body.map_reduce(
                 &|a| a.free_vrs(),
                 &|v0, v1| {

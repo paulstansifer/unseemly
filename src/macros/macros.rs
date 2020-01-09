@@ -162,6 +162,9 @@ macro_rules! ast {
     ( (import $beta:tt $sub:tt) ) => {
         crate::ast::ExtendEnv(Box::new(ast!($sub)), beta!($beta))
     };
+    ( (import_phaseless $beta:tt $sub:tt) ) => {
+        crate::ast::ExtendEnvPhaseless(Box::new(ast!($sub)), beta!($beta))
+    };
     /* // not sure we'll need this
     ( (* $env:expr => $new_env:ident / $($n:expr),* ; $($sub_ar"gs:tt)*) ) => {
         {

@@ -89,8 +89,6 @@ impl crate::walk_mode::WalkElt for Value {
             _ => icp!("[type error] {} is not syntax", self),
         }
     }
-
-    fn core_env() -> Assoc<Name, Self> { crate::runtime::core_values::core_values() }
 }
 
 custom_derive! {

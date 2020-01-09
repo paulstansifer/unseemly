@@ -13,7 +13,10 @@ use crate::{
         SynEnv,
     },
     name::*,
-    runtime::{eval::Closure, reify::Reifiable, eval::Eval},
+    runtime::{
+        eval::{Closure, Eval},
+        reify::Reifiable,
+    },
     ty::{SynthTy, Ty, TyErr},
     util::assoc::Assoc,
     walk_mode::WalkElt,

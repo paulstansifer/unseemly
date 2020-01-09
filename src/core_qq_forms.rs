@@ -760,12 +760,12 @@ fn quote_type_basic() {
     // previously unaccessed environments default to the core values/types
     // '[Expr | '[Expr | five]']'
     assert_eq!(
-        synth_type_two_phased(
+        crate::ty::synth_type(
+            // By default, `synth_type` uses the same env in all phases.
             &ast!(
             {quote(pos) ; "nt" => (vr "Expr"), "body" =>
                 (++ true {quote(pos) ; "nt" => (vr "Expr"), "body" => (++ true (vr "five"))})}),
-            env.clone(),
-            qenv.clone()
+            assoc_n!("five" => uty!({Int :}))
         ),
         Ok(ty!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" =>

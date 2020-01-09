@@ -228,22 +228,31 @@ pub fn walk<Mode: WalkMode>(
                 icp!("{:#?} is not a walkable AST in {}", a, Mode::name());
             }
 
-            ExtendEnv(ref body, ref beta) => {
+            ExtendEnv(ref body, ref beta) | ExtendEnvPhaseless(ref body, ref beta) => {
+                let phaseless = match a { ExtendEnvPhaseless(_,_) => true, _ => false };
+                let orig_env = if phaseless { &walk_ctxt.phaseless_env } else { &walk_ctxt.env };
+
                 let new_env = if Mode::automatically_extend_env() {
-                    walk_ctxt.env.set_assoc(&env_from_beta(beta, &walk_ctxt)?)
+                    orig_env.set_assoc(&env_from_beta(beta, &walk_ctxt)?)
                 } else {
-                    walk_ctxt.env.clone()
+                    orig_env.clone()
                 };
 
                 fn extract__ee_body<Mode: WalkMode>(e: <Mode as WalkMode>::Elt)
                         -> <Mode as WalkMode>::Elt {
                     match e.to_ast() {
-                        ExtendEnv(ref body, _) => { <Mode as WalkMode>::Elt::from_ast(&*body) }
+                        ExtendEnv(ref body, _) | ExtendEnvPhaseless(ref body, _) => {
+                            <Mode as WalkMode>::Elt::from_ast(&*body)
+                        }
                         _ => { e } // Match will fail
                     }
                 }
 
-                let new__walk_ctxt = walk_ctxt.with_environment(new_env);
+                let new__walk_ctxt = if phaseless {
+                    walk_ctxt.with_phaseless_environment(new_env)
+                } else {
+                    walk_ctxt.with_environment(new_env)
+                };
                 let new__walk_ctxt = // If the RHS is also binding, assume it's the same
                 // TODO: we should make this only happen if we're actually negative.
                 // The context element is sometimes leftover from a previous negative walk.
@@ -513,8 +522,8 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     /// Only use this in tests or at the top level; this discards any non-phase-0-environments!
     pub fn new_wrapper(env: ResEnv<Mode::Elt>) -> LazyWalkReses<Mode> {
         LazyWalkReses {
-            env: env,
-            phaseless_env: Mode::Elt::core_env(),
+            env: env.clone(),
+            phaseless_env: env,
             more_quoted_env: vec![],
             less_quoted_env: vec![],
             less_quoted_out_env: vec![],
@@ -681,6 +690,15 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         LazyWalkReses { env: env, ..(*self).clone() }
     }
 
+    /// Change the phaseless environment
+    pub fn with_phaseless_environment(
+        &self,
+        phaseless_env: ResEnv<Mode::Elt>,
+    ) -> LazyWalkReses<Mode>
+    {
+        LazyWalkReses { phaseless_env: phaseless_env, ..(*self).clone() }
+    }
+
     /// Clear the memo table; important if you're re-evaluating the same term,
     /// but have changed the environment
     pub fn clear_memo(&self) {
@@ -720,7 +738,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
 
     pub fn quote_more(mut self, oeh: Option<OutEnvHandle<Mode>>) -> LazyWalkReses<Mode> {
-        let env = self.more_quoted_env.pop().unwrap_or_else(Mode::Elt::core_env);
+        let env = self.more_quoted_env.pop().unwrap_or_else(|| self.phaseless_env.clone());
         let more_quoted_env = self.more_quoted_env;
         self.less_quoted_env.push(self.env);
         let less_quoted_env = self.less_quoted_env;
@@ -733,7 +751,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
 
     /// Shift to a less-quoted level. If the OEH is non-`None`, you need to call `squirrel_away`.
     pub fn quote_less(mut self) -> (Option<OutEnvHandle<Mode>>, LazyWalkReses<Mode>) {
-        let env = self.less_quoted_env.pop().unwrap_or_else(Mode::Elt::core_env);
+        let env = self.less_quoted_env.pop().unwrap_or_else(|| self.phaseless_env.clone());
         let less_quoted_env = self.less_quoted_env;
 
         let out_env: Option<OutEnvHandle<Mode>> = self.less_quoted_out_env.pop().unwrap();

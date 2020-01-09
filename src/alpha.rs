@@ -14,43 +14,60 @@ use crate::{
 #[derive(Clone, Debug, PartialEq)]
 pub struct Ren {
     env: Assoc<Name, Ast>,
+    env_phaseless: Assoc<Name, Ast>,
     q_lev: i16,
 }
 
 impl Ren {
     pub fn find(&self, n: Name) -> Option<&Ast> {
         if self.q_lev == 0 {
-            self.env.find(&n)
+            self.env.find(&n).or_else(|| self.env_phaseless.find(&n))
         } else {
-            None
+            self.env_phaseless.find(&n)
         }
     }
     pub fn unset(self, n: Name) -> Ren {
         if self.q_lev == 0 {
-            Ren { env: self.env.unset(&n), q_lev: self.q_lev }
+            Ren {
+                env: self.env.unset(&n),
+                env_phaseless: self.env_phaseless.unset(&n),
+                q_lev: self.q_lev,
+            }
         } else {
             self
         }
     }
     pub fn set_assoc(self, other: &Ren) -> Ren {
         if self.q_lev == other.q_lev {
-            Ren { env: self.env.set_assoc(&other.env), q_lev: self.q_lev }
+            Ren {
+                env: self.env.set_assoc(&other.env),
+                env_phaseless: self.env_phaseless.set_assoc(&other.env_phaseless),
+                q_lev: self.q_lev,
+            }
         } else {
             self
         }
     }
     pub fn q_more(&self, by: u8) -> Ren {
-        Ren { env: self.env.clone(), q_lev: self.q_lev + i16::from(by) }
+        Ren { q_lev: self.q_lev + i16::from(by), ..self.clone() }
     }
     pub fn q_less(&self, by: u8) -> Ren {
-        Ren { env: self.env.clone(), q_lev: self.q_lev - i16::from(by) }
+        Ren { q_lev: self.q_lev - i16::from(by), ..self.clone() }
     }
-    pub fn new() -> Ren { Ren { env: Assoc::new(), q_lev: 0 } }
-    pub fn single(n: Name, a: Ast) -> Ren { Ren { env: Assoc::new().set(n, a), q_lev: 0 } }
+    pub fn new() -> Ren { Ren { env: Assoc::new(), env_phaseless: Assoc::new(), q_lev: 0 } }
+    pub fn single(n: Name, a: Ast) -> Ren { Ren { env: Assoc::new().set(n, a), ..Ren::new() } }
+    pub fn become_phaseless(self) -> Ren {
+        // TODO: which order is right? What could even cause shadowing between these things?
+        Ren {
+            env_phaseless: self.env_phaseless.set_assoc(&self.env),
+            env: Assoc::new(),
+            q_lev: self.q_lev,
+        }
+    }
 }
 
 impl From<Assoc<Name, Ast>> for Ren {
-    fn from(a: Assoc<Name, Ast>) -> Ren { Ren { env: a, q_lev: 0 } }
+    fn from(a: Assoc<Name, Ast>) -> Ren { Ren { env: a, ..Ren::new() } }
 }
 
 fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Ren) -> Ast {
@@ -73,6 +90,17 @@ fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Ren) -> Ast
             }
 
             ExtendEnv(Box::new(substitute_rec(body, cur_node_contents, &new_env)), beta.clone())
+        }
+        ExtendEnvPhaseless(ref body, ref beta) => {
+            let mut new_env = env.clone();
+            for bound_name in crate::beta::bound_from_beta(beta, cur_node_contents, 0) {
+                new_env = new_env.unset(bound_name);
+            }
+
+            ExtendEnvPhaseless(
+                Box::new(substitute_rec(body, cur_node_contents, &new_env)),
+                beta.clone(),
+            )
         }
         QuoteMore(ref body, pos) => {
             QuoteMore(Box::new(substitute_rec(body, cur_node_contents, &env.q_more(1))), pos)
@@ -100,7 +128,7 @@ fn mentioned_in_import(parts: &EnvMBE<Ast>) -> Vec<Name> {
     fn process_ast(a: &Ast, v: &mut Vec<Name>) {
         match *a {
             Node(_, _, _) => {} // new scope
-            ExtendEnv(ref body, ref beta) => {
+            ExtendEnv(ref body, ref beta) | ExtendEnvPhaseless(ref body, ref beta) => {
                 let mut beta_mentions = beta.names_mentioned_and_bound();
                 v.append(&mut beta_mentions);
                 process_ast(&*body, v);
@@ -126,6 +154,14 @@ fn freshen_rec(node: &Ast, renamings: &EnvMBE<(Ast, Ren)>, env: Ren) -> Ast {
             let new_env = env.set_assoc(&beta.extract_from_mbe(renamings, &|x: &(_, Ren)| &x.1));
 
             ExtendEnv(Box::new(freshen_rec(body, renamings, new_env)), beta.clone())
+        }
+        ExtendEnvPhaseless(ref body, ref beta) => {
+            // Everything bound this way becomes phaseless.
+            let new__env = env.set_assoc(
+                &beta.extract_from_mbe(renamings, &|x: &(_, Ren)| &x.1).become_phaseless(),
+            );
+
+            ExtendEnvPhaseless(Box::new(freshen_rec(body, renamings, new__env)), beta.clone())
         }
         QuoteMore(ref body, pos) => {
             QuoteMore(Box::new(freshen_rec(body, renamings, env.q_more(1))), pos)
@@ -283,6 +319,11 @@ pub fn freshen_binders(a: &Ast) -> (Ast, Ren) {
             // We're only looking at `Atom`s, so this is transparent
             let (new_sub, subst) = freshen_binders(&*sub);
             (ExtendEnv(Box::new(new_sub), beta.clone()), subst)
+        }
+        ExtendEnvPhaseless(ref sub, ref beta) => {
+            // We're only looking at `Atom`s, so this is transparent
+            let (new_sub, subst) = freshen_binders(&*sub);
+            (ExtendEnv(Box::new(new_sub), beta.clone()), subst.become_phaseless())
         }
     }
 }
@@ -486,6 +527,28 @@ fn basic_freshening() {
     );
 
     // TODO: test more!
+}
+
+#[test]
+fn basic_phaseless_freshening() {
+    crate::name::enable_fake_freshness(true);
+    assert_eq!(
+        freshen(&ast!({"Expr" "lambda" :
+        "param" => ["a"],
+        "pparam" => ["b"],
+        "body" => (import_phaseless [* ["pparam" : "[ignored]"]]
+            (import [* ["param" : "[ignored]"]]
+                {"Expr" "apply" :
+                     "rator" => (vr "f"),
+                     "rand" => [(vr "a"), (vr "b"), (++ true (vr "a")), (++ true (vr "b"))]}))})),
+        ast!({"Expr" "lambda" :
+        "param" => ["a🍅"],
+        "pparam" => ["b🍅"],
+        "body" => (import_phaseless [* ["pparam" : "[ignored]"]]
+            (import [* ["param" : "[ignored]"]]
+            {"Expr" "apply" : "rator" => (vr "f"),
+            "rand" => [(vr "a🍅"), (vr "b🍅"), (++ true (vr "a")), (++ true (vr "b🍅"))]}))})
+    )
 }
 
 #[test]

@@ -13,10 +13,6 @@ use std::fmt::{Debug, Display};
 pub trait WalkElt: Clone + Debug + Display + Reifiable + PartialEq {
     fn from_ast(a: &Ast) -> Self;
     fn to_ast(&self) -> Ast;
-
-    // The default environment in a phase not previously visited.
-    // TODO: We should also use this to get the enviornment for the original phase!
-    fn core_env() -> Assoc<Name, Self> { Assoc::<Name, Self>::new() }
 }
 
 // Abbreviation for Result<…::Out, …>
