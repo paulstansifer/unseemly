@@ -175,9 +175,10 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
                             match *p {
                                 // Yes, `walk`, not `w_q_l`;
                                 //  the mode is in charge of figuring things out.
-                                Node(_, _, _) | VariableReference(_) | ExtendEnv(_, _) => {
-                                    walk(p, cnc_m)
-                                }
+                                Node(_, _, _)
+                                | VariableReference(_)
+                                | ExtendEnv(_, _)
+                                | ExtendEnvPhaseless(_, _) => walk(p, cnc_m),
                                 _ => Ok(<Self::Mode as WalkMode>::Elt::from_ast(&p.clone())),
                             }
                             .map(|e| <Self::Mode as WalkMode>::Elt::to_ast(&e))
@@ -203,7 +204,10 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
                 // This is all for splicing the result of `dotdotdot`
 
                 let body = match orig {
-                    ExtendEnv(ref b, _) | QuoteMore(ref b, _) | QuoteLess(ref b, _) => b,
+                    ExtendEnv(ref b, _)
+                    | ExtendEnvPhaseless(ref b, _)
+                    | QuoteMore(ref b, _)
+                    | QuoteLess(ref b, _) => b,
                     _ => icp!(),
                 };
                 let sub_result = Mode::Elt::to_ast(&walk(&**body, cnc)?);
@@ -213,6 +217,7 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
                     match orig {
                         // Environment extension is handled at `walk`
                         ExtendEnv(_, beta) => ExtendEnv(boxed, beta.clone()),
+                        ExtendEnvPhaseless(_, beta) => ExtendEnvPhaseless(boxed, beta.clone()),
                         QuoteMore(_, pos) => QuoteMore(boxed, *pos),
                         QuoteLess(_, depth) => QuoteLess(boxed, *depth),
                         _ => icp!(),
@@ -300,7 +305,10 @@ impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
         expd_parts.map_collapse_reduce_with(
             &parts_actual,
             &|model: &Ast, actual: &Ast| match *model {
-                Node(_, _, _) | VariableReference(_) | ExtendEnv(_, _) => {
+                Node(_, _, _)
+                | VariableReference(_)
+                | ExtendEnv(_, _)
+                | ExtendEnvPhaseless(_, _) => {
                     walk(model, &cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(actual)))
                 }
                 _ => Ok(Assoc::new()),

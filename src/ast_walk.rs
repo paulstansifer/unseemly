@@ -134,7 +134,7 @@ pub fn walk<Mode: WalkMode>(
 
         let literally : Option<bool> = // If we're under a wrapper, `this_ast` might not be a Node
             match a {
-                QuoteMore(_,_) | QuoteLess(_,_) | ExtendEnv(_,_) => {
+                QuoteMore(_,_) | QuoteLess(_,_) | ExtendEnv(_,_) | ExtendEnvPhaseless(_,_) => {
                     match walk_ctxt.this_ast {
                         // `this_ast` might be `NotWalked` (and non-literal) if under `switch_mode`.
                         // It's weird, but seems to be the right thing
@@ -230,13 +230,6 @@ pub fn walk<Mode: WalkMode>(
 
             ExtendEnv(ref body, ref beta) | ExtendEnvPhaseless(ref body, ref beta) => {
                 let phaseless = match a { ExtendEnvPhaseless(_,_) => true, _ => false };
-                let orig_env = if phaseless { &walk_ctxt.phaseless_env } else { &walk_ctxt.env };
-
-                let new_env = if Mode::automatically_extend_env() {
-                    orig_env.set_assoc(&env_from_beta(beta, &walk_ctxt)?)
-                } else {
-                    orig_env.clone()
-                };
 
                 fn extract__ee_body<Mode: WalkMode>(e: <Mode as WalkMode>::Elt)
                         -> <Mode as WalkMode>::Elt {
@@ -248,11 +241,24 @@ pub fn walk<Mode: WalkMode>(
                     }
                 }
 
-                let new__walk_ctxt = if phaseless {
-                    walk_ctxt.with_phaseless_environment(new_env)
+
+                let new__walk_ctxt = if !Mode::automatically_extend_env() {
+                    walk_ctxt.clone()
+                } else if phaseless {
+                    let extension = &env_from_beta(beta, &walk_ctxt)?;
+                    LazyWalkReses {
+                        env: walk_ctxt.env.set_assoc(extension),
+                        prelude_env: walk_ctxt.prelude_env.set_assoc(extension),
+                        more_quoted_env: walk_ctxt.more_quoted_env.iter().map(
+                            |e| e.set_assoc(extension)).collect(),
+                        less_quoted_env: walk_ctxt.less_quoted_env.iter().map(
+                            |e| e.set_assoc(extension)).collect(),
+                        .. walk_ctxt.clone()
+                    }
                 } else {
-                    walk_ctxt.with_environment(new_env)
+                    walk_ctxt.with_environment(walk_ctxt.env.set_assoc(&env_from_beta(beta, &walk_ctxt)?))
                 };
+
                 let new__walk_ctxt = // If the RHS is also binding, assume it's the same
                 // TODO: we should make this only happen if we're actually negative.
                 // The context element is sometimes leftover from a previous negative walk.
@@ -445,7 +451,7 @@ pub struct LazyWalkReses<Mode: WalkMode> {
 
     /// The environment to use when entering a new phase.
     /// It's like a prelude, except that it's affected by syntax extensions.
-    pub phaseless_env: ResEnv<Mode::Elt>,
+    pub prelude_env: ResEnv<Mode::Elt>,
     /// The environment for syntax quotation (deeper on the front, shallower on the back)
     pub more_quoted_env: Vec<ResEnv<Mode::Elt>>,
     /// The environment for interpolation (further out on the front, nearer on the back)
@@ -469,7 +475,7 @@ impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
 
     fn reify(&self) -> eval::Value {
         val!(struct "parts" => (, self.parts.reify()), "env" => (, self.env.reify()),
-                    "phaseless_env" => (,self.phaseless_env.reify()),
+                    "prelude_env" => (,self.prelude_env.reify()),
                     "more_quoted_env" => (,self.more_quoted_env.reify()),
                     "less_quoted_env" => (,self.less_quoted_env.reify()),
                     "less_quoted_out_env" => (,self.less_quoted_out_env.reify()),
@@ -482,8 +488,8 @@ impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
                                 contents.find_or_panic(&n("parts"))),
                             env: ResEnv::<Mode::Elt>::reflect(
                                 contents.find_or_panic(&n("env"))),
-                            phaseless_env: ResEnv::<Mode::Elt>::reflect(
-                                contents.find_or_panic(&n("phaseless_env"))),
+                            prelude_env: ResEnv::<Mode::Elt>::reflect(
+                                contents.find_or_panic(&n("prelude_env"))),
                             more_quoted_env: Vec::<ResEnv<Mode::Elt>>::reflect(
                                 contents.find_or_panic(&n("more_quoted_env"))),
                             less_quoted_env: Vec::<ResEnv<Mode::Elt>>::reflect(
@@ -501,14 +507,14 @@ impl<Mode: WalkMode> reify::Reifiable for LazyWalkReses<Mode> {
 impl<Mode: WalkMode> LazyWalkReses<Mode> {
     pub fn new(
         env: ResEnv<Mode::Elt>,
-        phaseless_env: ResEnv<Mode::Elt>,
+        prelude_env: ResEnv<Mode::Elt>,
         parts_unwalked: &EnvMBE<Ast>, // TODO: get rid of this argument; use `this_ast`
         this_ast: Ast,
     ) -> LazyWalkReses<Mode>
     {
         LazyWalkReses {
             env: env,
-            phaseless_env: phaseless_env,
+            prelude_env: prelude_env,
             more_quoted_env: vec![],
             less_quoted_env: vec![],
             less_quoted_out_env: vec![],
@@ -523,7 +529,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     pub fn new_wrapper(env: ResEnv<Mode::Elt>) -> LazyWalkReses<Mode> {
         LazyWalkReses {
             env: env.clone(),
-            phaseless_env: env,
+            prelude_env: env,
             more_quoted_env: vec![],
             less_quoted_env: vec![],
             less_quoted_out_env: vec![],
@@ -540,7 +546,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     {
         LazyWalkReses {
             env: env,
-            phaseless_env: Assoc::new(),
+            prelude_env: Assoc::new(),
             more_quoted_env: mqe,
             less_quoted_env: vec![],
             less_quoted_out_env: vec![], // If we want a `lqe`, we need to fill this in, too!
@@ -690,13 +696,9 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         LazyWalkReses { env: env, ..(*self).clone() }
     }
 
-    /// Change the phaseless environment
-    pub fn with_phaseless_environment(
-        &self,
-        phaseless_env: ResEnv<Mode::Elt>,
-    ) -> LazyWalkReses<Mode>
-    {
-        LazyWalkReses { phaseless_env: phaseless_env, ..(*self).clone() }
+    /// Change the prelude environment
+    pub fn with_prelude_environment(&self, prelude_env: ResEnv<Mode::Elt>) -> LazyWalkReses<Mode> {
+        LazyWalkReses { prelude_env: prelude_env, ..(*self).clone() }
     }
 
     /// Clear the memo table; important if you're re-evaluating the same term,
@@ -716,7 +718,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         LazyWalkReses::<NewMode> {
             parts: new_parts,
             env: self.env.clone(),
-            phaseless_env: self.phaseless_env.clone(),
+            prelude_env: self.prelude_env.clone(),
             more_quoted_env: self.more_quoted_env.clone(),
             less_quoted_env: self.less_quoted_env.clone(),
             less_quoted_out_env: self.less_quoted_out_env.clone(),
@@ -738,7 +740,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
 
     pub fn quote_more(mut self, oeh: Option<OutEnvHandle<Mode>>) -> LazyWalkReses<Mode> {
-        let env = self.more_quoted_env.pop().unwrap_or_else(|| self.phaseless_env.clone());
+        let env = self.more_quoted_env.pop().unwrap_or_else(|| self.prelude_env.clone());
         let more_quoted_env = self.more_quoted_env;
         self.less_quoted_env.push(self.env);
         let less_quoted_env = self.less_quoted_env;
@@ -751,7 +753,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
 
     /// Shift to a less-quoted level. If the OEH is non-`None`, you need to call `squirrel_away`.
     pub fn quote_less(mut self) -> (Option<OutEnvHandle<Mode>>, LazyWalkReses<Mode>) {
-        let env = self.less_quoted_env.pop().unwrap_or_else(|| self.phaseless_env.clone());
+        let env = self.less_quoted_env.pop().unwrap_or_else(|| self.prelude_env.clone());
         let less_quoted_env = self.less_quoted_env;
 
         let out_env: Option<OutEnvHandle<Mode>> = self.less_quoted_out_env.pop().unwrap();

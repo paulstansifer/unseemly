@@ -416,6 +416,10 @@ macro_rules! form_pat {
     ((import $beta:tt, $body:tt)) => {
         crate::grammar::FormPat::NameImport(std::rc::Rc::new(form_pat!($body)), beta!($beta))
     };
+    ((import_phaseless $beta:tt, $body:tt)) => {
+        crate::grammar::FormPat::NameImportPhaseless(
+            std::rc::Rc::new(form_pat!($body)), beta!($beta))
+    };
     ((++ $pos:tt $body:tt)) => { // `pos` should be an expr, but I didn't want a comma. Name it.
         crate::grammar::FormPat::QuoteDeepen(std::rc::Rc::new(form_pat!($body)), $pos)
     };

@@ -477,6 +477,7 @@ impl Item {
                         | Named(_, _)
                         | SynImport(_, _, _)
                         | NameImport(_, _)
+                        | NameImportPhaseless(_, _)
                         | QuoteDeepen(_, _)
                         | QuoteEscape(_, _)
                         | Common(_) => waiting_item.finish_with(me_justif, 0),
@@ -655,6 +656,7 @@ impl Item {
             }
             (0, &Named(_, ref body))
             | (0, &NameImport(ref body, _))
+            | (0, &NameImportPhaseless(ref body, _))
             | (0, &QuoteDeepen(ref body, _))
             | (0, &QuoteEscape(ref body, _))
             | (0, &Reserved(ref body, _)) => self.start(&body, cur_idx),
@@ -799,6 +801,10 @@ impl Item {
             NameImport(_, ref beta) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
                 Ok(Ast::ExtendEnv(Box::new(sub_parsed), beta.clone()))
+            }
+            NameImportPhaseless(_, ref beta) => {
+                let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
+                Ok(Ast::ExtendEnvPhaseless(Box::new(sub_parsed), beta.clone()))
             }
             QuoteDeepen(_, pos) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;

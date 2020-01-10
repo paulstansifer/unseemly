@@ -44,6 +44,7 @@ pub fn vr_to_name(ast: &Ast) -> Name {
 pub fn strip_ee(a: &Ast) -> &Ast {
     match *a {
         ExtendEnv(ref body, _) => (&**body),
+        ExtendEnvPhaseless(ref body, _) => (&**body),
         _ => icp!("malformed thing"),
     }
 }

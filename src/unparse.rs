@@ -20,6 +20,7 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
         Star(ref body)
         | Plus(ref body)
         | NameImport(ref body, _)
+        | NameImportPhaseless(ref body, _)
         | VarRef(ref body)
         | Literal(ref body, _)
         | QuoteDeepen(ref body, _)
@@ -141,6 +142,10 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
             unparse_mbe(&*body, &*actl_body, context, s)
         }
         (&NameImport(_, _), _) => format!("[Missing import]→{:#?}←", actl),
+        (&NameImportPhaseless(ref body, _), &ExtendEnvPhaseless(ref actl_body, _)) => {
+            unparse_mbe(&*body, &*actl_body, context, s)
+        }
+        (&NameImportPhaseless(_, _), _) => format!("[Missing import]±→{:#?}←±", actl),
         (&QuoteDeepen(ref body, _), &QuoteMore(ref actl_body, _)) => {
             unparse_mbe(&*body, &*actl_body, context, s)
         }

@@ -71,6 +71,8 @@ custom_derive! {
         ///  (write Named(NameImport(..., ...)) instead)
         /// TODO: make this better
         NameImport(Rc<FormPat>, Beta),
+        /// Like `NameImport`, but affects all phases.
+        NameImportPhaseless(Rc<FormPat>, Beta),
         /// Quote syntax (the boolean indicates whether it's positive or negative)
         QuoteDeepen(Rc<FormPat>, bool),
         /// Escape syntax quotation (by some number of levels)
@@ -98,6 +100,7 @@ impl FormPat {
             // TODO: since these belong under `Named`, I suspect they ought to return an empty Vec.
             SynImport(ref body, _, _)
             | NameImport(ref body, _)
+            | NameImportPhaseless(ref body, _)
             | QuoteDeepen(ref body, _)
             | QuoteEscape(ref body, _)
             | Common(ref body)
@@ -131,6 +134,7 @@ impl FormPat {
             | Plus(ref body)
             | SynImport(ref body, _, _)
             | NameImport(ref body, _)
+            | NameImportPhaseless(ref body, _)
             | Literal(ref body, _)
             | VarRef(ref body)
             | QuoteDeepen(ref body, _)
