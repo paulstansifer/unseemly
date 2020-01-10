@@ -732,39 +732,43 @@ macro_rules! layer_watch {
 
 // "Layer debug"
 macro_rules! ld {
-    ($layer:ident, $template:tt, $($arg:expr),*) => {{
-        let layers = $layer.with(|l| l.borrow().0) - 1;
-        for i in 1..layers {
-            if i % 2 == 0 {
-                print!("║ ")
-            } else {
-                print!("│ ");
+    ($layer:ident, $enabled:expr, $template:tt, $($arg:expr),*) => {{
+        if $enabled.with(|e| *e) {
+            let layers = $layer.with(|l| l.borrow().0) - 1;
+            for i in 1..layers {
+                if i % 2 == 0 {
+                    print!("║ ")
+                } else {
+                    print!("│ ");
+                }
             }
-        }
-        if layers > 0 {
-            if layers % 2 == 0 {
-                print!("╠═")
-            } else {
-                print!("├─");
+            if layers > 0 {
+                if layers % 2 == 0 {
+                    print!("╠═")
+                } else {
+                    print!("├─");
+                }
             }
+            print!($template, $($arg),*);
+            print!(" ({})", $layer.with(|l| l.borrow().1));
+            println!();
         }
-        print!($template, $($arg),*);
-        print!(" ({})", $layer.with(|l| l.borrow().1));
-        println!();
     }}
 }
 
 // "Layer debug, continued"
 macro_rules! lc {
-    ($layer:ident, $template:tt, $($arg:expr),*) => {{
-        let layers = $layer.with(|l| l.borrow().0) - 1;
-        for i in 1..(layers+1) {
-            if i % 2 == 0 {
-                print!("║ ")
-            } else {
-                print!("│ ");
+    ($layer:ident, $enabled:expr, $template:tt, $($arg:expr),*) => {{
+        if $enabledwith(|e| *) {
+            let layers = $layer.with(|l| l.borrow().0) - 1;
+            for i in 1..(layers+1) {
+                if i % 2 == 0 {
+                    print!("║ ")
+                } else {
+                    print!("│ ");
+                }
             }
+            println!($template, $($arg),*);
         }
-        println!($template, $($arg),*);
     }}
 }

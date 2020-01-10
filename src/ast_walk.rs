@@ -103,6 +103,7 @@ impl<Elt: WalkElt> Clo<Elt> {
 thread_local! {
     // Tuple elements are (layers deep, number of steps taken).
     pub static ast_walk_layer: RefCell<(u32, u32)> = RefCell::new((0, 0));
+    pub static ld_enabled: bool = std::env::var(&"UNSEEMLY_TRACE").map(|t| t == "full") == Ok(true);
 }
 
 /// Make a `<Mode::D as Dir>::Out` by walking `node` in the environment from `walk_ctxt`.
@@ -126,11 +127,11 @@ pub fn walk<Mode: WalkMode>(
           _ => Mode::D::pre_walk(a.clone(), walk_ctxt.clone())
         };
 
-        // ld!(ast_walk_layer, "{} {}", Mode::name(), a);
-        // lc!(ast_walk_layer, "  from: {}", walk_ctxt.this_ast);
+        ld!(ast_walk_layer, ld_enabled, "{} {}", Mode::name(), a);
+        // lc!(ast_walk_layer, ld_enabled, "  from: {}", walk_ctxt.this_ast);
         // match walk_ctxt.env.find(&negative_ret_val()) {
-        //     Some(ref ctxt) => lc!(ast_walk_layer, "  ctxt: {}", ctxt), _ => {}};
-        // lc!(ast_walk_layer, "  in: {}", walk_ctxt.env /*.map_borrow_f(&mut |_| "…")*/);
+        //     Some(ref ctxt) => lc!(ast_walk_layer, ld_enabled, "  ctxt: {}", ctxt), _ => {}};
+        // lc!(ast_walk_layer, ld_enabled, " in: {}", walk_ctxt.env/*.map_borrow_f(&mut |_| "…")*/);
 
         let literally : Option<bool> = // If we're under a wrapper, `this_ast` might not be a Node
             match a {
