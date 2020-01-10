@@ -45,7 +45,7 @@ Install Rust, if you haven't already:
 
 From your Unseemly repository directory, run an example program:
 
-    cargo run src/examples/sum_list.≉
+    cargo run --release src/examples/sum_list.≉
 
 (Recommended) Get the default prelude for the unseemly REPL:
 
@@ -53,7 +53,7 @@ From your Unseemly repository directory, run an example program:
 
 Start the REPL:
 
-    cargo run
+    cargo run --release
 
 ## Documentation
 
