@@ -292,7 +292,17 @@ pub fn macro_invocation(
                     let rhs = parts.map_flatten_term_at_depth(
                         *param,
                         *depth,
-                        &Value::from_ast,
+                        &|mut a: &Ast| {
+                            // Nuke all binding, since we're abandoning its context.
+                            // The user will† deposit this syntax inside a replacement binding form.
+                            // (†still not enforced until issue #31 is fixed)
+                            while let Ast::ExtendEnv(ref body, _)
+                            | Ast::ExtendEnvPhaseless(ref body, _) = a
+                            {
+                                a = &*body;
+                            }
+                            Value::from_ast(a)
+                        },
                         &|vec: Vec<Value>| Value::Sequence(vec.into_iter().map(Rc::new).collect()),
                     );
 
@@ -301,7 +311,7 @@ pub fn macro_invocation(
             }
             let expanded = Ast::reflect(&crate::runtime::eval::eval(&implementation.body, env)?);
 
-            // Expand any macros that were produced by expansion, or were already present in subterms:
+            // Expand any macros produced by expansion, or that were already present in subterms:
             Ok(crate::expand::expand(&expanded)?.reify())
         })),
         quasiquote: Both(LiteralLike, LiteralLike),
@@ -542,9 +552,9 @@ pub fn make_core_macro_forms() -> SynEnv {
                 [(named "body", (call "Syntax")), (lit "<--"), (named "imported", (call "Beta"))])),
             type_compare: Both(NotWalked,NotWalked), // Not a type
             synth_type: Both(cust_rc_box!(|parts| {
-                parts.get_res(n("body"))
-            }),
-            cust_rc_box!(|_| panic!("TODO prevent `import`s outside of `named`s"))),
+                    parts.get_res(n("body"))
+                }),
+                cust_rc_box!(|_| panic!("TODO prevent `import`s outside of `named`s"))),
             eval: Positive(cust_rc_box!(|parts| {
                 Ok(NameImport(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?)),
                               Beta::reflect(&parts.get_res(n("imported"))?)).reify())

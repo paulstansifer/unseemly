@@ -165,7 +165,7 @@ fn expand_basic_macros() {
                            (named "let_val", (call "Expr")), (named "let_body", (call "Expr"))]),
                 n("let_macro"),
                 eval::Closure {
-                    body: macro_body_let,
+                    body: macro_body_let.clone(),
                     params: vec![n("let_val"), n("let_pat"), n("let_body")],
                     env: Assoc::new(),
                 },
@@ -174,6 +174,32 @@ fn expand_basic_macros() {
             x // let_pat
             five // let_val
             {apply : times [x ; eight]} // let_body
+        })),
+        Ok(u!({match : five [x {apply : times [x ; eight]}]}))
+    );
+
+    // The previous example was unrealistic, since no actual binding took place in the input.
+    // (It works because the binding is actually irrelevant at this stage.)
+    // Once more, with binding:
+    assert_eq!(
+        expand(&u!({
+            macro_invocation(
+                // duplicates the syntax syntax above
+                form_pat!([(lit "let"), (named "let_pat", (call "Pat")),
+                           (named "let_val", (call "Expr")),
+                           (named "let_body", (import ["let_pat" = "let_val"], (call "Expr")))]),
+                n("let_macro"),
+                eval::Closure {
+                    body: macro_body_let,
+                    params: vec![n("let_val"), n("let_pat"), n("let_body")],
+                    env: Assoc::new(),
+                },
+                vec![],
+            );
+            x // let_pat
+            five // let_val
+            (, Ast::ExtendEnv(Box::new(u!({apply : times [x ; eight]})),
+                              beta!(["let_pat" = "let_val"]))) // let_body
         })),
         Ok(u!({match : five [x {apply : times [x ; eight]}]}))
     );
