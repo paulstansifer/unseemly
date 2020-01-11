@@ -1,6 +1,6 @@
 If I had to do it all over again...
 
-* There should be one primary macro for defining type forms,
+* There should be one primary macro for defining language forms,
   which would also define a destructuring macro for that form.
   (And maybe it could make flimsy_syntax.rs simpler or nonexistent.)
 * This may overlap with the purpose of the previous,
