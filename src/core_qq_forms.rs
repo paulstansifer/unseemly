@@ -331,7 +331,7 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
 //  If you match syntax under a `*`, you'll get something like `::[T >> Expr<T> ]:::`.
 //
 // The second is how we use them:
-//  In a syntax quotation, you can write `...[, x , >> some_syntax]...`
+//  In a syntax quotation, you can write `...[,x, >> some_syntax]...`
 pub fn dotdotdot(nt: Name) -> Rc<FormPat> {
     Rc::new(FormPat::Scope(dotdotdot_form(nt), crate::beta::ExportBeta::Nothing))
 }
@@ -399,7 +399,9 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
     Rc::new(Form {
         name: n("dotdotdot"),
         grammar: Rc::new(form_pat!((delim "...[", "[",
-            [(star [(lit ","), (named "driver", (-- 1 varref)), (lit ",")]), (lit ">>"),
+            [(star [(call "DefaultSeparator"), (scan "(,)"),
+             (named "driver", (-- 1 varref)),
+             (call "DefaultSeparator"), (scan "(,)")]), (lit ">>"),
              (named "body", (call_by_name nt))]))),
         type_compare: Positive(NotWalked), // this is not a type form
         synth_type: Both(

@@ -16,8 +16,8 @@ extend_syntax
             body := ( ,{ Expr<T> }, <-- ...[pat = value]... )
         ] }' let_macro -> .{
             '[Expr |
-                match **[...[, value , >> ,[value], ]... ]**
-                    { **[...[, pat , >> ,[pat],]... ]** => ,[body], } ]'
+                match **[...[,value, >> ,[value], ]... ]**
+                    { **[...[,pat, >> ,[pat],]... ]** => ,[body], } ]'
         }. ;
 in
 extend_syntax

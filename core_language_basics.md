@@ -1,16 +1,13 @@
 The Unseemly core language is not intended to be ergonomic,
 but to support the bare minimum of an algebraic type system and a procedural macro system.
 
-The file extension for Unseemly source code is `.≉`.
+The typical file extension for Unseemly source code is `.≉`.
 
 ## Low-level structure
 The default Unseemly tokenizer is very simple.
-Tokens are only separated by whitespace and the *inside edges* of `([{}])`.
-You'll tend to see constructs like, `.[ ].`, `'[ ]'`, and `hi[ ]hi`.
-You need to leave more spaces than you're used to in normal languages.
-Probably, there's a reason that they have tokenizers
- that can't be described in five sentences.
-
+Names start with a letter, and contain letters, numbers, and `?` and `_`.
+Non-name tokens are typically separated by whitespace and the *inside edges* of `([{}])`.
+You'll tend to see constructs like `.[ ].`, `'[ ]'`, and `hi[ ]hi`.
 
 ## Expressions
 * `(expr expr ⋯)` is function application.
@@ -22,14 +19,14 @@ Probably, there's a reason that they have tokenizers
 * `+[Choice expr ⋯]+ : Type` constructs an enumerated value.
     The type annotation is weird, but it helps keep the typechecker simple.
 
-* `*[component : expr ⋯]*` constructs a structure value.
+* `*[component: expr ⋯]*` constructs a structure value.
 
 * `forall X ⋯ . expr` abstracts over a type. It is typically used around lambdas.
 
 * `unfold expr` pulls one layer of `mu` off a recursively-typed value.
     It is almost exclusively used for the scrutinee in `match`.
 
-* `fold expr : Type` adds one layer of `mu` to recursively-typed value.
+* `fold expr: Type` adds one layer of `mu` to recursively-typed value.
     It is almost exclusively used right after constructing an enum or struct.
     `Type` is the type you want after adding the `mu`.
 
@@ -41,7 +38,7 @@ Probably, there's a reason that they have tokenizers
         For example `[Expr | (plus ,[syn_for_number], one)]` is the syntax for
          adding one to whatever `syn_for_number` represents.
         (The whole `Nt<Type> |` annotation is usually optional†).
-    * Inside a quotation `...[x ⋯ >> whatever_that_nonterminal_represents ]...`
+    * Inside a quotation `...[,x, ⋯ >> whatever_that_nonterminal_represents ]...`
        is an abstract repetition;
        it's only valid at parts of the grammar that accept an arbitrary number of something.
       `x` must have been parsed under some kind of repetition; this expands `x` to its components,

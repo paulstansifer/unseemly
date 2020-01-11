@@ -709,8 +709,8 @@ fn language_building() {
                 ]
             }' let_macro -> .{
                 '[Expr |
-                    match ...[, value , >> ,[value], ]...
-                        { ...[, pat , >> ,[pat],]... => ,[body], } ]'
+                    match ...[,value, >> ,[value], ]...
+                        { ...[,pat, >> ,[pat],]... => ,[body], } ]'
             }. ;
         in
         let x = eight ;
@@ -747,8 +747,8 @@ fn language_building() {
                 ]
             }' let_macro -> .{
                 '[Expr |
-                    match ...[, value , >> ,[value], ]...
-                        { ...[, pat , >> ,[pat],]... => ,[body], } ]'
+                    match ...[,value, >> ,[value], ]...
+                        { ...[,pat, >> ,[pat],]... => ,[body], } ]'
             }. ;
         in
         let x = eight ;
@@ -787,8 +787,8 @@ fn language_building() {
                 ]
             }' let_macro -> .{
                 '[Expr |
-                    match **[...[, value , >> ,[value], ]... ]**
-                        { **[...[, pat , >> ,[pat],]... ]** => ,[body], } ]'
+                    match **[...[,value, >> ,[value], ]... ]**
+                        { **[...[,pat, >> ,[pat],]... ]** => ,[body], } ]'
             }. ;
         in
         let x = eight ;
