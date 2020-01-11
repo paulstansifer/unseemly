@@ -114,7 +114,7 @@ fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Ren) -> Ast
 
 /// Substitute `VariableReference`s in `node`, according to `env`.
 /// TODO: don't use this to "capture the environment"; it doesn't work in the presence of recursion
-/// Instead, we should introduce a "constant" to Beta.
+/// Instead, we should introduce a "constant" to Beta. (Does `SameAs` suffice now?)
 /// TODO: because of mu's use of `VariableReference`s in a place where other `Ast`s are forbidden,
 ///  it seems like this has limited use.
 /// TODO: this isn't capture-avoiding (and shouldn't be, when called by `freshen_rec`)
@@ -323,7 +323,7 @@ pub fn freshen_binders(a: &Ast) -> (Ast, Ren) {
         ExtendEnvPhaseless(ref sub, ref beta) => {
             // We're only looking at `Atom`s, so this is transparent
             let (new_sub, subst) = freshen_binders(&*sub);
-            (ExtendEnv(Box::new(new_sub), beta.clone()), subst.become_phaseless())
+            (ExtendEnvPhaseless(Box::new(new_sub), beta.clone()), subst.become_phaseless())
         }
     }
 }
@@ -399,18 +399,26 @@ pub fn freshen_binders_with(lhs: &Ast, rhs: &Ast) -> Option<(Ast, Ren, Ast, Ren)
             }
         }
         (&IncompleteNode(_), _) | (&Shape(_), _) => icp!("didn't think this was needed"),
-        (&ExtendEnv(ref sub_lhs, ref beta), &ExtendEnv(ref sub_rhs, ref beta_rhs)) => {
+        (&ExtendEnv(ref sub_lhs, ref beta), &ExtendEnv(ref sub_rhs, ref beta_rhs))
+        | (
+            &ExtendEnvPhaseless(ref sub_lhs, ref beta),
+            &ExtendEnvPhaseless(ref sub_rhs, ref beta_rhs),
+        ) => {
             if beta != beta_rhs {
                 return None;
             }
+            let ee = |a: Ast| -> Ast {
+                if let ExtendEnv(_, _) = lhs {
+                    ExtendEnv(Box::new(a), beta.clone())
+                } else {
+                    ExtendEnvPhaseless(Box::new(a), beta.clone())
+                }
+            };
             // We're only looking at `Atom`s, so this is transparent
             match freshen_binders_with(&*sub_lhs, &*sub_rhs) {
-                Some((n_lhs, ren_lhs, n_rhs, ren_rhs)) => Some((
-                    ExtendEnv(Box::new(n_lhs), beta.clone()),
-                    ren_lhs,
-                    ExtendEnv(Box::new(n_rhs), beta.clone()),
-                    ren_rhs,
-                )),
+                Some((n_lhs, ren_lhs, n_rhs, ren_rhs)) => {
+                    Some((ee(n_lhs), ren_lhs, ee(n_rhs), ren_rhs))
+                }
                 None => None,
             }
         }
