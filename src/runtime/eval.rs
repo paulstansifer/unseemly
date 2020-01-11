@@ -190,12 +190,10 @@ impl WalkMode for QQuote {
     type ExtraInfo = ();
 
     fn walk_var(n: Name, _: &LazyWalkReses<Self>) -> Result<Value, ()> {
-        let n_sp = &n.sp();
-        Ok(val!(ast (vr n_sp)))
+        Ok(val!(ast (, Ast::VariableReference(n))))
     }
     fn walk_atom(n: Name, _: &LazyWalkReses<Self>) -> Result<Value, ()> {
-        let n_sp = &n.sp();
-        Ok(val!(ast n_sp))
+        Ok(val!(ast (, Ast::Atom(n))))
     }
     // TODO #26: Just special-case "unquote" and "dotdotdot"
     fn get_walk_rule(f: &Form) -> WalkRule<QQuote> { f.quasiquote.pos().clone() }
@@ -214,19 +212,19 @@ impl WalkMode for QQuoteDestr {
     type ExtraInfo = ();
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Self>) -> Result<Assoc<Name, Value>, ()> {
-        let n_sp = &n.sp();
-        if cnc.context_elt() == &val!(ast (vr n_sp)) {
+        let val = val!(ast (, Ast::VariableReference(n)));
+        if cnc.context_elt() == &val {
             Ok(Assoc::<Name, Value>::new())
         } else {
-            Err(Self::qlit_mismatch_error(val!(ast (vr n_sp)), cnc.context_elt().clone()))
+            Err(Self::qlit_mismatch_error(val, cnc.context_elt().clone()))
         }
     }
     fn walk_atom(n: Name, cnc: &LazyWalkReses<Self>) -> Result<Assoc<Name, Value>, ()> {
-        let n_sp = &n.sp();
-        if cnc.context_elt() == &val!(ast n_sp) {
+        let val = val!(ast (, Ast::Atom(n)));
+        if cnc.context_elt() == &val {
             Ok(Assoc::<Name, Value>::new())
         } else {
-            Err(Self::qlit_mismatch_error(val!(ast (vr n_sp)), cnc.context_elt().clone()))
+            Err(Self::qlit_mismatch_error(val, cnc.context_elt().clone()))
         }
     }
     // TODO #26: Just special-case "unquote"

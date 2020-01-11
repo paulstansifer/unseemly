@@ -1,0 +1,64 @@
+extend_syntax
+    DefaultSeparator ::= /((?s:\s|%|#[^\n|][^\n]*|#\|.*?\|#)*)/ ;
+in
+# Now we've got comments!
+extend_syntax
+    Expr ::=also
+        forall T S . '{ [
+            lit ,{ DefaultToken }, = 'let'
+            [
+                pat := ( ,{ Pat<S> }, )
+                lit ,{ DefaultToken }, = '='
+                value := ( ,{ Expr<S> }, )
+                lit ,{ DefaultToken }, = ';'
+            ] *
+            lit ,{ DefaultToken }, = 'in'
+            body := ( ,{ Expr<T> }, <-- ...[pat = value]... )
+        ] }' let_macro -> .{
+            '[Expr |
+                match **[...[, value , >> ,[value], ]... ]**
+                    { **[...[, pat , >> ,[pat],]... ]** => ,[body], } ]'
+        }. ;
+in
+extend_syntax
+    Expr ::=also
+        # Currently, one has to make a separate macro for each number of arguments.
+        # That definitely needs to be fixed (need something `:::[]:::`-like for non-tuples).
+        forall I0 I1 O T . '{ [
+            lit ,{ DefaultToken }, = 'letfn'
+            lit ,{ DefaultToken }, = '('
+            # We currently can't interpolate in atom positions, so we have to use patterns here.
+            fn_name := ( ,{ Pat< [I0 I1 -> O] > }, )
+            arg_name0 := ( ,{ Pat<I0> }, )
+            lit ,{ DefaultToken }, = ':'
+            # The fact that the syntax `[Int -> Int]` has type `Type<[Int -> Int]>` is weird,
+            #  but so far it works fine!
+            arg_type0 := ( ,{ Type<I0> }, )
+            arg_name1 := ( ,{ Pat<I1> }, )
+            lit ,{ DefaultToken }, = ':'
+            arg_type1 := ( ,{ Type<I1> }, )
+            lit ,{ DefaultToken }, = ')'
+            lit ,{ DefaultToken }, = '->'
+            ret_type := ( ,{ Type<O> }, )
+            lit ,{ DefaultToken }, = '='
+            fn_body := ( ,{ Expr<O> }, <-- [ arg_name0 = arg_type0 o> arg_name1 = arg_type1 ] )
+            lit ,{ DefaultToken }, = ';'
+            lit ,{ DefaultToken }, = 'in'
+            body := ( ,{ Expr<T> }, <-- fn_name = [ arg_type0 arg_type1 -> ret_type ]  )
+        ] }' let_fn2 -> .{
+            # In case the function is recursive, wrap it in `fix`:
+            '[Expr | let ,[fn_name], = (fix
+                .[ again: [ -> [ ,[arg_type0], ,[arg_type1], -> ,[ret_type], ] ] .
+                    .[ a0: ,[arg_type0], a1: ,[arg_type1], .
+                        # Workaround for not being able to interpolate atoms:
+                        let ,[arg_name0], = a0; ,[arg_name1], = a1; in ,[fn_body], ].
+            ].) ; in
+                ,[body],
+             ]'
+        }. ;
+in
+let eleven = (plus ten one) ;
+in
+letfn (plusplusplus a: Int  b: Int) -> Int = (plus a b) ;
+in
+(plusplusplus eleven one)
