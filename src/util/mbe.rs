@@ -890,18 +890,18 @@ impl<T: Clone> EnvMBE<T> {
     }
 
     // If `f` turns a leaf into a `Vec`, splice those results in
-    pub fn heal_splices(&mut self, f: &dyn Fn(&T) -> Option<Vec<T>>) {
+    pub fn heal_splices(&mut self, f: &dyn Fn(&T) -> Result<Option<Vec<T>>, ()>) -> Result<(), ()> {
         for repeat in &mut self.repeats {
             let mut cur_repeat: Vec<EnvMBE<T>> = (**repeat).clone();
             let mut i = 0;
             while i < cur_repeat.len() {
-                cur_repeat[i].heal_splices(f);
+                cur_repeat[i].heal_splices(f)?;
 
                 let mut splices = vec![];
                 {
                     let n_and_vals = cur_repeat[i].leaves.iter_pairs();
                     for (n, val) in n_and_vals {
-                        if let Some(splice) = f(val) {
+                        if let Some(splice) = f(val)? {
                             splices.push((*n, splice));
                         }
                     }
@@ -925,13 +925,14 @@ impl<T: Clone> EnvMBE<T> {
             }
             *repeat = Rc::new(cur_repeat)
         }
+        Ok(())
     }
 
     // TODO: this should return a usable error
     pub fn heal_splices__with(
         &mut self,
         other: &EnvMBE<T>,
-        f: &dyn Fn(&T, &dyn Fn() -> Vec<T>) -> Option<Vec<T>>,
+        f: &dyn Fn(&T, &dyn Fn() -> Vec<T>) -> Result<Option<Vec<T>>, ()>,
     ) -> Result<(), ()>
     where
         T: std::fmt::Debug,
@@ -973,7 +974,7 @@ impl<T: Clone> EnvMBE<T> {
                             result
                         };
 
-                        if let Some(splice) = f(val, &concrete_splice__thunk) {
+                        if let Some(splice) = f(val, &concrete_splice__thunk)? {
                             splices.push((*n, splice));
                         }
                     }
@@ -1217,17 +1218,17 @@ fn splice_healing() {
         "rator" => (vr "add"), "rand" => [(vr "a"), (vr "b"), (vr "c"), (vr "d")]
     );
     let mut noop = orig.clone();
-    noop.heal_splices(&|_| None);
+    noop.heal_splices(&|_| Ok(None)).unwrap();
     assert_eq!(noop, orig);
 
     let mut b_to_xxx = orig.clone();
     b_to_xxx.heal_splices(&|a| {
         if a == &ast!((vr "b")) {
-            Some(vec![ast!((vr "x")), ast!((vr "xx"))])
+            Ok(Some(vec![ast!((vr "x")), ast!((vr "xx"))]))
         } else {
-            None
+            Ok(None)
         }
-    });
+    }).unwrap();
     assert_eq!(
         b_to_xxx,
         mbe!(
@@ -1237,11 +1238,11 @@ fn splice_healing() {
 
     let steal_from_other = |a: &crate::ast::Ast,
                             other__a_vec__thunk: &dyn Fn() -> Vec<crate::ast::Ast>|
-     -> Option<Vec<crate::ast::Ast>> {
+     -> Result<Option<Vec<crate::ast::Ast>>, ()> {
         if a == &ast!((vr "c")) {
-            Some(other__a_vec__thunk())
+            Ok(Some(other__a_vec__thunk()))
         } else {
-            None
+            Ok(None)
         }
     };
 
