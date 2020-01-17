@@ -890,7 +890,11 @@ impl<T: Clone> EnvMBE<T> {
     }
 
     // If `f` turns a leaf into a `Vec`, splice those results in
-    pub fn heal_splices(&mut self, f: &dyn Fn(&T) -> Result<Option<Vec<T>>, ()>) -> Result<(), ()> {
+    pub fn heal_splices<E>(
+        &mut self,
+        f: &dyn Fn(&T) -> Result<Option<Vec<T>>, E>,
+    ) -> Result<(), E>
+    {
         for repeat in &mut self.repeats {
             let mut cur_repeat: Vec<EnvMBE<T>> = (**repeat).clone();
             let mut i = 0;
@@ -929,11 +933,11 @@ impl<T: Clone> EnvMBE<T> {
     }
 
     // TODO: this should return a usable error
-    pub fn heal_splices__with(
+    pub fn heal_splices__with<E>(
         &mut self,
         other: &EnvMBE<T>,
-        f: &dyn Fn(&T, &dyn Fn() -> Vec<T>) -> Result<Option<Vec<T>>, ()>,
-    ) -> Result<(), ()>
+        f: &dyn Fn(&T, &dyn Fn() -> Vec<T>) -> Result<Option<Vec<T>>, E>,
+    ) -> Result<(), E>
     where
         T: std::fmt::Debug,
     {
@@ -943,9 +947,8 @@ impl<T: Clone> EnvMBE<T> {
             for (name, _) in self.leaf_locations.iter_pairs() {
                 names_needed.push(name);
             }
-            let other__rep_loc =
-                other.leaf_locations.find(names_needed[0]).unwrap_or(&None).ok_or(())?;
-            // TODO: error out if we don't get the same result for all `names_needed[n]`
+            let other__rep_loc = other.leaf_locations.find(names_needed[0]).unwrap().unwrap();
+            // TODO: `Err` if we don't get the same result for all `names_needed[n]`
 
             let other__cur_repeat: &Vec<EnvMBE<T>> = &*other.repeats[other__rep_loc];
             let mut cur_repeat: Vec<EnvMBE<T>> = (**repeat).clone();
@@ -953,7 +956,7 @@ impl<T: Clone> EnvMBE<T> {
             // If an item splices, how wide does the other side need to be
             //  in order to make everything line up?
             let splice_length =
-                (other__cur_repeat.len() + 1).checked_sub(cur_repeat.len()).ok_or(())?;
+                (other__cur_repeat.len() + 1).checked_sub(cur_repeat.len()).unwrap();
 
             let mut i = 0;
             let mut other_i = 0;
@@ -1218,17 +1221,19 @@ fn splice_healing() {
         "rator" => (vr "add"), "rand" => [(vr "a"), (vr "b"), (vr "c"), (vr "d")]
     );
     let mut noop = orig.clone();
-    noop.heal_splices(&|_| Ok(None)).unwrap();
+    noop.heal_splices::<()>(&|_| Ok(None)).unwrap();
     assert_eq!(noop, orig);
 
     let mut b_to_xxx = orig.clone();
-    b_to_xxx.heal_splices(&|a| {
-        if a == &ast!((vr "b")) {
-            Ok(Some(vec![ast!((vr "x")), ast!((vr "xx"))]))
-        } else {
-            Ok(None)
-        }
-    }).unwrap();
+    b_to_xxx
+        .heal_splices::<()>(&|a| {
+            if a == &ast!((vr "b")) {
+                Ok(Some(vec![ast!((vr "x")), ast!((vr "xx"))]))
+            } else {
+                Ok(None)
+            }
+        })
+        .unwrap();
     assert_eq!(
         b_to_xxx,
         mbe!(
@@ -1250,7 +1255,7 @@ fn splice_healing() {
         "rator" => (vr "---"), "rand" => [(vr "1"), (vr "2"), (vr "3")]);
 
     let mut with_short = orig.clone();
-    assert_eq!(with_short.heal_splices__with(&other_short, &steal_from_other), Ok(()));
+    assert_eq!(with_short.heal_splices__with::<()>(&other_short, &steal_from_other), Ok(()));
     assert_eq!(with_short, mbe!("rator" => (vr "add"), "rand" => [(vr "a"), (vr "b"), (vr "d")]));
 
     let other_long = mbe!(
@@ -1258,19 +1263,21 @@ fn splice_healing() {
         "rand" => [(vr "1"), (vr "2"), (vr "3"), (vr "4"), (vr "5"), (vr "6")]);
 
     let mut with_long = orig.clone();
-    assert_eq!(with_long.heal_splices__with(&other_long, &steal_from_other), Ok(()));
+    assert_eq!(with_long.heal_splices__with::<()>(&other_long, &steal_from_other), Ok(()));
     assert_eq!(
         with_long,
         mbe!("rator" => (vr "add"),
         "rand" => [(vr "a"), (vr "b"), (vr "3"), (vr "4"), (vr "5"), (vr "d")])
     );
 
-    let other__too_short = mbe!(
-        "rator" => (vr "---"),
-        "rand" => [(vr "1"), (vr "2")]);
-
-    let mut with__too_short = orig.clone();
-    assert_eq!(with__too_short.heal_splices__with(&other__too_short, &steal_from_other), Err(()));
+    // TODO: require the existence of a constructor like `E::mismatch_error()`
+    // let other__too_short = mbe!(
+    // "rator" => (vr "---"),
+    // "rand" => [(vr "1"), (vr "2")]);
+    //
+    // let mut with__too_short = orig.clone();
+    //
+    // assert_eq!(with__too_short.heal_splices__with(&other__too_short, &steal_from_other), ???);
 
     // TODO: test this more!
 }

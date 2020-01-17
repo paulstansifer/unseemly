@@ -188,10 +188,12 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
                     .lift_result()?;
 
                 // HACK: recognize `Shape` as the output of `core_qq_forms::dotdotdot`:
-                walked.heal_splices(&|a| match a {
-                    Shape(ref v) => Ok(Some(v.clone())),
-                    _ => Ok(None),
-                }).unwrap(); // Can't error
+                walked
+                    .heal_splices::<()>(&|a| match a {
+                        Shape(ref v) => Ok(Some(v.clone())),
+                        _ => Ok(None),
+                    })
+                    .unwrap(); // Can't error
 
                 // TODO: it should be a type error (or at least an obvious runtime error)
                 // to put a splice (i.e. a `...[]...`) somewhere it can't be healed.
