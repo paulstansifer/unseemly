@@ -1,0 +1,18 @@
+extend_syntax
+    DefaultSeparator ::= /((?s:\s|%|#[^\n|][^\n]*|#\|.*?\|#)*)/ ;
+in
+extend_syntax
+    Expr ::=also forall T S . '{[
+        lhs := (,{Expr<T>},)
+        lit ,{DefaultToken}, = '>=>'
+        rhs := (,{Expr< [T -> S] >},)
+    ]}' function_pipe -> .{
+        '[Expr | (,[rhs], ,[lhs],) ]'
+    }. ;
+    # This has a couple of limitations at the moment.
+    # Unseemly still needs support for n-ary function types before you can do
+    #   one >=> (plus one)
+    # And it also lacks support for operator precedence,
+    #  so you need to create a bunch of new nonterminals if you want precedence.
+in
+  (plus one one) >=> zero?
