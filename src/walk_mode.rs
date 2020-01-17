@@ -79,6 +79,27 @@ pub trait WalkMode: Debug + Copy + Reifiable {
     /// But what unites those two factors?
     fn automatically_extend_env() -> bool;
 
+    /// Do we ever need to treat certain forms as though they were repetitions?
+    fn needs__splice_healing() -> bool { false }
+
+    /// A little like `get_walk_rule` always returning `Custom` for positive splicing
+    fn perform_splice_positive(
+        _: &Form,
+        _: &LazyWalkReses<Self>,
+    ) -> Result<Option<Vec<Ast>>, Self::Err>
+    {
+        icp!()
+    }
+    /// A little like `get_walk_rule` always returning `Custom` for negative splicing
+    fn perform_splice_negative(
+        _: &Form,
+        _: &LazyWalkReses<Self>,
+        _context_elts: &dyn Fn() -> Vec<Ast>,
+    ) -> Result<Option<Vec<Ast>>, Self::Err>
+    {
+        icp!()
+    }
+
     /// Walk over the structure of a node, not its meaning.
     /// This could be because we're inside a syntax-quote,
     ///  or it could be that we are a form (like written-out types or a literal)

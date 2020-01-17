@@ -118,7 +118,7 @@ pub fn walk<Mode: WalkMode>(
         // TODO: can we get rid of the & in front of our arguments and save the cloning?
         // TODO: this has a lot of direction-specific runtime hackery.
         //  Maybe we want separate positive and negative versions?
-        let (a, walk_ctxt) = match *a {
+        let (mut a, walk_ctxt) = match *a {
           // HACK: We want to process EE before pre_match before everything else.
           // This probably means we should find a way to get rid of pre_match.
           // But we can't just swap `a` and the ctxt when `a` is LiteralLike and the ctxt isn't.
@@ -145,6 +145,49 @@ pub fn walk<Mode: WalkMode>(
                 }
                 _ => None
             };
+
+        if Mode::needs__splice_healing() {
+            match a {
+                Node(_, ref mut parts, _) => {
+                    if Mode::D::is_positive() {
+                        parts.heal_splices::<Mode::Err>(&|sub: &Ast|
+                            match sub {
+                                Node(ref sub_f, ref sub_parts, _) => {
+                                    Mode::perform_splice_positive(
+                                        sub_f,
+                                        &walk_ctxt.clone().switch_ast(sub_parts, sub.clone()))
+                                }
+                                _ => Ok(None)
+                            })?;
+                    } else {
+                        let its_a_trivial_ast = EnvMBE::new();
+                        let context_ast = walk_ctxt.context_elt().to_ast();
+                        let other_parts = match context_ast {
+                            Node(_, ref p, _) => p,
+                            _ => &its_a_trivial_ast
+                        };
+
+                        // Note that this is asymmetric:
+                        //  the walked Ast conforms itself to fit the context element.
+                        // In practice, that seems to be what subtyping wants.
+                        // Is this a coincidence?
+                        parts.heal_splices__with::<Mode::Err>(
+                            other_parts,
+                            &|sub: &Ast, sub_other_thunk: &dyn Fn() -> Vec<Ast>|
+                                match sub {
+                                    Node(ref sub_f, ref sub_parts, _) => {
+                                        Mode::perform_splice_negative(
+                                            sub_f,
+                                            &walk_ctxt.clone().switch_ast(sub_parts, sub.clone()),
+                                            sub_other_thunk)
+                                    }
+                                    _ => Ok(None)
+                        })?;
+                    };
+                }
+                _ => {}
+            }
+        };
 
         match a {
             Node(ref f, ref parts, _) => {
