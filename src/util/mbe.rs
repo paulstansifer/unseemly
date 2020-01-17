@@ -947,8 +947,12 @@ impl<T: Clone> EnvMBE<T> {
             for (name, _) in self.leaf_locations.iter_pairs() {
                 names_needed.push(name);
             }
-            let other__rep_loc = other.leaf_locations.find(names_needed[0]).unwrap().unwrap();
-            // TODO: `Err` if we don't get the same result for all `names_needed[n]`
+            let other__rep_loc = match other.leaf_locations.find(names_needed[0]) {
+                Some(Some(l)) => *l,
+                _ => {
+                    return Ok(()); // Should become a mismatch error elsewhere (TODO: make an `E`)
+                }
+            };
 
             let other__cur_repeat: &Vec<EnvMBE<T>> = &*other.repeats[other__rep_loc];
             let mut cur_repeat: Vec<EnvMBE<T>> = (**repeat).clone();

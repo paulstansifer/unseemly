@@ -175,7 +175,7 @@ pub fn walk<Mode: WalkMode>(
                             other_parts,
                             &|sub: &Ast, sub_other_thunk: &dyn Fn() -> Vec<Ast>|
                                 match sub {
-                                    Node(ref sub_f, ref sub_parts, _) => {
+                                    Node(ref sub_f, sub_parts, _) => {
                                         Mode::perform_splice_negative(
                                             sub_f,
                                             &walk_ctxt.clone().switch_ast(sub_parts, sub.clone()),
