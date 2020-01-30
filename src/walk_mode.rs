@@ -31,7 +31,7 @@ type Res<Mode> = Result<<<Mode as WalkMode>::D as Dir>::Out, <Mode as WalkMode>:
 ///  and negative walks can actually use it
 ///   -- the special value they traverse is stored in the environment with a special name --
 ///  but they conceptually are mostly relying on the special value.
-pub trait WalkMode: Debug + Copy + Reifiable {
+pub trait WalkMode: Debug + Copy + Clone + Reifiable {
     /// The object type for the environment to walk in.
     type Elt: Clone + Debug + Reifiable + WalkElt;
 
@@ -86,7 +86,7 @@ pub trait WalkMode: Debug + Copy + Reifiable {
     fn perform_splice_positive(
         _: &Form,
         _: &LazyWalkReses<Self>,
-    ) -> Result<Option<Vec<Ast>>, Self::Err>
+    ) -> Result<Option<(Vec<Assoc<Name, Self::Elt>>, Ast)>, Self::Err>
     {
         icp!()
     }
@@ -95,7 +95,7 @@ pub trait WalkMode: Debug + Copy + Reifiable {
         _: &Form,
         _: &LazyWalkReses<Self>,
         _context_elts: &dyn Fn() -> Vec<Ast>,
-    ) -> Result<Option<Vec<Ast>>, Self::Err>
+    ) -> Result<Option<(Vec<Assoc<Name, Self::Elt>>, Ast)>, Self::Err>
     {
         icp!()
     }
@@ -188,6 +188,7 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
     }
 
     fn walk_quasi_literally(a: Ast, cnc: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode> {
+        // TODO: this needs to handle splicing, like the negative w_q_l does.
         match a {
             Node(f, parts, exports) => {
                 let mut walked: EnvMBE<Ast> = parts
@@ -312,27 +313,36 @@ impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
     }
 
     fn walk_quasi_literally(expected: Ast, cnc: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode> {
+        use crate::ast_walk::LazilyWalkedTerm;
+        use std::rc::Rc;
         let got = <Mode::Elt as WalkElt>::to_ast(&cnc.context_elt().clone());
 
         let parts_actual = Mode::context_match(&expected, &got, cnc.env.clone())?;
 
-        let its_a_trivial_ast = EnvMBE::new(); // No more walking to do
-        let expd_parts = match expected {
-            Node(_, ref p, _) => p,
-            _ => &its_a_trivial_ast,
-        };
-
         // Continue the walk on subterms. (`context_match` does the freshening)
         // TODO: I fear that we need `map_collapse_reduce_with_marched_against`
         //  so that matching DDDed syntax won't go horribly wrong
-        expd_parts.map_collapse_reduce_with(
+        cnc.parts.map_collapse_reduce_with(
             &parts_actual,
-            &|model: &Ast, actual: &Ast| match *model {
+            &|model: &Rc<LazilyWalkedTerm<Mode>>, actual: &Ast| match model.term {
                 Node(_, _, _)
                 | VariableReference(_)
                 | ExtendEnv(_, _)
                 | ExtendEnvPhaseless(_, _) => {
-                    walk(model, &cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(actual)))
+                    if model.extra_env.empty() {
+                        walk(
+                            &model.term,
+                            &cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(actual)),
+                        )
+                    } else {
+                        // TODO: This splicing-related code feels really out-of-place here.
+                        // Hopefully a refactor will let us delete this.
+                        walk(
+                            &model.term,
+                            &cnc.with_environment(cnc.env.set_assoc(&model.extra_env))
+                                .with_context(<Self::Mode as WalkMode>::Elt::from_ast(actual)),
+                        )
+                    }
                 }
                 _ => Ok(Assoc::new()),
             },
@@ -391,6 +401,8 @@ pub trait NegativeWalkMode: WalkMode {
     /// Note that this should come after `pre_match`,
     ///  so any remaining variables will be not be resolved.
     /// TODO: I should think about whether to use `Ast` or `Elt` during matches in `ast_walk`
+    /// TODO: This should replace crate::ast::destructure
+    /// TODO: Use this more
     fn context_match(
         expected: &Ast,
         got: &Ast,

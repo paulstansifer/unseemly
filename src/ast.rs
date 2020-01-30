@@ -156,7 +156,7 @@ impl Ast {
         }
     }
 
-    // TODO: use this more
+    // TODO: use `Mode::context_match` whenever possible
     pub fn destructure(
         &self,
         expd_form: std::rc::Rc<Form>,
@@ -168,6 +168,13 @@ impl Ast {
             }
         }
         None
+    }
+
+    pub fn is_node(&self) -> bool {
+        match *self {
+            Node(_, _, _) => true,
+            _ => false,
+        }
     }
 
     // TODO: I think we have a lot of places where we ought to use this function:

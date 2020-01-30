@@ -315,6 +315,12 @@ pub fn make_core_syn_env_types() -> SynEnv {
         ),
     );
 
+    let dotdotdot2_type = type_defn(
+        "dotdotdot2",
+        form_pat!((delim ":2:2:[", "[", [(star (named "driver", varref)), (lit ">>"),
+                                        (named "body", (call "Type"))])),
+    );
+
     // This only makes sense inside a concrete syntax type or during typechecking.
     // For example, the type of the `let` macro is (where `dotdotdot_type` is `:::[]:::`):
     // ∀ T . ∀ S .
@@ -616,6 +622,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         tuple_type.clone(),
         forall_type.clone(),
         dotdotdot_type.clone(),
+        dotdotdot2_type.clone(),
         mu_type.clone(),
         type_apply.clone()
         ]), Rc::new(VarRef(Rc::new(Call(n("DefaultAtom"))))))))

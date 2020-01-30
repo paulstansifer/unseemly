@@ -272,6 +272,89 @@ impl WalkMode for Canonicalize {
     fn underspecified(name: Name) -> Ty { Ty(VariableReference(name)) }
 }
 
+fn splice_ddd(
+    ddd_parts: &LazyWalkReses<Subtype>,
+    context_elts: Vec<Ast>,
+) -> Result<Option<(Vec<Assoc<Name, Ty>>, Ast)>, <Subtype as WalkMode>::Err>
+{
+    let ddd_form = crate::core_forms::find("Type", "dotdotdot2");
+    let tuple_form = crate::core_forms::find("Type", "tuple");
+    let undet_form = underdetermined_form.with(|u_f| u_f.clone());
+
+    if context_elts.len() == 1 {
+        match context_elts[0].destructure(ddd_form.clone()) {
+            None => {} // False alarm; just a normal single repetition
+            Some(sub_parts) => {
+                match sub_parts.get_leaf_or_panic(&n("body")).destructure(ddd_form) {
+                    Some(_) => icp!("TODO: count up nestings of :::[]:::"),
+                    None => return Ok(None), // :::[]::: is a subtype of :::[]:::
+                }
+            }
+        }
+    }
+
+    let drivers: Vec<(Name, Ty)> = unification.with(|unif| {
+        ddd_parts
+            .get_rep_term(n("driver"))
+            .iter()
+            .map(|a: &Ast| {
+                (
+                    crate::core_forms::vr_to_name(a),
+                    resolve(
+                        Clo { it: Ty((*a).clone()), env: ddd_parts.env.clone() },
+                        &unif.borrow(),
+                    )
+                    .it,
+                )
+            })
+            .collect()
+    });
+    let expected_len = context_elts.len();
+    let mut envs_with_walked_drivers = vec![];
+    envs_with_walked_drivers.resize_with(expected_len, Assoc::new);
+
+    // Make sure tuples are the right length,
+    // and force underdetermined types to *be* tuples of the right length.
+    for (name, driver) in drivers {
+        if let Some(tuple_parts) = driver.0.destructure(tuple_form.clone()) {
+            let components = tuple_parts.get_rep_leaf_or_panic(n("component"));
+            if components.len() != expected_len {
+                return Err(TyErr::LengthMismatch(
+                    components.into_iter().map(|a| Ty(a.clone())).collect(),
+                    expected_len,
+                ));
+            }
+
+            for i in 0..expected_len {
+                envs_with_walked_drivers[i] =
+                    envs_with_walked_drivers[i].set(name, Ty(components[i].clone()));
+            }
+        } else if let Some(undet_parts) = driver.0.destructure(undet_form.clone()) {
+            unification.with(|unif| {
+                let mut undet_components = vec![];
+                undet_components
+                    .resize_with(expected_len, || Subtype::underspecified(n("ddd_bit")).0);
+                unif.borrow_mut().insert(
+                    ast_to_name(undet_parts.get_leaf_or_panic(&n("id"))),
+                    Clo {
+                        it: ty!({"Type" "tuple" :
+                            "component" => (,seq undet_components.clone()) }),
+                        env: ddd_parts.env.clone(),
+                    },
+                );
+                for i in 0..expected_len {
+                    envs_with_walked_drivers[i] =
+                        envs_with_walked_drivers[i].set(name, Ty::new(undet_components[i].clone()));
+                }
+            })
+        } else {
+            return Err(TyErr::UnableToDestructure(Ty(driver.0), n("tuple")));
+        }
+    }
+
+    Ok(Some((envs_with_walked_drivers, ddd_parts.get_term(n("body")))))
+}
+
 impl WalkMode for Subtype {
     fn name() -> &'static str { "SubTy" }
 
@@ -306,6 +389,29 @@ impl WalkMode for Subtype {
             };
         }
         walk::<Subtype>(&lhs.concrete(), cnc)
+    }
+
+    fn needs__splice_healing() -> bool { true }
+    fn perform_splice_positive(
+        _: &Form,
+        _: &LazyWalkReses<Self>,
+    ) -> Result<Option<(Vec<Assoc<Name, Ty>>, Ast)>, Self::Err>
+    {
+        // If this ever is non-trivial,
+        //  we need to respect `extra_env` in `Positive::walk_quasi_literally` in walk_mode.rs
+        Ok(None)
+    }
+    fn perform_splice_negative(
+        f: &Form,
+        parts: &LazyWalkReses<Self>,
+        context_elts: &dyn Fn() -> Vec<Ast>,
+    ) -> Result<Option<(Vec<Assoc<Name, Ty>>, Ast)>, Self::Err>
+    {
+        if f.name != n("dotdotdot2") {
+            return Ok(None);
+        }
+
+        splice_ddd(parts, context_elts())
     }
 }
 
@@ -726,6 +832,30 @@ fn subtype_dotdotdot() {
                                        {type_apply : (prim Expr) [{Float :}]};
                                        {type_apply : (prim Expr) [{Nat :}]}]});
     let expr_dddple = uty!({forall_type : [T] {dotdotdot : [T] {type_apply : (prim Expr) [T]}}});
+
+    assert_m!(must_subtype(&expr_threeple, &dddple, Assoc::new()), Ok(_));
+
+    assert_m!(must_subtype(&expr_threeple, &expr_dddple, Assoc::new()), Ok(_));
+}
+
+#[test]
+fn subtype_dotdotdot2() {
+    let threeple = uty!({tuple : [{Int :}; {Float :}; {Nat :}]});
+    let dddple = uty!({forall_type : [T] {tuple : [{dotdotdot2 : [T] T}]}});
+
+    assert_m!(must_subtype(&threeple, &dddple, Assoc::new()), Ok(_));
+
+    // TODO #15: this panics in mbe.rs; it ought to error instead (might not still be true)
+    // assert_m!(must_subtype(&dddple, &threeple, assoc_n!("T" => Subtype::underspecified(n("-")))),
+    //     Err(_));
+
+    assert_m!(must_subtype(&dddple, &dddple, Assoc::new()), Ok(_));
+
+    let expr_threeple = uty!({tuple : [{type_apply : (prim Expr) [{Int :}]};
+                                       {type_apply : (prim Expr) [{Float :}]};
+                                       {type_apply : (prim Expr) [{Nat :}]}]});
+    let expr_dddple = uty!(
+        {forall_type : [T] {tuple : [{dotdotdot2 : [T] {type_apply : (prim Expr) [T]}}]}});
 
     assert_m!(must_subtype(&expr_threeple, &dddple, Assoc::new()), Ok(_));
 

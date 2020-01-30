@@ -118,7 +118,7 @@ pub fn walk<Mode: WalkMode>(
         // TODO: can we get rid of the & in front of our arguments and save the cloning?
         // TODO: this has a lot of direction-specific runtime hackery.
         //  Maybe we want separate positive and negative versions?
-        let (mut a, walk_ctxt) = match *a {
+        let (a, walk_ctxt) = match *a {
           // HACK: We want to process EE before pre_match before everything else.
           // This probably means we should find a way to get rid of pre_match.
           // But we can't just swap `a` and the ctxt when `a` is LiteralLike and the ctxt isn't.
@@ -146,52 +146,12 @@ pub fn walk<Mode: WalkMode>(
                 _ => None
             };
 
-        if Mode::needs__splice_healing() {
-            match a {
-                Node(_, ref mut parts, _) => {
-                    if Mode::D::is_positive() {
-                        parts.heal_splices::<Mode::Err>(&|sub: &Ast|
-                            match sub {
-                                Node(ref sub_f, ref sub_parts, _) => {
-                                    Mode::perform_splice_positive(
-                                        sub_f,
-                                        &walk_ctxt.clone().switch_ast(sub_parts, sub.clone()))
-                                }
-                                _ => Ok(None)
-                            })?;
-                    } else {
-                        let its_a_trivial_ast = EnvMBE::new();
-                        let context_ast = walk_ctxt.context_elt().to_ast();
-                        let other_parts = match context_ast {
-                            Node(_, ref p, _) => p,
-                            _ => &its_a_trivial_ast
-                        };
-
-                        // Note that this is asymmetric:
-                        //  the walked Ast conforms itself to fit the context element.
-                        // In practice, that seems to be what subtyping wants.
-                        // Is this a coincidence?
-                        parts.heal_splices__with::<Mode::Err>(
-                            other_parts,
-                            &|sub: &Ast, sub_other_thunk: &dyn Fn() -> Vec<Ast>|
-                                match sub {
-                                    Node(ref sub_f, sub_parts, _) => {
-                                        Mode::perform_splice_negative(
-                                            sub_f,
-                                            &walk_ctxt.clone().switch_ast(sub_parts, sub.clone()),
-                                            sub_other_thunk)
-                                    }
-                                    _ => Ok(None)
-                        })?;
-                    };
-                }
-                _ => {}
-            }
-        };
 
         match a {
             Node(ref f, ref parts, _) => {
-                let new_walk_ctxt = walk_ctxt.switch_ast(parts, a.clone());
+                let mut new_walk_ctxt = walk_ctxt.switch_ast(parts, a.clone());
+                heal__lwr_splices(&mut new_walk_ctxt)?;
+
                 // certain walks only work on certain kinds of AST nodes
                 match Mode::get_walk_rule(f) {
                     Custom(ref ts_fn) =>  ts_fn(new_walk_ctxt),
@@ -317,6 +277,87 @@ pub fn walk<Mode: WalkMode>(
     }
 }
 
+// This fixes up `walk_ctxt` based on splice healing.
+// Its effects on the rest of the code are too complex:
+//  * `extra_env` needs to be used in various places, but exactly where is fuzzy
+//  * `walk_ctxt` goes out of sync with its `Ast`;
+//      Negative::walk_quasi_literally was using the Ast but had to switch to using the `walk_ctxt`
+fn heal__lwr_splices<Mode: WalkMode>(walk_ctxt: &mut LazyWalkReses<Mode>) -> Result<(), Mode::Err> {
+    if !Mode::needs__splice_healing() {
+        return Ok(()); // only do this once, at the top level
+    }
+    let orig_walk_ctxt = walk_ctxt.clone();
+
+    if Mode::D::is_positive() {
+        walk_ctxt.parts.heal_splices::<Mode::Err>(&|lwt: &Rc<LazilyWalkedTerm<Mode>>| {
+            if let Node(ref sub_f, ref sub_parts, _) = lwt.term {
+                if let Some((envs, new_term)) = Mode::perform_splice_positive(
+                    sub_f,
+                    &orig_walk_ctxt.clone().switch_ast(&sub_parts, lwt.term.clone()),
+                )? {
+                    Ok(Some(
+                        envs.into_iter()
+                            .map(|env| {
+                                Rc::new(LazilyWalkedTerm {
+                                    term: new_term.clone(),
+                                    res: lwt.res.clone(),
+                                    extra_env: env,
+                                })
+                            })
+                            .collect::<Vec<_>>(),
+                    ))
+                } else {
+                    Ok(None)
+                }
+            } else {
+                Ok(None)
+            }
+        })?;
+    } else {
+        let its_a_trivial_ast = EnvMBE::new();
+        let context_ast = walk_ctxt.context_elt().to_ast();
+        let other_parts = match context_ast {
+            Node(_, ref p, _) => p,
+            _ => &its_a_trivial_ast,
+        };
+
+        // Note that this is asymmetric:
+        //  the walked Ast conforms itself to fit the context element.
+        // In practice, that seems to be what subtyping wants.
+        // Is this a coincidence?
+        walk_ctxt.parts.heal_splices__with::<Mode::Err, Ast>(
+            other_parts,
+            &|lwt: &Rc<LazilyWalkedTerm<Mode>>, sub_other_thunk: &dyn Fn() -> Vec<Ast>| {
+                if let Node(ref sub_f, ref sub_parts, _) = lwt.term {
+                    // TODO: negative
+                    if let Some((envs, new_term)) = Mode::perform_splice_negative(
+                        sub_f,
+                        &orig_walk_ctxt.clone().switch_ast(&sub_parts, lwt.term.clone()),
+                        sub_other_thunk,
+                    )? {
+                        Ok(Some(
+                            envs.into_iter()
+                                .map(|env| {
+                                    Rc::new(LazilyWalkedTerm {
+                                        term: new_term.clone(),
+                                        res: lwt.res.clone(),
+                                        extra_env: env,
+                                    })
+                                })
+                                .collect::<Vec<_>>(),
+                        ))
+                    } else {
+                        Ok(None)
+                    }
+                } else {
+                    Ok(None)
+                }
+            },
+        )?;
+    }
+    Ok(())
+}
+
 /// If a `Node` is `LiteralLike`, its imports and [un]quotes should be, too!
 fn maybe_literally__walk<Mode: WalkMode>(
     a: &Ast,
@@ -419,6 +460,9 @@ pub type ResEnv<Elt> = Assoc<Name, Elt>;
 pub struct LazilyWalkedTerm<Mode: WalkMode> {
     pub term: Ast,
     pub res: RefCell<Option<Result<<Mode::D as Dir>::Out, Mode::Err>>>,
+    /// This is a hack; it's specifically for the dotdotdot type.
+    /// Maybe it needs generalization in some direction.
+    pub extra_env: Assoc<Name, Mode::Elt>,
 }
 
 // trait bounds on parameters are not yet supported by `Reifiable!`
@@ -428,21 +472,29 @@ impl<Mode: WalkMode> reify::Reifiable for LazilyWalkedTerm<Mode> {
     fn concrete_arguments() -> Option<Vec<Ast>> { Some(vec![Mode::ty_invocation()]) }
 
     fn reify(&self) -> eval::Value {
-        val!(struct "term" => (, self.term.reify()), "res" => (, self.res.reify()))
+        val!(struct "term" => (, self.term.reify()), 
+                    "res" => (, self.res.reify()),
+                    "extra_env" => (, self.extra_env.reify()))
     }
     fn reflect(v: &eval::Value) -> Self {
         extract!((v) eval::Value::Struct = (ref contents) =>
-            LazilyWalkedTerm {
-                term: Ast::reflect(contents.find_or_panic(&n("term"))),
-                res: RefCell::<Option<Result<<Mode::D as Dir>::Out, Mode::Err>>>::reflect(
-                    contents.find_or_panic(&n("res"))) })
+        LazilyWalkedTerm {
+            term: Ast::reflect(contents.find_or_panic(&n("term"))),
+            res: RefCell::<Option<Result<<Mode::D as Dir>::Out, Mode::Err>>>::reflect(
+                contents.find_or_panic(&n("res"))),
+            extra_env: Assoc::<Name, Mode::Elt>::reflect(contents.find_or_panic(&n("extra_env")))
+            })
     }
 }
 
 // We only implement this because lazy-rust is unstable
 impl<Mode: WalkMode> LazilyWalkedTerm<Mode> {
     pub fn new(t: &Ast) -> Rc<LazilyWalkedTerm<Mode>> {
-        Rc::new(LazilyWalkedTerm { term: t.clone(), res: RefCell::new(None) })
+        Rc::new(LazilyWalkedTerm {
+            term: t.clone(),
+            res: RefCell::new(None),
+            extra_env: Assoc::new(),
+        })
     }
 
     /// Get the result of walking this term (memoized)
@@ -451,7 +503,18 @@ impl<Mode: WalkMode> LazilyWalkedTerm<Mode> {
         cur_node_contents: &LazyWalkReses<Mode>,
     ) -> Result<<Mode::D as Dir>::Out, Mode::Err>
     {
-        self.memoized(&|| walk::<Mode>(&self.term, cur_node_contents))
+        self.memoized(&|| {
+            // stab-in-the-dark optimization, but this function gets called a *lot*:
+            if self.extra_env.empty() {
+                walk::<Mode>(&self.term, cur_node_contents)
+            } else {
+                walk::<Mode>(
+                    &self.term,
+                    &cur_node_contents
+                        .with_environment(cur_node_contents.env.set_assoc(&self.extra_env)),
+                )
+            }
+        })
     }
 
     fn memoized(
