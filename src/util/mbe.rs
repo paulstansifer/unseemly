@@ -589,16 +589,16 @@ impl<T: Clone> EnvMBE<T> {
     /// Duplicate contents of the side with a DDD to line it up with the other
     // TODO: this needs to return `Option` (and so does everything `_with`)
     // TODO: for efficiency, this ought to return iterators
-    fn resolve_ddd<'a>(
+    fn resolve_ddd<'a, S: Clone>(
         lhs: &'a Rc<Vec<EnvMBE<T>>>,
         lhs_ddd: &'a Option<usize>,
-        rhs: &'a Rc<Vec<EnvMBE<T>>>,
+        rhs: &'a Rc<Vec<EnvMBE<S>>>,
         rhs_ddd: &'a Option<usize>,
-    ) -> Vec<(&'a EnvMBE<T>, &'a EnvMBE<T>)>
+    ) -> Vec<(&'a EnvMBE<T>, &'a EnvMBE<S>)>
     {
         let len_diff = lhs.len() as i32 - (rhs.len() as i32);
 
-        let matched: Vec<(&EnvMBE<T>, &EnvMBE<T>)> = match (lhs_ddd, rhs_ddd) {
+        let matched: Vec<(&EnvMBE<T>, &EnvMBE<S>)> = match (lhs_ddd, rhs_ddd) {
             (&None, &None) => {
                 if len_diff != 0 {
                     panic!("mismatched MBE lengths")
@@ -628,12 +628,12 @@ impl<T: Clone> EnvMBE<T> {
     // The LHS must be the side with the DDD.
     // TODO: try just using `reduced` instead of `base.clone()`
     // TODO #15: `Result` instead of panicing
-    fn match_collapse_ddd<'a, NewT: Clone>(
+    fn match_collapse_ddd<'a, S: Clone, NewT: Clone>(
         lhs: &'a Rc<Vec<EnvMBE<T>>>,
         lhs_ddd: &'a Option<usize>,
-        rhs: &'a Rc<Vec<EnvMBE<T>>>,
+        rhs: &'a Rc<Vec<EnvMBE<S>>>,
         rhs_ddd: &'a Option<usize>,
-        f: &dyn Fn(&T, &T) -> NewT,
+        f: &dyn Fn(&T, &S) -> NewT,
         col: &dyn Fn(Vec<NewT>) -> NewT,
         red: &dyn Fn(NewT, NewT) -> NewT,
         base: NewT,
@@ -741,14 +741,19 @@ impl<T: Clone> EnvMBE<T> {
         true
     }
 
-    pub fn map_with<NewT: Clone>(&self, o: &EnvMBE<T>, f: &dyn Fn(&T, &T) -> NewT) -> EnvMBE<NewT> {
+    pub fn map_with<S: Clone, NewT: Clone>(
+        &self,
+        o: &EnvMBE<S>,
+        f: &dyn Fn(&T, &S) -> NewT,
+    ) -> EnvMBE<NewT>
+    {
         self.named_map_with(o, &|_name, l, r| f(l, r))
     }
 
-    pub fn named_map_with<NewT: Clone>(
+    pub fn named_map_with<S: Clone, NewT: Clone>(
         &self,
-        o: &EnvMBE<T>,
-        f: &dyn Fn(&Name, &T, &T) -> NewT,
+        o: &EnvMBE<S>,
+        f: &dyn Fn(&Name, &T, &S) -> NewT,
     ) -> EnvMBE<NewT>
     {
         EnvMBE {
@@ -762,12 +767,12 @@ impl<T: Clone> EnvMBE<T> {
                 .zip(o.repeats.iter().zip(o.ddd_rep_idxes.iter()))
                 .map(&|((rc_vec_mbe, ddd_idx), (o_rc_vec_mbe, o_ddd_idx)): (
                     (&Rc<Vec<EnvMBE<T>>>, &Option<usize>),
-                    (&Rc<Vec<EnvMBE<T>>>, &Option<usize>),
+                    (&Rc<Vec<EnvMBE<S>>>, &Option<usize>),
                 )| {
                     let mapped: Vec<_> =
                         Self::resolve_ddd(rc_vec_mbe, ddd_idx, o_rc_vec_mbe, o_ddd_idx)
                             .iter()
-                            .map(|&(mbe, o_mbe): &(&EnvMBE<T>, &EnvMBE<T>)| {
+                            .map(|&(mbe, o_mbe): &(&EnvMBE<T>, &EnvMBE<S>)| {
                                 mbe.named_map_with(o_mbe, f)
                             })
                             .collect();
@@ -825,10 +830,10 @@ impl<T: Clone> EnvMBE<T> {
     }
 
     // TODO: test this more.
-    pub fn map_collapse_reduce_with<NewT: Clone>(
+    pub fn map_collapse_reduce_with<S: Clone, NewT: Clone>(
         &self,
-        other: &EnvMBE<T>,
-        f: &dyn Fn(&T, &T) -> NewT,
+        other: &EnvMBE<S>,
+        f: &dyn Fn(&T, &S) -> NewT,
         col: &dyn Fn(Vec<NewT>) -> NewT,
         red: &dyn Fn(NewT, NewT) -> NewT,
         base: NewT,
@@ -933,10 +938,10 @@ impl<T: Clone> EnvMBE<T> {
     }
 
     // TODO: this should return a usable error
-    pub fn heal_splices__with<E>(
+    pub fn heal_splices__with<E, S: Clone>(
         &mut self,
-        other: &EnvMBE<T>,
-        f: &dyn Fn(&T, &dyn Fn() -> Vec<T>) -> Result<Option<Vec<T>>, E>,
+        other: &EnvMBE<S>,
+        f: &dyn Fn(&T, &dyn Fn() -> Vec<S>) -> Result<Option<Vec<T>>, E>,
     ) -> Result<(), E>
     where
         T: std::fmt::Debug,
@@ -954,7 +959,7 @@ impl<T: Clone> EnvMBE<T> {
                 }
             };
 
-            let other__cur_repeat: &Vec<EnvMBE<T>> = &*other.repeats[other__rep_loc];
+            let other__cur_repeat: &Vec<EnvMBE<S>> = &*other.repeats[other__rep_loc];
             let mut cur_repeat: Vec<EnvMBE<T>> = (**repeat).clone();
 
             // If an item splices, how wide does the other side need to be
@@ -1221,6 +1226,8 @@ fn basic_mbe() {
 
 #[test]
 fn splice_healing() {
+    use crate::ast::Ast;
+
     let orig = mbe!(
         "rator" => (vr "add"), "rand" => [(vr "a"), (vr "b"), (vr "c"), (vr "d")]
     );
@@ -1245,21 +1252,20 @@ fn splice_healing() {
         )
     );
 
-    let steal_from_other = |a: &crate::ast::Ast,
-                            other__a_vec__thunk: &dyn Fn() -> Vec<crate::ast::Ast>|
-     -> Result<Option<Vec<crate::ast::Ast>>, ()> {
-        if a == &ast!((vr "c")) {
-            Ok(Some(other__a_vec__thunk()))
-        } else {
-            Ok(None)
-        }
-    };
+    let steal_from_other =
+        |a: &Ast, other__a_vec__thunk: &dyn Fn() -> Vec<Ast>| -> Result<Option<Vec<Ast>>, ()> {
+            if a == &ast!((vr "c")) {
+                Ok(Some(other__a_vec__thunk()))
+            } else {
+                Ok(None)
+            }
+        };
 
     let other_short = mbe!(
         "rator" => (vr "---"), "rand" => [(vr "1"), (vr "2"), (vr "3")]);
 
     let mut with_short = orig.clone();
-    assert_eq!(with_short.heal_splices__with::<()>(&other_short, &steal_from_other), Ok(()));
+    assert_eq!(with_short.heal_splices__with::<(), Ast>(&other_short, &steal_from_other), Ok(()));
     assert_eq!(with_short, mbe!("rator" => (vr "add"), "rand" => [(vr "a"), (vr "b"), (vr "d")]));
 
     let other_long = mbe!(
@@ -1267,7 +1273,7 @@ fn splice_healing() {
         "rand" => [(vr "1"), (vr "2"), (vr "3"), (vr "4"), (vr "5"), (vr "6")]);
 
     let mut with_long = orig.clone();
-    assert_eq!(with_long.heal_splices__with::<()>(&other_long, &steal_from_other), Ok(()));
+    assert_eq!(with_long.heal_splices__with::<(), Ast>(&other_long, &steal_from_other), Ok(()));
     assert_eq!(
         with_long,
         mbe!("rator" => (vr "add"),

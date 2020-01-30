@@ -140,10 +140,10 @@ impl<K: Eq + Hash + Clone, V: Clone> Assoc<K, V> {
         )
     }
 
-    pub fn map_with<NewV: Clone>(
+    pub fn map_with<OtherV: Clone, NewV: Clone>(
         &self,
-        other: &Assoc<K, V>,
-        f: &dyn Fn(&V, &V) -> NewV,
+        other: &Assoc<K, OtherV>,
+        f: &dyn Fn(&V, &OtherV) -> NewV,
     ) -> Assoc<K, NewV>
     {
         Assoc::<K, NewV>::from_hamt(
@@ -153,10 +153,10 @@ impl<K: Eq + Hash + Clone, V: Clone> Assoc<K, V> {
         )
     }
 
-    pub fn keyed_map_with<NewV: Clone>(
+    pub fn keyed_map_with<OtherV: Clone, NewV: Clone>(
         &self,
-        other: &Assoc<K, V>,
-        f: &dyn Fn(&K, &V, &V) -> NewV,
+        other: &Assoc<K, OtherV>,
+        f: &dyn Fn(&K, &V, &OtherV) -> NewV,
     ) -> Assoc<K, NewV>
     {
         Assoc::<K, NewV>::from_hamt(
