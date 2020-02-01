@@ -332,7 +332,7 @@ fn repeated_type(t: &Ty, env: &Assoc<Name, Ty>) -> Result<Ty, crate::ty::TypeErr
         ty_err!(NeedsDriver (()) at t.0);
     }
 
-    Ok(ty!({"Type" "tuple" : "component" => (,seq vec![ast!({"Type" "dotdotdot2" :
+    Ok(ty!({"Type" "tuple" : "component" => (,seq vec![ast!({"Type" "dotdotdot_type" :
         "driver" => (,seq drivers),
         "body" => (, t.0.clone())
     })])}))
@@ -755,7 +755,7 @@ fn macro_definitions() {
                 {named => ["part_name"] : x {call_with_type : Expr T}}}),
             env.clone()
         ),
-        Ok(assoc_n!("x" => uty!({tuple : [{dotdotdot2 : [T] {type_apply : (prim Expr) [T]}}]})))
+        Ok(assoc_n!("x" => uty!({tuple : [{dotdotdot_type : [T] {type_apply : (prim Expr) [T]}}]})))
     );
 
     let t_expr_type = uty!({type_apply : (prim Expr) [T]});
@@ -934,9 +934,9 @@ fn type_basic_macro_invocation() {
 
 #[test]
 fn type_ddd_macro() {
-    let t_rep_expr_type = uty!({tuple : [{dotdotdot2 : [T] {type_apply : (prim Expr) [T]}}]});
+    let t_rep_expr_type = uty!({tuple : [{dotdotdot_type : [T] {type_apply : (prim Expr) [T]}}]});
     let s_expr_type = uty!({type_apply : (prim Expr) [S]});
-    let t_rep_pat_type = uty!({tuple : [{dotdotdot2 : [T] {type_apply : (prim Pat) [T]}}]});
+    let t_rep_pat_type = uty!({tuple : [{dotdotdot_type : [T] {type_apply : (prim Pat) [T]}}]});
 
     let impl_clo =
         crate::runtime::eval::Closure { body: ast!((trivial)), params: vec![], env: Assoc::new() };

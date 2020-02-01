@@ -379,7 +379,7 @@ macro_rules! ddd_type__body {
                             Ty(Node(ref form, ref parts, _)) if form.name == n("tuple") => {
                                 let component
                                     = parts.get_rep_leaf_or_panic(n("component"))[i].clone();
-                                let ddd2_form = crate::core_forms::find("Type", "dotdotdot2");
+                                let ddd2_form = crate::core_forms::find("Type", "dotdotdot_type");
                                 if let Some(ddd2_parts) = component.destructure(ddd2_form) {
                                     // HACK! If the tuple had a ddd, we should just unwrap it.
                                     // We should somehow eliminate this linkage between
@@ -1291,8 +1291,8 @@ fn use_dotdotdot() {
 
     let ddd_abs_env = assoc_n!(
         "T" => uty!(T),
-        "vals" => uty!({tuple : [{dotdotdot2 : [T] {type_apply : (prim Expr) [T]}}]}),
-        "ops" => uty!({tuple : [{dotdotdot2 : [T]
+        "vals" => uty!({tuple : [{dotdotdot_type : [T] {type_apply : (prim Expr) [T]}}]}),
+        "ops" => uty!({tuple : [{dotdotdot_type : [T]
             {type_apply : (prim Expr) [{fn : [T] {Int :}}]}}]}));
 
     assert_eq!(

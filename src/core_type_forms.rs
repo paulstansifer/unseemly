@@ -318,9 +318,9 @@ pub fn make_core_syn_env_types() -> SynEnv {
     // TODO: add named repeats. Add type-level numbers!
     // TODO: We probably need kinds, to say that `T` is a tuple
     // TODO: we'll need dotdotdot inside betas, also, huh?
-    let dotdotdot2_type = type_defn(
-        "dotdotdot2",
-        form_pat!((delim ":2:2:[", "[", [(star (named "driver", varref)), (lit ">>"),
+    let dotdotdot_type = type_defn(
+        "dotdotdot_type",
+        form_pat!((delim ":::[", "[", [(star (named "driver", varref)), (lit ">>"),
                                         (named "body", (call "Type"))])),
     );
 
@@ -432,7 +432,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         struct_type.clone(),
         tuple_type.clone(),
         forall_type.clone(),
-        dotdotdot2_type.clone(),
+        dotdotdot_type.clone(),
         mu_type.clone(),
         type_apply.clone()
         ]), Rc::new(VarRef(Rc::new(Call(n("DefaultAtom"))))))))

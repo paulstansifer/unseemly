@@ -277,7 +277,7 @@ fn splice_ddd(
     context_elts: Vec<Ast>,
 ) -> Result<Option<(Vec<Assoc<Name, Ty>>, Ast)>, <Subtype as WalkMode>::Err>
 {
-    let ddd_form = crate::core_forms::find("Type", "dotdotdot2");
+    let ddd_form = crate::core_forms::find("Type", "dotdotdot_type");
     let tuple_form = crate::core_forms::find("Type", "tuple");
     let undet_form = underdetermined_form.with(|u_f| u_f.clone());
 
@@ -407,7 +407,7 @@ impl WalkMode for Subtype {
         context_elts: &dyn Fn() -> Vec<Ast>,
     ) -> Result<Option<(Vec<Assoc<Name, Ty>>, Ast)>, Self::Err>
     {
-        if f.name != n("dotdotdot2") {
+        if f.name != n("dotdotdot_type") {
             return Ok(None);
         }
 
@@ -814,9 +814,9 @@ fn subtype_different_mus() {
 }
 
 #[test]
-fn subtype_dotdotdot2() {
+fn subtype_dotdotdot_type() {
     let threeple = uty!({tuple : [{Int :}; {Float :}; {Nat :}]});
-    let dddple = uty!({forall_type : [T] {tuple : [{dotdotdot2 : [T] T}]}});
+    let dddple = uty!({forall_type : [T] {tuple : [{dotdotdot_type : [T] T}]}});
 
     assert_m!(must_subtype(&threeple, &dddple, Assoc::new()), Ok(_));
 
@@ -830,7 +830,7 @@ fn subtype_dotdotdot2() {
                                        {type_apply : (prim Expr) [{Float :}]};
                                        {type_apply : (prim Expr) [{Nat :}]}]});
     let expr_dddple = uty!(
-        {forall_type : [T] {tuple : [{dotdotdot2 : [T] {type_apply : (prim Expr) [T]}}]}});
+        {forall_type : [T] {tuple : [{dotdotdot_type : [T] {type_apply : (prim Expr) [T]}}]}});
 
     assert_m!(must_subtype(&expr_threeple, &dddple, Assoc::new()), Ok(_));
 
