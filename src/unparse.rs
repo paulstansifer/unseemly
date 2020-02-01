@@ -66,9 +66,9 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
     // TODO: this really ought to notice when `actl` is ill-formed for `pat`.
     match (pat, actl) {
         (&Named(name, ref body), _) => {
-            unparse_mbe(&*body, context.get_leaf(name).unwrap_or(&Atom(n("<->"))), context, s)
+            // TODO: why does the `unwrap_or` case happen once after each variable is printed?
+            unparse_mbe(&*body, context.get_leaf(name).unwrap_or(&Atom(n(""))), context, s)
         }
-        //=> unparse_mbe(&*body, context.get_leaf(name).unwrap_or(&Atom(n("<MISSING>"))), context, s),
         (&Call(sub_form), _) => unparse_mbe(s.find_or_panic(&sub_form), actl, context, s),
         (&Anyways(_), _) | (&Impossible, _) => "".to_string(),
         (&Literal(_, n), _) => n.print(),
