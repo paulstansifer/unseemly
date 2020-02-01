@@ -143,7 +143,7 @@ The confusing part is that *whether* it's a quotation or unquotation is irreleva
 ## Types
 * `[Type ⋯  -> Type]` is the function type.
 
-* `+[Choice Type ⋯]+ | +[Choice Type ⋯]+ ⋯` is the enumeration type.
+* `{+[Choice Type ⋯]+  ⋯}` is the enumeration type.
 
 * `*[component: Type  ⋯]*` is the structure type.
 
