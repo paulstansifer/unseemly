@@ -934,9 +934,9 @@ fn type_basic_macro_invocation() {
 
 #[test]
 fn type_ddd_macro() {
-    let t_rep_expr_type = uty!({dotdotdot : [T] {type_apply : (prim Expr) [T]}});
+    let t_rep_expr_type = uty!({tuple : [{dotdotdot2 : [T] {type_apply : (prim Expr) [T]}}]});
     let s_expr_type = uty!({type_apply : (prim Expr) [S]});
-    let t_rep_pat_type = uty!({dotdotdot : [T] {type_apply : (prim Pat) [T]}});
+    let t_rep_pat_type = uty!({tuple : [{dotdotdot2 : [T] {type_apply : (prim Pat) [T]}}]});
 
     let impl_clo =
         crate::runtime::eval::Closure { body: ast!((trivial)), params: vec![], env: Assoc::new() };

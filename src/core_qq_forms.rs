@@ -370,6 +370,8 @@ macro_rules! ddd_type__body {
                 _ => ty_err!(UnboundName(drivers[0]) at ddd_parts_uq.this_ast),
             };
 
+            // We should be invoking `get_res` once per repetition,
+            //  and reconstructing a repetition... somehow.
             for i in 0..repeats {
                 for (name, ty) in ddd_parts_uq.env.iter_pairs() {
                     if drivers.contains(name) {
@@ -1289,9 +1291,9 @@ fn use_dotdotdot() {
 
     let ddd_abs_env = assoc_n!(
         "T" => uty!(T),
-        "vals" => uty!({dotdotdot : [T] {type_apply : (prim Expr) [T]}}),
-        "ops" => uty!({dotdotdot : [T]
-            {type_apply : (prim Expr) [{fn : [T] {Int :}}]}}));
+        "vals" => uty!({tuple : [{dotdotdot2 : [T] {type_apply : (prim Expr) [T]}}]}),
+        "ops" => uty!({tuple : [{dotdotdot2 : [T]
+            {type_apply : (prim Expr) [{fn : [T] {Int :}}]}}]}));
 
     assert_eq!(
         synth_type_two_phased(

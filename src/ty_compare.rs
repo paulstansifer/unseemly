@@ -814,31 +814,6 @@ fn subtype_different_mus() {
 }
 
 #[test]
-fn subtype_dotdotdot() {
-    let threeple = ty!({"Type" "tuple" :
-        "component" => [{"Type" "Int" :}, {"Type" "Float" :}, {"Type" "Nat" :}]
-    });
-    let dddple = uty!({forall_type : [T] {dotdotdot : [T] T}});
-
-    assert_m!(must_subtype(&threeple, &dddple, Assoc::new()), Ok(_));
-
-    // TODO #15: this panics in mbe.rs; it ought to error instead (might not still be true)
-    // assert_m!(must_subtype(&dddple, &threeple, assoc_n!("T" => Subtype::underspecified(n("-")))),
-    //     Err(_));
-
-    assert_m!(must_subtype(&dddple, &dddple, Assoc::new()), Ok(_));
-
-    let expr_threeple = uty!({tuple : [{type_apply : (prim Expr) [{Int :}]};
-                                       {type_apply : (prim Expr) [{Float :}]};
-                                       {type_apply : (prim Expr) [{Nat :}]}]});
-    let expr_dddple = uty!({forall_type : [T] {dotdotdot : [T] {type_apply : (prim Expr) [T]}}});
-
-    assert_m!(must_subtype(&expr_threeple, &dddple, Assoc::new()), Ok(_));
-
-    assert_m!(must_subtype(&expr_threeple, &expr_dddple, Assoc::new()), Ok(_));
-}
-
-#[test]
 fn subtype_dotdotdot2() {
     let threeple = uty!({tuple : [{Int :}; {Float :}; {Nat :}]});
     let dddple = uty!({forall_type : [T] {tuple : [{dotdotdot2 : [T] T}]}});
