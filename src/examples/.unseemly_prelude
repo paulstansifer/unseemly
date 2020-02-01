@@ -2,10 +2,10 @@
 factorial := (fix .[ again : [ -> [ Int -> Int ]] .  .[ n : Int . match (zero? n) { +[True]+ => one  +[False]+ => (times n ((again) (minus n one))) } ]. ].)
 
 # Recursive types need `mu_type`:
-IntList t= mu_type IntList . enum { Nil () Cons (Int IntList) }
+IntList t= mu_type IntList . { +[Nil]+ +[Cons Int IntList]+ }
 
 # The unfolded form is useful because that's what the constructors create:
-IntListUF t= enum { Nil () Cons (Int IntList) }
+IntListUF t= { +[Nil]+ +[Cons Int IntList]+ }
 
 # Constructing an enum requires a type annotation, as does `fold`.
 empty_ilist := fold +[Nil]+ : IntListUF : IntList
@@ -18,8 +18,8 @@ sum_int_list := (fix .[again : [-> [IntList -> Int]] . .[ lst : IntList . match 
 
 # Parametric recursive types:
 # Note: There's no type relationship between `IntList` and `List<Int>`. Use the latter!
-List t= forall T . mu_type List . enum { Nil () Cons (T List<T>) }
-ListUF t= forall T . enum { Nil () Cons (T List<T>) }
+List t= forall T . mu_type List . { +[Nil]+ +[Cons T List<T> ]+ }
+ListUF t= forall T . { +[Nil]+ +[Cons T List<T> ]+ }
 
 # Accepting parametrically-typed arguments:
 list_len := forall T . (fix .[again : [-> [List<T> -> Int]] . .[ lst : List<T> . match unfold lst { +[Nil]+ => zero +[Cons hd tl]+ => (plus one ((again) tl))} ]. ].)

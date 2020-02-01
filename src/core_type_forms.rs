@@ -164,17 +164,17 @@ pub fn make_core_syn_env_types() -> SynEnv {
 
     let enum_type = type_defn(
         "enum",
-        form_pat!([(lit "enum"),
-            (delim "{", "{", (star [(named "name", atom),
-                (delim "(", "(", (star (named "component", (call "Type"))))]))]),
+        form_pat!(
+            (delim "{", "{", (star
+                (delim "+[", "[",
+                    [(named "name", atom),(star (named "component", (call "Type")))])))),
     );
 
     let struct_type = type_defn_complex(
         "struct",
         form_pat!(
-            [(lit "struct"),
-             (delim "{", "{", (star [(named "component_name", atom), (lit ":"),
-                                     (named "component", (call "Type"))]))]),
+             (delim "*[", "[", (star [(named "component_name", atom), (lit ":"),
+                                     (named "component", (call "Type"))]))),
         LiteralLike, // synth is normal
         Both(
             LiteralLike,

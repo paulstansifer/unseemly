@@ -1,6 +1,6 @@
-let_type List = forall T . mu_type List . enum { Nil () Cons (T List<T>) }
+let_type List = forall T . mu_type List . { +[Nil]+ +[Cons T List<T>]+ }
 in
-let_type ListUF = forall T . enum { Nil () Cons (T List<T>) }
+let_type ListUF = forall T . { +[Nil]+ +[Cons T List<T>]+ }
 in
 (.[ list_123 : List<Int> . ((fix
     .[again : [-> [List<Int> -> Int]] .

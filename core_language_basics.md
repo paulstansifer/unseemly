@@ -143,9 +143,9 @@ The confusing part is that *whether* it's a quotation or unquotation is irreleva
 ## Types
 * `[Type ⋯  -> Type]` is the function type.
 
-* `enum { Choice (Type ⋯) ⋯ }` is the enumeration type.
+* `+[Choice Type ⋯]+ | +[Choice Type ⋯]+ ⋯` is the enumeration type.
 
-* `struct { component: Type  ⋯ }` is the structure type.
+* `*[component: Type  ⋯]*` is the structure type.
 
 * `**[Type ⋯]**` is a tuple type.
 
@@ -160,7 +160,7 @@ The confusing part is that *whether* it's a quotation or unquotation is irreleva
      (the definition of `DefaultToken` needs revision to handle this).
 
 * `:::[, T , >> Type]:::` requires `T` to refer to a tuple type. Suppose `T` is `**[A B Int]**`:
-    `:::[, T , >> [T -> X]]:::` is `**[[A -> X] [B -> X] [Int -> X]]**`.
+    `[:::[, T , >> [T -> X]]::: -> Int]` is `[ [A -> X] [B -> X] [Int -> X] -> Int]`.
 
 ### Pre-defined types
 * `Int` is a built-in type.

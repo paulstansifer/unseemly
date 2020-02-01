@@ -416,14 +416,14 @@ fn simple_end_to_end_eval() {
 #[test]
 fn end_to_end_int_list_tools() {
     assert_m!(
-        assign_t_var("IntList", "mu_type IntList . enum { Nil () Cons (Int IntList) }"),
+        assign_t_var("IntList", "mu_type IntList . { +[Nil]+ +[Cons Int IntList]+ }"),
         Ok(_)
     );
 
-    assert_m!(assign_t_var("IntListUF", "enum { Nil () Cons (Int IntList) }"), Ok(_));
+    assert_m!(assign_t_var("IntListUF", "{ +[Nil]+ +[Cons Int IntList]+ }"), Ok(_));
 
     assert_m!(
-        assign_variable("mt_ilist", "fold +[Nil]+ : enum { Nil () Cons (Int IntList) } : IntList"),
+        assign_variable("mt_ilist", "fold +[Nil]+ : { +[Nil]+ +[Cons Int IntList]+ } : IntList"),
         Ok(_)
     );
 
@@ -472,16 +472,16 @@ fn end_to_end_int_list_tools() {
 #[test]
 fn end_to_end_list_tools() {
     assert_m!(
-        assign_t_var("List", "forall T . mu_type List . enum { Nil () Cons (T List<T>) }"),
+        assign_t_var("List", "forall T . mu_type List . { +[Nil]+ +[Cons T List<T> ]+ }"),
         Ok(_)
     );
 
-    assert_m!(assign_t_var("ListUF", "forall T . enum { Nil () Cons (T List<T>) }"), Ok(_));
+    assert_m!(assign_t_var("ListUF", "forall T . { +[Nil]+ +[Cons T List<T> ]+ }"), Ok(_));
 
     assert_m!(
         assign_variable(
             "mt_list",
-            "fold +[Nil]+ : enum { Nil () Cons (Int List < Int > ) } : List < Int > "
+            "fold +[Nil]+ : { +[Nil]+ +[Cons Int List<Int> ]+ } : List < Int > "
         ),
         Ok(_)
     );
@@ -558,16 +558,16 @@ fn subtyping_direction() {
 
     assert_m!(eval_unseemly_program("( .[ a : forall T . [T -> T] . a]. .[a : Int . a].)"), Err(_));
 
-    assert_m!(eval_unseemly_program(".[ a : struct {} . a]."), Ok(_));
+    assert_m!(eval_unseemly_program(".[ a : *[]* . a]."), Ok(_));
 
     assert_m!(
-        eval_unseemly_program("( .[ a : struct {normal : Int extra : Int} . a]. *[normal : one]*)"),
+        eval_unseemly_program("( .[ a : *[normal : Int extra : Int]* . a]. *[normal : one]*)"),
         Err(_)
     );
 
     assert_m!(
         eval_unseemly_program(
-            "( .[ a : struct {normal : Int} . a]. *[normal : one extra : five]*)"
+            "( .[ a : *[normal : Int]* . a]. *[normal : one extra : five]*)"
         ),
         Ok(_)
     );
