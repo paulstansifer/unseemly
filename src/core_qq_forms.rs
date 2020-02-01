@@ -375,7 +375,17 @@ macro_rules! ddd_type__body {
                     if drivers.contains(name) {
                         walked_env = walked_env.set(*name, match ty {
                             Ty(Node(ref form, ref parts, _)) if form.name == n("tuple") => {
-                                Ty(parts.get_rep_leaf_or_panic(n("component"))[i].clone())
+                                let component
+                                    = parts.get_rep_leaf_or_panic(n("component"))[i].clone();
+                                let ddd2_form = crate::core_forms::find("Type", "dotdotdot2");
+                                if let Some(ddd2_parts) = component.destructure(ddd2_form) {
+                                    // HACK! If the tuple had a ddd, we should just unwrap it.
+                                    // We should somehow eliminate this linkage between
+                                    //  syntax repetition and tuples with type repetition.
+                                    Ty(ddd2_parts.get_leaf_or_panic(&n("body")).clone())
+                                } else {
+                                    Ty(component)
+                                }
                             }
                             Ty(Node(ref form, ref parts, _))
                                 if form.name == n("dotdotdot") =>
