@@ -316,8 +316,14 @@ fn heal__lwr_splices<Mode: WalkMode>(walk_ctxt: &mut LazyWalkReses<Mode>) -> Res
     } else {
         let its_a_trivial_ast = EnvMBE::new();
         let context_ast = walk_ctxt.context_elt().to_ast();
-        let other_parts = match context_ast {
-            Node(_, ref p, _) => p,
+        let other_parts = match (&context_ast, &walk_ctxt.this_ast) {
+            (&Node(ref f, ref p, _), &Node(ref f_this, _, _)) => {
+                if f != f_this {
+                    // Mismatched ASTs; some subtyping rules allow this, but healing is nonsensical
+                    return Ok(())
+                }
+                p
+            }
             _ => &its_a_trivial_ast,
         };
 
@@ -472,7 +478,7 @@ impl<Mode: WalkMode> reify::Reifiable for LazilyWalkedTerm<Mode> {
     fn concrete_arguments() -> Option<Vec<Ast>> { Some(vec![Mode::ty_invocation()]) }
 
     fn reify(&self) -> eval::Value {
-        val!(struct "term" => (, self.term.reify()), 
+        val!(struct "term" => (, self.term.reify()),
                     "res" => (, self.res.reify()),
                     "extra_env" => (, self.extra_env.reify()))
     }
