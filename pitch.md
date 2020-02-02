@@ -50,3 +50,4 @@ The macros are typechecked before expansion,
 
 To my knowledge, Unseemly is the first language
  where macros that bind names can be safely typechecked without expanding them.
+(Modulo one thing that still needs to be designed and implemented)
