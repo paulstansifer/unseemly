@@ -453,7 +453,7 @@ pub fn nt_to_type(nt: Name) -> Ty {
 pub fn nt_is_positive(nt: Name) -> bool {
     if nt == n("Type") || nt == n("Expr") || nt == n("DefaultReference") {
         true
-    } else if nt == n("Pat") || nt == n("Ident") || nt == n("DefaultAtom") {
+    } else if nt == n("Pat") || nt == n("Atom") || nt == n("Ident") {
         // TODO: Remove "Ident" entirely.
         // HACK: "Ident" and "DefaultAtom" are just not walked; this should probably be three-armed
         false

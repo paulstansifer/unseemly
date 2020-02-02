@@ -519,6 +519,7 @@ pub fn make_core_syn_env() -> SynEnv {
         "Pat" => Rc::new(Biased(Rc::new(main_pat_forms), Rc::new(Call(n("DefaultAtom"))))),
         "Expr" => Rc::new(Biased(Rc::new(main_expr_forms), Rc::new(Call(n("DefaultReference"))))),
         "Ident" => Rc::new(Call(n("DefaultAtom"))),
+        "AtomNotInPat" => Rc::new(Call(n("DefaultAtom"))),
         "DefaultReference" => Rc::new(VarRef(Rc::new(Call(n("DefaultAtom"))))),
         "DefaultSeparator" => Rc::new(crate::grammar::new_scan(r"(\s*)")),
         "DefaultAtom" => Rc::new(

@@ -297,7 +297,7 @@ fn parse_flimsy_ast(flimsy: &Ast, grammar: &FormPat) -> Ast {
 
         Call(name) => {
             // HACK: don't descend into `Call(n("DefaultAtom"))
-            if *name == n("DefaultAtom") {
+            if *name == n("DefaultAtom") || *name == n("AtomNotInPat") {
                 match flimsy {
                     VariableReference(a) => Atom(*a),
                     non_atom => panic!("Needed an atom, got {}", non_atom),

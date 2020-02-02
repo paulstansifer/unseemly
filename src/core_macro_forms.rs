@@ -693,6 +693,7 @@ fn formpat_reflection() {
     let macro_forms = make_core_macro_forms()
         .set(n("DefaultToken"), Rc::new(crate::grammar::new_scan(r"\s*(\S+)")))
         .set(n("DefaultAtom"), Rc::new(FormPat::Call(n("DefaultToken"))))
+        .set(n("AtomNotInPat"), Rc::new(FormPat::Call(n("DefaultToken"))))
         .set(n("DefaultReference"), Rc::new(VarRef(Rc::new(FormPat::Call(n("DefaultToken"))))))
         .set(n("Type"), Rc::new(FormPat::Call(n("DefaultReference"))))
         .set(n("DefaultSeparator"), Rc::new(crate::grammar::new_scan(r"(\s*)")));

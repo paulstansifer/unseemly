@@ -517,13 +517,14 @@ pub fn quote(pos: bool) -> Rc<Form> {
             .keyed_map_borrow_f(&mut |nt: &Name, nt_def: &Rc<FormPat>| {
                 if already_has_unquote(nt_def)
                // HACK: this is to avoid hitting "starterer". TODO: find a better way
-               || (nt != &n("Expr") && nt != &n("Pat") && nt != &n("Type"))
+               || (nt != &n("Expr") && nt != &n("Pat") && nt != &n("Type") && nt != &n("AtomNotInPat"))
                 {
                     nt_def.clone()
                 } else {
+                    let nt_for_type = if nt == &n("AtomNotInPat") { n("Atom") } else { *nt };
                     // TODO: maybe we should only insert `dotdotdot` in repetition positions?
                     Rc::new(Biased(
-                        unquote(*nt, pos),
+                        unquote(nt_for_type, pos),
                         Rc::new(Biased(dotdotdot(*nt), nt_def.clone())),
                     ))
                 }
