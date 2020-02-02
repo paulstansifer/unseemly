@@ -396,7 +396,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     if params.len() != arg_res.len() {
                         panic!("[kind error] wrong number of arguments");
                     }
-                    let mut new__ty_env = tapp_parts.env.clone();
+                    let mut new__ty_env = tapp_parts.env;
                     for (name, actual_type) in params.iter().zip(arg_res) {
                         new__ty_env = new__ty_env.set(ast_to_name(name), actual_type);
                     }
@@ -419,7 +419,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
     );
 
     assoc_n!("Type" => Rc::new(Biased(Rc::new(forms_to_form_pat![
-        fn_type.clone(),
+        fn_type,
         // TODO: these should turn into `primitive_type`s in the core type environment.
         // First, we need a really simple core type environment for testing,
         //  and then to change all the `uty!({Type Int :})`s into `uty!(Int)`s
@@ -428,13 +428,13 @@ pub fn make_core_syn_env_types() -> SynEnv {
         type_defn("Int", form_pat!((name_lit "Int"))),
         type_defn("Nat", form_pat!((name_lit "Nat"))),
         type_defn("Float", form_pat!((name_lit "Float"))),
-        enum_type.clone(),
-        struct_type.clone(),
-        tuple_type.clone(),
-        forall_type.clone(),
-        dotdotdot_type.clone(),
-        mu_type.clone(),
-        type_apply.clone()
+        enum_type,
+        struct_type,
+        tuple_type,
+        forall_type,
+        dotdotdot_type,
+        mu_type,
+        type_apply
         ]), Rc::new(VarRef(Rc::new(Call(n("DefaultAtom"))))))))
 }
 

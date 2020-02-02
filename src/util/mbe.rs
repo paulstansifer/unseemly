@@ -77,7 +77,7 @@ use std::{fmt, rc::Rc};
 ///   in which the marched values are not repeated (or one layer less repeated).
 /// Marching multiple repeated values at once
 ///  is only permitted if they were constructed to repeat the same number of times.
-#[derive(Eq, Clone)]
+#[derive(Eq, Clone, Default)]
 // `Clone` needs to traverse the whole `Vec` ):
 pub struct EnvMBE<T: Clone> {
     /// Non-repeated values
@@ -978,10 +978,8 @@ impl<T: Clone> EnvMBE<T> {
                     for (n, val) in n_and_vals {
                         let concrete_splice__thunk = || {
                             let mut result = vec![];
-                            for spliced_i in i..i + splice_length {
-                                result.push(
-                                    other__cur_repeat[spliced_i].leaves.find_or_panic(n).clone(),
-                                )
+                            for other_i in other__cur_repeat.iter().skip(i).take(splice_length) {
+                                result.push(other_i.leaves.find_or_panic(n).clone())
                             }
                             result
                         };

@@ -49,13 +49,13 @@ pub fn core_typed_values() -> Assoc<Name, TypedValue> {
         ),
         "plus" =>
         tf!([( "Int", "Int" ) -> "Int"],
-             ( Int(a), Int(b) ) => { Int( a.clone() + b ) }),
+             ( Int(a), Int(b) ) => { Int( a + b ) }),
         "minus" =>
         tf!([( "Int", "Int" ) -> "Int"],
-             ( Int(a), Int(b) ) => { Int( a.clone() - b ) }),
+             ( Int(a), Int(b) ) => { Int( a - b ) }),
         "times" =>
         tf!([( "Int", "Int" ) -> "Int"],
-             ( Int(a), Int(b) ) => { Int( a.clone() * b ) }),
+             ( Int(a), Int(b) ) => { Int( a * b ) }),
         "zero?" =>
         tyf!( {"Type" "fn" : "param" => [ {"Type" "Int" :}], "ret" => (vr "Bool") },
               ( Int(a) ) => { val!(b   a == BigInt::from(0))}),

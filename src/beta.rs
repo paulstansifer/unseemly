@@ -181,7 +181,7 @@ pub fn env_from_beta<Mode: crate::walk_mode::WalkMode>(
                 //    = **parts.parts.get_leaf_or_panic(rhs_source);
                 let rhs = parts.switch_to_positive().get_res(rhs_source)?;
 
-                Ok(Assoc::new().set(*name, rhs.clone()))
+                Ok(Assoc::new().set(*name, rhs))
             } else {
                 panic!(
                     "User error: {:#?} is supposed to supply names, but is not an Atom.",

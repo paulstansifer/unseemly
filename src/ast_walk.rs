@@ -188,8 +188,7 @@ pub fn walk<Mode: WalkMode>(
                 // Otherwise, the context (expected type) is the result.
 
                 if pos_inside == currently_positive { // stay in the same mode?
-                    let inner_walk_ctxt = walk_ctxt.clone()
-                        .quote_more(oeh_m.clone());
+                    let inner_walk_ctxt = walk_ctxt.quote_more(oeh_m.clone());
                     let res = maybe_literally__walk(&a, body, inner_walk_ctxt, old_ctxt_elt,
                                                     literally)?;
 
@@ -214,7 +213,7 @@ pub fn walk<Mode: WalkMode>(
                 let old_ctxt_elt = walk_ctxt.maybe__context_elt();
 
                 let mut oeh = None;
-                let mut walk_ctxt = walk_ctxt.clone();
+                let mut walk_ctxt = walk_ctxt;
                 for _ in 0..depth {
                     let (oeh_new, walk_ctxt_new) = walk_ctxt.quote_less();
                     oeh = oeh_new;
@@ -320,7 +319,7 @@ fn heal__lwr_splices<Mode: WalkMode>(walk_ctxt: &mut LazyWalkReses<Mode>) -> Res
             (&Node(ref f, ref p, _), &Node(ref f_this, _, _)) => {
                 if f != f_this {
                     // Mismatched ASTs; some subtyping rules allow this, but healing is nonsensical
-                    return Ok(())
+                    return Ok(());
                 }
                 p
             }
@@ -708,7 +707,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             part_name,
             depth,
             &|lwt: &Rc<LazilyWalkedTerm<Mode>>| -> Result<<Mode::D as Dir>::Out, Mode::Err> {
-                return lwt.get_res(self).map(map);
+                lwt.get_res(self).map(map)
             },
             &|v: Vec<Result<<Mode::D as Dir>::Out, Mode::Err>>| {
                 let mut accum = vec![];
@@ -757,9 +756,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         self.parts.map_flatten_rep_leaf_or_panic(
             part_name,
             depth,
-            &|lwt: &Rc<LazilyWalkedTerm<Mode>>| -> S {
-                return m(&lwt.term);
-            },
+            &|lwt: &Rc<LazilyWalkedTerm<Mode>>| -> S { return m(&lwt.term) },
             f,
         )
     }

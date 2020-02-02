@@ -275,7 +275,7 @@ fn assign_variable(name: &str, expr: &str) -> Result<Value, String> {
         let ty = type_unseemly_program(expr).unwrap();
         ty_env.with(|tys| {
             val_env.with(|vals| {
-                let new_tys = tys.borrow().set(n(name), ty).clone();
+                let new_tys = tys.borrow().set(n(name), ty);
                 let new_vals = vals.borrow().set(n(name), v.clone());
                 *tys.borrow_mut() = new_tys;
                 *vals.borrow_mut() = new_vals;
@@ -415,10 +415,7 @@ fn simple_end_to_end_eval() {
 
 #[test]
 fn end_to_end_int_list_tools() {
-    assert_m!(
-        assign_t_var("IntList", "mu_type IntList . { +[Nil]+ +[Cons Int IntList]+ }"),
-        Ok(_)
-    );
+    assert_m!(assign_t_var("IntList", "mu_type IntList . { +[Nil]+ +[Cons Int IntList]+ }"), Ok(_));
 
     assert_m!(assign_t_var("IntListUF", "{ +[Nil]+ +[Cons Int IntList]+ }"), Ok(_));
 
@@ -566,9 +563,7 @@ fn subtyping_direction() {
     );
 
     assert_m!(
-        eval_unseemly_program(
-            "( .[ a : *[normal : Int]* . a]. *[normal : one extra : five]*)"
-        ),
+        eval_unseemly_program("( .[ a : *[normal : Int]* . a]. *[normal : one extra : five]*)"),
         Ok(_)
     );
 }

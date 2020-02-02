@@ -347,7 +347,7 @@ impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
                 _ => Ok(Assoc::new()),
             },
             &Mode::collapse_repetition,
-            &|result, next| Ok(result.clone()?.set_assoc(&next.clone()?)),
+            &|result, next| Ok(result?.set_assoc(&next?)),
             Ok(Assoc::new()),
         )
     }

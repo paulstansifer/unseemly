@@ -158,7 +158,7 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
                     ));
 
                     if res != t {
-                        Some(Clo { it: res, env: env.clone() })
+                        Some(Clo { it: res, env: env })
                     } else {
                         None
                     }
@@ -188,7 +188,7 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
                                     ),
                                     &actual_params,
                                 )),
-                                env: env.clone(),
+                                env: env,
                             })
                         }
                     }
@@ -427,10 +427,8 @@ impl crate::walk_mode::NegativeWalkMode for Subtype {
 
         let (res_lhs, res_rhs) = unification.with(|unif| {
             // Capture the environment and resolve:
-            let lhs: Clo<Ty> =
-                resolve(Clo { it: lhs_ty, env: env.clone() }, &unif.borrow()).clone();
-            let rhs: Clo<Ty> =
-                resolve(Clo { it: rhs_ty, env: env.clone() }, &unif.borrow()).clone();
+            let lhs: Clo<Ty> = resolve(Clo { it: lhs_ty, env: env.clone() }, &unif.borrow());
+            let rhs: Clo<Ty> = resolve(Clo { it: rhs_ty, env: env.clone() }, &unif.borrow());
 
             let lhs_name = lhs.it.destructure(u_f.clone(), &Trivial).map(
                 // errors get swallowed ↓
@@ -443,17 +441,15 @@ impl crate::walk_mode::NegativeWalkMode for Subtype {
 
             match (lhs_name, rhs_name) {
                 // They are the same underdetermined type; nothing to do:
-                (Ok(l), Ok(r)) if l == r => {
-                    return None;
-                }
+                (Ok(l), Ok(r)) if l == r => None,
                 // Make a determination (possibly just merging two underdetermined types):
                 (Ok(l), _) => {
-                    unif.borrow_mut().insert(l, rhs.clone());
-                    return None;
+                    unif.borrow_mut().insert(l, rhs);
+                    None
                 }
                 (_, Ok(r)) => {
-                    unif.borrow_mut().insert(r, lhs.clone());
-                    return None;
+                    unif.borrow_mut().insert(r, lhs);
+                    None
                 }
                 // They are (potentially) different.
                 _ => Some((lhs, rhs)),

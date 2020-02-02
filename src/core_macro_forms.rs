@@ -610,7 +610,7 @@ pub fn make_core_macro_forms() -> SynEnv {
                         ast_to_name(&parts.get_term(n("macro_name"))),
                         crate::runtime::eval::Closure{ body: implementation,
                             params: macro_params,
-                            env: parts.env.clone()
+                            env: parts.env
                         },
                         export_names),
                     export).reify())
@@ -755,7 +755,9 @@ fn macro_definitions() {
                 {named => ["part_name"] : x {call_with_type : Expr T}}}),
             env.clone()
         ),
-        Ok(assoc_n!("x" => uty!({tuple : [{dotdotdot_type : [T] {type_apply : (prim Expr) [T]}}]})))
+        Ok(
+            assoc_n!("x" => uty!({tuple : [{dotdotdot_type : [T] {type_apply : (prim Expr) [T]}}]}))
+        )
     );
 
     let t_expr_type = uty!({type_apply : (prim Expr) [T]});

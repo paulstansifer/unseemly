@@ -216,7 +216,7 @@ pub fn make_core_syn_env() -> SynEnv {
                                 .iter().zip(component_types) {
                             ty_exp!(t, &expected_t, part_types.this_ast);
                         }
-                    return Ok(res.clone());
+                    return Ok(res);
                     }
 
                     ty_err!(NonexistentEnumArm
@@ -298,13 +298,13 @@ pub fn make_core_syn_env() -> SynEnv {
 
                 // Pull off the `mu` (and the `ExtendEnv` that it carries):
                 // (This is sound because `mu`'s param must already be in the environment.)
-                expect_ty_node!( (mu_typed.clone() ; find_type(&ctf_4, "mu_type") ;
+                expect_ty_node!( (mu_typed ; find_type(&ctf_4, "mu_type") ;
                                     &unfold_parts.this_ast)
                     mu_parts;
                     {
                         // This acts like the `mu` was never there (and hiding the binding)
                         if let ExtendEnv(ref body, _) = *mu_parts.get_leaf_or_panic(&n("body")) {
-                            synth_type(body, unfold_parts.env.clone())
+                            synth_type(body, unfold_parts.env)
                         } else { icp!("no protection to remove!"); }
                     })
             }),
