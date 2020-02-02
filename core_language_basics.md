@@ -25,14 +25,14 @@ You'll tend to see constructs like `.[ ].`, `'[ ]'`, and `hi[ ]hi`.
   ```
   match (lookup x some_table) {
       +[Some result]+ => result
-      +[None]+ => zero          # not found, return default
+      +[None]+ => zero          # default value
   }
   ```
 
 * `+[Choice expr ⋯]+ : Type` constructs an enumerated value.
     The type annotation is weird, but it helps keep the typechecker simple.
    ```
-   +[Some eight]+ : enum { Some(Int)  None() }
+   +[Some eight]+ : { +[Some Int]+  +[None]+ }
    # Equivalent to `Some(8)` in a normal language
    ```
 * `*[component: expr ⋯]*` constructs a structure value.
@@ -52,13 +52,15 @@ You'll tend to see constructs like `.[ ].`, `'[ ]'`, and `hi[ ]hi`.
 * `unfold expr` pulls one layer of `mu` off a recursively-typed value.
     It is almost exclusively used for the scrutinee in `match`.
    ```
+   # Is `list` nonempty?
+   # Assume `List` is defined as `forall T . mu_type List . { +[Nil]+ +[Cons T List<T> ]+ }`
    # `List` is recursive, so we need to peel off the `mu` to examine it:
    forall T . .[ list: List<T> .
        match unfold list {
            +[Cons car cdr]+ => true
            +[Nil]+ => false
         }
-   ].  # Does this list contain anything?
+   ].
    ```
 
 * `fold expr: Type` adds one layer of `mu` to recursively-typed value.
@@ -136,7 +138,7 @@ The confusing part is that *whether* it's a quotation or unquotation is irreleva
 
 * `*[component: pat  ⋯]*` deconstructs a structure value.
 
-* Quotation and unquotation are also useful as patterns.
+* Quotation (with unquotation) is also useful as a pattern.
   The type annotation is always optional starting from a pattern.
 
 
@@ -159,16 +161,17 @@ The confusing part is that *whether* it's a quotation or unquotation is irreleva
     Currently, you'll want to leave a space between the angle brackets and any punctuation
      (the definition of `DefaultToken` needs revision to handle this).
 
-* `:::[, T , >> Type]:::` requires `T` to refer to a tuple type. Suppose `T` is `**[A B Int]**`:
-    `[:::[, T , >> [T -> X]]::: -> Int]` is `[ [A -> X] [B -> X] [Int -> X] -> Int]`.
+* `:::[,T, >> Type]:::` is a type-level "splicing map". It requires `T` to refer to a tuple type. 
+    Suppose `T` is `**[A B Int]**`. Then
+    `[:::[,T, >> [T -> X]]::: -> Bool]` is `[ [A -> X] [B -> X] [Int -> X] -> Bool]`.
 
 ### Pre-defined types
 * `Int` is a built-in type.
-* `Bool` is defined as `enum { True () False () }`.
+* `Bool` is defined as `{ +[True]+  +[False]+ }`.
 
 ## Syntax
 * `lit ,{ Nt }, = 'arbitrary string'` is a literal, where `Nt` is a lexer
-* `/regex/` is a lexer. Be sure to have a capturing group!
+* `/regex/` is a [lexer](https://docs.rs/regex/1.3.3/regex/). Be sure to have a capturing group!
 * `my_named_subterm := ( ,{Nt<Type>}, ) ` binds `my_named_subterm` to an `Nt` with the type `Type`.
   ```
   scrutinee := ( ,{Expr<T>}, )

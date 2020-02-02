@@ -9,7 +9,7 @@ Unseemly has a bare minimum of forms
  necessary to bootstrap the implementation of practical languages.
 
 Unseemly is still pretty early-stage, so, while all of the features below exist,
- there are still a number of things that are janky or incomplete still.
+ there are still a number of things that are janky or incomplete.
 
 ## Features
 
