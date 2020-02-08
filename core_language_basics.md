@@ -205,6 +205,10 @@ The confusing part is that *whether* it's a quotation or unquotation is irreleva
   }.
   # introduces a `let` macro
   ```
+* `Syntax <-- Beta` binds according to `Beta`'s specification.
+  ```
+  body := ( ,{Expr<T>}, ) <-- pat = value
+  ```
 TODO: there's more syntax than this
 
 ### Pre-defined nonterminals
@@ -221,6 +225,18 @@ These are defined in `core_forms.rs`, and their definitions are relatively short
     rather than atoms (which are binding-introducers).
 * `Expr`, `Pat`, and `Type` are expressions, patterns, and types.
 
+## Beta
+* `term_name = term_name` binds the names in the left `term_name`
+  to be equal to the contents of the right `term_name`.
+* `term_name : term_name` binds the names in the left `term_name`
+  to have the type from right `term_name` (which must be a `Type` term).
+* `prot term_name` "protects" the names in `term_name`.
+  This is what `mu_type` does.
+* `forall term_name` abstracts over the names in `term_name`.
+  This is what the type also named `forall` does.
+* `...[Beta]...`, assuming all of the term names inside `Beta` are repeated,
+  binds `Beta` for each repetition, shadowing left-to-right.
+* `[Beta o> Beta]` does left-to-right shadowing between two `Beta`s
 
 ## Example unseemly programs
 *(in `src/examples/`)*
