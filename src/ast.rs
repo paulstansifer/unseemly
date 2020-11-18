@@ -51,7 +51,7 @@ impl crate::runtime::reify::Reifiable for Ast {
     }
 
     fn reflect(v: &crate::runtime::eval::Value) -> Ast {
-        extract!((v) crate::runtime::eval::Value::AbstractSyntax = (ref ast) => (ast.clone()))
+        extract!((v) crate::runtime::eval::Value::AbstractSyntax = (ref ast) => ast.clone())
     }
 }
 
