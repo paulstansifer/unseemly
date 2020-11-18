@@ -263,7 +263,7 @@ fn main() {
 
         match result {
             Ok(v) => println!("{}", v),
-            Err(e) => println!("\x1b[1;31m✘\x1b[0m {:#?}", e),
+            Err(e) => println!("\x1b[1;31m✘\x1b[0m {}", e),
         }
     }
 }
@@ -295,7 +295,7 @@ fn assign_t_var(name: &str, t: &str) -> Result<ty::Ty, String> {
     .map_err(|e| e.msg)?;
 
     let res = ty_env
-        .with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e)));
+        .with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{}", e)));
 
     if let Ok(ref t) = res {
         ty_env.with(|tys| {
@@ -316,7 +316,7 @@ fn canonicalize_type(t: &str) -> Result<ty::Ty, String> {
     )
     .map_err(|e| e.msg)?;
 
-    ty_env.with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e)))
+    ty_env.with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{}", e)))
 }
 
 fn parse_unseemly_program(program: &str, pretty: bool) -> Result<String, String> {
@@ -344,7 +344,7 @@ fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
     )
     .map_err(|e| e.msg)?;
 
-    ty_env.with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e)))
+    ty_env.with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{}", e)))
 }
 
 fn eval_unseemly_program_without_typechecking(program: &str) -> Result<Value, String> {
@@ -356,7 +356,7 @@ fn eval_unseemly_program_without_typechecking(program: &str) -> Result<Value, St
     )
     .map_err(|e| e.msg)?;
 
-    let core_ast = crate::expand::expand(&ast).map_err(|e| format!("{:#?}", e))?;
+    let core_ast = crate::expand::expand(&ast).map_err(|_| "error".to_owned())?;
 
     val_env.with(|vals| eval(&core_ast, vals.borrow().clone()).map_err(|_| "???".to_string()))
 }
@@ -371,9 +371,9 @@ fn eval_unseemly_program(program: &str) -> Result<Value, String> {
     .map_err(|e| e.msg)?;
 
     let _type = ty_env
-        .with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e)))?;
+        .with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{}", e)))?;
 
-    let core_ast = crate::expand::expand(&ast).map_err(|e| format!("{:#?}", e))?;
+    let core_ast = crate::expand::expand(&ast).map_err(|_| "error".to_owned())?;
 
     val_env.with(|vals| eval(&core_ast, vals.borrow().clone()).map_err(|_| "???".to_string()))
 }
@@ -388,9 +388,9 @@ fn type_and_expand_unseemly_program(program: &str) -> Result<ast::Ast, String> {
     .map_err(|e| e.msg)?;
 
     let _type = ty_env
-        .with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{:#?}", e)))?;
+        .with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{}", e)))?;
 
-    crate::expand::expand(&ast).map_err(|e| format!("{:#?}", e))
+    crate::expand::expand(&ast).map_err(|_| "error".to_owned())
 }
 
 #[test]
