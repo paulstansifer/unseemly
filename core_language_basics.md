@@ -93,6 +93,14 @@ You'll tend to see constructs like `.[ ].`, `'[ ]'`, and `hi[ ]hi`.
       `[Expr | (my_fn ...[,arg_syn, >> ,[arg_syn],]...)]`
       # Syntax for invoking `my_fn` on an arbitrary number of arguments
       ```
+    † The rule for when you need a type annotation is a little weird.
+    Honestly, it's probably best to leave off type annotations unless the typechecker complains.
+    But the rule is this:
+    you only need an annotation if the outside of the quotation/unquotation is an expression,
+      and the inside is a pattern.
+    The confusing part is that *whether* it's a quotation or unquotation is irrelevant!
+    (Except that when an unquotation doesn't need an annotation, it needs no `Nonterminal` at all.)
+
 * `extend_syntax nt_ext ⋯ in extended_expr` is syntax extension.
     `nt_ext` is `Nt ::= grammar ;` or `Nt ::=also grammar ;`
     (`::=` replaces the current definition of that `Nt`, `::=also` extends it).
@@ -117,13 +125,6 @@ You'll tend to see constructs like `.[ ].`, `'[ ]'`, and `hi[ ]hi`.
          if (zero? five) then eight else two
    ```
 
-†The rule for when you need a type annotation is a little weird.
-Honestly, it's probably best to leave off type annotations unless the typechecker complains.
-But the rule is this:
- you only need an annotation if the outside of the quotation/unquotation is an expression,
-  and the inside is a pattern.
-The confusing part is that *whether* it's a quotation or unquotation is irrelevant!
- (Except that when an unquotation doesn't need an annotation, it needs no `Nonterminal` at all.)
 
 ### Pre-defined values
 * `zero` through `ten` are integers. (What are these "literals" you speak of?)
@@ -138,7 +139,7 @@ The confusing part is that *whether* it's a quotation or unquotation is irreleva
 
 * `*[component: pat  ⋯]*` deconstructs a structure value.
 
-* Quotation (with unquotation) is also useful as a pattern.
+* Quotation (with unquotation) is a valid pattern.
   The type annotation is always optional starting from a pattern.
 
 
@@ -170,8 +171,10 @@ The confusing part is that *whether* it's a quotation or unquotation is irreleva
 * `Bool` is defined as `{ +[True]+  +[False]+ }`.
 
 ## Syntax
-* `lit ,{ Nt }, = 'arbitrary string'` is a literal, where `Nt` is a lexer
-* `/regex/` is a [lexer](https://docs.rs/regex/1.3.3/regex/). Be sure to have a capturing group!
+* `lit ,{ Nt }, = 'arbitrary string'` is syntax for the exact text `arbitrary string`,
+   where `Nt` is a lexer (usually useful so that surrounding whitespace gets discarded properly).
+* `/regex/` is a lexer, which matches a [regex](https://docs.rs/regex/1.3.3/regex/).
+   Be sure to have a capturing group around everything except for (e.g.) the whitespace to discard!
 * `my_named_subterm := ( ,{Nt<Type>}, ) ` binds `my_named_subterm` to an `Nt` with the type `Type`.
   ```
   scrutinee := ( ,{Expr<T>}, )
@@ -185,7 +188,7 @@ The confusing part is that *whether* it's a quotation or unquotation is irreleva
   argument := ( ,{Expr<T>}, ) *
   # You'll want to use `...[,argument, >>    ]...` to handle the repetition correctly
   ```
-* `forall T ⋯ . '{ Syntax }'  macro_name -> .{ Expr }.` defines a macro
+* `forall T ⋯ . '{ Syntax }'  macro_name -> .{ Expr }.` defines a macro.
   `macro_name` must be unique, but is otherwise ignored (this problem should be fixed)
   ```
   forall T S . '{ [
@@ -213,14 +216,14 @@ TODO: there's more syntax than this
 
 ### Pre-defined nonterminals
 These are defined in `core_forms.rs`, and their definitions are relatively short.
-* `DefaultSeparator` defaults to just whitespace; it comes between tokens.
+* `DefaultSeparator` matches whitespace. Redefine it to allow comments!
   ```
   DefaultSeparator ::= /((?s:\s|#[^\n]*)*)/ ;
   # Adds Python-style comments to the language
   ```
-* `DefaultWord` and `DefaultToken` are sequences of a `DefaultSeparator`
-   and a lexer for a clump of nonwhitespace, or an identifier, respectively.
-* `DefaultAtom` is a `DefaultWord`, except it doesn't match reserved words
+* `DafaultToken` is a `DefaultSeparator` followed by a token.
+* `DafaultWord` is a `DefaultSeparator` followed by an identifier.
+* `DefaultAtom` is a `DefaultWord`, except it doesn't match reserved words.
 * `DefaultReference` is a `DefaultAtom`, except that it produces variable references,
     rather than atoms (which are binding-introducers).
 * `Expr`, `Pat`, and `Type` are expressions, patterns, and types.
