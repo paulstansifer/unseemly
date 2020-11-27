@@ -32,3 +32,10 @@ im-rc = "13.0"
 name = "unseemly"
 path = "src/main.rs"
 test = true
+
+[profile.dev]
+# After minor changes, using `cargo test` to build and test is slightly *faster* at this opt level:
+opt-level = 2
+
+[profile.release]
+opt-level = 3
