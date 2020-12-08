@@ -189,6 +189,7 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
 
     fn walk_quasi_literally(a: Ast, cnc: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode> {
         // TODO: this needs to handle splicing, like the negative w_q_l does.
+        // (Wait, in what way does it not?!?)
         match a {
             Node(f, parts, exports) => {
                 let mut walked: EnvMBE<Ast> = parts
@@ -209,7 +210,7 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
                     )
                     .lift_result()?;
 
-                // HACK: recognize `Shape` as the output of `core_qq_forms::dotdotdot`:
+                // HACK: recognize `Shape` as the output of `core_qq_forms::dotdotdot` (TODO #40?):
                 walked
                     .heal_splices::<()>(&|a| match a {
                         Shape(ref v) => Ok(Some(v.clone())),
@@ -223,7 +224,7 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
                 Ok(<Self::Mode as WalkMode>::Elt::from_ast(&Node(f, walked, exports)))
             }
             orig => {
-                // All this mess is to push `Shape` down past a wrapper (i.e. `ExtendEnv`),
+                // TODO #40: This mess is to push `Shape` down past a wrapper (i.e. `ExtendEnv`),
                 //  duplicating the wrapper around each element of `Shape`.
                 // This is all for splicing the result of `dotdotdot`
 

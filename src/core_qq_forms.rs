@@ -407,6 +407,8 @@ macro_rules! ddd_type__body {
     };
 }
 
+// TODO #38: This should take a grammar, not an NT, as an argument,
+//  and be located underneath each Plus or Star.
 pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
     Rc::new(Form {
         name: n("dotdotdot"),
@@ -447,7 +449,7 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
                 Sequence(ref contents) => contents.len(),
                 _ => icp!("type error"),
             };
-            let mut reps = vec![];
+            let mut reps: Vec<Ast> = vec![];
 
             for i in 0..count {
                 let mut walked_env = Assoc::new();
@@ -473,7 +475,7 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
                 );
             }
 
-            // HACK: this signals to `LiteralLike` that it needs to splice the sequence
+            // HACK: this tells `walk_quasi_literally` to splice (TODO #40?)
             Ok(Value::from_ast(&Shape(reps)))
         })),
     })
@@ -522,7 +524,8 @@ pub fn quote(pos: bool) -> Rc<Form> {
                     nt_def.clone()
                 } else {
                     let nt_for_type = if nt == &n("AtomNotInPat") { n("Atom") } else { *nt };
-                    // TODO: maybe we should only insert `dotdotdot` in repetition positions?
+                    // TODO #38: we should insert `dotdotdot` under Star and Plus,
+                    //  not at the top level
                     Rc::new(Biased(
                         unquote(nt_for_type, pos),
                         Rc::new(Biased(dotdotdot(*nt), nt_def.clone())),

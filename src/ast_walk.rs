@@ -277,7 +277,7 @@ pub fn walk<Mode: WalkMode>(
 }
 
 // This fixes up `walk_ctxt` based on splice healing.
-// Its effects on the rest of the code are too complex:
+// TODO #40: Its effects on the rest of the code are too complex:
 //  * `extra_env` needs to be used in various places, but exactly where is fuzzy
 //  * `walk_ctxt` goes out of sync with its `Ast`;
 //      Negative::walk_quasi_literally was using the Ast but had to switch to using the `walk_ctxt`

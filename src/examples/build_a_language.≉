@@ -23,7 +23,9 @@ in
 extend_syntax
     Expr ::=also
         # Currently, one has to make a separate macro for each number of arguments.
-        # That definitely needs to be fixed (need something `:::[]:::`-like for non-tuples).
+        # That definitely needs to be fixed.
+        # Interpolation into atom positions is necessary,
+        #  but there's other jankiness to `:::[]:::` types that also needs to be fixed.
         forall I0 I1 O T . '{ [
             lit ,{ DefaultToken }, = 'letfn'
             lit ,{ DefaultToken }, = '('
