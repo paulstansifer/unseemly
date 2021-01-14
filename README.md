@@ -72,7 +72,7 @@ Romeo allowed for manipulation of syntax types with complex binding information,
   * there was no macro system (so the syntax manipulation was pointless!)
   * it is just a core calculus
 
-#### SugarJ / SoundX
+#### [SugarJ](https://github.com/sugar-lang) / [SoundX](https://github.com/florenzen/soundx)
 
 SoundX is a language with syntax extensions in which typechecking occurs before expansion.
 It provides sound language extensions, but
@@ -94,7 +94,7 @@ Unseemly macros are typechecked before expansion, but are the only macro system 
  because they can (in particular) define new binding forms safely.
 (TODO: learn more about Scala's macro system)
 
-#### Wyvern
+#### [Wyvern](http://wyvernlang.github.io/)
 
 Wyvern's primary motivating example
  (write SQL, not strings containing SQL, in your general-purpose code)
@@ -106,7 +106,7 @@ Wyvern also includes a number of features that are outside the scope of Unseemly
 
 (TODO: learn more about Wyvern)
 
-#### Terra
+#### [Terra](http://terralang.org/)
 
 Terra, from a quick glance (TODO: learn more),
  appears to be a language with a close relationship to Lua,
@@ -115,7 +115,7 @@ Terra, from a quick glance (TODO: learn more),
 In this case, it looks like the goal is to marry a high-level and low-level language together,
  without an FFI and with inline embedding.
 
-#### Rust and SweetJS
+#### Rust and [SweetJS](https://www.sweetjs.org/)
 
 Rust and SweetJS are non-S-expression-based languages with macro systems that allow rich syntax.
 
