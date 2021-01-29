@@ -63,9 +63,9 @@ Look at core_language_basics.md for documentation of the language.
 ## Related work
 
 ### Research projects
-#### FreshML / Romeo
+#### [FreshML](https://www.cl.cam.ac.uk/~amp12/freshml/) / [Romeo](https://repository.library.northeastern.edu/files/neu:cj82mb52h)
 
-Unseemly is sort of a descendant of Romeo, which descends from FreshML.
+Unseemly is most closely based on Romeo, which descends from FreshML.
  (Romeo is closer to Pure FreshML, but the "Pure" part is not present in Unseemly.)
 Romeo allowed for manipulation of syntax types with complex binding information, but
   * syntax was otherwise untyped
@@ -86,7 +86,7 @@ It provides sound language extensions, but
  I think so, but I don't remember for sure.)
 
 ### Practical languages
-#### Scala
+#### [Scala](https://www.scala-lang.org/)
 
 If I understand correctly, Scala's blackbox macros are typechecked before expansion,
  but they can't do everything that whitebox macros can.
@@ -115,7 +115,7 @@ Terra, from a quick glance (TODO: learn more),
 In this case, it looks like the goal is to marry a high-level and low-level language together,
  without an FFI and with inline embedding.
 
-#### Rust and [SweetJS](https://www.sweetjs.org/)
+#### [Rust](http://rust-lang.org) and [SweetJS](https://www.sweetjs.org/)
 
 Rust and SweetJS are non-S-expression-based languages with macro systems that allow rich syntax.
 
