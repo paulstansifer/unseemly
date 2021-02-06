@@ -515,27 +515,26 @@ pub fn make_core_syn_env() -> SynEnv {
         n("in"),
     ];
 
-    assoc_n!(
-        "Pat" => Rc::new(Biased(Rc::new(main_pat_forms), Rc::new(Call(n("DefaultAtom"))))),
-        "Expr" => Rc::new(form_pat!((biased
+    syn_env!(
+        "Pat" => (biased (,main_pat_forms), (call "DefaultAtom")),
+        "Expr" => (biased
             (alt (, main_expr_forms),
                     (, crate::core_extra_forms::make_core_extra_forms())),
-            (call "DefaultReference")))),
-        "Ident" => Rc::new(Call(n("DefaultAtom"))),
-        "AtomNotInPat" => Rc::new(Call(n("DefaultAtom"))),
-        "DefaultReference" => Rc::new(VarRef(Rc::new(Call(n("DefaultAtom"))))),
-        "DefaultSeparator" => Rc::new(crate::grammar::new_scan(r"(\s*)")),
-        "DefaultAtom" => Rc::new(
-            form_pat!((common (reserved_by_name_vec (call "DefaultWord"), reserved_names)))),
-        "DefaultWord" => Rc::new(form_pat!((common (pick [(call "DefaultSeparator"),
+            (call "DefaultReference")),
+        "Ident" => (call "DefaultAtom"),
+        "AtomNotInPat" => (call "DefaultAtom"),
+        "DefaultReference" => (varref_call "DefaultAtom"),
+        "DefaultSeparator" => (scan r"(\s*)"),
+        "DefaultAtom" => (common (reserved_by_name_vec (call "DefaultWord"), reserved_names)),
+        "DefaultWord" => (common (pick [(call "DefaultSeparator"),
             (named "name", (scan r"(\p{Letter}(?:\p{Letter}|\p{Number}|[_?])*)"))],
-                "name")))),
+                "name")),
         // TODO: come up with more normal tokenization rules
-        "DefaultToken" => Rc::new(form_pat!(
+        "DefaultToken" =>
            (common (pick [(call "DefaultSeparator"),
                    (named "tok",
                        (scan r"([\]\)\}][^\[\]\(\)\{\}\s]*|[^\[\]\(\)\{\}\s]*[\[\(\{]|[^\[\]\(\)\{\}\s]+)"))],
-            "tok"))))
+            "tok"))
     )
     .set_assoc(&ctf) // throw in types!
     .set_assoc(&cmf) // throw in the types and macros!
@@ -1053,16 +1052,14 @@ fn use__let_type() {
 
 #[test]
 fn use__insert_form_pat() {
-    let se = assoc_n!("Pat" => Rc::new(form_pat!((impossible))),
-                      "Expr" => Rc::new(form_pat!(
-                          (biased (biased atom, atom),
-                                  (biased (alt (lit "a"), (lit "b")), atom)))));
+    let se = syn_env!("Pat" => (impossible),
+                      "Expr" => (biased (biased atom, atom),
+                                        (biased (alt (lit "a"), (lit "b")), atom)));
     assert_eq!(
         insert_form_pat(&se, n("Expr"), &form_pat!((lit "c"))),
-        assoc_n!("Pat" => Rc::new(form_pat!((impossible))),
-                 "Expr" => Rc::new(form_pat!(
-                     (biased (biased atom, atom),
-                             (biased (alt (lit "a"), (lit "b"), (lit "c")), atom)))))
+        syn_env!("Pat" => (impossible),
+                      "Expr" => (biased (biased atom, atom),
+                                        (biased (alt (lit "a"), (lit "b"), (lit "c")), atom)))
     );
 }
 

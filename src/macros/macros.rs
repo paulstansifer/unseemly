@@ -379,6 +379,9 @@ macro_rules! form_pat {
     (varref) => { crate::grammar::FormPat::VarRef(
         std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("DefaultAtom")))
     ) };
+    ((varref_call $n:tt)) => { crate::grammar::FormPat::VarRef(
+        std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n($n)))
+    ) };
     (varref_aat) => { crate::grammar::FormPat::VarRef(
         std::rc::Rc::new(crate::grammar::new_scan(r"\s*(\S+)"))
     ) };
@@ -441,6 +444,14 @@ macro_rules! form_pat {
     ( [$($body:tt),*] ) => {
         crate::grammar::FormPat::Seq(vec![ $( std::rc::Rc::new(form_pat!($body)) ),* ])};
     ((, $interpolate:expr)) => { $interpolate }
+}
+
+macro_rules! syn_env {
+    () => { crate::util::assoc::Assoc::new() };
+    ( $k:tt => $rhs:tt $(, $k_cdr:tt => $rhs_cdr:tt)* ) => {
+        syn_env!( $( $k_cdr => $rhs_cdr ),* )
+            .set(crate::name::n(expr_ify!($k)), Rc::new(form_pat!($rhs)))
+    };
 }
 
 // utility, for core_forms and core_type_forms

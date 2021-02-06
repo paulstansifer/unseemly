@@ -362,13 +362,11 @@ fn advanced_parsing() {
     assert_eq!(
         parse(
             &form_pat!((call "Expr")),
-            &assoc_n!(
-                "other_1" => Rc::new(Scope(simple_form("o", form_pat!((lit_aat "other"))),
-                                        crate::beta::ExportBeta::Nothing)),
-                "Expr" => Rc::new(Scope(pair_form.clone(), crate::beta::ExportBeta::Nothing)),
-                "other_2" =>
-                    Rc::new(Scope(simple_form("o", form_pat!((lit_aat "otherother"))),
-                                crate::beta::ExportBeta::Nothing))),
+            &syn_env!(
+                "other_1" => (scope simple_form("o", form_pat!((lit_aat "other")))),
+                "Expr" => (scope pair_form.clone()),
+                "other_2" => (scope simple_form("o", form_pat!((lit_aat "otherother"))))
+            ),
             crate::earley::empty__code_envs(),
             &toks_a_b
         )
