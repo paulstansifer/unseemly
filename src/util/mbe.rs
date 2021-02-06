@@ -90,6 +90,7 @@ pub struct EnvMBE<T: Clone> {
     ///   that index into this.
     repeats: Vec<Rc<Vec<EnvMBE<T>>>>,
 
+    /// TODO #18: this is unused; remove it.
     /// Which, if any, index is supposed to match 0 or more repetitions of something?
     /// This should always have the same length as `repeats`.
     /// If this isn't all `None`, then this MBE is presumably some kind of pattern.
@@ -204,6 +205,7 @@ impl<T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
     }
 }
 
+/// TODO #18: This is unused; remove it
 /// An iterator that expands a dotdotdot a certain number of times.
 struct DddIter<'a, S: 'a> {
     underlying: std::slice::Iter<'a, S>,
@@ -553,7 +555,7 @@ impl<T: Clone> EnvMBE<T> {
         })
     }
 
-    /// Provide the map map function with the name of the current leaf,
+    /// Provide the map function with the name of the current leaf,
     /// and the appropriately-marched context element
     pub fn marched_map<NewT: Clone, F>(&self, f: &mut F) -> EnvMBE<NewT>
     where F: FnMut(Name, &EnvMBE<T>, &T) -> NewT {
@@ -586,6 +588,7 @@ impl<T: Clone> EnvMBE<T> {
         }
     }
 
+    /// TODO #18: this is unused; remove it
     /// Duplicate contents of the side with a DDD to line it up with the other
     // TODO: this needs to return `Option` (and so does everything `_with`)
     // TODO: for efficiency, this ought to return iterators
