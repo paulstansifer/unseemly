@@ -88,8 +88,7 @@ impl rustyline::completion::Completer for LineHelper {
         line: &str,
         pos: usize,
         _ctxt: &rustyline::Context,
-    ) -> Result<(usize, Vec<String>), rustyline::error::ReadlineError>
-    {
+    ) -> Result<(usize, Vec<String>), rustyline::error::ReadlineError> {
         let mut res = vec![];
         let (start, word_so_far) = rustyline::completion::extract_word(line, pos, None, b"[({ })]");
         val_env.with(|vals| {
@@ -122,8 +121,7 @@ impl rustyline::highlight::Highlighter for LineHelper {
         &self,
         candidate: &'c str,
         completion: rustyline::config::CompletionType,
-    ) -> Cow<'c, str>
-    {
+    ) -> Cow<'c, str> {
         self.highlighter.highlight_candidate(candidate, completion)
     }
     fn highlight_char(&self, line: &str, pos: usize) -> bool {
@@ -295,8 +293,8 @@ fn assign_t_var(name: &str, t: &str) -> Result<ty::Ty, String> {
     )
     .map_err(|e| e.msg)?;
 
-    let res = ty_env
-        .with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{}", e)));
+    let res =
+        ty_env.with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{}", e)));
 
     if let Ok(ref t) = res {
         ty_env.with(|tys| {

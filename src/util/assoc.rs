@@ -144,8 +144,7 @@ impl<K: Eq + Hash + Clone, V: Clone> Assoc<K, V> {
         &self,
         other: &Assoc<K, OtherV>,
         f: &dyn Fn(&V, &OtherV) -> NewV,
-    ) -> Assoc<K, NewV>
-    {
+    ) -> Assoc<K, NewV> {
         Assoc::<K, NewV>::from_hamt(
             self.hamt
                 .clone()
@@ -157,8 +156,7 @@ impl<K: Eq + Hash + Clone, V: Clone> Assoc<K, V> {
         &self,
         other: &Assoc<K, OtherV>,
         f: &dyn Fn(&K, &V, &OtherV) -> NewV,
-    ) -> Assoc<K, NewV>
-    {
+    ) -> Assoc<K, NewV> {
         Assoc::<K, NewV>::from_hamt(
             self.hamt
                 .clone()

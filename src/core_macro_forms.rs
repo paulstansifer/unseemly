@@ -147,8 +147,7 @@ fn type_macro_invocation(
     parts: &LazyWalkReses<SynthTy>,
     expected_return: Ty,
     grammar: &FormPat,
-) -> Result<Assoc<Name, Ty>, crate::ty::TypeError>
-{
+) -> Result<Assoc<Name, Ty>, crate::ty::TypeError> {
     // Typecheck the subterms, and then quote them:
     let mut q_arguments = vec![];
 
@@ -207,8 +206,7 @@ pub fn macro_invocation(
     macro_name: Name,
     implementation: crate::runtime::eval::Closure,
     export_names: Vec<Name>,
-) -> Rc<Form>
-{
+) -> Rc<Form> {
     use crate::{ty_compare, walk_mode::WalkMode};
 
     let grammar1 = grammar.clone();

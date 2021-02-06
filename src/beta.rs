@@ -126,8 +126,7 @@ impl Beta {
         &self,
         parts: &EnvMBE<T>,
         f: &dyn Fn(&T) -> &Ren,
-    ) -> Ren
-    {
+    ) -> Ren {
         match *self {
             Nothing => Ren::new(),
             Shadow(ref lhs, ref rhs) => {
@@ -156,8 +155,7 @@ impl Beta {
 pub fn env_from_beta<Mode: crate::walk_mode::WalkMode>(
     b: &Beta,
     parts: &LazyWalkReses<Mode>,
-) -> Result<Assoc<Name, Mode::Elt>, Mode::Err>
-{
+) -> Result<Assoc<Name, Mode::Elt>, Mode::Err> {
     // TODO: figure out why we *do* get called (during subtyping, apparently)
     // if !Mode::D::is_positive() { icp!("e_f_b on {:#?} in {} (negative)", b, Mode::name())}
     match *b {
@@ -337,8 +335,7 @@ impl ExportBeta {
         &self,
         parts: &EnvMBE<T>,
         f: &dyn Fn(&T) -> &Ren,
-    ) -> Ren
-    {
+    ) -> Ren {
         match *self {
             ExportBeta::Nothing => Ren::new(),
             ExportBeta::Shadow(ref lhs, ref rhs) => {
@@ -416,8 +413,7 @@ pub fn bound_from_export_beta(
     b: &ExportBeta,
     parts: &EnvMBE<crate::ast::Ast>,
     quote_depth: i16,
-) -> Vec<Name>
-{
+) -> Vec<Name> {
     match *b {
         ExportBeta::Nothing => vec![],
         ExportBeta::Shadow(ref lhs, ref rhs) => {
@@ -450,8 +446,7 @@ pub fn freshening_from_beta(
     b: &Beta,
     parts: &EnvMBE<crate::ast::Ast>,
     memo: &mut std::collections::HashMap<(Name, Name), Name>,
-) -> Assoc<Name, Ast>
-{
+) -> Assoc<Name, Ast> {
     match *b {
         Nothing => Assoc::new(),
         Shadow(ref lhs, ref rhs) => freshening_from_beta(&*lhs, parts, memo)

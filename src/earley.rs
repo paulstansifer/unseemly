@@ -215,8 +215,7 @@ fn create_chart(
     grammar: SynEnv,
     envs: CodeEnvs,
     toks: &str,
-) -> (UniqueId, Vec<Vec<Item>>)
-{
+) -> (UniqueId, Vec<Vec<Item>>) {
     let toks = toks.trim(); // HACK: tokens don't consume trailing whitespace
     let mut chart: Vec<Vec<Item>> = vec![];
     chart.resize_with(toks.len() + 1, std::default::Default::default);
@@ -545,8 +544,7 @@ impl Item {
         toks: &str,
         cur_idx: usize,
         chart: &[Vec<Item>],
-    ) -> Vec<(Item, usize)>
-    {
+    ) -> Vec<(Item, usize)> {
         // Try to shift (bump `pos`, or set `done`) or predict (`start` a new item)
         match (self.pos, &*(self.rule.clone())) {
             // TODO: is there a better way to match in `Rc`?

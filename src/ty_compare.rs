@@ -275,8 +275,7 @@ impl WalkMode for Canonicalize {
 fn splice_ddd(
     ddd_parts: &LazyWalkReses<Subtype>,
     context_elts: Vec<Ast>,
-) -> Result<Option<(Vec<Assoc<Name, Ty>>, Ast)>, <Subtype as WalkMode>::Err>
-{
+) -> Result<Option<(Vec<Assoc<Name, Ty>>, Ast)>, <Subtype as WalkMode>::Err> {
     let ddd_form = crate::core_forms::find("Type", "dotdotdot_type");
     let tuple_form = crate::core_forms::find("Type", "tuple");
     let undet_form = underdetermined_form.with(|u_f| u_f.clone());
@@ -395,8 +394,7 @@ impl WalkMode for Subtype {
     fn perform_splice_positive(
         _: &Form,
         _: &LazyWalkReses<Self>,
-    ) -> Result<Option<(Vec<Assoc<Name, Ty>>, Ast)>, Self::Err>
-    {
+    ) -> Result<Option<(Vec<Assoc<Name, Ty>>, Ast)>, Self::Err> {
         // If this ever is non-trivial,
         //  we need to respect `extra_env` in `Positive::walk_quasi_literally` in walk_mode.rs
         Ok(None)
@@ -405,8 +403,7 @@ impl WalkMode for Subtype {
         f: &Form,
         parts: &LazyWalkReses<Self>,
         context_elts: &dyn Fn() -> Vec<Ast>,
-    ) -> Result<Option<(Vec<Assoc<Name, Ty>>, Ast)>, Self::Err>
-    {
+    ) -> Result<Option<(Vec<Assoc<Name, Ty>>, Ast)>, Self::Err> {
         if f.name != n("dotdotdot_type") {
             return Ok(None);
         }
@@ -471,8 +468,7 @@ pub fn is_subtype(
     sub: &Ty,
     sup: &Ty,
     parts: &LazyWalkReses<crate::ty::SynthTy>,
-) -> Result<Assoc<Name, Ty>, TyErr>
-{
+) -> Result<Assoc<Name, Ty>, TyErr> {
     walk::<Subtype>(&sup.concrete(), &parts.switch_mode::<Subtype>().with_context(sub.clone()))
 }
 

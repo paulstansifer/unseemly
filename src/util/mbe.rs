@@ -136,8 +136,7 @@ impl<T: PartialEq + Clone> PartialEq for EnvMBE<T> {
         fn assoc_eq_modulo_none<K: Eq + std::hash::Hash + Clone, V: PartialEq + Clone>(
             lhs: &Assoc<K, Option<V>>,
             rhs: &Assoc<K, Option<V>>,
-        ) -> bool
-        {
+        ) -> bool {
             for (k, v_maybe) in lhs.iter_pairs() {
                 if let Some(ref v) = *v_maybe {
                     if let Some(&Some(ref other_v)) = rhs.find(k) {
@@ -546,8 +545,7 @@ impl<T: Clone> EnvMBE<T> {
         f: &dyn Fn(&T) -> NewT,
         red: &dyn Fn(&NewT, &NewT) -> NewT,
         base: NewT,
-    ) -> NewT
-    {
+    ) -> NewT {
         let reduced: NewT = self.leaves.map(f).reduce(&|_k, v, res| red(v, &res), base);
 
         self.repeats.iter().fold(reduced, |base: NewT, rc_vec_mbe: &Rc<Vec<EnvMBE<T>>>| {
@@ -597,8 +595,7 @@ impl<T: Clone> EnvMBE<T> {
         lhs_ddd: &'a Option<usize>,
         rhs: &'a Rc<Vec<EnvMBE<S>>>,
         rhs_ddd: &'a Option<usize>,
-    ) -> Vec<(&'a EnvMBE<T>, &'a EnvMBE<S>)>
-    {
+    ) -> Vec<(&'a EnvMBE<T>, &'a EnvMBE<S>)> {
         let len_diff = lhs.len() as i32 - (rhs.len() as i32);
 
         let matched: Vec<(&EnvMBE<T>, &EnvMBE<S>)> = match (lhs_ddd, rhs_ddd) {
@@ -640,8 +637,7 @@ impl<T: Clone> EnvMBE<T> {
         col: &dyn Fn(Vec<NewT>) -> NewT,
         red: &dyn Fn(NewT, NewT) -> NewT,
         base: NewT,
-    ) -> NewT
-    {
+    ) -> NewT {
         let len_diff = lhs.len() as i32 - (rhs.len() as i32);
 
         // The RHS can have a DDD if it's exactly the same (subtyping only goes the one way)
@@ -748,8 +744,7 @@ impl<T: Clone> EnvMBE<T> {
         &self,
         o: &EnvMBE<S>,
         f: &dyn Fn(&T, &S) -> NewT,
-    ) -> EnvMBE<NewT>
-    {
+    ) -> EnvMBE<NewT> {
         self.named_map_with(o, &|_name, l, r| f(l, r))
     }
 
@@ -757,8 +752,7 @@ impl<T: Clone> EnvMBE<T> {
         &self,
         o: &EnvMBE<S>,
         f: &dyn Fn(&Name, &T, &S) -> NewT,
-    ) -> EnvMBE<NewT>
-    {
+    ) -> EnvMBE<NewT> {
         EnvMBE {
             leaves: self.leaves.keyed_map_with(&o.leaves, f),
 
@@ -795,8 +789,7 @@ impl<T: Clone> EnvMBE<T> {
         f: &dyn Fn(&T, &T) -> NewT,
         red: &dyn Fn(&NewT, &NewT) -> NewT,
         base: NewT,
-    ) -> NewT
-    {
+    ) -> NewT {
         // TODO #15: this panics all over the place if anything goes wrong
         let mut reduced: NewT =
             self.leaves.map_with(&other.leaves, f).reduce(&|_k, v, res| red(v, &res), base);
@@ -840,8 +833,7 @@ impl<T: Clone> EnvMBE<T> {
         col: &dyn Fn(Vec<NewT>) -> NewT,
         red: &dyn Fn(NewT, NewT) -> NewT,
         base: NewT,
-    ) -> NewT
-    {
+    ) -> NewT {
         // TODO #15: this panics all over the place if anything goes wrong
         let mut reduced: NewT =
             self.leaves.map_with(&other.leaves, f).reduce(&|_k, v, res| red(v.clone(), res), base);
@@ -901,8 +893,7 @@ impl<T: Clone> EnvMBE<T> {
     pub fn heal_splices<E>(
         &mut self,
         f: &dyn Fn(&T) -> Result<Option<Vec<T>>, E>,
-    ) -> Result<(), E>
-    {
+    ) -> Result<(), E> {
         for repeat in &mut self.repeats {
             let mut cur_repeat: Vec<EnvMBE<T>> = (**repeat).clone();
             let mut i = 0;
@@ -1065,8 +1056,7 @@ impl<T: Clone + fmt::Debug> EnvMBE<T> {
         depth: u8,
         m: &dyn Fn(&T) -> S,
         f: &dyn Fn(Vec<S>) -> S,
-    ) -> S
-    {
+    ) -> S {
         if depth == 0 {
             return m(self.get_leaf_or_panic(&n));
         }

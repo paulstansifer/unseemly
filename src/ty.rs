@@ -39,8 +39,7 @@ impl Ty {
         &self,
         expd_form: Rc<Form>,
         loc: &Ast,
-    ) -> Result<crate::util::mbe::EnvMBE<Ast>, TypeError>
-    {
+    ) -> Result<crate::util::mbe::EnvMBE<Ast>, TypeError> {
         self.0
             .destructure(expd_form.clone())
             .ok_or(ty_err_val!(UnableToDestructure(self.clone(), expd_form.name) at loc /*TODO*/))
@@ -92,8 +91,7 @@ impl WalkMode for SynthTy {
     fn walk_var(
         name: Name,
         parts: &crate::ast_walk::LazyWalkReses<SynthTy>,
-    ) -> Result<Ty, TypeError>
-    {
+    ) -> Result<Ty, TypeError> {
         match parts.env.find(&name) {
             None => Err(crate::util::err::sp(TyErr::UnboundName(name), parts.this_ast.clone())),
             // If name is protected, stop:

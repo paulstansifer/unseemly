@@ -86,8 +86,7 @@ pub trait WalkMode: Debug + Copy + Clone + Reifiable {
     fn perform_splice_positive(
         _: &Form,
         _: &LazyWalkReses<Self>,
-    ) -> Result<Option<(Vec<Assoc<Name, Self::Elt>>, Ast)>, Self::Err>
-    {
+    ) -> Result<Option<(Vec<Assoc<Name, Self::Elt>>, Ast)>, Self::Err> {
         icp!()
     }
     /// A little like `get_walk_rule` always returning `Custom` for negative splicing
@@ -95,8 +94,7 @@ pub trait WalkMode: Debug + Copy + Clone + Reifiable {
         _: &Form,
         _: &LazyWalkReses<Self>,
         _context_elts: &dyn Fn() -> Vec<Ast>,
-    ) -> Result<Option<(Vec<Assoc<Name, Self::Elt>>, Ast)>, Self::Err>
-    {
+    ) -> Result<Option<(Vec<Assoc<Name, Self::Elt>>, Ast)>, Self::Err> {
         icp!()
     }
 
@@ -393,8 +391,7 @@ pub trait NegativeWalkMode: WalkMode {
         expected: Self::Elt,
         got: Self::Elt,
         env: &Assoc<Name, Self::Elt>,
-    ) -> Option<(Clo<Self::Elt>, Clo<Self::Elt>)>
-    {
+    ) -> Option<(Clo<Self::Elt>, Clo<Self::Elt>)> {
         Some((Clo { it: expected, env: env.clone() }, Clo { it: got, env: env.clone() }))
     }
 
@@ -408,8 +405,7 @@ pub trait NegativeWalkMode: WalkMode {
         expected: &Ast,
         got: &Ast,
         _env: Assoc<Name, Self::Elt>,
-    ) -> Result<EnvMBE<Ast>, <Self as WalkMode>::Err>
-    {
+    ) -> Result<EnvMBE<Ast>, <Self as WalkMode>::Err> {
         // break apart the node, and walk it element-wise
         match (expected, got) {
             // `pre_walk` has already freshened for us
@@ -440,7 +436,6 @@ pub fn var_lookup<Elt: Debug + Clone>(n: Name, env: &Assoc<Name, Elt>) -> Result
 pub fn var_bind<Elt: Debug + Clone>(
     n: Name,
     env: &Assoc<Name, Elt>,
-) -> Result<Assoc<Name, Elt>, ()>
-{
+) -> Result<Assoc<Name, Elt>, ()> {
     Ok(Assoc::new().set(n, env.find(&negative_ret_val()).unwrap().clone()))
 }

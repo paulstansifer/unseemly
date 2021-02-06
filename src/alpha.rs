@@ -268,8 +268,7 @@ pub fn freshen_binders_inside_node_with(
     p_lhs: &EnvMBE<Ast>,
     p_rhs: &EnvMBE<Ast>,
     men: &[Name],
-) -> Option<EnvMBE<(Ast, Ren, Ast, Ren)>>
-{
+) -> Option<EnvMBE<(Ast, Ren, Ast, Ren)>> {
     if !p_lhs.can_map_with(p_rhs) {
         return None;
     }

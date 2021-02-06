@@ -658,8 +658,7 @@ fn quote_unquote_eval_basic() {
         expr: &Ast,
         env: Assoc<Name, Value>,
         qenv: Assoc<Name, Value>,
-    ) -> Result<Value, ()>
-    {
+    ) -> Result<Value, ()> {
         crate::ast_walk::walk::<Eval>(expr, &LazyWalkReses::new_mq_wrapper(env, vec![qenv]))
     }
 
@@ -668,8 +667,7 @@ fn quote_unquote_eval_basic() {
         env: Assoc<Name, Value>,
         qenv: Assoc<Name, Value>,
         ctxt: Value,
-    ) -> Result<Assoc<Name, Value>, ()>
-    {
+    ) -> Result<Assoc<Name, Value>, ()> {
         crate::ast_walk::walk::<Destructure>(
             pat,
             &LazyWalkReses::new_mq_wrapper(env, vec![qenv]).with_context(ctxt),
@@ -741,8 +739,7 @@ fn quote_type_basic() {
         expr: &Ast,
         env: Assoc<Name, Ty>,
         qenv: Assoc<Name, Ty>,
-    ) -> crate::ty::TypeResult
-    {
+    ) -> crate::ty::TypeResult {
         crate::ast_walk::walk::<crate::ty::SynthTy>(
             expr,
             &crate::ast_walk::LazyWalkReses::new_mq_wrapper(env, vec![qenv]),
@@ -837,8 +834,7 @@ fn quote_type_basic() {
         env: Assoc<Name, Ty>,
         qenv: Assoc<Name, Ty>,
         ctxt: Ty,
-    ) -> Result<Assoc<Name, Ty>, crate::ty::TypeError>
-    {
+    ) -> Result<Assoc<Name, Ty>, crate::ty::TypeError> {
         crate::ast_walk::walk::<crate::ty::UnpackTy>(
             pat,
             &crate::ast_walk::LazyWalkReses::new_mq_wrapper(env, vec![qenv]).with_context(ctxt),
@@ -953,8 +949,7 @@ fn quote_unquote_type_basic() {
         expr: &Ast,
         env: Assoc<Name, Ty>,
         qenv: Assoc<Name, Ty>,
-    ) -> crate::ty::TypeResult
-    {
+    ) -> crate::ty::TypeResult {
         crate::ast_walk::walk::<crate::ty::SynthTy>(
             expr,
             &crate::ast_walk::LazyWalkReses::new_mq_wrapper(env, vec![qenv]),
@@ -1007,8 +1002,7 @@ fn quote_unquote_type_basic() {
         env: Assoc<Name, Ty>,
         qenv: Assoc<Name, Ty>,
         ctxt: Ty,
-    ) -> Result<Assoc<Name, Ty>, crate::ty::TypeError>
-    {
+    ) -> Result<Assoc<Name, Ty>, crate::ty::TypeError> {
         crate::ast_walk::walk::<crate::ty::UnpackTy>(
             pat,
             &crate::ast_walk::LazyWalkReses::new_mq_wrapper(env, vec![qenv]).with_context(ctxt),
@@ -1117,8 +1111,7 @@ fn unquote_type_basic() {
         expr: &Ast,
         env: Assoc<Name, Ty>,
         qenv: Assoc<Name, Ty>,
-    ) -> crate::ty::TypeResult
-    {
+    ) -> crate::ty::TypeResult {
         let parts = LazyWalkReses::new_wrapper(env);
         let qparts = parts.quote_more(None).with_environment(qenv);
 
@@ -1177,8 +1170,7 @@ fn use_dotdotdot() {
         expr: &Ast,
         env: Assoc<Name, Ty>,
         qenv: Assoc<Name, Ty>,
-    ) -> crate::ty::TypeResult
-    {
+    ) -> crate::ty::TypeResult {
         crate::ast_walk::walk::<crate::ty::SynthTy>(
             expr,
             &crate::ast_walk::LazyWalkReses::new_mq_wrapper(env, vec![qenv]),
@@ -1189,8 +1181,7 @@ fn use_dotdotdot() {
         expr: &Ast,
         eval_env: Assoc<Name, Value>,
         eval_qenv: Assoc<Name, Value>,
-    ) -> Result<Value, ()>
-    {
+    ) -> Result<Value, ()> {
         crate::ast_walk::walk::<Eval>(
             expr,
             &crate::ast_walk::LazyWalkReses::new_mq_wrapper(eval_env, vec![eval_qenv]),

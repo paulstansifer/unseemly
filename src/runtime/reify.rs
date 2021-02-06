@@ -352,8 +352,7 @@ pub fn sequence_type__of(ty: &crate::ty::Ty) -> crate::ty::Ty {
 pub fn un__sequence_type(
     ty: &crate::ty::Ty,
     loc: &Ast,
-) -> Result<crate::ty::Ty, crate::ty::TypeError>
-{
+) -> Result<crate::ty::Ty, crate::ty::TypeError> {
     // This is a hack; `Sequence` is not a nonterminal!
     crate::core_type_forms::less_quoted_ty(ty, Some(n("Sequence")), loc)
 }

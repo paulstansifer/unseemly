@@ -160,8 +160,7 @@ impl Ast {
     pub fn destructure(
         &self,
         expd_form: std::rc::Rc<Form>,
-    ) -> Option<crate::util::mbe::EnvMBE<Ast>>
-    {
+    ) -> Option<crate::util::mbe::EnvMBE<Ast>> {
         if let Node(ref f, ref parts, _) = self {
             if f == &expd_form {
                 return Some(parts.clone());

@@ -112,8 +112,7 @@ thread_local! {
 pub fn walk<Mode: WalkMode>(
     a: &Ast,
     walk_ctxt: &LazyWalkReses<Mode>,
-) -> Result<<Mode::D as Dir>::Out, Mode::Err>
-{
+) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
     layer_watch! { ast_walk_layer :
         // TODO: can we get rid of the & in front of our arguments and save the cloning?
         // TODO: this has a lot of direction-specific runtime hackery.
@@ -370,8 +369,7 @@ fn maybe_literally__walk<Mode: WalkMode>(
     walk_ctxt: LazyWalkReses<Mode>,
     ctxt_elt: Option<Mode::Elt>,
     literally: Option<bool>,
-) -> Result<<Mode::D as Dir>::Out, Mode::Err>
-{
+) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
     let walk_ctxt = match ctxt_elt {
         Some(e) => walk_ctxt.with_context(e),
         None => walk_ctxt,
@@ -506,8 +504,7 @@ impl<Mode: WalkMode> LazilyWalkedTerm<Mode> {
     fn get_res(
         &self,
         cur_node_contents: &LazyWalkReses<Mode>,
-    ) -> Result<<Mode::D as Dir>::Out, Mode::Err>
-    {
+    ) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
         self.memoized(&|| {
             // stab-in-the-dark optimization, but this function gets called a *lot*:
             if self.extra_env.empty() {
@@ -525,8 +522,7 @@ impl<Mode: WalkMode> LazilyWalkedTerm<Mode> {
     fn memoized(
         &self,
         f: &dyn Fn() -> Result<<Mode::D as Dir>::Out, Mode::Err>,
-    ) -> Result<<Mode::D as Dir>::Out, Mode::Err>
-    {
+    ) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
         let result = self.res.borrow_mut().take().unwrap_or_else(f);
         *self.res.borrow_mut() = Some(result.clone());
         result
@@ -541,8 +537,7 @@ pub type OutEnvHandle<Mode> = Rc<RefCell<Assoc<Name, <Mode as WalkMode>::Elt>>>;
 pub fn squirrel_away<Mode: WalkMode>(
     opt_oeh: Option<OutEnvHandle<Mode>>,
     more_env: <Mode::D as Dir>::Out,
-)
-{
+) {
     if let Some(oeh) = opt_oeh {
         let new_env = oeh.borrow().set_assoc(&Mode::out_as_env(more_env));
         *oeh.borrow_mut() = new_env;
@@ -622,8 +617,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         prelude_env: ResEnv<Mode::Elt>,
         parts_unwalked: &EnvMBE<Ast>, // TODO: get rid of this argument; use `this_ast`
         this_ast: Ast,
-    ) -> LazyWalkReses<Mode>
-    {
+    ) -> LazyWalkReses<Mode> {
         LazyWalkReses {
             env: env,
             prelude_env: prelude_env,
@@ -654,8 +648,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     pub fn new_mq_wrapper(
         env: ResEnv<Mode::Elt>,
         mqe: Vec<ResEnv<Mode::Elt>>,
-    ) -> LazyWalkReses<Mode>
-    {
+    ) -> LazyWalkReses<Mode> {
         LazyWalkReses {
             env: env,
             prelude_env: Assoc::new(),
@@ -701,8 +694,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         depth: u8,
         map: &dyn Fn(<Mode::D as Dir>::Out) -> <Mode::D as Dir>::Out,
         flatten: &dyn Fn(Vec<<Mode::D as Dir>::Out>) -> <Mode::D as Dir>::Out,
-    ) -> Result<<Mode::D as Dir>::Out, Mode::Err>
-    {
+    ) -> Result<<Mode::D as Dir>::Out, Mode::Err> {
         self.parts.map_flatten_rep_leaf_or_panic(
             part_name,
             depth,
@@ -727,8 +719,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         depth: u8,
         generate: &dyn Fn() -> <Mode::D as Dir>::Out,
         flatten: &dyn Fn(Vec<<Mode::D as Dir>::Out>) -> <Mode::D as Dir>::Out,
-    ) -> <Mode::D as Dir>::Out
-    {
+    ) -> <Mode::D as Dir>::Out {
         self.parts.map_flatten_rep_leaf_or_panic(
             part_name,
             depth,
@@ -751,8 +742,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         depth: u8,
         m: &dyn Fn(&Ast) -> S,
         f: &dyn Fn(Vec<S>) -> S,
-    ) -> S
-    {
+    ) -> S {
         self.parts.map_flatten_rep_leaf_or_panic(
             part_name,
             depth,
@@ -902,8 +892,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         &self,
         driving_names: &[Name],
         new_contexts: Vec<Mode::Elt>,
-    ) -> Option<Vec<LazyWalkReses<Mode>>>
-    {
+    ) -> Option<Vec<LazyWalkReses<Mode>>> {
         let marched = self.parts.march_all(driving_names);
         if marched.len() != new_contexts.len() {
             return None;
@@ -938,8 +927,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         &self,
         n: Name,
         new_contexts: Vec<Mode::Elt>,
-    ) -> Result<Vec<<Mode::D as Dir>::Out>, Mode::Err>
-    {
+    ) -> Result<Vec<<Mode::D as Dir>::Out>, Mode::Err> {
         if let Some(sub_parts) = self.march_parts_with(&[n], new_contexts) {
             // Some(sub_parts.iter().map(|sp| sp.get_res(n)).collect())
             let mut res = vec![];

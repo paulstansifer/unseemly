@@ -79,8 +79,7 @@ fn type_defn_complex(
     p: FormPat,
     sy: WalkRule<SynthTy>,
     tc: BiDiWR<Canonicalize, Subtype>,
-) -> Rc<Form>
-{
+) -> Rc<Form> {
     Rc::new(Form {
         name: n(form_name),
         grammar: Rc::new(p),
