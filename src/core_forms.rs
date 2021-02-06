@@ -517,7 +517,10 @@ pub fn make_core_syn_env() -> SynEnv {
 
     assoc_n!(
         "Pat" => Rc::new(Biased(Rc::new(main_pat_forms), Rc::new(Call(n("DefaultAtom"))))),
-        "Expr" => Rc::new(Biased(Rc::new(main_expr_forms), Rc::new(Call(n("DefaultReference"))))),
+        "Expr" => Rc::new(form_pat!((biased
+            (alt (, main_expr_forms),
+                    (, crate::core_extra_forms::make_core_extra_forms())),
+            (call "DefaultReference")))),
         "Ident" => Rc::new(Call(n("DefaultAtom"))),
         "AtomNotInPat" => Rc::new(Call(n("DefaultAtom"))),
         "DefaultReference" => Rc::new(VarRef(Rc::new(Call(n("DefaultAtom"))))),
@@ -534,7 +537,7 @@ pub fn make_core_syn_env() -> SynEnv {
                        (scan r"([\]\)\}][^\[\]\(\)\{\}\s]*|[^\[\]\(\)\{\}\s]*[\[\(\{]|[^\[\]\(\)\{\}\s]+)"))],
             "tok"))))
     )
-    .set_assoc(&ctf)
+    .set_assoc(&ctf) // throw in types!
     .set_assoc(&cmf) // throw in the types and macros!
 }
 

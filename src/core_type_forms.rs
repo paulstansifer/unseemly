@@ -114,7 +114,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
     // Regarding the value/type/kind hierarchy, Benjamin Pierce generously assures us that
     // "For programming languages ... three levels have proved sufficient."
 
-    // kinds
+    // kinds (TODO #3: actually use these)
     let _type_kind = simple_form("Type", form_pat!((lit "*")));
     let _higher_kind = simple_form(
         "higher",

@@ -452,6 +452,8 @@ macro_rules! cust_rc_box {
 }
 
 // Form
+// TODO: It's easier to read these with  "/* type */", "/* evaluation */" (etc) annotations.
+// Refactor these macros to include them as part of their syntax.
 
 macro_rules! basic_typed_form {
     ( $p:tt, $gen_type:expr, $eval:expr ) => {

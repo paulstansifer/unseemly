@@ -47,6 +47,7 @@ mod walk_mode;
 
 mod runtime;
 
+mod core_extra_forms;
 mod core_forms;
 mod core_macro_forms;
 mod core_qq_forms;
