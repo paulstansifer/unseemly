@@ -4,7 +4,7 @@ use crate::{
         walk, Clo, LazyWalkReses,
         WalkRule::{self, *},
     },
-    core_forms::{ast_to_name, find_core_form},
+    core_forms::find_core_form,
     form::{Both, Form},
     name::*,
     ty::{Ty, TyErr},
@@ -177,8 +177,7 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
                             }
                             let mut actual_params = Assoc::new();
                             for (name, arg_term) in params.iter().zip(arg_terms) {
-                                actual_params =
-                                    actual_params.set(ast_to_name(name), arg_term.clone());
+                                actual_params = actual_params.set(name.to_name(), arg_term.clone());
                             }
 
                             Some(Clo {
@@ -200,7 +199,7 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
         // }
         Ty(Node(ref form, ref parts, _)) if form == &u_f => {
             // underdetermined
-            unif.get(&ast_to_name(parts.get_leaf_or_panic(&n("id")))).cloned()
+            unif.get(&parts.get_leaf_or_panic(&n("id")).to_name()).cloned()
         }
         _ => None,
     };
@@ -218,7 +217,7 @@ thread_local! {
         type_compare: Both(
             // pre-match handles the negative case; we need to do the positive case manually:
             cust_rc_box!(|udet_parts| {
-                let id = ast_to_name(&udet_parts.get_term(n("id")));
+                let id = udet_parts.get_term(n("id")).to_name();
                 unification.with(|unif| {
                     let unif = unif.borrow();
                     // TODO: don't use the id in an error message; it's user-hostile:
@@ -298,7 +297,7 @@ fn splice_ddd(
             .iter()
             .map(|a: &Ast| {
                 (
-                    crate::core_forms::vr_to_name(a),
+                    a.vr_to_name(),
                     resolve(
                         Clo { it: Ty((*a).clone()), env: ddd_parts.env.clone() },
                         &unif.borrow(),
@@ -333,14 +332,11 @@ fn splice_ddd(
                 let mut undet_components = vec![];
                 undet_components
                     .resize_with(expected_len, || Subtype::underspecified(n("ddd_bit")).0);
-                unif.borrow_mut().insert(
-                    ast_to_name(undet_parts.get_leaf_or_panic(&n("id"))),
-                    Clo {
-                        it: ty!({"Type" "tuple" :
+                unif.borrow_mut().insert(undet_parts.get_leaf_or_panic(&n("id")).to_name(), Clo {
+                    it: ty!({"Type" "tuple" :
                             "component" => (,seq undet_components.clone()) }),
-                        env: ddd_parts.env.clone(),
-                    },
-                );
+                    env: ddd_parts.env.clone(),
+                });
                 for i in 0..expected_len {
                     envs_with_walked_drivers[i] =
                         envs_with_walked_drivers[i].set(name, Ty::new(undet_components[i].clone()));
@@ -429,12 +425,12 @@ impl crate::walk_mode::NegativeWalkMode for Subtype {
 
             let lhs_name = lhs.it.destructure(u_f.clone(), &Trivial).map(
                 // errors get swallowed ↓
-                |p| ast_to_name(p.get_leaf_or_panic(&n("id"))),
+                |p| p.get_leaf_or_panic(&n("id")).to_name(),
             );
             let rhs_name = rhs
                 .it
                 .destructure(u_f.clone(), &Trivial)
-                .map(|p| ast_to_name(p.get_leaf_or_panic(&n("id"))));
+                .map(|p| p.get_leaf_or_panic(&n("id")).to_name());
 
             match (lhs_name, rhs_name) {
                 // They are the same underdetermined type; nothing to do:

@@ -23,21 +23,6 @@ use std::rc::Rc; // type forms are kinda bulky
 //
 // Unseemly programs have expressions and types (and probably kinds, too).
 
-// TODO: these `&Ast`-consuming functions to `ast.rs`; possibly into an `impl` of `Ast`.
-
-pub fn ast_to_name(ast: &Ast) -> Name {
-    match *ast {
-        Atom(n) => n,
-        _ => icp!("{:#?} is not an atom", ast),
-    }
-}
-pub fn vr_to_name(ast: &Ast) -> Name {
-    match *ast {
-        VariableReference(n) => n,
-        _ => icp!("{:#?} is not a vr", ast),
-    }
-}
-
 /// Remove an `ExtendEnv` without respecting its binding behavior.
 /// This is safe if directly inside a `Node` that was just freshened.
 /// (TODO: think about what "just" means here. It's super-subtle!)
@@ -89,7 +74,7 @@ pub fn make_core_syn_env() -> SynEnv {
             Ok(Function(Rc::new(Closure {
                 body: strip_ee(part_values.get_term_ref(n("body"))).clone(),
                 params:
-                    part_values.get_rep_term(n("param")).iter().map(ast_to_name).collect(),
+                    part_values.get_rep_term(n("param")).iter().map(Ast::to_name).collect(),
                 env: part_values.env
             })))
         })),
@@ -219,15 +204,14 @@ pub fn make_core_syn_env() -> SynEnv {
                     return Ok(res);
                     }
 
-                    ty_err!(NonexistentEnumArm
-                                (ast_to_name(&part_types.get_term(n("name"))), res)
+                    ty_err!(NonexistentEnumArm(part_types.get_term(n("name")).to_name(), res)
                             at part_types.this_ast);
                 }
             )
         }),
         /* Evaluate: */
         cust_rc_box!( move | part_values | {
-            Ok(Enum(ast_to_name(&part_values.get_term(n("name"))),
+            Ok(Enum(part_values.get_term(n("name")).to_name(),
                 part_values.get_rep_res(n("component"))?))
         })),
         typed_form!("struct_expr",
@@ -245,7 +229,7 @@ pub fn make_core_syn_env() -> SynEnv {
             let mut res = Assoc::new();
 
             for component_parts in part_values.march_parts(&[n("component")]) {
-                res = res.set(ast_to_name(&component_parts.get_term(n("component_name"))),
+                res = res.set(component_parts.get_term(n("component_name")).to_name(),
                               component_parts.get_res(n("component"))?);
             }
 
@@ -377,7 +361,7 @@ pub fn make_core_syn_env() -> SynEnv {
 
                             return Ok(res);
                         }
-                        ty_err!(NonexistentEnumArm(ast_to_name(arm_name),
+                        ty_err!(NonexistentEnumArm(arm_name.to_name(),
                             Ty::new(Trivial)) /* TODO `LazyWalkReses` needs more information */
                             at arm_name.clone())
                 }
@@ -387,7 +371,7 @@ pub fn make_core_syn_env() -> SynEnv {
                 match *part_values.context_elt() /* : Value */ {
                     Enum(ref name, ref elts) => {
                         // "Try another branch"
-                        if name != &ast_to_name(&part_values.get_term(n("name"))) {
+                        if name != &part_values.get_term(n("name")).to_name() {
                             return Err(());
                         }
 
@@ -432,7 +416,7 @@ pub fn make_core_syn_env() -> SynEnv {
                             }
                             if !component_found {
                                 ty_err!(NonexistentStructField(
-                                        ast_to_name(&component_ctx.get_term(n("component_name"))),
+                                        component_ctx.get_term(n("component_name")).to_name(),
                                         part_types.context_elt().clone())
                                     at part_types.get_rep_term(n("component"))[0].clone());
                             }
@@ -448,8 +432,7 @@ pub fn make_core_syn_env() -> SynEnv {
                             res = res.set_assoc(
                                 &component_ctx
                                     .with_context(contents.find_or_panic(
-                                        &ast_to_name(
-                                            &component_ctx.get_term(n("component_name"))))
+                                        &component_ctx.get_term(n("component_name")).to_name())
                                             .clone())
                                     .get_res(n("component"))?);
                         }

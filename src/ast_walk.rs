@@ -87,7 +87,7 @@ impl<Elt: WalkElt> Clo<Elt> {
         let mut fresh_o_env = Assoc::new();
         for (o_name, o_val) in o_different_env.iter_pairs() {
             fresh_o_env = fresh_o_env.set(
-                crate::core_forms::vr_to_name(o_renaming.find(o_name).unwrap()), // HACK: VR -> Name
+                o_renaming.find(o_name).unwrap().vr_to_name(), // HACK: VR -> Name
                 Elt::from_ast(&crate::alpha::substitute(&Elt::to_ast(o_val), &o_renaming)),
             );
         }

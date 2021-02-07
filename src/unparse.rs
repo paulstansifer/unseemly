@@ -49,7 +49,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
     match *actl {
         Node(ref form, ref body, _) if form == &undet => {
             return crate::ty_compare::unification.with(|unif| {
-                let var = crate::core_forms::ast_to_name(body.get_leaf_or_panic(&n("id")));
+                let var = body.get_leaf_or_panic(&n("id")).to_name();
                 let looked_up = unif.borrow().get(&var).cloned();
                 match looked_up {
                     // Apparently the environment is recursive; `{}`ing it stack-overflows

@@ -5,7 +5,7 @@ use crate::{
         WalkRule::{Body, Custom, LiteralLike, NotWalked},
     },
     beta::{Beta, Beta::*, ExportBeta},
-    core_forms::{ast_to_name, strip_ee, vr_to_name},
+    core_forms::strip_ee,
     core_type_forms::{less_quoted_ty, more_quoted_ty},
     form::{EitherPN::*, Form},
     grammar::{
@@ -347,8 +347,8 @@ pub fn make_core_macro_forms() -> SynEnv {
             |_| icp!("Betas are not typed")
         } {
             |parts| {
-                Ok(Basic(vr_to_name(&parts.get_term(n("name"))),
-                         vr_to_name(&parts.get_term(n("type")))).reify())
+                Ok(Basic(parts.get_term(n("name")).vr_to_name(),
+                         parts.get_term(n("type")).vr_to_name()).reify())
             }
         }) => [],
         syntax_syntax!(
@@ -357,7 +357,7 @@ pub fn make_core_macro_forms() -> SynEnv {
             |_| icp!("Betas are not typed")
         } {
             |parts| {
-                Ok(SameAs(vr_to_name(&parts.get_term(n("name"))),
+                Ok(SameAs(parts.get_term(n("name")).vr_to_name(),
                           Box::new(parts.get_term(n("type")))).reify())
             }
         }) => [],
@@ -366,7 +366,7 @@ pub fn make_core_macro_forms() -> SynEnv {
             |_| icp!("Betas are not typed")
         } {
             |parts| {
-                Ok(Protected(vr_to_name(&parts.get_term(n("name")))).reify())
+                Ok(Protected(parts.get_term(n("name")).vr_to_name()).reify())
             }
         }) => [],
         syntax_syntax!(
@@ -374,7 +374,7 @@ pub fn make_core_macro_forms() -> SynEnv {
             |_| icp!("Betas are not typed")
         } {
             |parts| {
-                Ok(Underspecified(vr_to_name(&parts.get_term(n("name")))).reify())
+                Ok(Underspecified(parts.get_term(n("name")).vr_to_name()).reify())
             }
         }) => [],
         syntax_syntax!(
@@ -419,7 +419,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         } {
             |parts| {
                 Ok(FormPat::Literal(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?)),
-                                    ast_to_name(&parts.get_term(n("expected")))).reify())
+                                    parts.get_term(n("expected")).to_name()).reify())
             }
         }) => [],
         syntax_syntax!( ([(scan r"(\s*/)"), (named "pat", (scan r"([^/]*)")), (scan r"(/)")]) Scan {
@@ -427,7 +427,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         } {
             |parts| {
                 Ok(crate::grammar::new_scan(
-                    &ast_to_name(&parts.get_term(n("pat"))).orig_sp()).reify())
+                    &parts.get_term(n("pat")).to_name().orig_sp()).reify())
             }
         }) => [],
         syntax_syntax!( ([(lit "vr"), (named "body", (call "Syntax"))]) VarRef (
@@ -499,13 +499,13 @@ pub fn make_core_macro_forms() -> SynEnv {
                           (lit "("), (named "body", (call "Syntax")), (lit ")")])
         Named {
             |parts| {
-                let binder = ast_to_name(&parts.get_term(n("part_name")));
+                let binder = parts.get_term(n("part_name")).to_name();
                 Ok(Assoc::new().set(binder, parts.switch_mode::<SynthTy>().get_res(n("body"))?))
             }
         } {
             |parts| {
                 Ok(Named(
-                    ast_to_name(&parts.get_term(n("part_name"))),
+                    parts.get_term(n("part_name")).to_name(),
                     Rc::new(FormPat::reflect(&parts.get_res(n("body"))?))).reify())
             }
         }) => ["part_name"],
@@ -516,7 +516,7 @@ pub fn make_core_macro_forms() -> SynEnv {
             }
         } {
             |parts| {
-                Ok(Call(ast_to_name(&parts.get_term(n("nt")))).reify())
+                Ok(Call(parts.get_term(n("nt")).to_name()).reify())
             }
         }) => [],
 
@@ -533,12 +533,12 @@ pub fn make_core_macro_forms() -> SynEnv {
             type_compare: Both(NotWalked,NotWalked), // Not a type
             synth_type: Both(cust_rc_box!(|parts| {
                 let expected_type = parts.get_res(n("ty_annot"))?;
-                let nt = ast_to_name(&parts.get_term(n("nt")));
+                let nt = parts.get_term(n("nt")).to_name();
 
                 Ok(more_quoted_ty(&expected_type, nt))
             }), NotWalked),
             eval: Positive(cust_rc_box!(|parts| {
-                let nt = ast_to_name(&parts.get_term(n("nt")));
+                let nt = parts.get_term(n("nt")).to_name();
                 Ok(Rc::new(Call(nt)).reify())
             })),
             quasiquote: Both(LiteralLike, LiteralLike)
@@ -580,9 +580,9 @@ pub fn make_core_macro_forms() -> SynEnv {
                 let mut arguments : Vec<(Name, Ty)> = parts.get_res(n("syntax"))?
                     .iter_pairs().cloned().collect();
                 arguments.sort_by(|lhs, rhs| lhs.0.cmp(&rhs.0) ); // Pick a canonical order
-                let ty_params = &parts.get_rep_term(n("param")).iter().map(
-                            |p| ast_to_name(p)).collect::<Vec<_>>();
-                Ok(Assoc::new().set(ast_to_name(&parts.get_term(n("macro_name"))),
+                let ty_params = &parts.get_rep_term(n("param")).iter().map(Ast::to_name
+                            ).collect::<Vec<_>>();
+                Ok(Assoc::new().set(parts.get_term(n("macro_name")).to_name(),
                                     macro_type(&ty_params, arguments, return_ty)))
             }
         } {
@@ -595,7 +595,7 @@ pub fn make_core_macro_forms() -> SynEnv {
 
                 let mut export = ExportBeta::Nothing;
                 let export_names = parts.get_rep_term(n("export")).iter()
-                    .map(ast_to_name).collect::<Vec<Name>>();
+                    .map(Ast::to_name).collect::<Vec<Name>>();
                 for name in &export_names {
                     export = ExportBeta::Shadow(
                         Box::new(ExportBeta::Use(*name)),
@@ -605,7 +605,7 @@ pub fn make_core_macro_forms() -> SynEnv {
                 // This macro invocation (will replace `syntax`):
                 Ok(Scope(macro_invocation(
                         FormPat::reflect(&parts.get_res(n("syntax"))?),
-                        ast_to_name(&parts.get_term(n("macro_name"))),
+                        parts.get_term(n("macro_name")).to_name(),
                         crate::runtime::eval::Closure{ body: implementation,
                             params: macro_params,
                             env: parts.env
@@ -631,7 +631,7 @@ pub fn extend_syntax() -> Rc<Form> {
                 extract!((&subs[0]) Ast::IncompleteNode = (ref parts) => parts));
 
         let nts: Vec<Name> =
-            bnf_parts.get_rep_leaf_or_panic(n("nt")).iter().map(|a| ast_to_name(*a)).collect();
+            bnf_parts.get_rep_leaf_or_panic(n("nt")).iter().map(|a| a.to_name()).collect();
         let ops: Vec<bool> = bnf_parts
             .get_rep_leaf_or_panic(n("operator"))
             .iter()

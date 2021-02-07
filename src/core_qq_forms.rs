@@ -1,7 +1,6 @@
 use crate::{
     ast::{Ast, Ast::*},
     ast_walk::{squirrel_away, WalkRule::*},
-    core_forms::vr_to_name,
     core_type_forms::{less_quoted_ty, more_quoted_ty, nt_is_positive, nt_to_type},
     form::{Both, Form, Negative, Positive},
     grammar::{FormPat, SynEnv},
@@ -99,7 +98,7 @@ fn change_mu_opacity(parts: crate::ast_walk::LazyWalkReses<MuProtect>) -> Result
     let delta = parts.extra_info;
     let opacity = &parts
         .maybe_get_term(n("opacity_for_different_phase"))
-        .map(|a| crate::core_forms::ast_to_name(&a).sp().parse::<i32>().unwrap());
+        .map(|a| a.to_name().sp().parse::<i32>().unwrap());
 
     if let Some(opacity) = opacity {
         if opacity + delta < 0 {
@@ -344,7 +343,7 @@ macro_rules! ddd_type__body {
         {
             let drivers : Vec<Name> = $ddd_parts.get_rep_term(n("driver")).into_iter().map(|a| {
                 match a {
-                    QuoteLess(ref d, _) => vr_to_name(d),
+                    QuoteLess(ref d, _) => d.vr_to_name(),
                     _ => icp!()
                 }
             }).collect();
@@ -438,7 +437,7 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
                 .get_rep_term(n("driver"))
                 .into_iter()
                 .map(|a| match a {
-                    QuoteLess(ref d, _) => vr_to_name(d),
+                    QuoteLess(ref d, _) => d.vr_to_name(),
                     _ => icp!(),
                 })
                 .collect();
@@ -498,7 +497,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
 
     let perform_quotation = move |pc: ParseContext, starter_info: Ast| -> ParseContext {
         let starter_nt = match starter_info {
-            IncompleteNode(ref parts) => vr_to_name(&parts.get_leaf_or_panic(&n("nt"))),
+            IncompleteNode(ref parts) => parts.get_leaf_or_panic(&n("nt")).vr_to_name(),
             _ => icp!("malformed quotation"),
         };
         fn already_has_unquote(fp: &FormPat) -> bool {
@@ -559,12 +558,11 @@ pub fn quote(pos: bool) -> Rc<Form> {
         type_compare: Both(NotWalked, NotWalked), // Not a type
         synth_type: if pos {
             Positive(cust_rc_box!(|quote_parts| {
-                if nt_is_positive(vr_to_name(&quote_parts.get_term(n("nt")))) {
+                if nt_is_positive(quote_parts.get_term(n("nt")).vr_to_name()) {
                     // TODO #9: if the user provides an annotation, check it!
                     Ok(ty!({"Type" "type_apply" :
                         "type_rator" =>
-                            (, nt_to_type(vr_to_name(
-                                &quote_parts.get_term(n("nt")))).concrete() ),
+                            (, nt_to_type(quote_parts.get_term(n("nt")).vr_to_name()).concrete() ),
                         "arg" => [(,
                             remove_opacity(&quote_parts.get_res(n("body"))?, -1).concrete()
                         )]
@@ -590,15 +588,15 @@ pub fn quote(pos: bool) -> Rc<Form> {
 
                     Ok(ty!({"Type" "type_apply" :
                             "type_rator" =>
-                                (, nt_to_type(vr_to_name(
-                                    &quote_parts.get_term(n("nt")))).concrete() ),
+                                (, nt_to_type(
+                                    quote_parts.get_term(n("nt")).vr_to_name()).concrete() ),
                             "arg" => [ (,expected_type.concrete()) ]}))
                 }
             }))
         } else {
             Negative(cust_rc_box!(|quote_parts| {
                 // There's no need for a type annotation
-                let nt = vr_to_name(&quote_parts.get_term(n("nt")));
+                let nt = quote_parts.get_term(n("nt")).vr_to_name();
                 if nt_is_positive(nt) {
                     // TODO #9: check that this matches the type annotation, if provided!
                     quote_parts.get_res(n("body"))

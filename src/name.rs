@@ -49,7 +49,7 @@ impl crate::runtime::reify::Reifiable for Name {
 
     fn reflect(v: &crate::runtime::eval::Value) -> Name {
         extract!((v) crate::runtime::eval::Value::AbstractSyntax = (ref ast)
-                          => crate::core_forms::ast_to_name(ast))
+                          => ast.to_name())
     }
 }
 

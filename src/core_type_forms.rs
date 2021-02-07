@@ -48,7 +48,6 @@ use crate::{
         walk,
         WalkRule::{self, *},
     },
-    core_forms::{ast_to_name, vr_to_name},
     form::{simple_form, BiDiWR, Both, Form, Positive},
     grammar::{
         FormPat::{self, *},
@@ -195,7 +194,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                         .iter()
                         .zip(struct_parts.get_rep_term(n("component")))
                     {
-                        if ast_to_name(got_name) != ast_to_name(exp_name) {
+                        if got_name.to_name() != exp_name.to_name() {
                             continue;
                         }
                         found = true;
@@ -206,7 +205,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     }
                     if !found {
                         return Err(TyErr::NonexistentStructField(
-                            ast_to_name(&got_name),
+                            got_name.to_name(),
                             struct_parts.context_elt().clone(),
                         ));
                     }
@@ -295,13 +294,13 @@ pub fn make_core_syn_env_types() -> SynEnv {
                         icp!("ill-formed mu_type")
                     };
                     if p_r == p_l // short-circuit if the names are the same...
-                        || mu_parts.env.find(&vr_to_name(&*p_r)) // ...or Amber assumed so already
+                        || mu_parts.env.find(&p_r.vr_to_name()) // ...or Amber assumed so already
                              == Some(&Ty(p_l.clone()))
                     {
                         continue;
                     }
 
-                    amber_environment = amber_environment.set(vr_to_name(p_r), Ty(p_l.clone()));
+                    amber_environment = amber_environment.set(p_r.vr_to_name(), Ty(p_l.clone()));
                 }
 
                 walk::<Subtype>(
@@ -397,7 +396,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     }
                     let mut new__ty_env = tapp_parts.env;
                     for (name, actual_type) in params.iter().zip(arg_res) {
-                        new__ty_env = new__ty_env.set(ast_to_name(name), actual_type);
+                        new__ty_env = new__ty_env.set(name.to_name(), actual_type);
                     }
 
                     // This bypasses the binding in the type, which is what we want:

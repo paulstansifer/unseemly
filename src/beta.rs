@@ -271,10 +271,7 @@ pub fn env_from_beta<Mode: crate::walk_mode::WalkMode>(
                 // HACK: rely on the fact that `walk_var`
                 //  won't recursively substitute until it "hits bottom"
                 // Drop the variable reference right into the environment.
-                Ok(Assoc::new().set(
-                    crate::core_forms::vr_to_name(&*boxed_vr),
-                    Mode::Elt::from_ast(&*boxed_vr),
-                ))
+                Ok(Assoc::new().set(boxed_vr.vr_to_name(), Mode::Elt::from_ast(&*boxed_vr)))
             } else {
                 panic!(
                     "{:#?} is supposed to supply names, but is not an EE(VR()).",
@@ -403,7 +400,7 @@ pub fn bound_from_beta(b: &Beta, parts: &EnvMBE<crate::ast::Ast>, quote_depth: i
         }
         Protected(ref _n_s) => vec![], // Non-binding
         Basic(ref n_s, _) | Underspecified(ref n_s) => {
-            vec![crate::core_forms::ast_to_name(parts.get_leaf_or_panic(n_s))]
+            vec![parts.get_leaf_or_panic(n_s).to_name()]
         }
     }
 }
@@ -461,7 +458,7 @@ pub fn freshening_from_beta(
         Protected(_n_s) => unimplemented!("Not hard, just not used yet"),
         // TODO: n_s isn't necessarily just one name in the `SameAs` case! This is an ICP for sure.
         Basic(n_s, _) | SameAs(n_s, _) | Underspecified(n_s) | BoundButNotUsable(n_s) => {
-            let this_name = crate::core_forms::ast_to_name(parts.get_leaf_or_panic(&n_s));
+            let this_name = parts.get_leaf_or_panic(&n_s).to_name();
 
             Assoc::new().set(
                 this_name,

@@ -211,6 +211,20 @@ impl Ast {
             ),
         }
     }
+
+    pub fn to_name(&self) -> Name {
+        match *self {
+            Atom(n) => n,
+            _ => icp!("{:#?} is not an atom", self),
+        }
+    }
+
+    pub fn vr_to_name(&self) -> Name {
+        match *self {
+            VariableReference(n) => n,
+            _ => icp!("{:#?} is not an atom", self),
+        }
+    }
 }
 
 // This is used by combine::many, which is used by the Star parser
