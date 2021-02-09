@@ -25,7 +25,7 @@ custom_derive! {
     The leaf nodes, `Basic` and `SameAs`, indicate
     (a) where the name comes from
     (b) where to get the type annotation (`Basic`)
-        or an expression producting the type (`SameAs`)
+        or an expression producing the type (`SameAs`)
         for that name.
     The more exotic leaf nodes, `Underspecified`, `Protected`, and `BoundButNotUsable`
      do various weird things.
@@ -45,7 +45,8 @@ custom_derive! {
         /// which should be typechecked, and whose type the new name gets.
         /// (This can be used write to `let` without requiring a type annotation.)
         SameAs(Name, Box<Ast>),
-        /// Names are introduced here, but not bound to anything in particular
+        /// Names are introduced here, but not bound to anything in particular.
+        /// Needed to avoid an infinite regress in a "Syntax" self-import.
         /// (This can be useful for things that import themselves, to avoid infinite regress)
         BoundButNotUsable(Name),
         /// Name is introduced here (must be a single `Atom`),
@@ -84,7 +85,7 @@ impl fmt::Debug for Beta {
 
 impl Beta {
     // TODO: alpha.rs needs a version of this that o,ots the RHS of `Basic` and `SameAs`.
-    //  but macro.rs needds this version.
+    //  but macro.rs needs this version.
     // (maybe it just needs `names_mentioned_and_bound`)
     pub fn names_mentioned(&self) -> Vec<Name> {
         match *self {
