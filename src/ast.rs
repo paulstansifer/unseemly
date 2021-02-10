@@ -31,7 +31,7 @@ pub enum Ast {
 
     /// For parsing purposes.
     IncompleteNode(EnvMBE<Ast>),
-    /// For parsing purposes. Is this used for anything other than writing simple tests?
+    /// For parsing purposes.
     Shape(Vec<Ast>),
 
     /// Variable binding

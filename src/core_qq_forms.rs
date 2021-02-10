@@ -106,11 +106,7 @@ fn change_mu_opacity(parts: crate::ast_walk::LazyWalkReses<MuProtect>) -> Result
         }
 
         if opacity + delta == 0 {
-            if let ExtendEnv(node, _) = parts.get_term(n("body")) {
-                return Ok(Ty(*node));
-            } else {
-                icp!("mal-formed mu_type")
-            }
+            return Ok(Ty(crate::core_forms::strip_ee(&parts.get_term(n("body"))).clone()));
         }
     }
     match parts.this_ast {
