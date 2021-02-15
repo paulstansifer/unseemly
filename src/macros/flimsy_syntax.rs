@@ -1,9 +1,10 @@
 #![macro_use]
 
-// For testing purposes, we want to generate valid Asts without a full-fledged parser.
-// `ast!` is clunky and makes it *super* easy to leave off `QuoteMore`, `QuoteLess`, and `ExtendEnv`
-// We'll assume that the form itself is known and that we can drop all the literals on the ground.
-// The result is a terse way to make valid ASTs.
+// For testing purposes, we want to generate valid `Ast`s,
+//  but `ast!` is clunky and makes it *super* easy to leave off `Quote*` and `ExtendEnv`
+//  and actually running the parser is a big dependency (and requires huge string literals).
+//  so we introduce a `u!` macro that looks up forms but infers the internal structure.
+
 // It's weird to be relying on the grammar while ignoring parts of it, hence "flimsy",
 //  but errors are much more likely to be compile-time than inscrutable test problems.
 

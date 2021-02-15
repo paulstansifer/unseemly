@@ -14,7 +14,7 @@ use std::rc::Rc;
 
 // == Types and syntax quotation: when are annotations needed? ==
 // Expressions are "positive", and are traversed leaf-to-root in an environment, producing a type.
-// Patterns are "negative", and are traversed root-to-leave from a type, producing an environment.
+// Patterns are "negative", and are traversed root-to-leaf from a type, producing an environment.
 // (`match` and `lambda` are examples of interactions between expressions and patterns.)
 // Syntax quotation and unquotation embeds expressions/patterns
 //  (at a different phase, which matters suprisingly little)
@@ -30,7 +30,7 @@ use std::rc::Rc;
 //
 //   (frobnicate_pat '[Pat<List<Int>> | (cons a b)]')
 // In this case, we need to know the type of the syntax quote,
-//  but the pattern wants to know its type so that it can tell us its environment.
+//  but the pattern also wants to know its own type so that it can tell us its environment.
 //
 //   match stx { '[Expr | 1 + 5 * ,[Expr<Nat> | stx_num], ]' => ... }
 // In this case (looking at the expression interpolation),
@@ -59,12 +59,13 @@ use std::rc::Rc;
 //   '[Expr | '[Expr | ,[…], ,,[…],, ]']'
 // OTOH, if you are using `,,,,[],,,,`, something has gone terribly wrong.
 
+
 // == Opacity! ==
 // Basically, ` ,[Expr<T> | a ], ` dumps an expression with the type `T` into the type checker,
 //  but at a different phase from where `T` was defined.
-// We don't want to capture the whole environment, but we do want the typechecker to be able
-//  to handle `T` (without trying to look it up),
-//  so we need to wrap (and unwrap) those names, and it turns out that `mu_type` does the trick.
+// We don't want to capture the whole environment,
+//  so we want the typechecker to treat `T` opaquely (i.e. without looking up),
+//   which is what "mu_type" does.
 // We just need to write a walk for it (and annotate those `mu_type`s with a depth)
 
 fn adjust_opacity(t: &Ty, env: Assoc<Name, Ty>, delta: i32) -> Ty {
@@ -171,6 +172,7 @@ impl WalkMode for UnusedNegativeMuProtect {
 impl NegativeWalkMode for UnusedNegativeMuProtect {
     fn needs_pre_match() -> bool { panic!() }
 }
+
 
 // Technically, we could have the parser decide whether `unquote` is allowed.
 //  (It only makes sense inside a `quote`.)

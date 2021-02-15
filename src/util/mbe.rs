@@ -9,7 +9,7 @@
 //
 // The principle, when applied to pattern-based macro definitions, is as follows:
 //  Kleene stars in a macro grammar
-//    (e.g. `(f=Identifier (arg=Identifier ":" arg_t=Type)*)` )
+//    (e.g. `[f=Identifier [arg=Identifier ":" arg_t=Type]*]` )
 //   correspond to lists in an AST.
 //  The original syntactic structure is irrelevant.
 //   but there's only one name (e.g. `arg_t`) for the entire list of matched syntax.
@@ -52,14 +52,6 @@
 //  by specifying a grammar and a piece of quoted syntax,
 //  if the syntax transcription supports MBE.
 //  (This corresponds to Scheme's `syntax-rules` and Rust's `macro-rules`.)
-
-// Suppose we want to write code that processes MBE environments.
-// Obviously, we can use `march` to pull out all the structure as necessary.
-// But pattern-matching is really nice...
-//  and sometimes it's nice to abstract over the number of repetitions of something.
-//
-// So, if you set a particular index is `ddd`, that will be repeated 0 or more times
-//  in order to match the length of whatever is on the other side.
 
 use crate::{name::*, util::assoc::Assoc};
 use std::{fmt, rc::Rc};

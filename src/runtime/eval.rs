@@ -21,7 +21,7 @@ pub enum Value {
     BuiltInFunction(BIF),
     AbstractSyntax(Ast),
     Struct(Assoc<Name, Value>),
-    Enum(Name, Vec<Value>), // A real compiler would probably tag with numbers...
+    Enum(Name, Vec<Value>),
 }
 
 pub use self::Value::*;

@@ -45,9 +45,9 @@ custom_derive! {
         /// which should be typechecked, and whose type the new name gets.
         /// (This can be used write to `let` without requiring a type annotation.)
         SameAs(Name, Box<Ast>),
-        /// Names are introduced here, but not bound to anything in particular.
-        /// Needed to avoid an infinite regress in a "Syntax" self-import.
-        /// (This can be useful for things that import themselves, to avoid infinite regress)
+        /// Names are introduced here, but bound to `Trivial`.
+        /// Needed to avoid an infinite regress where the syntax for `Scope` does a self-import
+        ///  to expose the names it introduces to the (syntax for) betas that need them.
         BoundButNotUsable(Name),
         /// Name is introduced here (must be a single `Atom`),
         ///  and its meaning is figured out from usage.

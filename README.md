@@ -33,7 +33,7 @@ Unseemly is still pretty early-stage, so, while all of the features below exist,
    (if a macro invocation typechecks, the code it expands to doesn't need typechecking)†.
  * Extensible parsing and lexing (write real SQL or real regexes inline, not strings).
 
-† There's one known serious deficiency in type soundness at the moment.
+† Except that there are [known soundness bugs](https://github.com/paulstansifer/unseemly/issues?q=is%3Aissue+is%3Aopen+label%3Asoundness).
 ### Other features
  * Full-featured REPL, with persistent command history and line editing (courtesy of `rustyline`).
 

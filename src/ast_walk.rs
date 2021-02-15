@@ -680,6 +680,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
 
     /// Will `get_res` or `get_term` panic?
+    /// Rarely used, because a form typically knows which named subterms it has based on parsing.
     pub fn has(&self, part_name: Name) -> bool { self.parts.get_leaf(part_name).is_some() }
 
     /// Like `get_res`, but for subforms that are repeated at depth 1. Sort of a hack.
@@ -786,7 +787,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
 
     /// Change the context (by editing the environment). Only sensible for negative walks.
-    /// Don't do `.with_context(…).with_environment(…)`
+    /// Don't do `.with_context(…).with_environment(…)`; it's the same as `.with_environment(…)`.
     pub fn with_context(&self, e: Mode::Elt) -> LazyWalkReses<Mode> {
         LazyWalkReses { env: self.env.set(negative_ret_val(), e), ..(*self).clone() }
     }
@@ -879,9 +880,9 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         res
     }
 
-    /// HACK: For the sake of `mbe_one_name`, we want to treat `LazyWalkReses` and `EnvMBE`
-    /// the same way. But I don't like having the same interface for them in general; I find it
-    /// confusing. So don't use this ):
+    /// HACK: The `mbe_one_name!` macro expects a type with `march_all`
+    ///  (it can accept both `LazyWalkReses` and `EnvMBE`).
+    /// But, for `LazyWalkReses`, prefer `march_parts`, so don't use this ) :
     pub fn march_all(&self, driving_names: &[Name]) -> Vec<LazyWalkReses<Mode>> {
         self.march_parts(driving_names)
     }

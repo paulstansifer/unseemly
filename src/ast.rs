@@ -1,6 +1,6 @@
 //! This abstract syntax tree is *really* abstract.
-//! By necessity, it's not tied to any specific language.
-//! "Normal" language forms all correspond to `Node`, and their meaning comes from their `Form`.
+//! It makes binding explicit, but everything else about the language is hidden inside `Node`;
+//!  Their meaning comes from `Form`.
 
 #![macro_use]
 
@@ -20,9 +20,9 @@ pub enum Ast {
     Atom(Name),
     VariableReference(Name),
 
-    /// Shift environment to quote (a pos/neg piece of syntax) more
+    /// Shift environment to quote more (the `bool` indicates whether it's positive or negative)
     QuoteMore(Box<Ast>, bool),
-    /// Shift environment (by some amount) to quote less
+    /// Shift environment to quote less (the `u8` indicates the number of steps out)
     QuoteLess(Box<Ast>, u8),
 
     /// A meaningful chunk of syntax, governed by a form, containing an environment,
