@@ -120,10 +120,6 @@ pub trait WalkMode: Debug + Copy + Clone + Reifiable {
 
     fn walk_atom(n: Name, cnc: &LazyWalkReses<Self>) -> Res<Self> { Self::D::walk_atom(n, cnc) }
 
-    /// When a DDDed subterm is matched, it matches against multiple `Elt`s.
-    /// How should we represent that?
-    fn collapse_repetition(_: Vec<Res<Self>>) -> Res<Self> { icp!("unexpected repetition") }
-
     /// Make up a special `Elt` that is currently "underspecified",
     ///  but which can be "unified" with some other `Elt`.
     /// If that happens, all copies of this `Elt` will act like that other one.
@@ -319,9 +315,8 @@ impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
         let parts_actual = Mode::context_match(&expected, &got, cnc.env.clone())?;
 
         // Continue the walk on subterms. (`context_match` does the freshening)
-        // TODO: I fear that we need `map_collapse_reduce_with_marched_against`
-        //  so that matching DDDed syntax won't go horribly wrong
-        cnc.parts.map_collapse_reduce_with(
+        // TODO: is it possible we need `map_reduce_with_marched_against`?
+        cnc.parts.map_reduce_with(
             &parts_actual,
             &|model: &Rc<LazilyWalkedTerm<Mode>>, actual: &Ast| match model.term {
                 Node(_, _, _)
@@ -345,7 +340,6 @@ impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
                 }
                 _ => Ok(Assoc::new()),
             },
-            &Mode::collapse_repetition,
             &|result, next| Ok(result?.set_assoc(&next?)),
             Ok(Assoc::new()),
         )

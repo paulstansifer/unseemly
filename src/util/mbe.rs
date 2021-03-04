@@ -568,49 +568,10 @@ impl<T: Clone> EnvMBE<T> {
         }
     }
 
-    pub fn map_reduce_with<NewT: Clone>(
-        &self,
-        other: &EnvMBE<T>,
-        f: &dyn Fn(&T, &T) -> NewT,
-        red: &dyn Fn(&NewT, &NewT) -> NewT,
-        base: NewT,
-    ) -> NewT {
-        // TODO #15: this panics all over the place if anything goes wrong
-        let mut reduced: NewT =
-            self.leaves.map_with(&other.leaves, f).reduce(&|_k, v, res| red(v, &res), base);
-
-        let mut already_processed: Vec<bool> = self.repeats.iter().map(|_| false).collect();
-
-        for (leaf_name, self_idx) in self.leaf_locations.iter_pairs() {
-            let self_idx = match *self_idx {
-                Some(si) => si,
-                None => {
-                    continue;
-                }
-            };
-            if already_processed[self_idx] {
-                continue;
-            }
-            already_processed[self_idx] = true;
-
-            let other_idx = other.leaf_locations.find_or_panic(leaf_name).unwrap();
-
-            for (self_elt, other_elt) in
-                self.repeats[self_idx].iter().zip(other.repeats[other_idx].iter())
-            {
-                reduced = self_elt.map_reduce_with(other_elt, f, &red, reduced);
-            }
-        }
-
-        reduced
-    }
-
-    // TODO: test this more.
-    pub fn map_collapse_reduce_with<S: Clone, NewT: Clone>(
+    pub fn map_reduce_with<S: Clone, NewT: Clone>(
         &self,
         other: &EnvMBE<S>,
         f: &dyn Fn(&T, &S) -> NewT,
-        col: &dyn Fn(Vec<NewT>) -> NewT,
         red: &dyn Fn(NewT, NewT) -> NewT,
         base: NewT,
     ) -> NewT {
@@ -634,10 +595,10 @@ impl<T: Clone> EnvMBE<T> {
 
             let other_idx = other.leaf_locations.find_or_panic(leaf_name).unwrap();
 
-            for (lhs_mbe, rhs_mbe) in
+            for (self_elt, other_elt) in
                 self.repeats[self_idx].iter().zip(other.repeats[other_idx].iter())
             {
-                reduced = lhs_mbe.map_collapse_reduce_with(rhs_mbe, f, col, red, reduced)
+                reduced = self_elt.map_reduce_with(other_elt, f, &red, reduced);
             }
         }
 
@@ -941,12 +902,7 @@ fn basic_mbe() {
     assert_eq!(mbe, all_zeroes.map_with(&mbe, &|a, b| a + b));
 
     assert_eq!(
-        mbe.map_reduce_with(
-            &all_zeroes,
-            &|a, b| if *a < *b { *a } else { *b },
-            &|a, b| (*a + *b),
-            0
-        ),
+        mbe.map_reduce_with(&all_zeroes, &|a, b| if *a < *b { *a } else { *b }, &|a, b| a + b, 0),
         -11 + -12 + -13
     );
 
