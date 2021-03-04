@@ -149,7 +149,7 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
                             assoc_n!("arg" => individual__arg_res.clone()),
                         ));
                     }
-                    new__tapp_parts.add_anon_repeat(args, None);
+                    new__tapp_parts.add_anon_repeat(args);
 
                     let res = Ty::new(Node(
                         find_core_form("Type", "type_apply"),

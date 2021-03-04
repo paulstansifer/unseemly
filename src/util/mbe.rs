@@ -82,12 +82,6 @@ pub struct EnvMBE<T: Clone> {
     ///   that index into this.
     repeats: Vec<Rc<Vec<EnvMBE<T>>>>,
 
-    /// TODO #18: this is unused; remove it.
-    /// Which, if any, index is supposed to match 0 or more repetitions of something?
-    /// This should always have the same length as `repeats`.
-    /// If this isn't all `None`, then this MBE is presumably some kind of pattern.
-    ddd_rep_idxes: Vec<Option<usize>>,
-
     /// Where in `repeats` to look, if we want to traverse for a particular leaf.
     /// We use `.unwrap_or(None)` when looking up into this
     ///  so we can delete by storing `None`.
@@ -105,7 +99,6 @@ impl<T: Clone + crate::runtime::reify::Reifiable> crate::runtime::reify::Reifiab
         crate::runtime::eval::Value::Sequence(vec![
             Rc::new(self.leaves.reify()),
             Rc::new(self.repeats.reify()),
-            Rc::new(self.ddd_rep_idxes.reify()),
             Rc::new(self.leaf_locations.reify()),
             Rc::new(self.named_repeats.reify()),
         ])
@@ -115,9 +108,8 @@ impl<T: Clone + crate::runtime::reify::Reifiable> crate::runtime::reify::Reifiab
             EnvMBE {
                leaves: <Assoc<Name, T>>::reflect(&*parts[0]),
                repeats: <Vec<Rc<Vec<EnvMBE<T>>>>>::reflect(&*parts[1]),
-               ddd_rep_idxes: <Vec<Option<usize>>>::reflect(&*parts[2]),
-               leaf_locations: <Assoc<Name, Option<usize>>>::reflect(&*parts[3]),
-               named_repeats: <Assoc<Name, Option<usize>>>::reflect(&*parts[4])
+               leaf_locations: <Assoc<Name, Option<usize>>>::reflect(&*parts[2]),
+               named_repeats: <Assoc<Name, Option<usize>>>::reflect(&*parts[3])
             }
         })
     }
@@ -162,7 +154,6 @@ impl<T: PartialEq + Clone> PartialEq for EnvMBE<T> {
 
         self.leaves == other.leaves
             && self.repeats == other.repeats
-            && self.ddd_rep_idxes == other.ddd_rep_idxes
             && assoc_eq_modulo_none(&self.leaf_locations, &other.leaf_locations)
             && assoc_eq_modulo_none(&self.named_repeats, &other.named_repeats)
     }
@@ -196,52 +187,11 @@ impl<T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
     }
 }
 
-/// TODO #18: This is unused; remove it
-/// An iterator that expands a dotdotdot a certain number of times.
-struct DddIter<'a, S: 'a> {
-    underlying: std::slice::Iter<'a, S>,
-    cur_idx: usize,
-    rep_idx: usize,
-    repeated: Option<&'a S>,
-    extra_needed: usize,
-}
-
-impl<'a, S: Clone> DddIter<'a, S> {
-    fn new(und: std::slice::Iter<'a, S>, rep_idx: usize, extra: usize) -> DddIter<'a, S> {
-        DddIter {
-            underlying: und,
-            cur_idx: 0,
-            rep_idx: rep_idx,
-            repeated: None,
-            extra_needed: extra,
-        }
-    }
-}
-
-impl<'a, S: Clone> Iterator for DddIter<'a, S> {
-    type Item = &'a S;
-    fn next(&mut self) -> Option<&'a S> {
-        let cur_idx = self.cur_idx;
-        self.cur_idx += 1;
-
-        if cur_idx == self.rep_idx {
-            self.repeated = self.underlying.next();
-        }
-
-        if cur_idx >= self.rep_idx && cur_idx < self.rep_idx + self.extra_needed {
-            self.repeated
-        } else {
-            self.underlying.next()
-        }
-    }
-}
-
 impl<T: Clone> EnvMBE<T> {
     pub fn new() -> EnvMBE<T> {
         EnvMBE {
             leaves: Assoc::new(),
             repeats: vec![],
-            ddd_rep_idxes: vec![],
             leaf_locations: Assoc::new(),
             named_repeats: Assoc::new(),
         }
@@ -252,7 +202,6 @@ impl<T: Clone> EnvMBE<T> {
         EnvMBE {
             leaves: l,
             repeats: vec![],
-            ddd_rep_idxes: vec![],
             leaf_locations: Assoc::new(),
             named_repeats: Assoc::new(),
         }
@@ -260,20 +209,15 @@ impl<T: Clone> EnvMBE<T> {
 
     /// Creates an `EnvMBE` containing a single anonymous repeat
     pub fn new_from_anon_repeat(r: Vec<EnvMBE<T>>) -> EnvMBE<T> {
-        EnvMBE::new_from_anon_repeat_ddd(r, None)
-    }
-
-    /// Creates an `EnvMBE` containing a single anonymous repeat
-    pub fn new_from_anon_repeat_ddd(r: Vec<EnvMBE<T>>, ddd_idx: Option<usize>) -> EnvMBE<T> {
         let mut res = EnvMBE::new();
-        res.add_anon_repeat(r, ddd_idx);
+        res.add_anon_repeat(r);
         res
     }
 
     /// Creates an `EnvMBE` containing a single named repeat
     pub fn new_from_named_repeat(n: Name, r: Vec<EnvMBE<T>>) -> EnvMBE<T> {
         let mut res = EnvMBE::new();
-        res.add_named_repeat(n, r, None);
+        res.add_named_repeat(n, r);
         res
     }
 
@@ -287,13 +231,9 @@ impl<T: Clone> EnvMBE<T> {
         let mut new_repeats = self.repeats.clone();
         new_repeats.append(&mut rhs.repeats.clone());
 
-        let mut new__ddd_rep_idxes = self.ddd_rep_idxes.clone();
-        new__ddd_rep_idxes.append(&mut rhs.ddd_rep_idxes.clone());
-
         EnvMBE {
             leaves: self.leaves.set_assoc(&rhs.leaves),
             repeats: new_repeats,
-            ddd_rep_idxes: new__ddd_rep_idxes,
             leaf_locations: self.leaf_locations.set_assoc(
                 &rhs.leaf_locations.map(|idx_opt| idx_opt.map(|idx| idx + adjust_rhs_by)),
             ),
@@ -316,20 +256,14 @@ impl<T: Clone> EnvMBE<T> {
 
         for (n, rep_idx) in rhs.named_repeats.iter_pairs() {
             if let Some(rep_idx) = *rep_idx {
-                res.add_named_repeat(
-                    *n,
-                    (*rhs.repeats[rep_idx]).clone(),
-                    rhs.ddd_rep_idxes[rep_idx],
-                );
+                res.add_named_repeat(*n, (*rhs.repeats[rep_idx]).clone());
                 rhs_idx_is_named[rep_idx] = true;
             }
         }
 
-        for (idx, (rep, ddd_rep_idx)) in
-            rhs.repeats.iter().zip(rhs.ddd_rep_idxes.iter()).enumerate()
-        {
+        for (idx, rep) in rhs.repeats.iter().enumerate() {
             if !rhs_idx_is_named[idx] {
-                res.add_anon_repeat((**rep).clone(), *ddd_rep_idx);
+                res.add_anon_repeat((**rep).clone());
             }
         }
 
@@ -410,7 +344,7 @@ impl<T: Clone> EnvMBE<T> {
     /// Extend with a non-repeated thing
     pub fn add_leaf(&mut self, n: Name, v: T) { self.leaves = self.leaves.set(n, v); }
 
-    pub fn add_named_repeat(&mut self, n: Name, sub: Vec<EnvMBE<T>>, sub_ddd_idx: Option<usize>) {
+    pub fn add_named_repeat(&mut self, n: Name, sub: Vec<EnvMBE<T>>) {
         if sub.is_empty() {
             return;
         } // no-op-ish, but keep the repeats clean (good for `eq`)
@@ -421,7 +355,6 @@ impl<T: Clone> EnvMBE<T> {
                 self.update_leaf_locs(new_index, &sub);
 
                 self.repeats.push(Rc::new(sub));
-                self.ddd_rep_idxes.push(sub_ddd_idx);
                 self.named_repeats = self.named_repeats.set(n, Some(new_index));
             }
             Some(idx) => {
@@ -442,18 +375,11 @@ impl<T: Clone> EnvMBE<T> {
                     new_repeats_at_idx.push(pairs.0.combine_overriding(pairs.1));
                 }
                 self.repeats[idx] = Rc::new(new_repeats_at_idx);
-                if self.ddd_rep_idxes[idx] != sub_ddd_idx {
-                    // Maybe we should support this usecase!
-                    panic!(
-                        "Named repetition {:#?} has mismatched ddd rep indices {:#?} and {:#?}.",
-                        n, self.ddd_rep_idxes[idx], sub_ddd_idx
-                    );
-                }
             }
         }
     }
 
-    pub fn add_anon_repeat(&mut self, sub: Vec<EnvMBE<T>>, sub_ddd_idx: Option<usize>) {
+    pub fn add_anon_repeat(&mut self, sub: Vec<EnvMBE<T>>) {
         if sub.is_empty() {
             return;
         } // no-op-ish, but keep the repeats clean (good for `eq`)
@@ -462,7 +388,6 @@ impl<T: Clone> EnvMBE<T> {
         self.update_leaf_locs(new_index, &sub);
 
         self.repeats.push(Rc::new(sub));
-        self.ddd_rep_idxes.push(sub_ddd_idx);
     }
 
     pub fn anonimize_repeat(&mut self, n: Name) {
@@ -509,7 +434,6 @@ impl<T: Clone> EnvMBE<T> {
                     )
                 })
                 .collect(),
-            ddd_rep_idxes: self.ddd_rep_idxes.clone(),
             leaf_locations: self.leaf_locations.clone(),
             named_repeats: self.named_repeats.clone(),
         }
@@ -526,7 +450,6 @@ impl<T: Clone> EnvMBE<T> {
                     Rc::new(rc_vec_mbe.iter().map(|mbe: &EnvMBE<T>| mbe.named_map(f)).collect())
                 })
                 .collect(),
-            ddd_rep_idxes: self.ddd_rep_idxes.clone(),
             leaf_locations: self.leaf_locations.clone(),
             named_repeats: self.named_repeats.clone(),
         }
@@ -572,120 +495,9 @@ impl<T: Clone> EnvMBE<T> {
                     )
                 })
                 .collect(),
-            ddd_rep_idxes: self.ddd_rep_idxes.clone(),
             leaf_locations: self.leaf_locations.clone(),
             named_repeats: self.named_repeats.clone(),
         }
-    }
-
-    /// TODO #18: this is unused; remove it
-    /// Duplicate contents of the side with a DDD to line it up with the other
-    // TODO: this needs to return `Option` (and so does everything `_with`)
-    // TODO: for efficiency, this ought to return iterators
-    fn resolve_ddd<'a, S: Clone>(
-        lhs: &'a Rc<Vec<EnvMBE<T>>>,
-        lhs_ddd: &'a Option<usize>,
-        rhs: &'a Rc<Vec<EnvMBE<S>>>,
-        rhs_ddd: &'a Option<usize>,
-    ) -> Vec<(&'a EnvMBE<T>, &'a EnvMBE<S>)> {
-        let len_diff = lhs.len() as i32 - (rhs.len() as i32);
-
-        let matched: Vec<(&EnvMBE<T>, &EnvMBE<S>)> = match (lhs_ddd, rhs_ddd) {
-            (&None, &None) => {
-                if len_diff != 0 {
-                    panic!("mismatched MBE lengths")
-                }
-                lhs.iter().zip(rhs.iter()).collect()
-            }
-            (&Some(ddd_idx), &None) => {
-                if len_diff - 1 > 0 {
-                    panic!("abstract MBE LHS too long")
-                }
-                DddIter::new(lhs.iter(), ddd_idx, -(len_diff - 1) as usize)
-                    .zip(rhs.iter())
-                    .collect()
-            }
-            (&None, &Some(ddd_idx)) => {
-                if len_diff + 1 < 0 {
-                    panic!("abstract MBE RHS too long")
-                }
-                lhs.iter().zip(DddIter::new(rhs.iter(), ddd_idx, (len_diff + 1) as usize)).collect()
-            }
-            (&Some(_), &Some(_)) => panic!("repetition on both sides"),
-        };
-
-        matched
-    }
-
-    // The LHS must be the side with the DDD.
-    // TODO: try just using `reduced` instead of `base.clone()`
-    // TODO #15: `Result` instead of panicing
-    fn match_collapse_ddd<'a, S: Clone, NewT: Clone>(
-        lhs: &'a Rc<Vec<EnvMBE<T>>>,
-        lhs_ddd: &'a Option<usize>,
-        rhs: &'a Rc<Vec<EnvMBE<S>>>,
-        rhs_ddd: &'a Option<usize>,
-        f: &dyn Fn(&T, &S) -> NewT,
-        col: &dyn Fn(Vec<NewT>) -> NewT,
-        red: &dyn Fn(NewT, NewT) -> NewT,
-        base: NewT,
-    ) -> NewT {
-        let len_diff = lhs.len() as i32 - (rhs.len() as i32);
-
-        // The RHS can have a DDD if it's exactly the same (subtyping only goes the one way)
-        // TODO: if the user is rebuilding MBEs using `map_collapse_reduce_with`, they'll lose
-        // the DDDs they should keep; how do we get that information back in? (I assume we pass
-        // a bool to one of the function arguments.)
-        if rhs_ddd.is_some() && lhs_ddd != rhs_ddd {
-            panic!("RHS must match LHS exactly if it uses DDD")
-        }
-
-        let mut reduced = base.clone();
-        // Unpack the DDD ... unless the RHS is a DDD also.
-        if let (&Some(ddd_idx), false) = (lhs_ddd, rhs_ddd.is_some()) {
-            if len_diff - 1 > 0 {
-                panic!("abstract MBE LHS too long")
-            }
-
-            for i in 0..ddd_idx {
-                reduced = red(
-                    reduced,
-                    lhs[i].map_collapse_reduce_with(&rhs[i], f, col, red, base.clone()),
-                );
-            }
-
-            let mut ddd_rep = vec![];
-            for rep in 0..((1 - len_diff) as usize) {
-                ddd_rep.push(lhs[ddd_idx].map_collapse_reduce_with(
-                    &rhs[ddd_idx + rep],
-                    f,
-                    col,
-                    red,
-                    base.clone(),
-                ));
-            }
-            reduced = red(reduced, col(ddd_rep));
-
-            for i in (ddd_idx + 1)..lhs.len() {
-                let rhs_i = (i as i32 - len_diff) as usize;
-
-                reduced = red(
-                    reduced,
-                    lhs[i].map_collapse_reduce_with(&rhs[rhs_i], f, col, red, base.clone()),
-                );
-            }
-        } else {
-            if len_diff != 0 {
-                panic!("mismatched MBE lengths {} vs. {}", lhs.len(), rhs.len())
-            }
-            for i in 0..lhs.len() {
-                reduced = red(
-                    reduced,
-                    lhs[i].map_collapse_reduce_with(&rhs[i], f, col, red, base.clone()),
-                );
-            }
-        }
-        reduced
     }
 
     // TODO: we should just have the relevant functions return None...
@@ -703,26 +515,14 @@ impl<T: Clone> EnvMBE<T> {
             return false;
         }
 
-        for ((subs, subs_ddd), (o_subs, o_subs_ddd)) in self
-            .repeats
-            .iter()
-            .zip(self.ddd_rep_idxes.iter())
-            .zip(o.repeats.iter().zip(o.ddd_rep_idxes.iter()))
-        {
-            if subs_ddd != &None && o_subs_ddd != &None {
-                panic!("Ill-formed; can't walk two DDDs")
-            }
-            if subs_ddd == &None && o_subs_ddd == &None && subs.len() != o_subs.len() {
+        if self.repeats.len() != o.repeats.len() {
+            return false;
+        }
+        for (subs, o_subs) in self.repeats.iter().zip(o.repeats.iter()) {
+            if subs.len() != o_subs.len() {
                 return false;
             }
-            if subs_ddd != &None && o_subs.len() < subs.len() - 1 {
-                return false;
-            }
-            if o_subs_ddd != &None && subs.len() < o_subs.len() - 1 {
-                return false;
-            }
-
-            for (mbe, o_mbe) in Self::resolve_ddd(subs, subs_ddd, o_subs, o_subs_ddd) {
+            for (mbe, o_mbe) in subs.iter().zip(o_subs.iter()) {
                 if !mbe.can_map_with(o_mbe) {
                     return false;
                 }
@@ -752,24 +552,17 @@ impl<T: Clone> EnvMBE<T> {
             repeats: self
                 .repeats
                 .iter()
-                .zip(self.ddd_rep_idxes.iter())
-                .zip(o.repeats.iter().zip(o.ddd_rep_idxes.iter()))
-                .map(&|((rc_vec_mbe, ddd_idx), (o_rc_vec_mbe, o_ddd_idx)): (
-                    (&Rc<Vec<EnvMBE<T>>>, &Option<usize>),
-                    (&Rc<Vec<EnvMBE<S>>>, &Option<usize>),
-                )| {
-                    let mapped: Vec<_> =
-                        Self::resolve_ddd(rc_vec_mbe, ddd_idx, o_rc_vec_mbe, o_ddd_idx)
+                .zip(o.repeats.iter())
+                .map(&|(rc_vec_mbe, o_rc_vec_mbe): (&Rc<Vec<EnvMBE<T>>>, &Rc<Vec<EnvMBE<S>>>)| {
+                    Rc::new(
+                        rc_vec_mbe
                             .iter()
-                            .map(|&(mbe, o_mbe): &(&EnvMBE<T>, &EnvMBE<S>)| {
-                                mbe.named_map_with(o_mbe, f)
-                            })
-                            .collect();
-
-                    Rc::new(mapped)
+                            .zip(o_rc_vec_mbe.iter())
+                            .map(|(mbe, o_mbe)| mbe.named_map_with(o_mbe, f))
+                            .collect(),
+                    )
                 })
                 .collect(),
-            ddd_rep_idxes: self.repeats.iter().map(|_| None).collect(), // remove all dotdotdots
             leaf_locations: self.leaf_locations.clone(),
             named_repeats: self.named_repeats.clone(),
         }
@@ -802,14 +595,9 @@ impl<T: Clone> EnvMBE<T> {
 
             let other_idx = other.leaf_locations.find_or_panic(leaf_name).unwrap();
 
-            let matched = Self::resolve_ddd(
-                &self.repeats[self_idx],
-                &self.ddd_rep_idxes[self_idx],
-                &other.repeats[other_idx],
-                &other.ddd_rep_idxes[other_idx],
-            );
-
-            for (self_elt, other_elt) in matched {
+            for (self_elt, other_elt) in
+                self.repeats[self_idx].iter().zip(other.repeats[other_idx].iter())
+            {
                 reduced = self_elt.map_reduce_with(other_elt, f, &red, reduced);
             }
         }
@@ -846,16 +634,11 @@ impl<T: Clone> EnvMBE<T> {
 
             let other_idx = other.leaf_locations.find_or_panic(leaf_name).unwrap();
 
-            reduced = Self::match_collapse_ddd(
-                &self.repeats[self_idx],
-                &self.ddd_rep_idxes[self_idx],
-                &other.repeats[other_idx],
-                &other.ddd_rep_idxes[other_idx],
-                f,
-                col,
-                red,
-                reduced,
-            );
+            for (lhs_mbe, rhs_mbe) in
+                self.repeats[self_idx].iter().zip(other.repeats[other_idx].iter())
+            {
+                reduced = lhs_mbe.map_collapse_reduce_with(rhs_mbe, f, col, red, reduced)
+            }
         }
 
         reduced
@@ -1024,7 +807,6 @@ impl<T: Clone, E: Clone> EnvMBE<Result<T, E>> {
         Ok(EnvMBE {
             leaves: leaves,
             repeats: repeats,
-            ddd_rep_idxes: self.ddd_rep_idxes.clone(),
             leaf_locations: self.leaf_locations.clone(),
             named_repeats: self.named_repeats.clone(),
         })
@@ -1079,14 +861,14 @@ fn basic_mbe() {
         EnvMBE::new_from_leaves(assoc_n!("t" => 13)),
     ];
 
-    mbe.add_named_repeat(n("low_two_digits"), teens_mbe.clone(), None);
+    mbe.add_named_repeat(n("low_two_digits"), teens_mbe.clone());
 
     let big_mbe = vec![
         EnvMBE::new_from_leaves(assoc_n!("y" => 9001)),
         EnvMBE::new_from_leaves(assoc_n!("y" => 9002)),
     ];
 
-    mbe.add_anon_repeat(big_mbe, None);
+    mbe.add_anon_repeat(big_mbe);
 
     for (sub_mbe, teen) in mbe.march_all(&vec![n("t"), n("eight")]).iter().zip(vec![11, 12, 13]) {
         assert_eq!(sub_mbe.get_leaf(n("eight")), Some(&8));
@@ -1110,7 +892,7 @@ fn basic_mbe() {
         EnvMBE::new_from_leaves(assoc_n!("nt" => -13)),
     ];
 
-    mbe.add_named_repeat(n("low_two_digits"), neg_teens_mbe, None);
+    mbe.add_named_repeat(n("low_two_digits"), neg_teens_mbe);
 
     for (sub_mbe, teen) in
         mbe.march_all(&vec![n("t"), n("nt"), n("eight")]).iter().zip(vec![11, 12, 13])
@@ -1273,65 +1055,4 @@ fn splice_healing() {
     // assert_eq!(with__too_short.heal_splices__with(&other__too_short, &steal_from_other), ???);
 
     // TODO: test this more!
-}
-
-#[test]
-fn ddd_iter() {
-    assert_eq!(DddIter::new([0, 1, 2].iter(), 0, 0).collect::<Vec<_>>(), [&1, &2]);
-    assert_eq!(DddIter::new([0, 1, 2].iter(), 1, 0).collect::<Vec<_>>(), [&0, &2]);
-    assert_eq!(DddIter::new([0, 1, 2].iter(), 2, 0).collect::<Vec<_>>(), [&0, &1]);
-
-    assert_eq!(DddIter::new([0, 1, 2].iter(), 1, 1).collect::<Vec<_>>(), [&0, &1, &2]);
-    assert_eq!(DddIter::new([0, 1, 2].iter(), 1, 3).collect::<Vec<_>>(), [&0, &1, &1, &1, &2]);
-}
-
-#[test]
-fn mbe_ddd_map_with() {
-    use crate::ast::{Ast, Atom};
-
-    let lhs = mbe!( "a" => ["0", "1", "2", "3", "4"] );
-    let rhs = mbe!( "a" => ["0" ...("1")..., "4"] );
-
-    fn concat(l: &Ast, r: &Ast) -> Ast {
-        match (l, r) {
-            (&Atom(ln), &Atom(rn)) => Atom(n(format!("{}{}", ln, rn).as_str())),
-            _ => panic!(),
-        }
-    }
-
-    assert_eq!(lhs.map_with(&rhs, &concat), mbe!( "a" => ["00", "11", "21", "31", "44"] ));
-    assert_eq!(rhs.map_with(&lhs, &concat), mbe!( "a" => ["00", "11", "12", "13", "44"] ));
-
-    assert_eq!(lhs.map_reduce_with(&rhs, &concat, &concat, ast!("")), ast!("4431211100")); // N.B. order is arbitrary
-
-    {
-        let lhs = mbe!( "a" => [["a", "b"], ["c", "d"], ["c", "d"]]);
-        let rhs = mbe!( "a" => [["a", "b"] ...(["c", "d"])...]);
-
-        assert_eq!(
-            lhs.map_with(&rhs, &concat),
-            mbe!( "a" => [["aa", "bb"], ["cc", "dd"], ["cc", "dd"]])
-        );
-    }
-    {
-        let lhs = mbe!("a" => [...(["-0", "-1" ...("-")..., "-9"])...]);
-        let rhs = mbe!("a" => [["p0", "p1", "p4", "p5", "p6", "p9"], ["p0", "p1", "p9"]]);
-
-        assert_eq!(
-            lhs.map_with(&rhs, &concat),
-            mbe!("a" => [["-0p0", "-1p1", "-p4", "-p5", "-p6", "-9p9"], ["-0p0", "-1p1", "-9p9"]])
-        );
-
-        // Drop all but the first of each repetition:
-        assert_eq!(
-            lhs.map_collapse_reduce_with(
-                &rhs,
-                &concat,
-                &|v| if v.len() > 0 { v[0].clone() } else { ast!("") },
-                &|l, r| concat(&l, &r),
-                ast!("")
-            ),
-            ast!("-0p0-1p1-p4-9p9")
-        );
-    }
 }

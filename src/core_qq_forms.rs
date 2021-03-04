@@ -59,7 +59,6 @@ use std::rc::Rc;
 //   '[Expr | '[Expr | ,[…], ,,[…],, ]']'
 // OTOH, if you are using `,,,,[],,,,`, something has gone terribly wrong.
 
-
 // == Opacity! ==
 // Basically, ` ,[Expr<T> | a ], ` dumps an expression with the type `T` into the type checker,
 //  but at a different phase from where `T` was defined.
@@ -172,7 +171,6 @@ impl WalkMode for UnusedNegativeMuProtect {
 impl NegativeWalkMode for UnusedNegativeMuProtect {
     fn needs_pre_match() -> bool { panic!() }
 }
-
 
 // Technically, we could have the parser decide whether `unquote` is allowed.
 //  (It only makes sense inside a `quote`.)

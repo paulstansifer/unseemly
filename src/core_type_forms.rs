@@ -362,7 +362,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                             assoc_n!("arg" => individual__arg_res.concrete()),
                         ));
                     }
-                    new__tapp_parts.add_anon_repeat(args, None);
+                    new__tapp_parts.add_anon_repeat(args);
 
                     if let Node(ref f, _, ref exp) = tapp_parts.this_ast {
                         Ok(Ty::new(Node(/* forall */ f.clone(), new__tapp_parts, exp.clone())))
@@ -380,7 +380,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                             assoc_n!("arg" => individual__arg_res.concrete()),
                         ));
                     }
-                    new__tapp_parts.add_anon_repeat(args, None);
+                    new__tapp_parts.add_anon_repeat(args);
 
                     if let Node(ref f, _, ref exp) = tapp_parts.this_ast {
                         Ok(Ty::new(Node(/* forall */ f.clone(), new__tapp_parts, exp.clone())))

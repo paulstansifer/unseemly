@@ -275,23 +275,6 @@ macro_rules! mbe_one_name {
         )
     };
 
-    ($k:tt => [...($elt_rep:tt)... $(, $elt_post:tt)*]) => { // (the stanza below won't parse it)
-        crate::util::mbe::EnvMBE::new_from_anon_repeat_ddd(
-            vec![ mbe_one_name!($k => $elt_rep) ,
-                    $( mbe_one_name!($k => $elt_post) ),* ],
-              Some(0)
-        )
-    };
-
-    ($k:tt => [$($elt_pre:tt),* ...($elt_rep:tt)... $(, $elt_post:tt)*]) => {
-        crate::util::mbe::EnvMBE::new_from_anon_repeat_ddd(
-            vec![ $( mbe_one_name!($k => $elt_pre) ),* ,
-                  mbe_one_name!($k => $elt_rep) ,
-                  $( mbe_one_name!($k => $elt_post) ),* ],
-              Some( vec![$( {$elt_pre; ()} ),*].len() ) // count the things in `$elt_pre`
-        )
-    };
-
     ($k:tt => [$($elt:tt),*]) => {
         crate::util::mbe::EnvMBE::new_from_anon_repeat(
             vec![ $( mbe_one_name!($k => $elt) ),* ])
