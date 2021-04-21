@@ -14,7 +14,10 @@ use std::{fmt, iter::Iterator};
 //     ----| --| ----| ----| ----| |   --------|     --| --| <- these are `PackedNodes`es
 //   ----------------------------| | ----------|   --------| <- everything below is a `Node`
 // --------------------------------------------| ----------| <-             ⋮
+
 #[derive(Debug, PartialEq, Eq, Clone)]
+/// This is only `pub` for technical reasons; it doesn't need to be exposed to other modules.
+///
 /// `Node`s and `PackedNodes`es appear at the beginning of a slice to guide marching.
 /// If you see `[PackedNodes, …]`, you know you're at depth 1 and [1..] is your leaves.
 /// Otherwise, `[Node(n), <n entries>, Node(m), <m entries>, …]` is the shape of the current level.
@@ -37,6 +40,7 @@ impl<'a, T> Clone for AsterismSlice<'a, T> {
     fn clone(&self) -> AsterismSlice<'a, T> { *self }
 }
 
+/// This trait is for reference-like views of `Asterism`.
 pub trait AsterMarchable<'a, T: 'a>: Sized + Clone + Copy {
     fn as_slice(self) -> AsterismSlice<'a, T>;
 
@@ -181,6 +185,10 @@ impl<T> Asterism<T> {
 
         Asterism(res)
     }
+}
+
+impl<'a, T: Clone> AsterismSlice<'a, T> {
+    pub fn to_asterism(self) -> Asterism<T> { Asterism(self.0.to_vec()) }
 }
 
 impl<T: fmt::Debug> fmt::Debug for AsterismSlice<'_, T> {

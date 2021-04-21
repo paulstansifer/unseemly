@@ -20,9 +20,7 @@ fn get_next_id() -> u32 {
 /// A persistent key-value store. `clone`, `set`, and `find` are sub-linear.
 #[derive(Clone)]
 pub struct Assoc<K, V>
-where
-    K: Eq + Hash + Clone,
-    V: Clone,
+where K: Eq + Hash + Clone
 {
     hamt: HashMap<K, V>,
     // TODO: this is a hack, needed for `almost_ptr_eq`,
@@ -99,6 +97,8 @@ impl<K: Eq + Hash + Clone + fmt::Display, V: Clone + fmt::Display> fmt::Display 
     }
 }
 
+// Maybe we should admit that `K` is always `Name` (=`usize`) and stop taking references to it?
+// Maybe we shouldn't even parameterize over it?
 impl<K: Eq + Hash + Clone, V: Clone> Assoc<K, V> {
     fn from_hamt(hamt: HashMap<K, V>) -> Self { Assoc { hamt: hamt, id: get_next_id() } }
 
@@ -127,8 +127,8 @@ impl<K: Eq + Hash + Clone, V: Clone> Assoc<K, V> {
         self.map_borrow_f(&mut f)
     }
 
-    pub fn map_borrow_f<NewV: Clone, F>(&self, f: &mut F) -> Assoc<K, NewV>
-    where F: FnMut(&V) -> NewV {
+    pub fn map_borrow_f<'assoc, NewV: Clone, F>(&'assoc self, f: &mut F) -> Assoc<K, NewV>
+    where F: FnMut(&'assoc V) -> NewV {
         Assoc::<K, NewV>::from_hamt(
             self.hamt.iter().map(|(ref k, ref v)| (k.clone(), f(v))).collect(),
         )
@@ -173,10 +173,20 @@ impl<K: Eq + Hash + Clone, V: Clone> Assoc<K, V> {
 
     pub fn find_or_panic<'assoc, 'f>(&'assoc self, target: &'f K) -> &'assoc V
     where K: fmt::Debug {
-        match self.find(target) {
-            None => panic!("{:#?} not found in {:#?}", target, self.map(|_| "…")),
-            Some(v) => v,
-        }
+        self.find(target)
+            .unwrap_or_else(|| icp!("{:#?} not found in {:#?}", target, self.map(|_| "…")))
+    }
+
+    pub fn remove<'assoc, 'f>(&'assoc mut self, target: &'f K) -> Option<V>
+    where K: fmt::Debug {
+        self.hamt.remove(target)
+    }
+
+    pub fn remove_or_panic<'assoc, 'f>(&'assoc mut self, target: &'f K) -> V
+    where K: fmt::Debug {
+        self.hamt
+            .remove(target)
+            .unwrap_or_else(|| icp!("{:#?} not found in {:#?}", target, self.map(|_| "…")))
     }
 
     // Generates a version of `self` that lacks the entries it shares with `other`
