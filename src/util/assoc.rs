@@ -112,6 +112,8 @@ impl<K: Eq + Hash + Clone, V: Clone> Assoc<K, V> {
         Self::from_hamt(other.hamt.clone().union(self.hamt.clone()))
     }
 
+    pub fn mut_set(&mut self, key: K, value: V) { self.hamt.insert(key, value); }
+
     pub fn single(key: K, value: V) -> Self { Self::new().set(key, value) }
 
     pub fn empty(&self) -> bool { self.hamt.is_empty() }

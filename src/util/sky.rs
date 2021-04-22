@@ -146,6 +146,27 @@ impl<T: Clone> Sky<T> {
     ) -> Box<dyn Iterator<Item = SkySlice<'b, T>> + 'b> {
         self.to_sky_slices().march(driving_names)
     }
+
+    pub fn add_leaf(&mut self, n: Name, v: T) { self.mut_set(n, Asterism::from_leaf(v)); }
+
+    #[deprecated(note = "inefficent, and named repeats are gone")]
+    pub fn add_named_repeat(&mut self, _: Name, sub: Vec<Sky<T>>) { self.add_anon_repeat(sub) }
+
+    // TODO: how DO we construct in a general case?
+    #[deprecated(note = "inefficent")]
+    pub fn add_anon_repeat(&mut self, sub: Vec<Sky<T>>) {
+        if (sub.len() == 0) || sub[0].empty() {
+            return;
+        }
+        for n in sub[0].iter_keys() {
+            let asters: Vec<Asterism<T>> =
+                sub.iter().map(|sky| sky.find_or_panic(n).clone()).collect();
+            self.mut_set(*n, Asterism::join(asters));
+        }
+    }
+
+    #[deprecated(note = "named repeats are gone")]
+    pub fn anonimize_repeat(&mut self, _: Name) {}
 }
 
 // TODO: move these to macros.rs (and fully-qualify their names)
