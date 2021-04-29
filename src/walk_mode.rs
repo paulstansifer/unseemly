@@ -181,12 +181,18 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
         (freshen(&node), cnc) // No-op
     }
 
+    /// Turn `a` from an `Ast` into an `Elt` using `::from_ast()`... except:
+    ///  * any `Node` it has might be unquotation or dotdotdoting, which escape quotation
+    ///  * any `ExtendEnv[Phaseless]` still extends the environment
+    ///  * `VariableReference`/`Atom` might need special handling from `walk_var`/`walk_atom`.
     fn walk_quasi_literally(a: Ast, cnc: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode> {
         // TODO: this needs to handle splicing, like the negative w_q_l does.
         // (Wait, in what way does it not?!?)
         match a {
             Node(f, parts, exports) => {
-                let mut walked: EnvMBE<Ast> = parts
+                // For the sake of `ExtendEnv`, we need to march out `cnc`:
+                //  betas look at the environment in a marched way.
+                let mut walked = parts
                     .map_marched_against(
                         &mut |p: &Ast, cnc_m: &LazyWalkReses<Self::Mode>| {
                             match *p {
