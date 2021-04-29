@@ -138,7 +138,7 @@ pub fn make_core_syn_env() -> SynEnv {
             cust_rc_box!(move | part_types | {
                 let mut res : Option<Ty> = None;
 
-                for arm_part_types in part_types.march_parts(&[n("arm")]) {
+                for arm_part_types in part_types.march_parts(&[n("arm"), n("p")]) {
                     // We don't need to manually typecheck
                     //  that the arm patterns match the scrutinee;
                     //  the import handles that for us.
@@ -162,7 +162,7 @@ pub fn make_core_syn_env() -> SynEnv {
             }),
             /* Evaluation: */
             cust_rc_box!( move | part_values | {
-                for arm_values in part_values.march_all(&[n("arm")]) {
+                for arm_values in part_values.march_all(&[n("arm"), n("p")]) {
                     // TODO: don't we need to set a context?
                     match arm_values.get_res(n("arm")) {
                         Ok(res) => { return Ok(res); }
@@ -185,7 +185,7 @@ pub fn make_core_syn_env() -> SynEnv {
             expect_ty_node!( (res ; find_type(&ctf_2, "enum") ; &part_types.this_ast)
                 enum_type_parts;
                 {
-                    for enum_type_part in enum_type_parts.march_all(&[n("name")]) {
+                    for enum_type_part in enum_type_parts.march_all(&[n("name"), n("component")]) {
                         if &part_types.get_term(n("name"))
                                 != enum_type_part.get_leaf_or_panic(&n("name")) {
                             continue; // not the right arm
@@ -225,10 +225,11 @@ pub fn make_core_syn_env() -> SynEnv {
                     .into_iter().map(|c : Ty| c.concrete()))
             }))
         }),
-        cust_rc_box!( move | part_values | {
+        cust_rc_box!( move | part_values |   {
             let mut res = Assoc::new();
 
-            for component_parts in part_values.march_parts(&[n("component")]) {
+            for component_parts in part_values
+                    .march_parts(&[n("component"), n("component_name")]) {
                 res = res.set(component_parts.get_term(n("component_name")).to_name(),
                               component_parts.get_res(n("component"))?);
             }
@@ -343,8 +344,8 @@ pub fn make_core_syn_env() -> SynEnv {
                     {
                         let arm_name = &part_types.get_term(n("name"));
 
-                        for enum_type_part in enum_type_parts.march_all(&[n("name")]) {
-
+                        for enum_type_part in enum_type_parts
+                                .march_all(&[n("name"), n("component")]) {
                             if arm_name != enum_type_part.get_leaf_or_panic(&n("name")) {
                                 continue; // not the right arm
                             }
@@ -397,10 +398,12 @@ pub fn make_core_syn_env() -> SynEnv {
                     struct_type_parts;
                     {
                         let mut res = Assoc::new();
-                        for component_ctx in part_types.march_parts(&[n("component")]) {
+                        for component_ctx in part_types
+                                .march_parts(&[n("component"), n("component_name")]) {
                             let mut component_found = false;
                             for struct_type_part
-                                    in struct_type_parts.march_all(&[n("component")]) {
+                                    in struct_type_parts
+                                        .march_all(&[n("component"), n("component_name")]) {
                                 if &component_ctx.get_term(n("component_name"))
                                     != struct_type_part.get_leaf_or_panic(&n("component_name")) {
                                     continue;
@@ -428,7 +431,8 @@ pub fn make_core_syn_env() -> SynEnv {
                     Struct(ref contents) => {
                         let mut res = Assoc::new();
 
-                        for component_ctx in part_values.march_parts(&[n("component")]) {
+                        for component_ctx in part_values
+                                .march_parts(&[n("component"), n("component_name")]) {
                             res = res.set_assoc(
                                 &component_ctx
                                     .with_context(contents.find_or_panic(
