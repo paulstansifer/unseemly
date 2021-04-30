@@ -436,6 +436,16 @@ pub fn make_core_syn_env_types() -> SynEnv {
         ]), Rc::new(VarRef(Rc::new(Call(n("DefaultAtom"))))))))
 }
 
+thread_local! {
+    pub static core_type_forms: SynEnv = make_core_syn_env_types();
+}
+
+pub fn get_core_types() -> SynEnv { core_type_forms.with(|ctf| ctf.clone()) }
+
+pub fn find_type(form_name: &str) -> Rc<Form> {
+    core_type_forms.with(|ctf| crate::core_forms::find_form(ctf, "Type", form_name))
+}
+
 // TODO #4: this should be extensible for when the syntax environment is extended...
 //  or just automatically have one type per NT. Probably the latter.
 pub fn nt_to_type(nt: Name) -> Ty {

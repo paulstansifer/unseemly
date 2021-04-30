@@ -2,7 +2,7 @@
 
 use crate::{
     ast::*,
-    ast_walk::WalkRule::*,
+    ast_walk::{LazyWalkReses, WalkRule::*},
     core_type_forms::*,
     form::Form,
     grammar::{
@@ -34,220 +34,275 @@ pub fn strip_ee(a: &Ast) -> &Ast {
     }
 }
 
+// lambda ==> [param: Atom  p_t: Type]*  body: Expr
+fn type_lambda(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
+    let lambda_type: Ty = ty!({ find_type("fn") ;
+         "param" => [* part_types =>("param") part_types :
+                       (, part_types.get_res(n("p_t"))?.concrete() )],
+         "ret" => (, part_types.get_res(n("body"))?.concrete() )});
+    Ok(lambda_type)
+}
+fn eval_lambda(part_values: LazyWalkReses<Eval>) -> Result<Value, ()> {
+    Ok(Function(Rc::new(Closure {
+        body: strip_ee(part_values.get_term_ref(n("body"))).clone(),
+        params: part_values.get_rep_term(n("param")).iter().map(Ast::to_name).collect(),
+        env: part_values.env,
+    })))
+}
+
+// apply ==>  rator: Expr  [rand: Expr]*
+fn type_apply(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
+    use crate::walk_mode::WalkMode;
+    let return_type = crate::ty_compare::Subtype::underspecified(n("<return_type>"));
+
+    // The `rator` must be a function that takes the `rand`s as arguments:
+    let _ = crate::ty_compare::is_subtype(
+        &ty!({ "Type" "fn" :
+            "param" => (,seq part_types.get_rep_res(n("rand"))?
+                 .iter().map(|t| t.concrete()).collect::<Vec<_>>() ),
+            "ret" => (, return_type.concrete() )}),
+        &part_types.get_res(n("rator"))?,
+        &part_types,
+    )
+    .map_err(|e| crate::util::err::sp(e, part_types.this_ast.clone()))?;
+
+    // TODO: write a test that exercises this (it's used in the prelude)
+    // What return type made that work?
+    crate::ty_compare::unification.with(|unif| {
+        let res = crate::ty_compare::resolve(
+            crate::ast_walk::Clo { it: return_type, env: part_types.env.clone() },
+            &unif.borrow(),
+        );
+
+        // Canonicalize the type in its environment:
+        let res = crate::ty_compare::canonicalize(&res.it, res.env);
+        res.map_err(|e| crate::util::err::sp(e, part_types.this_ast.clone()))
+    })
+}
+fn eval_apply(part_values: LazyWalkReses<Eval>) -> Result<Value, ()> {
+    match part_values.get_res(n("rator"))? {
+        Function(clos) => {
+            let mut new_env = clos.env.clone();
+            for (p, v) in clos.params.iter().zip(part_values.get_rep_res(n("rand"))?) {
+                new_env = new_env.set(*p, v);
+            }
+
+            // TODO: this seems wrong; it discards other phase information.
+            // But would it be correct to have closures capture at all phases?
+            crate::runtime::eval::eval(&clos.body, new_env)
+        }
+        BuiltInFunction(crate::runtime::eval::BIF(f)) => Ok(f(part_values.get_rep_res(n("rand"))?)),
+        other => {
+            icp!("[type error] invoked {:#?} as if it were a function", other)
+        }
+    }
+}
+
+// match ==> scrutinee: Expr  [p: Pat  arm: Expr]*
+fn type_match(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
+    let mut res: Option<Ty> = None;
+
+    for arm_part_types in part_types.march_parts(&[n("arm"), n("p")]) {
+        // We don't need to manually typecheck that the arm patterns match the scrutinee;
+        //  the import handles that for us.
+
+        let arm_res = arm_part_types.get_res(n("arm"))?;
+
+        match res {
+            None => res = Some(arm_res),
+            Some(ref old_res) => {
+                ty_exp!(old_res, &arm_res, arm_part_types.get_term(n("arm")));
+            }
+        }
+    }
+    match res {
+        None => {
+            // TODO #2: this isn't anywhere near exhaustive
+            ty_err!(NonExhaustiveMatch(part_types.get_res(n("scrutinee")).unwrap())
+                at Trivial /* TODO */)
+        }
+        Some(ty_res) => Ok(ty_res),
+    }
+}
+fn eval_match(part_values: LazyWalkReses<Eval>) -> Result<Value, ()> {
+    for arm_values in part_values.march_all(&[n("arm"), n("p")]) {
+        // TODO: don't we need to set a context?
+        match arm_values.get_res(n("arm")) {
+            Ok(res) => {
+                return Ok(res);
+            }
+            Err(()) => { /* try the next one */ }
+        }
+    }
+    panic!("No arms matched! TODO #2");
+}
+
+// enum_expr ==> name: Atom [component: Expr]*
+fn type_enum_expr(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
+    let res: Ty = part_types.get_res(n("t"))?;
+    expect_ty_node!( (res ; find_type("enum") ; &part_types.this_ast)
+        enum_type_parts;
+        {
+            for enum_type_part in enum_type_parts.march_all(&[n("name"), n("component")]) {
+                if &part_types.get_term(n("name")) != enum_type_part.get_leaf_or_panic(&n("name")) {
+                    continue; // not the right arm
+                }
+
+                let component_types : Vec<Ty> =
+                    enum_type_part.get_rep_leaf_or_panic(n("component"))
+                        .iter().map(|a| Ty::new((*a).clone())).collect();
+
+                // TODO: check that they're the same length!
+
+                for (t, expected_t) in part_types.get_rep_res(n("component"))?
+                        .iter().zip(component_types) {
+                    ty_exp!(t, &expected_t, part_types.this_ast);
+                }
+                return Ok(res);
+            }
+
+            ty_err!(NonexistentEnumArm(part_types.get_term(n("name")).to_name(), res)
+                    at part_types.this_ast);
+        }
+    )
+}
+fn eval_enum_expr(part_values: LazyWalkReses<Eval>) -> Result<Value, ()> {
+    Ok(Enum(part_values.get_term(n("name")).to_name(), part_values.get_rep_res(n("component"))?))
+}
+
+// struct_expr ==> [component_name: Atom  component: Expr]*
+fn type_struct_expr(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
+    Ok(ty!({ find_type("struct") ;
+        "component_name" => (@"c" ,seq part_types.get_rep_term(n("component_name"))),
+        "component" => (@"c" ,seq part_types.get_rep_res(n("component"))?
+            .into_iter().map(|c : Ty| c.concrete()))
+    }))
+}
+fn eval_struct_expr(part_values: LazyWalkReses<Eval>) -> Result<Value, ()> {
+    let mut res = Assoc::new();
+
+    for component_parts in part_values.march_parts(&[n("component"), n("component_name")]) {
+        res = res.set(
+            component_parts.get_term(n("component_name")).to_name(),
+            component_parts.get_res(n("component"))?,
+        );
+    }
+
+    Ok(Struct(res))
+}
+
+// tuple_expr ==> [component: Expr]*
+fn type_tuple_expr(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
+    Ok(uty!({tuple : [,
+        part_types.get_rep_res(n("component"))?
+            .into_iter().map(|t| t.concrete()).collect() ]}))
+}
+fn eval_tuple_expr(part_values: LazyWalkReses<Eval>) -> Result<Value, ()> {
+    Ok(crate::runtime::eval::Value::Sequence(
+        part_values.get_rep_res(n("component"))?.into_iter().map(Rc::new).collect(),
+    ))
+}
+
+// unfold ==> body: Expr
+fn type_unfold(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
+    // TODO: this "evaluates" types twice; once in `get_res` and once in `synth_type`
+    // It shouldn't be necessary, and it's probably quadratic.
+    // Maybe this points to a weakness in the LiteralLike approach to traversing types?
+    let mu_typed = part_types.get_res(n("body"))?;
+
+    // Pull off the `mu` (and the `ExtendEnv` that it carries):
+    // (This is sound because `mu`'s param must already be in the environment.)
+    expect_ty_node!( (mu_typed ; find_type("mu_type") ;  &part_types.this_ast)
+    mu_parts;
+    {
+        // This acts like the `mu` was never there (and hiding the binding)
+        if let ExtendEnv(ref body, _) = *mu_parts.get_leaf_or_panic(&n("body")) {
+            synth_type(body, part_types.env)
+        } else { icp!("no protection to remove!"); }
+    })
+}
+
+// fold ==> body: Expr  t: Type
+fn type_fold(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
+    let goal_type = part_types.get_res(n("t"))?;
+    // TODO: I can't figure out how to pull this out into a function
+    //  to invoke both here and above, since `mu_type_0` needs cloning...
+    let folded_goal = expect_ty_node!(
+        (goal_type.clone() ; find_type("mu_type") ; &part_types.this_ast)
+    mu_parts;
+    {
+        // This acts like the `mu` was never there (and hiding the binding)
+        if let ExtendEnv(ref body, _) = *mu_parts.get_leaf_or_panic(&n("body")) {
+            synth_type(body, part_types.env.clone())?
+        } else {
+            icp!("no protection to remove!");
+        }
+    });
+
+    ty_exp!(&part_types.get_res(n("body"))?, &folded_goal, part_types.this_ast);
+    Ok(goal_type)
+}
+
+// forall_expr ==> [param: Atom]*  body: Expr
+fn type__forall_expr(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
+    Ok(ty!({"Type" "forall_type" :
+        "param" => (,seq part_types.get_rep_term(n("param"))),
+        "body" => (import [* [forall "param"]] (, part_types.get_res(n("body"))?.concrete()))
+    }))
+}
+
+// TODO: pull out all the other form implementations into freestanding functions.
+
 /// This is the Unseemly language.
 pub fn make_core_syn_env() -> SynEnv {
     color_backtrace::install(); // HACK: this is around the first thing that happens in any test.
 
-    let ctf: SynEnv = make_core_syn_env_types();
+    let ctf: SynEnv = get_core_types();
     let cmf: SynEnv = crate::core_macro_forms::make_core_macro_forms();
-
-    // This seems to be necessary to get separate `Rc`s into the closures.
-    // TODO: surely there's a better way?
-    let ctf_0 = ctf.clone();
-    let ctf_2 = ctf.clone();
-    let ctf_3 = ctf.clone();
-    let ctf_4 = ctf.clone();
-    let ctf_5 = ctf.clone();
-    let ctf_6 = ctf.clone();
-    let ctf_7 = ctf.clone();
-    let ctf_8 = ctf.clone();
 
     // Unseemly expressions
     let main_expr_forms = forms_to_form_pat![
         typed_form!("lambda",
-        /* syntax */ /* TODO: add comma separators to the syntax! */
-        (delim ".[", "[", [
-                           (star [(named "param", atom), (lit ":"),
-                                  (named "p_t", (call "Type"))]), (lit "."),
-            (named "body",
-                (import [* ["param" : "p_t"]], (call "Expr")))]),
-        /* type */
-        cust_rc_box!( move | part_types | {
-            let lambda_type : Ty =
-                ty!({ find_type(&ctf_0, "fn") ;
-                     "param" => [* part_types =>("param") part_types :
-                                   (, part_types.get_res(n("p_t"))?.concrete() )],
-                     "ret" => (, part_types.get_res(n("body"))?.concrete() )});
-            Ok(lambda_type)}),
-        /* evaluation */
-        cust_rc_box!( move | part_values | {
-            Ok(Function(Rc::new(Closure {
-                body: strip_ee(part_values.get_term_ref(n("body"))).clone(),
-                params:
-                    part_values.get_rep_term(n("param")).iter().map(Ast::to_name).collect(),
-                env: part_values.env
-            })))
-        })),
+            (delim ".[", "[", [ // TODO: add comma separators to the syntax!
+                            (star [(named "param", atom), (lit ":"),
+                                    (named "p_t", (call "Type"))]), (lit "."),
+                (named "body",
+                    (import [* ["param" : "p_t"]], (call "Expr")))]),
+            cust_rc_box!(type_lambda),
+            cust_rc_box!(eval_lambda)),
         typed_form!("apply", /* function application*/
-        (delim "(", "(", [(named "rator", (call "Expr")),
-         (star (named "rand", (call "Expr")))]),
-        cust_rc_box!(move | part_types | {
-            use crate::walk_mode::WalkMode;
-            let return_type = crate::ty_compare::Subtype::underspecified(n("<return_type>"));
-
-            // The `rator` must be a function that takes the `rand`s as arguments:
-            let _ = crate::ty_compare::is_subtype(
-                &ty!({ "Type" "fn" :
-                    "param" => (,seq part_types.get_rep_res(n("rand"))?
-                         .iter().map(|t| t.concrete()).collect::<Vec<_>>() ),
-                    "ret" => (, return_type.concrete() )}),
-                &part_types.get_res(n("rator"))?,
-                &part_types)
-                    .map_err(|e| crate::util::err::sp(e, part_types.this_ast.clone()))?;
-
-
-            // TODO: write a test that exercises this (it's used in the prelude)
-            // What return type made that work?
-            crate::ty_compare::unification.with(|unif| {
-                let res = crate::ty_compare::resolve(
-                    crate::ast_walk::Clo{ it: return_type, env: part_types.env.clone()},
-                    &unif.borrow());
-
-                // Canonicalize the type in its environment:
-                let res = crate::ty_compare::canonicalize(&res.it, res.env);
-                res.map_err(|e| crate::util::err::sp(e, part_types.this_ast.clone()))
-            })
-        }),
-        cust_rc_box!( move | part_values | {
-            match part_values.get_res(n("rator"))? {
-                Function(clos) => {
-                    let mut new_env = clos.env.clone();
-                    for (p, v) in clos.params.iter().zip(
-                            part_values.get_rep_res(n("rand"))?) {
-                        new_env = new_env.set(*p, v);
-                    }
-
-                    // TODO: this seems wrong; it discards other phase information.
-                    // But would it be correct to have closures capture at all phases?
-                    crate::runtime::eval::eval(&clos.body, new_env)
-                },
-                BuiltInFunction(crate::runtime::eval::BIF(f)) => {
-                    Ok(f(part_values.get_rep_res(n("rand"))?))
-                }
-                other => {
-                    icp!("[type error] invoked {:#?} as if it were a function", other)
-                }
-            }
-        })),
+            (delim "(", "(", [(named "rator", (call "Expr")),
+                (star (named "rand", (call "Expr")))]),
+            cust_rc_box!(type_apply),
+            cust_rc_box!(eval_apply)),
         typed_form!("match",
             [(lit "match"), (named "scrutinee", (call "Expr")),
              (delim "{", "{",
                  (plus [(named "p", (call "Pat")), (lit "=>"),
                         (named "arm", (import ["p" = "scrutinee"], (call "Expr")))]))],
-            /* Typesynth: */
-            cust_rc_box!(move | part_types | {
-                let mut res : Option<Ty> = None;
-
-                for arm_part_types in part_types.march_parts(&[n("arm"), n("p")]) {
-                    // We don't need to manually typecheck
-                    //  that the arm patterns match the scrutinee;
-                    //  the import handles that for us.
-
-                    let arm_res = arm_part_types.get_res(n("arm"))?;
-
-                    match res {
-                        None => { res = Some(arm_res) }
-                        Some(ref old_res) => {
-                            ty_exp!(old_res, &arm_res, arm_part_types.get_term(n("arm")));
-                        }
-                    }
-                }
-                match res {
-                    None => { // TODO #2: this isn't anywhere near exhaustive
-                        ty_err!(NonExhaustiveMatch(part_types.get_res(n("scrutinee")).unwrap())
-                            at Trivial /* TODO */)
-                    },
-                    Some(ty_res) => Ok(ty_res)
-                }
-            }),
-            /* Evaluation: */
-            cust_rc_box!( move | part_values | {
-                for arm_values in part_values.march_all(&[n("arm"), n("p")]) {
-                    // TODO: don't we need to set a context?
-                    match arm_values.get_res(n("arm")) {
-                        Ok(res) => { return Ok(res); }
-                        Err(()) => { /* try the next one */ }
-                    }
-                }
-                panic!("No arms matched! TODO #2");
-            })
+            cust_rc_box!(type_match),
+            cust_rc_box!(eval_match)
         ),
         // Note that we inconveniently require the user to specify the type.
         // "real" languages infer the type from the (required-to-be-unique)
         // component name.
         typed_form!("enum_expr",
-         [(delim "+[", "[", [(named "name", atom),
-                             (star (named "component", (call "Expr")))]),
-          (lit ":"), (named "t", (call "Type"))],
-        /* Typesynth: */
-        cust_rc_box!( move | part_types | {
-            let res : Ty = part_types.get_res(n("t"))?;
-            expect_ty_node!( (res ; find_type(&ctf_2, "enum") ; &part_types.this_ast)
-                enum_type_parts;
-                {
-                    for enum_type_part in enum_type_parts.march_all(&[n("name"), n("component")]) {
-                        if &part_types.get_term(n("name"))
-                                != enum_type_part.get_leaf_or_panic(&n("name")) {
-                            continue; // not the right arm
-                        }
-
-                        let component_types : Vec<Ty> =
-                            enum_type_part.get_rep_leaf_or_panic(n("component"))
-                                .iter().map(|a| Ty::new((*a).clone())).collect();
-
-                        // TODO: check that they're the same length!
-
-                        for (t, expected_t) in part_types.get_rep_res(n("component"))?
-                                .iter().zip(component_types) {
-                            ty_exp!(t, &expected_t, part_types.this_ast);
-                        }
-                    return Ok(res);
-                    }
-
-                    ty_err!(NonexistentEnumArm(part_types.get_term(n("name")).to_name(), res)
-                            at part_types.this_ast);
-                }
-            )
-        }),
-        /* Evaluate: */
-        cust_rc_box!( move | part_values | {
-            Ok(Enum(part_values.get_term(n("name")).to_name(),
-                part_values.get_rep_res(n("component"))?))
-        })),
+            [(delim "+[", "[", [(named "name", atom),
+                                (star (named "component", (call "Expr")))]),
+            (lit ":"), (named "t", (call "Type"))],
+            cust_rc_box!(type_enum_expr),
+            cust_rc_box!(eval_enum_expr)),
         typed_form!("struct_expr",
-        (delim "*[", "[",
-            (star [(named "component_name", atom), (lit ":"),
-                   (named "component", (call "Expr"))])),
-        cust_rc_box!( move | part_types | {
-            Ok(ty!({ find_type(&ctf_3, "struct") ;
-                "component_name" => (@"c" ,seq part_types.get_rep_term(n("component_name"))),
-                "component" => (@"c" ,seq part_types.get_rep_res(n("component"))?
-                    .into_iter().map(|c : Ty| c.concrete()))
-            }))
-        }),
-        cust_rc_box!( move | part_values |   {
-            let mut res = Assoc::new();
-
-            for component_parts in part_values
-                    .march_parts(&[n("component"), n("component_name")]) {
-                res = res.set(component_parts.get_term(n("component_name")).to_name(),
-                              component_parts.get_res(n("component"))?);
-            }
-
-            Ok(Struct(res))
-        })),
+            (delim "*[", "[",
+                (star [(named "component_name", atom), (lit ":"),
+                    (named "component", (call "Expr"))])),
+            cust_rc_box!(type_struct_expr),
+            cust_rc_box!(eval_struct_expr)),
         typed_form!(
             "tuple_expr",
             (delim "**[", "[", (star (named "component", (call "Expr")))),
-            cust_rc_box!( move |part_types| {
-                Ok(uty!({tuple : [,
-                    part_types.get_rep_res(n("component"))?
-                        .into_iter().map(|t| t.concrete()).collect() ]}))
-            }),
-            cust_rc_box!( move |part_values| {
-                Ok(crate::runtime::eval::Value::Sequence(
-                    part_values.get_rep_res(n("component"))?.into_iter().map(Rc::new).collect()))
-            })
+            cust_rc_box!(type_tuple_expr),
+            cust_rc_box!(eval_tuple_expr)
         ),
         // e.g.
         // let_type
@@ -255,78 +310,38 @@ pub fn make_core_syn_env() -> SynEnv {
         //   point = pair<int, int>
         // in ...
         typed_form!("let_type",
-        [(lit "let_type"),
-         (named "type_kind_stx", (anyways "*")),
-         (star [(named "type_name", atom),
-                (lit "="),
-                (named "type_def", (import [* ["type_name" = "type_def"]], (call "Type")))]),
-         (lit "in"),
-         (named "body", (import [* ["type_name" = "type_def"]], (call "Expr")))],
-        Body(n("body")),
-        // HACK: like `Body(n("body"))`, but ignoring the binding, since it's type-level.
-        // This feels like it ought to be better-handled by `beta`, or maybe a kind system.
-        cust_rc_box!( move | let_type_parts | {
-            crate::ast_walk::walk::<Eval>(
-                strip_ee(&let_type_parts.get_term(n("body"))), &let_type_parts)
-        })),
+            [(lit "let_type"),
+             (named "type_kind_stx", (anyways "*")),
+             (star [(named "type_name", atom),
+                    (lit "="),
+                    (named "type_def", (import [* ["type_name" = "type_def"]], (call "Type")))]),
+             (lit "in"),
+             (named "body", (import [* ["type_name" = "type_def"]], (call "Expr")))],
+            Body(n("body")),
+            // HACK: like `Body(n("body"))`, but ignoring the binding, since it's type-level.
+            // This feels like it ought to be better-handled by `beta`, or maybe a kind system.
+            cust_rc_box!( move | let_type_parts | {
+                crate::ast_walk::walk::<Eval>(
+                    strip_ee(&let_type_parts.get_term(n("body"))), &let_type_parts)
+            })),
         // e.g. where List = ∀ X. μ List. enum { Nil(), Cons(X, List<X>) }
         // .[x : List<X>  . match (unfold x) ... ].
         // (unfold is needed because `match` wants an `enum`, not a `μ`)
         // Exposes the inside of a μ type by performing one level of substitution.
         typed_form!("unfold",
             [(lit "unfold"), (named "body", (call "Expr"))],
-            cust_rc_box!( move |unfold_parts| {
-                // TODO: this "evaluates" types twice; once in `get_res` and once in `synth_type`
-                // It shouldn't be necessary, and it's probably quadratic.
-                // Maybe this points to a weakness in the LiteralLike approach to traversing types?
-                let mu_typed = unfold_parts.get_res(n("body"))?;
-
-                // Pull off the `mu` (and the `ExtendEnv` that it carries):
-                // (This is sound because `mu`'s param must already be in the environment.)
-                expect_ty_node!( (mu_typed ; find_type(&ctf_4, "mu_type") ;
-                                    &unfold_parts.this_ast)
-                    mu_parts;
-                    {
-                        // This acts like the `mu` was never there (and hiding the binding)
-                        if let ExtendEnv(ref body, _) = *mu_parts.get_leaf_or_panic(&n("body")) {
-                            synth_type(body, unfold_parts.env)
-                        } else { icp!("no protection to remove!"); }
-                    })
-            }),
+            cust_rc_box!(type_unfold),
             Body(n("body"))),
         // e.g. where List = ∀ X. μ List. enum { Nil (), Cons (X, List<X>) }
         // (.[x : List<X> . ...]. (fold +[Nil]+) ) : List<X>
         typed_form!("fold",
             [(lit "fold"), (named "body", (call "Expr")), (lit ":"), (named "t", (call "Type"))],
-            cust_rc_box!( move |fold_parts| {
-                let goal_type = fold_parts.get_res(n("t"))?;
-                // TODO: I can't figure out how to pull this out into a function
-                //  to invoke both here and above, since `mu_type_0` needs cloning...
-                let folded_goal = expect_ty_node!(
-                        (goal_type.clone() ; find_type(&ctf_5, "mu_type") ; &fold_parts.this_ast)
-                    mu_parts;
-                    {
-                        // This acts like the `mu` was never there (and hiding the binding)
-                        if let ExtendEnv(ref body, _) = *mu_parts.get_leaf_or_panic(&n("body")) {
-                            synth_type(body, fold_parts.env.clone())?
-                        } else { icp!("no protection to remove!"); }
-                    });
-
-                ty_exp!(&fold_parts.get_res(n("body"))?, &folded_goal,
-                        fold_parts.this_ast);
-                Ok(goal_type)
-            }),
+            cust_rc_box!(type_fold),
             Body(n("body"))),
         typed_form!("forall_expr",
             [(lit "forall"), (star (named "param", atom)), (lit "."),
              (named "body", (import [* [forall "param"]], (call "Expr")))],
-            cust_rc_box!( move |forall_parts| {
-                Ok(ty!({"Type" "forall_type" :
-                    "param" => (,seq forall_parts.get_rep_term(n("param"))),
-                    "body" => (import [* [forall "param"]]
-                        (, forall_parts.get_res(n("body"))?.concrete()))
-                }))
-            }),
+            cust_rc_box!(type__forall_expr),
             Body(n("body"))),
         crate::core_qq_forms::quote(/* positive= */ true),
         crate::core_macro_forms::extend_syntax()
@@ -338,7 +353,7 @@ pub fn make_core_syn_env() -> SynEnv {
                                (star (named "component", (call "Pat")))]),
             /* (Negatively) Typecheck: */
             cust_rc_box!( move | part_types |
-                expect_ty_node!( (part_types.context_elt() ; find_type(&ctf_6, "enum") ;
+                expect_ty_node!( (part_types.context_elt() ; find_type("enum") ;
                                       &part_types.this_ast)
                     enum_type_parts;
                     {
@@ -393,7 +408,7 @@ pub fn make_core_syn_env() -> SynEnv {
                         (named "component", (call "Pat"))]))],
             /* (Negatively) typesynth: */
             cust_rc_box!( move | part_types |
-                expect_ty_node!( (part_types.context_elt() ; find_type(&ctf_7, "struct") ;
+                expect_ty_node!( (part_types.context_elt() ; find_type("struct") ;
                                       &part_types.this_ast)
                     struct_type_parts;
                     {
@@ -449,7 +464,7 @@ pub fn make_core_syn_env() -> SynEnv {
         negative_typed_form!("tuple_pat",
             (delim "**[", "[", (star (named "component", (call "Pat")))),
             cust_rc_box!( move |part_types|
-                expect_ty_node!( (part_types.context_elt() ; find_type(&ctf_8, "tuple") ;
+                expect_ty_node!( (part_types.context_elt() ; find_type("tuple") ;
                                     &part_types.this_ast)
                     ctxt_type_parts;
                     {
@@ -593,8 +608,6 @@ pub fn add_form_at_the_alt(outer: Rc<FormPat>, inner: &FormPat) -> Option<FormPa
         _ => None,
     }
 }
-
-fn find_type(se: &SynEnv, form_name: &str) -> Rc<Form> { find_form(se, "Type", form_name) }
 
 thread_local! {
     pub static core_forms: SynEnv = make_core_syn_env();

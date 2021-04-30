@@ -437,17 +437,15 @@ macro_rules! syn_env {
     };
 }
 
-// utility, for core_forms and core_type_forms
-// This has to be a macro for type reasons involving sizedness I don't understand.
+// Utility for constructing `Custom` walks
+// Seems impossible to make this a function, for lifetime/sizedness reasons.
 macro_rules! cust_rc_box {
     ($contents:expr) => {
         crate::ast_walk::WalkRule::Custom(std::rc::Rc::new(Box::new($contents)))
     };
 }
 
-// Form
-// TODO: It's easier to read these with  "/* type */", "/* evaluation */" (etc) annotations.
-// Refactor these macros to include them as part of their syntax.
+// Form definitions
 
 macro_rules! basic_typed_form {
     ( $p:tt, $gen_type:expr, $eval:expr ) => {
