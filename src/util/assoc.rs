@@ -131,14 +131,12 @@ impl<K: Eq + Hash + Clone, V: Clone> Assoc<K, V> {
 
     pub fn map_borrow_f<'assoc, NewV: Clone, F>(&'assoc self, f: &mut F) -> Assoc<K, NewV>
     where F: FnMut(&'assoc V) -> NewV {
-        Assoc::<K, NewV>::from_hamt(
-            self.hamt.iter().map(|(ref k, ref v)| (k.clone(), f(v))).collect(),
-        )
+        Assoc::<K, NewV>::from_hamt(self.hamt.iter().map(|(k, ref v)| (k.clone(), f(v))).collect())
     }
     pub fn keyed_map_borrow_f<NewV: Clone, F>(&self, f: &mut F) -> Assoc<K, NewV>
     where F: FnMut(&K, &V) -> NewV {
         Assoc::<K, NewV>::from_hamt(
-            self.hamt.iter().map(|(ref k, ref v)| (k.clone(), f(k, v))).collect(),
+            self.hamt.iter().map(|(k, ref v)| (k.clone(), f(k, v))).collect(),
         )
     }
 
@@ -170,7 +168,7 @@ impl<K: Eq + Hash + Clone, V: Clone> Assoc<K, V> {
 
     pub fn find_value<'assoc, 'f>(&'assoc self, target: &'f V) -> Option<&'assoc K>
     where V: PartialEq {
-        self.hamt.iter().find(|(_, v)| v == target).map(|(k, _)| k)
+        self.hamt.iter().find(|(_, v)| v == &target).map(|(k, _)| k)
     }
 
     pub fn find_or_panic<'assoc, 'f>(&'assoc self, target: &'f K) -> &'assoc V
@@ -191,12 +189,12 @@ impl<K: Eq + Hash + Clone, V: Clone> Assoc<K, V> {
             .unwrap_or_else(|| icp!("{:#?} not found in {:#?}", target, self.map(|_| "…")))
     }
 
-    // Generates a version of `self` that lacks the entries it shares with `other`
+    // Generates a version of `self` that lacks the entries that have identical values in `other`
     pub fn cut_common(&self, other: &Assoc<K, V>) -> Assoc<K, V>
     where V: PartialEq {
-        Self::from_hamt(
-            self.hamt.iter().filter(|(k, v)| other.find(k) != Some(v)).cloned().collect(),
-        )
+        let mut hamt = self.hamt.clone();
+        hamt.retain(|k, v| other.find(k) != Some(v));
+        Self::from_hamt(hamt)
     }
 
     pub fn unset(&self, k: &K) -> Assoc<K, V> { Self::from_hamt(self.hamt.without(k)) }

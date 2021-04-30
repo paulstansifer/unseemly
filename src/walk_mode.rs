@@ -428,8 +428,7 @@ pub trait NegativeWalkMode: WalkMode {
 
 /// `var_to_out`, for positive walks where `Out` == `Elt`
 pub fn var_lookup<Elt: Debug + Clone>(n: Name, env: &Assoc<Name, Elt>) -> Result<Elt, ()> {
-    Ok((*env.find(&n).unwrap_or_else(|| panic!(format!("Name {:#?} unbound in {:#?}", n, env))))
-        .clone())
+    Ok((*env.find(&n).unwrap_or_else(|| panic!("Name {:#?} unbound in {:#?}", n, env))).clone())
 }
 
 /// `var_to_out`, for negative walks where `Out` == `Assoc<Name, Elt>``

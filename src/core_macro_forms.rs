@@ -575,7 +575,7 @@ pub fn make_core_macro_forms() -> SynEnv {
             |parts| {
                 let return_ty = parts.switch_mode::<SynthTy>().get_res(n("implementation"))?;
                 let mut arguments : Vec<(Name, Ty)> = parts.get_res(n("syntax"))?
-                    .iter_pairs().cloned().collect();
+                    .iter_pairs().map(|(n, t)| (*n, t.clone())).collect();
                 arguments.sort_by(|lhs, rhs| lhs.0.cmp(&rhs.0) ); // Pick a canonical order
                 let ty_params = &parts.get_rep_term(n("param")).iter().map(Ast::to_name
                             ).collect::<Vec<_>>();
