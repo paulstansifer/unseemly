@@ -66,8 +66,6 @@ impl std::cmp::Ord for Name {
 // These are for isolating tests of alpha-equivalence from each other.
 
 pub fn enable_fake_freshness(ff: bool) {
-    use std::borrow::BorrowMut;
-
     fake_freshness.with(|fake_freshness_| {
         *fake_freshness_.borrow_mut() = ff;
     })
@@ -114,8 +112,6 @@ impl Name {
     pub fn freshen(self) -> Name { Name::new(&self.orig_sp(), true) }
 
     fn new(orig_spelling: &str, freshen: bool) -> Name {
-        use std::borrow::{Borrow, BorrowMut};
-
         let fake_freshness_ = fake_freshness.with(|ff| *ff.borrow());
 
         id_map.with(|id_map_| {

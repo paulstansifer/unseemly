@@ -10,7 +10,7 @@ use crate::{
     ast::*,
     ast_walk::{
         walk, LazyWalkReses,
-        WalkRule::{self, *},
+        WalkRule::{self},
     },
     form::Form,
     name::*,
@@ -231,6 +231,8 @@ pub fn expect_type(expected: &Ty, got: &Ty, loc: &Ast) -> Result<(), TypeError> 
 
 #[test]
 fn basic_type_synth() {
+    use crate::ast_walk::WalkRule::*;
+
     let mt_ty_env = Assoc::new();
     let int_ty = ty!({
         crate::core_forms::find_core_form("Type", "Int");

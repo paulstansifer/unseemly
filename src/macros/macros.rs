@@ -696,7 +696,7 @@ macro_rules! assert_m {
                 // The `;` is to keep `cargo fmt` from removing the non-unnecessary `{}`.
                 $body();
             }
-            _ => assert!(false, "{:#?} does not match {:#?}", got, quote!($expected).as_str()),
+            _ => assert!(false, "{:#?} does not match {:#?}", got, stringify!($expected)),
         }
     }};
     // Deprecated:
@@ -704,7 +704,7 @@ macro_rules! assert_m {
         let got = $got;
         match got.clone() {
             $expected => assert!($body),
-            _ => assert!(false, "{:#?} does not match {:#?}", got, quote!($expected).as_str()),
+            _ => assert!(false, "{:#?} does not match {:#?}", got, stringify!($expected)),
         }
     }};
     ($got:expr, $expected:pat) => {

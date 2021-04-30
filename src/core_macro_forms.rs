@@ -2,7 +2,7 @@ use crate::{
     ast::{Ast, Atom, Node},
     ast_walk::{
         LazyWalkReses,
-        WalkRule::{Body, Custom, LiteralLike, NotWalked},
+        WalkRule::{Body, LiteralLike, NotWalked},
     },
     beta::{Beta, Beta::*, ExportBeta},
     core_forms::strip_ee,
@@ -13,11 +13,8 @@ use crate::{
         SynEnv,
     },
     name::*,
-    runtime::{
-        eval::{Closure, Eval},
-        reify::Reifiable,
-    },
-    ty::{SynthTy, Ty, TyErr},
+    runtime::{eval::Eval, reify::Reifiable},
+    ty::{SynthTy, Ty},
     util::assoc::Assoc,
     walk_mode::WalkElt,
 };

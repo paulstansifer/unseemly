@@ -2,11 +2,11 @@
 
 use crate::{
     alpha::Ren,
-    ast::{Ast, Atom, ExtendEnv, VariableReference},
+    ast::{Ast, Atom, ExtendEnv},
     ast_walk::{LazilyWalkedTerm, LazyWalkReses},
     name::*,
     util::{assoc::Assoc, mbe::EnvMBE},
-    walk_mode::{Dir, WalkElt},
+    walk_mode::WalkElt,
 };
 use std::fmt;
 

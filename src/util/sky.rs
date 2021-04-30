@@ -1,5 +1,5 @@
 use crate::{
-    name::{n, Name},
+    name::Name,
     util::{
         assoc::Assoc,
         asterism::{AsterMarchable, Asterism, AsterismSlice},
@@ -187,6 +187,8 @@ macro_rules! sky {
 
 #[test]
 fn sky_basics() {
+    use crate::name::n;
+
     let abc: Sky<usize> = sky!(
         a => [[1, 2], [3], []],
         b => 9,

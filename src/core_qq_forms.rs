@@ -1,9 +1,9 @@
 use crate::{
     ast::{Ast, Ast::*},
-    ast_walk::{squirrel_away, WalkRule::*},
+    ast_walk::WalkRule::*,
     core_type_forms::{less_quoted_ty, more_quoted_ty, nt_is_positive, nt_to_type},
     form::{Both, Form, Negative, Positive},
-    grammar::{FormPat, SynEnv},
+    grammar::FormPat,
     name::*,
     runtime::eval::{Destructure, Eval, QQuote, QQuoteDestr},
     ty::Ty,
@@ -486,10 +486,7 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
 // Furthermore, the direction of the walk is determined by the direction of the original quotation.
 
 pub fn quote(pos: bool) -> Rc<Form> {
-    use crate::{
-        earley::ParseContext,
-        grammar::FormPat::{self, *},
-    };
+    use crate::{earley::ParseContext, grammar::FormPat::*};
 
     let perform_quotation = move |pc: ParseContext, starter_info: Ast| -> ParseContext {
         let starter_nt = match starter_info {
@@ -1084,7 +1081,7 @@ fn quote_unquote_type_basic() {
 
 #[test]
 fn unquote_type_basic() {
-    use crate::ast_walk::{walk, LazyWalkReses, OutEnvHandle};
+    use crate::ast_walk::LazyWalkReses;
     let pos = true;
     let _neg = false;
 

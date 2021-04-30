@@ -911,7 +911,6 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
 
     pub fn map_terms<F, E: Clone>(self, f: &mut F) -> Result<LazyWalkReses<Mode>, E>
     where F: FnMut(Name, &Ast) -> Result<Ast, E> {
-        use std::clone::Clone;
         Ok(LazyWalkReses {
             parts: self
                 .parts

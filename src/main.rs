@@ -2,16 +2,9 @@
 // You shouldn't write code in Unseemly.
 // Instead, you should implement your programming language as Unseemly macros.
 
-#![allow(
-    dead_code,
-    unused_macros,
-    non_snake_case,
-    unused_imports,
-    non_upper_case_globals,
-    deprecated
-)]
+#![allow(dead_code, unused_macros, non_snake_case, non_upper_case_globals, deprecated)]
 // dead_code and unused_macros are hopefully temporary allowances
-// non_snake_case is stylistic, unused_imports is inaccurate for `cargo check`
+// non_snake_case is stylistic, so we can write `non__snake_case`.
 // non_upper_case_globals is stylistic; I like my thread_local!s lowercase.
 // deprecated is temporary, until `Sky` replaces `EnvMBE` (and the deprecated calls are cleaned up)
 #![recursion_limit = "128"] // Yikes.
@@ -22,11 +15,7 @@
 
 // TODO: turn these into `use` statements in the appropriate places
 #[macro_use]
-extern crate lazy_static;
-#[macro_use]
 extern crate custom_derive;
-#[macro_use]
-extern crate quote;
 
 use std::{fs::File, io::Read, path::Path};
 

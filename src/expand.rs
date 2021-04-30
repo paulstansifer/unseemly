@@ -4,8 +4,7 @@ use crate::{
     form::Form,
     name::{n, Name},
     runtime::{eval, eval::Value},
-    util::assoc::Assoc,
-    walk_mode::{NegativeWalkMode, WalkElt, WalkMode},
+    walk_mode::{NegativeWalkMode, WalkMode},
 };
 
 custom_derive! {
@@ -78,7 +77,7 @@ pub fn expand(ast: &Ast) -> Result<Ast, ()> {
 
 #[test]
 fn expand_basic_macros() {
-    use crate::core_macro_forms::macro_invocation;
+    use crate::{core_macro_forms::macro_invocation, util::assoc::Assoc};
 
     // Quasiquotation doesn't work with `u!`, so we have to use `ast!`:
     let macro_body_0_args = ast!({"Expr" "quote_expr" : "nt" => (vr "Expr"),

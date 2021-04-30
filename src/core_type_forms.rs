@@ -57,7 +57,7 @@ use crate::{
     ty::{synth_type, SynthTy, Ty, TyErr},
     ty_compare::{Canonicalize, Subtype},
     util::assoc::Assoc,
-    walk_mode::{NegativeWalkMode, WalkMode},
+    walk_mode::NegativeWalkMode,
 };
 use std::rc::Rc;
 

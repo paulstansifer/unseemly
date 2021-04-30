@@ -1,9 +1,4 @@
-use crate::{
-    ast_walk::WalkRule::*,
-    form::Form,
-    grammar::{FormPat, SynEnv},
-    name::*,
-};
+use crate::{ast_walk::WalkRule::*, form::Form, grammar::FormPat, name::*};
 use std::rc::Rc;
 
 /// These forms are theoretically implementable as macros from other forms,

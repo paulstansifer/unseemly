@@ -1,5 +1,4 @@
 // TODO: This file should be absorbed into `grammar.rs`.
-use crate::name::*;
 
 custom_derive! {
     #[derive(Debug,PartialEq,Eq,Clone,Copy,Reifiable)]

@@ -14,7 +14,6 @@ use crate::{
     ty::*,
     util::assoc::Assoc,
 };
-use num::bigint::ToBigInt;
 use std::rc::Rc; // type forms are kinda bulky
 
 // Core forms!
@@ -628,7 +627,6 @@ pub fn get_core_forms() -> SynEnv { core_forms.with(|cf| cf.clone()) }
 #[test]
 fn form_grammar() {
     let cse = make_core_syn_env();
-    use crate::read::{DelimChar::*, *};
 
     assert_eq!(
         crate::grammar::parse(
@@ -687,6 +685,8 @@ fn type_apply_with_subtype() {
 
 #[test]
 fn form_eval() {
+    use num::bigint::ToBigInt;
+
     let simple_env = assoc_n!("x" => val!(i 18),
                               "w" => val!(i 99),
                               "b" => val!(b false));

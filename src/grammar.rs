@@ -1,11 +1,10 @@
 #![macro_use]
 
 use crate::{
-    ast::Ast::{self, *},
+    ast::Ast,
     beta::{Beta, ExportBeta},
-    form::{simple_form, Form},
+    form::Form,
     name::*,
-    read::DelimChar,
     runtime::{eval::Value, reify},
     util::assoc::Assoc,
 };
@@ -303,6 +302,8 @@ fn alternation() {
 
 #[test]
 fn advanced_parsing() {
+    use crate::form::simple_form;
+
     assert_eq!(
         parse_top(
             &form_pat!([(star (named "c", (alt (lit_aat "X"), (lit_aat "O")))), (lit_aat "!")]),
@@ -383,7 +384,8 @@ fn advanced_parsing() {
 
 #[test]
 fn extensible_parsing() {
-    use crate::earley::ParseContext;
+    use crate::{ast::Ast::IncompleteNode, earley::ParseContext};
+
     fn static_synex(pc: ParseContext, _: Ast) -> ParseContext {
         ParseContext {
             grammar: assoc_n!(

@@ -1,7 +1,7 @@
 // Designed for `use reify::*`
 pub use crate::{ast::Ast, name::*, runtime::eval::Value};
 
-use crate::{runtime::eval, util::assoc::Assoc};
+use crate::runtime::eval;
 
 use num::bigint::BigInt;
 use std::rc::Rc;
