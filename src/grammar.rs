@@ -82,9 +82,9 @@ custom_derive! {
 impl FormPat {
     // Finds all `Named` nodes, and how many layers of repetition they are underneath.
     pub fn binders(&self) -> Vec<(Name, u8)> {
-        use tap::TapOps;
+        use tap::tap::Tap;
         match *self {
-            Named(n, ref body) => vec![(n, 0)].tap(|v| v.append(&mut body.binders())),
+            Named(n, ref body) => vec![(n, 0)].tap_mut(|v| v.append(&mut body.binders())),
             Seq(ref bodies) | Alt(ref bodies) => {
                 let mut res = vec![];
                 for body in bodies {
@@ -105,7 +105,7 @@ impl FormPat {
             | Common(ref body)
             | Reserved(ref body, _) => body.binders(),
             Biased(ref body_a, ref body_b) => {
-                body_a.binders().tap(|v| v.append(&mut body_b.binders()))
+                body_a.binders().tap_mut(|v| v.append(&mut body_b.binders()))
             }
             Anyways(_) | Impossible | Literal(_, _) | Scan(_) | VarRef(_) | Call(_) => vec![],
         }

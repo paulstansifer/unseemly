@@ -354,7 +354,7 @@ impl ExportBeta {
 
 // Helper for `bound_from_[export_]beta`:
 fn names_exported_by(ast: &Ast, quote_depth: i16) -> Vec<Name> {
-    use tap::TapOps;
+    use tap::tap::Tap;
 
     match *ast {
         Ast::Atom(n) => vec![n],
@@ -364,7 +364,7 @@ fn names_exported_by(ast: &Ast, quote_depth: i16) -> Vec<Name> {
             } else {
                 sub_parts.map_reduce(
                     &|a: &Ast| names_exported_by(a, quote_depth),
-                    &|v1, v2| v1.clone().tap(|v1| v1.append(&mut v2.clone())),
+                    &|v1, v2| v1.clone().tap_mut(|v1| v1.append(&mut v2.clone())),
                     vec![],
                 )
             }

@@ -22,7 +22,7 @@ num = "0.4.0"
 custom_derive = "0.1.7"
 rustyline = "8.0.0"
 dirs = "3.0.2"
-tap = "0.4.0"
+tap = "1.0.1"
 color-backtrace = "0"
 im-rc = "15.0"
 
