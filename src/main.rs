@@ -5,7 +5,7 @@
 #![allow(dead_code, unused_macros, non_snake_case, non_upper_case_globals, deprecated)]
 // dead_code and unused_macros are hopefully temporary allowances
 // non_snake_case is stylistic, so we can write `non__snake_case`.
-// non_upper_case_globals is stylistic; I like my thread_local!s lowercase.
+// non_upper_case_globals is stylistic ... but maybe thread_locals really ought to be upper case.
 // deprecated is temporary, until `Sky` replaces `EnvMBE` (and the deprecated calls are cleaned up)
 #![recursion_limit = "128"] // Yikes.
 
@@ -69,11 +69,17 @@ thread_local! {
 
 struct LineHelper {
     highlighter: rustyline::highlight::MatchingBracketHighlighter,
+    // Braket-matching isn't exactly right,
+    //  but running the whole parser to decide whether more lines are needed is probably ... bad.
+    validator: rustyline::validate::MatchingBracketValidator,
 }
 
 impl LineHelper {
     fn new() -> LineHelper {
-        LineHelper { highlighter: rustyline::highlight::MatchingBracketHighlighter::new() }
+        LineHelper {
+            highlighter: rustyline::highlight::MatchingBracketHighlighter::new(),
+            validator: rustyline::validate::MatchingBracketValidator::new(),
+        }
     }
 }
 
@@ -101,6 +107,7 @@ impl rustyline::completion::Completer for LineHelper {
 }
 
 impl rustyline::hint::Hinter for LineHelper {
+    type Hint = String;
     fn hint(&self, _line: &str, _pos: usize, _ctxt: &rustyline::Context) -> Option<String> { None }
 }
 
@@ -108,8 +115,12 @@ impl rustyline::highlight::Highlighter for LineHelper {
     fn highlight<'l>(&self, line: &'l str, pos: usize) -> Cow<'l, str> {
         self.highlighter.highlight(line, pos)
     }
-    fn highlight_prompt<'p>(&self, prompt: &'p str) -> Cow<'p, str> {
-        self.highlighter.highlight_prompt(prompt)
+    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
+        &'s self,
+        prompt: &'p str,
+        default: bool,
+    ) -> Cow<'b, str> {
+        self.highlighter.highlight_prompt(prompt, default)
     }
     fn highlight_hint<'h>(&self, hint: &'h str) -> Cow<'h, str> {
         self.highlighter.highlight_hint(hint)
@@ -124,6 +135,17 @@ impl rustyline::highlight::Highlighter for LineHelper {
     fn highlight_char(&self, line: &str, pos: usize) -> bool {
         self.highlighter.highlight_char(line, pos)
     }
+}
+
+impl rustyline::validate::Validator for LineHelper {
+    fn validate(
+        &self,
+        ctx: &mut rustyline::validate::ValidationContext,
+    ) -> rustyline::Result<rustyline::validate::ValidationResult> {
+        self.validator.validate(ctx)
+    }
+
+    fn validate_while_typing(&self) -> bool { self.validator.validate_while_typing() }
 }
 
 impl rustyline::Helper for LineHelper {}
