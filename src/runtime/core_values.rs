@@ -6,7 +6,6 @@ use crate::{
         Value::{self, *},
         BIF,
     },
-    ty::Ty,
     util::assoc::Assoc,
 };
 use std::rc::Rc;
@@ -20,7 +19,7 @@ pub struct TypedValue {
 }
 
 pub fn erase_type(tv: &TypedValue) -> Value { tv.val.clone() }
-pub fn erase_value(tv: &TypedValue) -> Ty { tv.ty.clone() }
+pub fn erase_value(tv: &TypedValue) -> Ast { tv.ty.clone() }
 
 pub fn core_typed_values() -> Assoc<Name, TypedValue> {
     assoc_n!(
@@ -88,7 +87,7 @@ macro_rules! reified_ty_env {
     };
 }
 
-pub fn core_types() -> Assoc<Name, Ty> {
+pub fn core_types() -> Assoc<Name, Ast> {
     use crate::{
         core_type_forms::get__primitive_type,
         runtime::reify::{Irr, Reifiable},
@@ -97,7 +96,7 @@ pub fn core_types() -> Assoc<Name, Ty> {
         .map(&erase_value)
         .set(
             n("Bool"),
-            ty!({"Type" "enum" : "name" => [@"c" "True", "False"], "component" => [@"c" [], []]}),
+            ast!({"Type" "enum" : "name" => [@"c" "True", "False"], "component" => [@"c" [], []]}),
         )
         // These need to be in the environment, not just atomic types
         //  because we sometimes look them up internally in the compiler

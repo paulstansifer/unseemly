@@ -35,7 +35,7 @@ pub fn strip_ee(a: &Ast) -> &Ast {
 
 // lambda ==> [param: Atom  p_t: Type]*  body: Expr
 fn type_lambda(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
-    let lambda_type: Ty = ty!({ find_type("fn") ;
+    let lambda_type: Ast = ast!({ find_type("fn") ;
          "param" => [* part_types =>("param") part_types : (, part_types.get_res(n("p_t"))? )],
          "ret" => (, part_types.get_res(n("body"))? )});
     Ok(lambda_type)
@@ -55,7 +55,7 @@ fn type_apply(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
 
     // The `rator` must be a function that takes the `rand`s as arguments:
     let _ = crate::ty_compare::is_subtype(
-        &ty!({ "Type" "fn" :
+        &ast!({ "Type" "fn" :
             "param" => (,seq part_types.get_rep_res(n("rand"))? ),
             "ret" => (, return_type.clone() )}),
         &part_types.get_res(n("rator"))?,
@@ -97,7 +97,7 @@ fn eval_apply(part_values: LazyWalkReses<Eval>) -> Result<Value, ()> {
 
 // match ==> scrutinee: Expr  [p: Pat  arm: Expr]*
 fn type_match(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
-    let mut res: Option<Ty> = None;
+    let mut res: Option<Ast> = None;
 
     for arm_part_types in part_types.march_parts(&[n("arm"), n("p")]) {
         // We don't need to manually typecheck that the arm patterns match the scrutinee;
@@ -136,7 +136,7 @@ fn eval_match(part_values: LazyWalkReses<Eval>) -> Result<Value, ()> {
 
 // enum_expr ==> name: Atom [component: Expr]*
 fn type_enum_expr(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
-    let res: Ty = part_types.get_res(n("t"))?;
+    let res: Ast = part_types.get_res(n("t"))?;
     expect_ty_node!( (res ; find_type("enum") ; &part_types.this_ast)
         enum_type_parts;
         {
@@ -145,7 +145,7 @@ fn type_enum_expr(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
                     continue; // not the right arm
                 }
 
-                let component_types : Vec<&Ty> =
+                let component_types : Vec<&Ast> =
                     enum_type_part.get_rep_leaf_or_panic(n("component"));
 
                 // TODO: check that they're the same length!
@@ -168,7 +168,7 @@ fn eval_enum_expr(part_values: LazyWalkReses<Eval>) -> Result<Value, ()> {
 
 // struct_expr ==> [component_name: Atom  component: Expr]*
 fn type_struct_expr(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
-    Ok(ty!({ find_type("struct") ;
+    Ok(ast!({ find_type("struct") ;
         "component_name" => (@"c" ,seq part_types.get_rep_term(n("component_name"))),
         "component" => (@"c" ,seq part_types.get_rep_res(n("component"))?)
     }))
@@ -238,7 +238,7 @@ fn type_fold(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
 
 // forall_expr ==> [param: Atom]*  body: Expr
 fn type__forall_expr(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
-    Ok(ty!({"Type" "forall_type" :
+    Ok(ast!({"Type" "forall_type" :
         "param" => (,seq part_types.get_rep_term(n("param"))),
         "body" => (import [* [forall "param"]] (, part_types.get_res(n("body"))?))
     }))
@@ -358,7 +358,7 @@ pub fn make_core_syn_env() -> SynEnv {
                                 continue; // not the right arm
                             }
 
-                            let component_types : Vec<Ty> =
+                            let component_types : Vec<Ast> =
                                 enum_type_part.get_rep_leaf_or_panic(n("component")).into_iter().cloned().collect();
 
                             let mut res = Assoc::new();
@@ -460,7 +460,7 @@ pub fn make_core_syn_env() -> SynEnv {
                                     &part_types.this_ast)
                     ctxt_type_parts;
                     {
-                        let component_types : Vec<Ty> =
+                        let component_types : Vec<Ast> =
                             ctxt_type_parts.get_rep_leaf_or_panic(n("component"))
                                 .into_iter().cloned().collect();
 
@@ -664,7 +664,7 @@ fn form_type() {
 fn type_apply_with_subtype() {
     // Application can perform subtyping
 
-    let nat_ty = ty!({ "Type" "Nat" : });
+    let nat_ty = ast!({ "Type" "Nat" : });
 
     let ty_env = assoc_n!(
         "N" => uty!({Nat :}),
@@ -705,7 +705,7 @@ fn alg_type() {
     let simple_ty_env = assoc_n!(
         "x" => uty!({Type Int :}), "n" => uty!({Type Nat :}), "f" => uty!({Type Float :}));
 
-    let my_enum = ty!({ "Type" "enum" :
+    let my_enum = ast!({ "Type" "enum" :
         "name" => [@"c" "Adams", "Jefferson", "Burr"],
         "component" => [@"c" [{"Type" "Int":}],
                              [{"Type" "Int":}, {"Type" "Nat":}],
@@ -718,7 +718,7 @@ fn alg_type() {
             &u!({Pat enum_pat : Jefferson [(at abc) ; (at def)]}),
             mt_ty_env.set(negative_ret_val(), my_enum.clone())
         ),
-        Ok(Assoc::new().set(n("abc"), ty!({"Type" "Int":})).set(n("def"), ty!({"Type" "Nat":})))
+        Ok(Assoc::new().set(n("abc"), ast!({"Type" "Int":})).set(n("def"), ast!({"Type" "Nat":})))
     );
 
     // Typecheck enum expression
@@ -727,7 +727,7 @@ fn alg_type() {
         Ok(my_enum.clone())
     );
 
-    let my_struct = ty!({ "Type" "struct" :
+    let my_struct = ast!({ "Type" "struct" :
         "component_name" => [@"c" "x", "y"],
         "component" => [@"c" {"Type" "Int":}, {"Type" "Float" :}]
     });
@@ -742,7 +742,7 @@ fn alg_type() {
             }),
             mt_ty_env.set(negative_ret_val(), my_struct.clone())
         ),
-        Ok(assoc_n!("yy" => ty!({"Type" "Float" :}), "xx" => ty!({"Type" "Int":})))
+        Ok(assoc_n!("yy" => ast!({"Type" "Float" :}), "xx" => ast!({"Type" "Int":})))
     );
 
     // Typecheck struct expression
@@ -775,7 +775,7 @@ fn alg_type() {
             &u!({Expr match : f [(at my_new_name) my_new_name; (at unreachable) f]}),
             simple_ty_env.clone()
         ),
-        Ok(ty!({"Type" "Float" :}))
+        Ok(ast!({"Type" "Float" :}))
     );
 
     assert_m!(
@@ -803,7 +803,7 @@ fn alg_type() {
                      {Pat enum_pat => [* ["component"]] : Burr [(at xx) ; (at yy)]} x]}),
             simple_ty_env.set(n("my_enum"), my_enum.clone())
         ),
-        Ok(ty!({"Type" "Int":}))
+        Ok(ast!({"Type" "Int":}))
     );
 
     assert_eq!(
@@ -896,7 +896,7 @@ fn alg_eval() {
 
 #[test]
 fn recursive_types() {
-    let int_list_ty = ty!( { "Type" "mu_type" :
+    let int_list_ty = ast!( { "Type" "mu_type" :
             "param" => [(import [prot "param"] (vr "IntList"))],
             "body" => (import [* [prot "param"]] { "Type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
@@ -909,7 +909,7 @@ fn recursive_types() {
 
         // We should never have `vr`s in the environment unless "protected" by a μ.
         // TODO: enforce that:
-        //"il_named" => ty!((vr "IntList"))
+        //"il_named" => ast!((vr "IntList"))
     );
 
     // `IntList` shouldn't substitute
@@ -920,7 +920,7 @@ fn recursive_types() {
     // Test that unfolding a type produces one that's "twice as large", minus the outer mu
     assert_eq!(synth_type(
         &ast!({"Expr" "unfold" : "body" => (vr "il_direct")}), ty_env.clone()),
-        Ok(ty!({ "Type" "enum" :
+        Ok(ast!({ "Type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
                 "component" => [@"c" [], [{"Type" "Int":}, (, int_list_ty.clone()) ]]})));
 
@@ -945,7 +945,7 @@ fn recursive_types() {
             "arm" => [@"arm" (import ["p" = "scrutinee"] (vr "car"))]
         }),
         ty_env.clone()),
-        Ok(ty!({"Type" "Int":})));
+        Ok(ast!({"Type" "Int":})));
 
     // Unfold a type and then extract the part that should have the same type as the outer type
     assert_eq!(synth_type(
@@ -998,11 +998,11 @@ fn use__let_type() {
             }),
             Assoc::new()
         ),
-        Ok(ty!( { "Type" "fn" : "param" => [ {"Type" "Nat" :}], "ret" => {"Type" "Nat" :}}))
+        Ok(ast!( { "Type" "fn" : "param" => [ {"Type" "Nat" :}], "ret" => {"Type" "Nat" :}}))
     );
 
     // useless type, but self-referential:
-    let trivial_mu_type = ty!( { "Type" "mu_type" : "param" => [(import [prot "param"] (vr "T"))],
+    let trivial_mu_type = ast!( { "Type" "mu_type" : "param" => [(import [prot "param"] (vr "T"))],
                                   "body" => (import [* [prot "param"]] (vr "T")) });
 
     without_freshening! {
@@ -1017,7 +1017,7 @@ fn use__let_type() {
                 "body" => (import [* ["param" : "p_t"]] { "Expr" "unfold" : "body" => (vr "x") })
             })
         }), Assoc::new()),
-    Ok(ty!( { "Type" "fn" :
+    Ok(ast!( { "Type" "fn" :
         "param" => [(,trivial_mu_type.clone())], "ret" => (,trivial_mu_type.clone())})));
     }
 

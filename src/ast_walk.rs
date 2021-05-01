@@ -20,11 +20,11 @@
 // During evaluation, each `lambda` form may be processed many times,
 //  with different values for its parameters.
 //
-// Typechecking produces `Ty` or an error.
+// Typechecking produces `Ast` or an error.
 // During typechecking, each `lambda` form is processed once,
 //  using its parameters' declared types.
 //
-// Subtyping produces `Ty` (irrelevant) or an error.
+// Subtyping produces `Ast` (irrelevant) or an error.
 // It only walks type Asts, so `lambda` is not walked,
 //  but ∀ is a binding form that acts sort of like type-level lambda,
 //   except we use unification instead of explicit "function" calls.
@@ -945,18 +945,18 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
 #[test]
 fn quote_more_and_less() {
     let parts = LazyWalkReses::<crate::ty::UnpackTy>::new(
-        assoc_n!("a" => ty!({"Type" "Nat" :})),
+        assoc_n!("a" => ast!({"Type" "Nat" :})),
         Assoc::new(),
         // we'll pretend this is under an unquote or something:
         &mbe!("body" => "bind_me"),
         ast!("[ignored]"),
     );
 
-    let parts = parts.with_context(ty!({"Type" "Int" :}));
+    let parts = parts.with_context(ast!({"Type" "Int" :}));
 
-    let interpolation_accumulator = Rc::new(RefCell::new(Assoc::<Name, crate::ty::Ty>::new()));
+    let interpolation_accumulator = Rc::new(RefCell::new(Assoc::<Name, Ast>::new()));
 
-    assert_eq!(parts.env.find(&n("a")), Some(&ty!({"Type" "Nat" :})));
+    assert_eq!(parts.env.find(&n("a")), Some(&ast!({"Type" "Nat" :})));
 
     let q_parts = parts.quote_more(Some(interpolation_accumulator.clone()));
 
@@ -965,11 +965,11 @@ fn quote_more_and_less() {
     // process the binding for "bind_me" as if it were in an unquote
     let (squirreler, interpolation) = q_parts.quote_less();
     let res = interpolation.get_res(n("body")).unwrap();
-    assert_eq!(res, assoc_n!("bind_me" => ty!({"Type" "Int" :})));
+    assert_eq!(res, assoc_n!("bind_me" => ast!({"Type" "Int" :})));
 
     // the other thing `unquote` needs to do; save the result for out-of-band retrieval
     squirrel_away::<crate::ty::UnpackTy>(squirreler, res);
 
     // check that we successfully squirreled it away:
-    assert_eq!(*interpolation_accumulator.borrow(), assoc_n!("bind_me" => ty!({"Type" "Int" :})));
+    assert_eq!(*interpolation_accumulator.borrow(), assoc_n!("bind_me" => ast!({"Type" "Int" :})));
 }

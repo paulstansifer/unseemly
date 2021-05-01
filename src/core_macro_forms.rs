@@ -14,7 +14,7 @@ use crate::{
     },
     name::*,
     runtime::{eval::Eval, reify::Reifiable},
-    ty::{SynthTy, Ty},
+    ty::SynthTy,
     util::assoc::Assoc,
     walk_mode::WalkElt,
 };
@@ -82,7 +82,7 @@ macro_rules! syntax_syntax {
             grammar: Rc::new(form_pat!( $($gram)* )),
             type_compare: Both(NotWalked,NotWalked), // Not a type
             synth_type: Negative(cust_rc_box!(|parts| {
-                let mut out = Assoc::<Name, Ty>::new();
+                let mut out = Assoc::<Name, Ast>::new();
                 $(
                     out = out.set_assoc(&parts.get_res(n(&stringify!($arg)))?);
                 )*
@@ -112,7 +112,7 @@ macro_rules! syntax_syntax {
 // Macros have types!
 // ...but they're not higher-order (i.e., you can't do anything with a macro other than invoke it).
 // This means that we can just generate a type for them at the location of invocation.
-fn macro_type(forall_ty_vars: &[Name], arguments: Vec<(Name, Ty)>, output: Ty) -> Ty {
+fn macro_type(forall_ty_vars: &[Name], arguments: Vec<(Name, Ast)>, output: Ast) -> Ast {
     let mut components = vec![];
     for (k, v) in arguments.iter() {
         // The fields in a struct type are not renamed like normal during freshening,
@@ -133,7 +133,7 @@ fn macro_type(forall_ty_vars: &[Name], arguments: Vec<(Name, Ty)>, output: Ty) -
     if forall_ty_vars.is_empty() {
         mac_fn
     } else {
-        ty!({"Type" "forall_type" :
+        ast!({"Type" "forall_type" :
             "body" => (import [* [forall "param"]] (, mac_fn)),
             "param" => (,seq forall_ty_vars.iter().map(|n| { Atom(*n) }).collect::<Vec<_>>())
         })
@@ -142,9 +142,9 @@ fn macro_type(forall_ty_vars: &[Name], arguments: Vec<(Name, Ty)>, output: Ty) -
 
 fn type_macro_invocation(
     parts: &LazyWalkReses<SynthTy>,
-    expected_return: Ty,
+    expected_return: Ast,
     grammar: &FormPat,
-) -> Result<Assoc<Name, Ty>, crate::ty::TypeError> {
+) -> Result<Assoc<Name, Ast>, crate::ty::TypeError> {
     // Typecheck the subterms, and then quote them:
     let mut q_arguments = vec![];
 
@@ -154,15 +154,15 @@ fn type_macro_invocation(
             parts.flatten_res_at_depth(
                 binder,
                 depth,
-                &|ty: Ty| more_quoted_ty(&ty, nt),
-                &|ty_vec: Vec<Ty>| ty!({"Type" "tuple" : "component" => (,seq ty_vec) }),
+                &|ty: Ast| more_quoted_ty(&ty, nt),
+                &|ty_vec: Vec<Ast>| ast!({"Type" "tuple" : "component" => (,seq ty_vec) }),
             )?
         } else {
             parts.flatten_generate_at_depth(
                 binder,
                 depth,
                 &|| crate::ty_compare::Subtype::underspecified(binder),
-                &|ty_vec: Vec<Ty>| ty!({"Type" "tuple" : "component" => (,seq ty_vec) }),
+                &|ty_vec: Vec<Ast>| ast!({"Type" "tuple" : "component" => (,seq ty_vec) }),
             )
         };
         q_arguments.push((binder, term_ty));
@@ -243,7 +243,7 @@ pub fn macro_invocation(
                     type_macro_invocation(&parts_positive, expected_return_type, &grammar2)?;
 
                 // What argument types made that work?
-                let mut res: Assoc<Name, Ty> = Assoc::new();
+                let mut res: Assoc<Name, Ast> = Assoc::new();
                 ty_compare::unification.with(|unif| {
                     for binder in &export_names {
                         let ty = arguments.find_or_panic(binder);
@@ -307,7 +307,7 @@ pub fn macro_invocation(
 
 /// What should `t` be, if matched under a repetition?
 /// A tuple, driven by whatever names are `forall`ed in `env`.
-fn repeated_type(t: &Ty, env: &Assoc<Name, Ty>) -> Result<Ty, crate::ty::TypeError> {
+fn repeated_type(t: &Ast, env: &Assoc<Name, Ast>) -> Result<Ast, crate::ty::TypeError> {
     let mut drivers = vec![];
     for v in t.free_vrs() {
         if env.find(&v) == Some(&Ast::VariableReference(v)) {
@@ -319,7 +319,7 @@ fn repeated_type(t: &Ty, env: &Assoc<Name, Ty>) -> Result<Ty, crate::ty::TypeErr
         ty_err!(NeedsDriver (()) at t);
     }
 
-    Ok(ty!({"Type" "tuple" : "component" => (,seq vec![ast!({"Type" "dotdotdot_type" :
+    Ok(ast!({"Type" "tuple" : "component" => (,seq vec![ast!({"Type" "dotdotdot_type" :
         "driver" => (,seq drivers),
         "body" => (, t.clone())
     })])}))
@@ -425,7 +425,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         // TODO: split out a separate SyntaxSeq, so that we can get rid of the [ ] delimiters
         syntax_syntax!( ( (delim "[", "[", (star (named "elt", (call "Syntax"))))) Seq {
             |parts| {
-                let mut out = Assoc::<Name, Ty>::new();
+                let mut out = Assoc::<Name, Ast>::new();
                 for sub in &parts.get_rep_res(n("elt"))? {
                     out = out.set_assoc(sub);
                 }
@@ -440,7 +440,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         }) => [* ["elt"]],
         syntax_syntax!( ([(named "body", (call "Syntax")), (lit "*")]) Star {
             |parts| {
-                let body : Assoc<Name, Ty> = parts.get_res(n("body"))?;
+                let body : Assoc<Name, Ast> = parts.get_res(n("body"))?;
                 body.map(|t| repeated_type(t, &parts.env)).lift_result()
             }
         } {
@@ -450,7 +450,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         }) => ["body"],
         syntax_syntax!( ([(named "body", (call "Syntax")), (lit "+")]) Plus {
             |parts| {
-                let body : Assoc<Name, Ty> = parts.get_res(n("body"))?;
+                let body : Assoc<Name, Ast> = parts.get_res(n("body"))?;
                 body.map(|t| repeated_type(t, &parts.env)).lift_result()
             }
         } {
@@ -461,7 +461,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         // TODO: support seprators, and add a separator here
         syntax_syntax!( ( (delim "alt[", "[", (star [(named "elt", (call "Syntax"))]))) Alt {
             |parts| {
-                let mut out = Assoc::<Name, Ty>::new();
+                let mut out = Assoc::<Name, Ast>::new();
                 for sub in &parts.get_rep_res(n("elt"))? {
                     out = out.set_assoc(sub);
                 }
@@ -566,7 +566,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         Scope {
             |parts| {
                 let return_ty = parts.switch_mode::<SynthTy>().get_res(n("implementation"))?;
-                let mut arguments : Vec<(Name, Ty)> = parts.get_res(n("syntax"))?
+                let mut arguments : Vec<(Name, Ast)> = parts.get_res(n("syntax"))?
                     .iter_pairs().map(|(n, t)| (*n, t.clone())).collect();
                 arguments.sort_by(|lhs, rhs| lhs.0.cmp(&rhs.0) ); // Pick a canonical order
                 let ty_params = &parts.get_rep_term(n("param")).iter().map(Ast::to_name
@@ -735,7 +735,7 @@ fn formpat_reflection() {
 fn macro_definitions() {
     let int_expr_type = uty!({type_apply : (prim Expr) [{Int :}]});
     let env = assoc_n!("ie" => int_expr_type.clone(), "T" => uty!(T))
-        .set(negative_ret_val(), ty!((trivial)));
+        .set(negative_ret_val(), ast!((trivial)));
 
     assert_eq!(
         crate::ty::neg_synth_type(
@@ -838,7 +838,7 @@ fn type_basic_macro_invocation() {
             }),
             env.clone()
         ),
-        Ok(ty!({ "Type" "Int" :}))
+        Ok(ast!({ "Type" "Int" :}))
     );
 
     assert_eq!(
@@ -852,7 +852,7 @@ fn type_basic_macro_invocation() {
             }),
             env.clone()
         ),
-        Ok(ty!({ "Type" "Nat" :}))
+        Ok(ast!({ "Type" "Nat" :}))
     );
 
     assert_m!(
@@ -878,9 +878,9 @@ fn type_basic_macro_invocation() {
                 "macro_name" => (vr "basic_pattern_macro"),
                 "a" => "should_be_nat"
             }),
-            env.clone().set(negative_ret_val(), ty!({"Type" "Nat" :}))
+            env.clone().set(negative_ret_val(), ast!({"Type" "Nat" :}))
         ),
-        Ok(assoc_n!("should_be_nat" => ty!({"Type" "Nat" :})))
+        Ok(assoc_n!("should_be_nat" => ast!({"Type" "Nat" :})))
     );
 
     assert_eq!(
@@ -899,7 +899,7 @@ fn type_basic_macro_invocation() {
             }),
             env.clone()
         ),
-        Ok(ty!({ "Type" "Nat" :}))
+        Ok(ast!({ "Type" "Nat" :}))
     );
 
     assert_eq!(
@@ -916,9 +916,9 @@ fn type_basic_macro_invocation() {
                 "body" => "x",
                 "cond_expr" => (import ["body" : "t"] (vr "x"))
             }),
-            env.set(negative_ret_val(), ty!({"Type" "Int" :})).clone()
+            env.set(negative_ret_val(), ast!({"Type" "Int" :})).clone()
         ),
-        Ok(assoc_n!("x" => ty!({ "Type" "Int" :})))
+        Ok(assoc_n!("x" => ast!({ "Type" "Int" :})))
     );
 }
 

@@ -57,13 +57,12 @@ use crate::{
         core_values,
         eval::{eval, Value},
     },
-    ty::Ty,
     util::assoc::Assoc,
 };
 use std::{borrow::Cow, cell::RefCell, io::BufRead};
 
 thread_local! {
-    pub static ty_env : RefCell<Assoc<Name, Ty>> = RefCell::new(core_values::core_types());
+    pub static ty_env : RefCell<Assoc<Name, Ast>> = RefCell::new(core_values::core_types());
     pub static val_env : RefCell<Assoc<Name, Value>> = RefCell::new(core_values::core_values());
 }
 
@@ -303,7 +302,7 @@ fn assign_variable(name: &str, expr: &str) -> Result<Value, String> {
     res
 }
 
-fn assign_t_var(name: &str, t: &str) -> Result<ty::Ty, String> {
+fn assign_t_var(name: &str, t: &str) -> Result<Ast, String> {
     let ast = grammar::parse(
         &grammar::FormPat::Call(n("Type")),
         &core_forms::get_core_forms(),
@@ -325,7 +324,7 @@ fn assign_t_var(name: &str, t: &str) -> Result<ty::Ty, String> {
     res
 }
 
-fn canonicalize_type(t: &str) -> Result<ty::Ty, String> {
+fn canonicalize_type(t: &str) -> Result<Ast, String> {
     let ast = grammar::parse(
         &grammar::FormPat::Call(n("Type")),
         &core_forms::get_core_forms(),
@@ -353,7 +352,7 @@ fn parse_unseemly_program(program: &str, pretty: bool) -> Result<String, String>
     }
 }
 
-fn type_unseemly_program(program: &str) -> Result<ty::Ty, String> {
+fn type_unseemly_program(program: &str) -> Result<Ast, String> {
     let ast = grammar::parse(
         &core_forms::outermost_form(),
         &core_forms::get_core_forms(),

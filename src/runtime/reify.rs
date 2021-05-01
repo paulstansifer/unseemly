@@ -25,7 +25,6 @@ pub trait Reifiable {
     /// The Unseemly type that corresponds to to the `Reifiable` type.
     /// This leaves abstract the type parameters of `Self`; invoke like `Self::<Irr,Irr>::ty()`.
     /// e.g. `∀ A. Pair<A int>`
-    /// TODO: this should return `Ty`
     /// TODO: rename to `generic_ty`
     fn ty() -> Ast {
         // By default, this is an opaque primitive.
@@ -342,17 +341,15 @@ impl<T: Reifiable> Reifiable for Rc<T> {
     fn reflect(v: &Value) -> Self { Rc::new(T::reflect(v)) }
 }
 
-// for when we have a `Ty`, rather than a Rust type.
-pub fn sequence_type__of(ty: &crate::ty::Ty) -> crate::ty::Ty {
-    ty!({ "Type" "type_apply" :
+/// Takes the Unseemly type `T` to `Sequence<T>`
+pub fn sequence_type__of(ty: &Ast) -> Ast {
+    ast!({ "Type" "type_apply" :
         "type_rator" => (, crate::core_type_forms::get__primitive_type(n("Sequence"))),
         "arg" => [(, ty.clone()) ]})
 }
 
-pub fn un__sequence_type(
-    ty: &crate::ty::Ty,
-    loc: &Ast,
-) -> Result<crate::ty::Ty, crate::ty::TypeError> {
+/// Takes the Unseemly type `Sequence<T>` to `T`
+pub fn un__sequence_type(ty: &Ast, loc: &Ast) -> Result<Ast, crate::ty::TypeError> {
     // This is a hack; `Sequence` is not a nonterminal!
     crate::core_type_forms::less_quoted_ty(ty, Some(n("Sequence")), loc)
 }

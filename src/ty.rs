@@ -19,10 +19,7 @@ use crate::{
 };
 use std::{fmt, rc::Rc};
 
-// TODO: remove this alias
-pub type Ty = Ast;
-
-impl Ty {
+impl Ast {
     // TODO: use this more
     // TODO: make `expd_form` a reference
     pub fn ty_destructure(
@@ -46,7 +43,7 @@ custom_derive! {
 
 impl WalkMode for SynthTy {
     fn name() -> &'static str { "SynTy" }
-    type Elt = Ty;
+    type Elt = Ast;
     type Negated = UnpackTy;
     type AsPositive = SynthTy;
     type AsNegative = UnpackTy;
@@ -60,7 +57,7 @@ impl WalkMode for SynthTy {
     fn walk_var(
         name: Name,
         parts: &crate::ast_walk::LazyWalkReses<SynthTy>,
-    ) -> Result<Ty, TypeError> {
+    ) -> Result<Ast, TypeError> {
         match parts.env.find(&name) {
             None => Err(crate::util::err::sp(TyErr::UnboundName(name), parts.this_ast.clone())),
             // If name is protected, stop:
@@ -70,12 +67,12 @@ impl WalkMode for SynthTy {
     }
 
     // Simply protect the name; don't try to unify it.
-    fn underspecified(name: Name) -> Ty { VariableReference(name) }
+    fn underspecified(name: Name) -> Ast { VariableReference(name) }
 }
 
 impl WalkMode for UnpackTy {
     fn name() -> &'static str { "UnpTy" }
-    type Elt = Ty;
+    type Elt = Ast;
     type Negated = SynthTy;
     type AsPositive = SynthTy;
     type AsNegative = UnpackTy;
@@ -86,7 +83,7 @@ impl WalkMode for UnpackTy {
     fn get_walk_rule(f: &Form) -> WalkRule<UnpackTy> { f.synth_type.neg().clone() }
     fn automatically_extend_env() -> bool { true }
 
-    fn underspecified(name: Name) -> Ty { VariableReference(name) }
+    fn underspecified(name: Name) -> Ast { VariableReference(name) }
 }
 
 impl crate::walk_mode::NegativeWalkMode for UnpackTy {
@@ -97,24 +94,24 @@ pub fn synth_type_top(expr: &Ast) -> TypeResult {
     walk::<SynthTy>(expr, &LazyWalkReses::new_wrapper(Assoc::new()))
 }
 
-pub fn synth_type(expr: &Ast, env: Assoc<Name, Ty>) -> TypeResult {
+pub fn synth_type(expr: &Ast, env: Assoc<Name, Ast>) -> TypeResult {
     walk::<SynthTy>(expr, &LazyWalkReses::new_wrapper(env))
 }
 
-pub fn neg_synth_type(pat: &Ast, env: Assoc<Name, Ty>) -> Result<Assoc<Name, Ty>, TypeError> {
+pub fn neg_synth_type(pat: &Ast, env: Assoc<Name, Ast>) -> Result<Assoc<Name, Ast>, TypeError> {
     walk::<UnpackTy>(pat, &LazyWalkReses::new_wrapper(env))
 }
 
 custom_derive! {
     #[derive(Reifiable, Clone, PartialEq)]
     pub enum TyErr {
-        Mismatch(Ty, Ty), // got, expected
-        LengthMismatch(Vec<Ty>, usize),
+        Mismatch(Ast, Ast), // got, expected
+        LengthMismatch(Vec<Ast>, usize),
         NtInterpMismatch(Name, Name),
-        NonexistentEnumArm(Name, Ty),
-        NonexistentStructField(Name, Ty),
-        NonExhaustiveMatch(Ty),
-        UnableToDestructure(Ty, Name),
+        NonexistentEnumArm(Name, Ast),
+        NonexistentStructField(Name, Ast),
+        NonExhaustiveMatch(Ast),
+        UnableToDestructure(Ast, Name),
         UnboundName(Name),
         // TODO: the reification macros can't handle empty `enum` cases. Fix that!
         AnnotationRequired(()),
@@ -185,9 +182,9 @@ impl fmt::Debug for TyErr {
 
 pub type TypeError = crate::util::err::Spanned<TyErr>;
 
-pub type TypeResult = Result<Ty, TypeError>;
+pub type TypeResult = Result<Ast, TypeError>;
 
-pub fn expect_type(expected: &Ty, got: &Ty, loc: &Ast) -> Result<(), TypeError> {
+pub fn expect_type(expected: &Ast, got: &Ast, loc: &Ast) -> Result<(), TypeError> {
     if got != expected {
         Err(crate::util::err::Spanned {
             loc: loc.clone(),
@@ -203,10 +200,10 @@ fn basic_type_synth() {
     use crate::ast_walk::WalkRule::*;
 
     let mt_ty_env = Assoc::new();
-    let int_ty = ty!({
+    let int_ty = ast!({
         crate::core_forms::find_core_form("Type", "Int");
     });
-    let nat_ty = ty!({
+    let nat_ty = ast!({
         crate::core_forms::find_core_form("Type", "Nat");
     });
 
@@ -243,7 +240,7 @@ fn basic_type_synth() {
             &ast!({
                 basic_typed_form!(
                     atom,
-                    Custom(Rc::new(Box::new(|_| Ok(ty!({
+                    Custom(Rc::new(Box::new(|_| Ok(ast!({
                         crate::core_forms::find_core_form("Type", "Nat");
                     }))))),
                     NotWalked
@@ -256,25 +253,25 @@ fn basic_type_synth() {
     );
 
     let chained_ty_env =
-        assoc_n!("a" => ty!((vr "B")), "B" => ty!((vr "C")), "C" => ty!({"Type" "Int":}));
+        assoc_n!("a" => ast!((vr "B")), "B" => ast!((vr "C")), "C" => ast!({"Type" "Int":}));
 
-    assert_eq!(synth_type(&ast!((vr "a")), chained_ty_env), Ok(ty!({"Type" "Int":})));
+    assert_eq!(synth_type(&ast!((vr "a")), chained_ty_env), Ok(ast!({"Type" "Int":})));
 }
 
 #[test]
 fn type_specialization() {
-    let nat_ty = ty!( { "Type" "Nat" : });
+    let nat_ty = ast!( { "Type" "Nat" : });
 
-    fn tbn(nm: &'static str) -> Ty { crate::ast::Ast::VariableReference(n(nm)) }
+    fn tbn(nm: &'static str) -> Ast { crate::ast::Ast::VariableReference(n(nm)) }
 
     let _para_ty_env = assoc_n!(
-        "some_int" => ty!( { "Type" "Int" : }),
-        "convert_to_nat" => ty!({ "Type" "forall_type" :
+        "some_int" => ast!( { "Type" "Int" : }),
+        "convert_to_nat" => ast!({ "Type" "forall_type" :
             "param" => ["t"],
             "body" => (import [* [forall "param"]] { "Type" "fn" :
                 "param" => [ (, tbn("t") ) ],
                 "ret" => (, nat_ty.clone() ) })}),
-        "identity" => ty!({ "Type" "forall_type" :
+        "identity" => ast!({ "Type" "forall_type" :
             "param" => ["t"],
             "body" => (import [* [forall "param"]] { "Type" "fn" :
                 "param" => [ (, tbn("t") ) ],
@@ -284,13 +281,13 @@ fn type_specialization() {
     //             "rator" => (vr "convert_to_nat"),
     //             "rand" => [ (vr "some_int") ]
     //         }), para_ty_env.clone()),
-    //     Ok(ty!( { "Type" "Nat" : })));
+    //     Ok(ast!( { "Type" "Nat" : })));
 
     // assert_eq!(synth_type(&ast!({ "Expr" "apply" :
     //             "rator" => (vr "identity"),
     //             "rand" => [ (vr "some_int") ]
     //         }), para_ty_env.clone()),
-    //     Ok(ty!( { "Type" "Int" : })));
+    //     Ok(ast!( { "Type" "Int" : })));
     // TODO: test that ∀ X. ∀ Y. [ X → Y ] is a (sortof) sensible type (for transmogrify)
     //        and that ∀ X. [ X → ∀ Y . Y ] is ridiculously permissive
 }

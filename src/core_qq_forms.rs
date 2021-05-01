@@ -6,7 +6,6 @@ use crate::{
     grammar::FormPat,
     name::*,
     runtime::eval::{Destructure, Eval, QQuote, QQuoteDestr},
-    ty::Ty,
     util::assoc::Assoc,
     walk_mode::{NegativeWalkMode, WalkMode},
 };
@@ -67,7 +66,7 @@ use std::rc::Rc;
 //   which is what "mu_type" does.
 // We just need to write a walk for it (and annotate those `mu_type`s with a depth)
 
-fn adjust_opacity(t: &Ty, env: Assoc<Name, Ty>, delta: i32) -> Ty {
+fn adjust_opacity(t: &Ast, env: Assoc<Name, Ast>, delta: i32) -> Ast {
     let ctxt = crate::ast_walk::LazyWalkReses {
         extra_info: delta,
         ..crate::ast_walk::LazyWalkReses::new_wrapper(env)
@@ -75,7 +74,7 @@ fn adjust_opacity(t: &Ty, env: Assoc<Name, Ty>, delta: i32) -> Ty {
     crate::ast_walk::walk::<MuProtect>(t, &ctxt).unwrap()
 }
 
-fn remove_opacity(t: &Ty, delta: i32) -> Ty {
+fn remove_opacity(t: &Ast, delta: i32) -> Ast {
     if delta > 0 {
         icp!()
     }
@@ -94,7 +93,7 @@ custom_derive! {
     pub struct UnusedNegativeMuProtect {}
 }
 
-fn change_mu_opacity(parts: crate::ast_walk::LazyWalkReses<MuProtect>) -> Result<Ty, ()> {
+fn change_mu_opacity(parts: crate::ast_walk::LazyWalkReses<MuProtect>) -> Result<Ast, ()> {
     let delta = parts.extra_info;
     let opacity = &parts
         .maybe_get_term(n("opacity_for_different_phase"))
@@ -125,7 +124,7 @@ fn change_mu_opacity(parts: crate::ast_walk::LazyWalkReses<MuProtect>) -> Result
 
 impl WalkMode for MuProtect {
     fn name() -> &'static str { "MProt" }
-    type Elt = Ty;
+    type Elt = Ast;
     type Negated = UnusedNegativeMuProtect;
     type AsPositive = MuProtect;
     type AsNegative = UnusedNegativeMuProtect;
@@ -142,12 +141,12 @@ impl WalkMode for MuProtect {
     }
     fn automatically_extend_env() -> bool { true }
 
-    fn walk_var(name: Name, parts: &crate::ast_walk::LazyWalkReses<MuProtect>) -> Result<Ty, ()> {
+    fn walk_var(name: Name, parts: &crate::ast_walk::LazyWalkReses<MuProtect>) -> Result<Ast, ()> {
         if parts.extra_info <= 0 {
             return Ok(VariableReference(name));
         }
         Ok(parts.env.find(&name).map(Clone::clone).unwrap_or_else(|| {
-            ty!({"Type" "mu_type" :
+            ast!({"Type" "mu_type" :
                 "opacity_for_different_phase" => (, Ast::Atom(n(&parts.extra_info.to_string()))),
                 "param" => [(import [prot "param"] (, Ast::VariableReference(name)))],
                 "body" => (import [* [prot "param"]] (, Ast::VariableReference(name)))})
@@ -157,7 +156,7 @@ impl WalkMode for MuProtect {
 
 impl WalkMode for UnusedNegativeMuProtect {
     fn name() -> &'static str { "XXXXX" }
-    type Elt = Ty;
+    type Elt = Ast;
     type Negated = MuProtect;
     type AsPositive = MuProtect;
     type AsNegative = UnusedNegativeMuProtect;
@@ -331,7 +330,7 @@ pub fn dotdotdot(nt: Name) -> Rc<FormPat> {
     Rc::new(FormPat::Scope(dotdotdot_form(nt), crate::beta::ExportBeta::Nothing))
 }
 
-// Once it's possible to write `where Mode::Elt = Ty and Mode::Err = <whatever>`,
+// Once it's possible to write `where Mode::Elt = Ast and Mode::Err = <whatever>`,
 //  this can be turned into a function.
 // The behavior of `...[]...` is identical in positive and negative modes.
 macro_rules! ddd_type__body {
@@ -551,7 +550,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
             Positive(cust_rc_box!(|quote_parts| {
                 if nt_is_positive(quote_parts.get_term(n("nt")).vr_to_name()) {
                     // TODO #9: if the user provides an annotation, check it!
-                    Ok(ty!({"Type" "type_apply" :
+                    Ok(ast!({"Type" "type_apply" :
                         "type_rator" =>
                             (, nt_to_type(quote_parts.get_term(n("nt")).vr_to_name()) ),
                         "arg" => [(, remove_opacity(&quote_parts.get_res(n("body"))?, -1) )]
@@ -575,7 +574,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
                     //   by introducing and referencing bindings.
                     let _ = &quote_parts.with_context(prot_expected_type).get_res(n("body"));
 
-                    Ok(ty!({"Type" "type_apply" :
+                    Ok(ast!({"Type" "type_apply" :
                             "type_rator" =>
                                 (, nt_to_type(quote_parts.get_term(n("nt")).vr_to_name()) ),
                             "arg" => [ (,expected_type.clone()) ]}))
@@ -711,11 +710,11 @@ fn quote_type_basic() {
     let neg = false;
 
     let env = assoc_n!(
-        "n" => ty!({"Type" "Nat" :})
+        "n" => ast!({"Type" "Nat" :})
     );
 
     let qenv = assoc_n!(
-        "qn" => ty!({"Type" "Nat" :})
+        "qn" => ast!({"Type" "Nat" :})
     );
 
     let expr_type = crate::core_type_forms::get__primitive_type(n("Expr"));
@@ -723,8 +722,8 @@ fn quote_type_basic() {
 
     fn synth_type_two_phased(
         expr: &Ast,
-        env: Assoc<Name, Ty>,
-        qenv: Assoc<Name, Ty>,
+        env: Assoc<Name, Ast>,
+        qenv: Assoc<Name, Ast>,
     ) -> crate::ty::TypeResult {
         crate::ast_walk::walk::<crate::ty::SynthTy>(
             expr,
@@ -739,7 +738,7 @@ fn quote_type_basic() {
             env.clone(),
             qenv.clone()
         ),
-        Ok(ty!({"Type" "type_apply" :
+        Ok(ast!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]}))
     );
 
@@ -754,7 +753,7 @@ fn quote_type_basic() {
             env.clone(),
             qenv.clone()
         ),
-        Ok(ty!({"Type" "type_apply" :
+        Ok(ast!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]}))
     );
 
@@ -768,7 +767,7 @@ fn quote_type_basic() {
                 (++ true {quote(pos) ; "nt" => (vr "Expr"), "body" => (++ true (vr "five"))})}),
             assoc_n!("five" => uty!({Int :}))
         ),
-        Ok(ty!({"Type" "type_apply" :
+        Ok(ast!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" =>
                 [{"Type" "type_apply" :
                     "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Int" :}]}]}))
@@ -783,7 +782,7 @@ fn quote_type_basic() {
             env.clone(),
             qenv.clone()
         ),
-        Ok(ty!({"Type" "type_apply" :
+        Ok(ast!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]}))
     );
 
@@ -808,7 +807,7 @@ fn quote_type_basic() {
             env.clone(),
             qenv.clone()
         ),
-        Ok(ty!({"Type" "type_apply" :
+        Ok(ast!({"Type" "type_apply" :
         "type_rator" => (,expr_type.clone()), "arg" => [{ "Type" "struct" :
             "component_name" => [@"c" "x", "y"],
             "component" => [@"c" {"Type" "Nat":}, {"Type" "Nat" :}]
@@ -817,10 +816,10 @@ fn quote_type_basic() {
 
     fn unpack_type_two_phased(
         pat: &Ast,
-        env: Assoc<Name, Ty>,
-        qenv: Assoc<Name, Ty>,
-        ctxt: Ty,
-    ) -> Result<Assoc<Name, Ty>, crate::ty::TypeError> {
+        env: Assoc<Name, Ast>,
+        qenv: Assoc<Name, Ast>,
+        ctxt: Ast,
+    ) -> Result<Assoc<Name, Ast>, crate::ty::TypeError> {
         crate::ast_walk::walk::<crate::ty::UnpackTy>(
             pat,
             &crate::ast_walk::LazyWalkReses::new_mq_wrapper(env, vec![qenv]).with_context(ctxt),
@@ -839,7 +838,7 @@ fn quote_type_basic() {
                     "component_name" => [@"c"], "component" => [@"c"]})}),
             env.clone(),
             qenv.clone(),
-            ty!({"Type" "type_apply" :
+            ast!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" => [{ "Type" "struct" :
                 "component_name" => [@"c"], "component" => [@"c"]
             }]})
@@ -859,7 +858,7 @@ fn quote_type_basic() {
                     "component_name" => [@"c"], "component" => [@"c"]})}),
             env.clone(),
             qenv.clone(),
-            ty!({"Type" "type_apply" :
+            ast!({"Type" "type_apply" :
             "type_rator" => (,pat_type.clone()), "arg" => [{ "Type" "struct" :
                 "component_name" => [@"c"], "component" => [@"c"]
             }]})
@@ -879,7 +878,7 @@ fn quote_type_basic() {
                     "component_name" => [@"c" "x"], "component" => [@"c" "qfoo"]})}),
             env.clone(),
             qenv.clone(),
-            ty!({"Type" "type_apply" :
+            ast!({"Type" "type_apply" :
             "type_rator" => (,pat_type.clone()), "arg" => [{ "Type" "struct" :
                 "component_name" => [@"c" "x"], "component" => [@"c" {"Type" "Nat" :}]
             }]})
@@ -903,38 +902,38 @@ fn quote_unquote_type_basic() {
                       "body" => (++ false "x")}),
             Assoc::new()
         ),
-        Ok(ty!({"Type" "type_apply" : "type_rator" => (,pat_type.clone()),
+        Ok(ast!({"Type" "type_apply" : "type_rator" => (,pat_type.clone()),
             "arg" => [{"Type" "Nat" :}]}))
     );
 
     let env = assoc_n!(
-        "T" => ty!((vr "T")), // we're under a `forall T . ⋯`
-        "n" => ty!({"Type" "Nat" :}),
-        "en" => ty!({"Type" "type_apply" :
+        "T" => ast!((vr "T")), // we're under a `forall T . ⋯`
+        "n" => ast!({"Type" "Nat" :}),
+        "en" => ast!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]}),
-        "pn" => ty!({"Type" "type_apply" :
+        "pn" => ast!({"Type" "type_apply" :
             "type_rator" => (,pat_type.clone()), "arg" => [{"Type" "Nat" :}]}),
-        "pT" => ty!({"Type" "type_apply" :
+        "pT" => ast!({"Type" "type_apply" :
             "type_rator" => (,pat_type.clone()), "arg" => [(vr "T")]}),
-        "ef" => ty!({"Type" "type_apply" :
+        "ef" => ast!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Float" :}]}),
-        "eT" => ty!({"Type" "type_apply" :
+        "eT" => ast!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" => [(vr "T")]}),
-        "eT_to_T" => ty!({"Type" "type_apply" :
+        "eT_to_T" => ast!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" =>
                 [{"Type" "fn" : "param" => [(vr "T")], "ret" => (vr "T")}]})
     );
 
     let qenv = assoc_n!(
-        "qn" => ty!({"Type" "Nat" :}),
+        "qn" => ast!({"Type" "Nat" :}),
         // We're under a (differently-phased) `forall T . ⋯`
-        "qT" => adjust_opacity(&ty!((vr "T")), Assoc::new(), 1)
+        "qT" => adjust_opacity(&ast!((vr "T")), Assoc::new(), 1)
     );
 
     fn synth_type_two_phased(
         expr: &Ast,
-        env: Assoc<Name, Ty>,
-        qenv: Assoc<Name, Ty>,
+        env: Assoc<Name, Ast>,
+        qenv: Assoc<Name, Ast>,
     ) -> crate::ty::TypeResult {
         crate::ast_walk::walk::<crate::ty::SynthTy>(
             expr,
@@ -960,7 +959,7 @@ fn quote_unquote_type_basic() {
             env.clone(),
             qenv.clone()
         ),
-        Ok(ty!({"Type" "type_apply" : "type_rator" => (,expr_type.clone()),
+        Ok(ast!({"Type" "type_apply" : "type_rator" => (,expr_type.clone()),
             "arg" => [{"Type" "struct":
                 "component_name" => [@"c" "x", "y", "z"],
                 "component" => [@"c" {"Type" "Nat" :}, {"Type" "Float" :}, {"Type" "Nat" :}]}]}))
@@ -979,16 +978,16 @@ fn quote_unquote_type_basic() {
             env.clone(),
             qenv.clone()
         ),
-        Ok(ty!({"Type" "type_apply" : "type_rator" => (,expr_type.clone()),
+        Ok(ast!({"Type" "type_apply" : "type_rator" => (,expr_type.clone()),
             "arg" => [(vr "T")]}))
     );
 
     fn unpack_type_two_phased(
         pat: &Ast,
-        env: Assoc<Name, Ty>,
-        qenv: Assoc<Name, Ty>,
-        ctxt: Ty,
-    ) -> Result<Assoc<Name, Ty>, crate::ty::TypeError> {
+        env: Assoc<Name, Ast>,
+        qenv: Assoc<Name, Ast>,
+        ctxt: Ast,
+    ) -> Result<Assoc<Name, Ast>, crate::ty::TypeError> {
         crate::ast_walk::walk::<crate::ty::UnpackTy>(
             pat,
             &crate::ast_walk::LazyWalkReses::new_mq_wrapper(env, vec![qenv]).with_context(ctxt),
@@ -1014,17 +1013,17 @@ fn quote_unquote_type_basic() {
                 ]})}),
             env.clone(),
             qenv.clone(),
-            ty!({"Type" "type_apply" :
+            ast!({"Type" "type_apply" :
             "type_rator" => (,pat_type.clone()), "arg" => [{ "Type" "struct" :
                 "component_name" => [@"c" "x", "y", "z"],
                 "component" => [@"c" {"Type" "Nat" :}, {"Type" "Float" :}, {"Type" "Nat" :}]
             }]})
         ),
         Ok(assoc_n!(
-            "foo" => ty!({"Type" "type_apply" :
+            "foo" => ast!({"Type" "type_apply" :
                 "arg" => [{"Type" "Nat" :}],
                 "type_rator" => (,pat_type.clone())}),
-            "bar" => ty!({"Type" "type_apply" :
+            "bar" => ast!({"Type" "type_apply" :
                 "arg" => [{"Type" "Float" :}],
                 "type_rator" => (,pat_type.clone())})))
     );
@@ -1047,7 +1046,7 @@ fn quote_unquote_type_basic() {
             env.clone(),
             qenv.clone()
         ),
-        Ok(ty!({"Type" "type_apply" :
+        Ok(ast!({"Type" "type_apply" :
                 "type_rator" => (,expr_type.clone()), "arg" => [{ "Type" "Nat" :}]}))
     );
 
@@ -1069,7 +1068,7 @@ fn quote_unquote_type_basic() {
             env.clone(),
             qenv.clone()
         ),
-        Ok(ty!({"Type" "type_apply" :
+        Ok(ast!({"Type" "type_apply" :
                 "type_rator" => (,expr_type.clone()), "arg" => [(vr "T")]}))
     );
 }
@@ -1084,19 +1083,19 @@ fn unquote_type_basic() {
     let _pat_type = crate::core_type_forms::get__primitive_type(n("Pat"));
 
     let env = assoc_n!(
-        "n" => ty!({"Type" "Nat" :}),
-        "en" => ty!({"Type" "type_apply" :
+        "n" => ast!({"Type" "Nat" :}),
+        "en" => ast!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]})
     );
 
     let qenv = assoc_n!(
-        "qn" => ty!({"Type" "Nat" :})
+        "qn" => ast!({"Type" "Nat" :})
     );
 
     fn synth_type_two_phased_lq(
         expr: &Ast,
-        env: Assoc<Name, Ty>,
-        qenv: Assoc<Name, Ty>,
+        env: Assoc<Name, Ast>,
+        qenv: Assoc<Name, Ast>,
     ) -> crate::ty::TypeResult {
         let parts = LazyWalkReses::new_wrapper(env);
         let qparts = parts.quote_more(None).with_environment(qenv);
@@ -1111,7 +1110,7 @@ fn unquote_type_basic() {
         env,
         qenv,
     );
-    assert_eq!(res, Ok(ty!({"Type" "Nat" :})));
+    assert_eq!(res, Ok(ast!({"Type" "Nat" :})));
 }
 
 #[test]
@@ -1122,8 +1121,8 @@ fn use_dotdotdot() {
     let expr_type = crate::core_type_forms::get__primitive_type(n("Expr"));
 
     let env = assoc_n!(
-        "n" => ty!({"Type" "Nat" :}),
-        "ns" => ty!({"Type" "tuple" :
+        "n" => ast!({"Type" "Nat" :}),
+        "ns" => ast!({"Type" "tuple" :
             "component" =>
                 [{"Type" "type_apply" :
                      "type_rator" => (,expr_type.clone()),
@@ -1135,8 +1134,8 @@ fn use_dotdotdot() {
     );
 
     let qenv = assoc_n!(
-        "qn" => ty!({"Type" "Nat" :}),
-        "five" => ty!({"Type" "Int" :})
+        "qn" => ast!({"Type" "Nat" :}),
+        "five" => ast!({"Type" "Int" :})
     );
 
     let eval_env = assoc_n!(
@@ -1154,8 +1153,8 @@ fn use_dotdotdot() {
 
     fn synth_type_two_phased(
         expr: &Ast,
-        env: Assoc<Name, Ty>,
-        qenv: Assoc<Name, Ty>,
+        env: Assoc<Name, Ast>,
+        qenv: Assoc<Name, Ast>,
     ) -> crate::ty::TypeResult {
         crate::ast_walk::walk::<crate::ty::SynthTy>(
             expr,
@@ -1191,7 +1190,7 @@ fn use_dotdotdot() {
             env.clone(),
             qenv.clone()
         ),
-        Ok(ty!({"Type" "type_apply" :
+        Ok(ast!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Nat" :}]}))
     );
     without_freshening! {
@@ -1217,9 +1216,9 @@ fn use_dotdotdot() {
     let type_type = crate::core_type_forms::get__primitive_type(n("Type"));
 
     let ddd_env = assoc_n!(
-        "names" =>  ty!({"Type" "tuple" :
+        "names" =>  ast!({"Type" "tuple" :
             "component" => [{"Type" "Ident" : }, {"Type" "Ident" :}]}),
-        "types" => ty!({"Type" "tuple" :
+        "types" => ast!({"Type" "tuple" :
             "component" =>
                 [{"Type" "type_apply" :
                      "type_rator" => (,type_type.clone()),
@@ -1227,7 +1226,7 @@ fn use_dotdotdot() {
                  {"Type" "type_apply" :
                      "type_rator" => (,type_type.clone()),
                      "arg" => [{"Type" "Nat" :}]}]}),
-        "args" => ty!({"Type" "tuple" :
+        "args" => ast!({"Type" "tuple" :
             "component" =>
                 [{"Type" "type_apply" :
                      "type_rator" => (,expr_type.clone()),
@@ -1266,7 +1265,7 @@ fn use_dotdotdot() {
             ddd_env.clone(),
             qenv.clone()
         ),
-        Ok(ty!({"Type" "type_apply" :
+        Ok(ast!({"Type" "type_apply" :
             "type_rator" => (,expr_type.clone()), "arg" => [{"Type" "Int" :}]}))
     );
 

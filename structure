@@ -1,11 +1,3 @@
-TODO:
-  [ ] Macros (procedural!)
-  [ ] Fancy bindings
-  [ ] Modules
-  [ ] Kinds
-  [ ] Worry about parse error messages
-
-
 Like a normal language implementation, we have
  a reader that turns text into tokens,
  a parser that turns tokens into AST,
@@ -59,11 +51,11 @@ There are separate files
 
 Pipeline:
                                  ⋮                  ⋮                   ⋮
-               ↱     `Ast`→ [TypeSynth] →`Ty`
+               ↱     `Ast`→ [TypeSynth] →`Ast`
                           →  [Expand]   →`Ast`→ [Evaluate]  →`Value`→ [Reflect] ↩ (phase 2)
-               ↱     `Ast`→ [TypeSynth] →`Ty`
+               ↱     `Ast`→ [TypeSynth] →`Ast`
                           →  [Expand]   →`Ast`→ [Evaluate]  →`Value`→ [Reflect] ↩ (phase 1)
-    `&str`→ [Parse] →`Ast`→ [TypeSynth] →`Ty`
+    `&str`→ [Parse] →`Ast`→ [TypeSynth] →`Ast`
                           →  [Expand]   →`Ast`→ [Evaluate]  →`Value`              (runtime)
 
 [Parse] grammar.rs and earley.rs

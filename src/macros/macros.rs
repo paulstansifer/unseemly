@@ -204,13 +204,6 @@ macro_rules! ast {
     ($e:expr) => { crate::ast::Atom(crate::name::n($e))}
 }
 
-// Ty
-
-// Now just an alias for `ast!`
-macro_rules! ty {
-    ( $($contents:tt)* ) => { ast!($($contents)*) }
-}
-
 // These construct spanned type errors (so, for type synthesis, not subtyping)
 
 macro_rules! ty_err_val {

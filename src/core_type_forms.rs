@@ -8,10 +8,9 @@
 //  part of the user interface (for example, they'd appear in generated module documentation).
 // Therefore, I used `enum` and `struct` instead of × and +.
 
-// There are two similar things we should distinguish!
-// (1) syntax for types, as written by the user in an `Ast`
-// (2) types themselves, the result of type synthesis, often stored in `Ty`
-//      (which is just a thin wrapper around `Ast`).
+// There are two similar things (both stored as `Ast`s) we should distinguish!
+// (1) syntax for types, as written by the user
+// (2) types themselves, the result of type synthesis
 //
 // These things are almost identical,
 //  which is why postive synth_type is usually implemented with `LiteralLike`.
@@ -54,7 +53,7 @@ use crate::{
         SynEnv,
     },
     name::*,
-    ty::{synth_type, SynthTy, Ty, TyErr},
+    ty::{synth_type, SynthTy, TyErr},
     ty_compare::{Canonicalize, Subtype},
     util::assoc::Assoc,
     walk_mode::NegativeWalkMode,
@@ -102,8 +101,8 @@ thread_local! {
     })
 }
 
-pub fn get__primitive_type(called: Name) -> Ty {
-    ty!({primitive_type.with(|p_t| p_t.clone()) ; "name" => (, Atom(called))})
+pub fn get__primitive_type(called: Name) -> Ast {
+    ast!({primitive_type.with(|p_t| p_t.clone()) ; "name" => (, Atom(called))})
 }
 
 fn is_primitive(form: &Rc<Form>) -> bool { form == &primitive_type.with(|p_t| p_t.clone()) }
@@ -145,7 +144,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 }
                 for (p_expected, p_got) in expd_params.iter().zip(actl_params.iter()) {
                     // Parameters have reversed subtyping:
-                    let _: Assoc<Name, Ty> =
+                    let _: Assoc<Name, Ast> =
                         walk::<Subtype>(*p_got, &fn_parts.with_context(p_expected.clone()))?;
                 }
 
@@ -443,7 +442,7 @@ pub fn find_type(form_name: &str) -> Rc<Form> {
 
 // TODO #4: this should be extensible for when the syntax environment is extended...
 //  or just automatically have one type per NT. Probably the latter.
-pub fn nt_to_type(nt: Name) -> Ty {
+pub fn nt_to_type(nt: Name) -> Ast {
     if nt == n("Type") || nt == n("Pat") || nt == n("Expr") {
         get__primitive_type(nt)
     } else {
@@ -465,7 +464,7 @@ pub fn nt_is_positive(nt: Name) -> bool {
     }
 }
 
-pub fn less_quoted_ty(t: &Ty, nt: Option<Name>, loc: &Ast) -> Result<Ty, crate::ty::TypeError> {
+pub fn less_quoted_ty(t: &Ast, nt: Option<Name>, loc: &Ast) -> Result<Ast, crate::ty::TypeError> {
     // suppose that this is an expr, and `body` has the type `Expr<String>`:
     expect_ty_node!( (t ; crate::core_forms::find_core_form("Type", "type_apply") ; loc)
         tapp_parts;
@@ -490,8 +489,8 @@ pub fn less_quoted_ty(t: &Ty, nt: Option<Name>, loc: &Ast) -> Result<Ty, crate::
     )
 }
 
-pub fn more_quoted_ty(t: &Ty, nt: Name) -> Ty {
-    ty!({"Type" "type_apply" :
+pub fn more_quoted_ty(t: &Ast, nt: Name) -> Ast {
+    ast!({"Type" "type_apply" :
         "type_rator" => (, get__primitive_type(nt)),
         "arg" => [(, t.clone())]})
 }
@@ -504,25 +503,25 @@ fn parametric_types() {
          synth_type(&ast!({"Type" "forall_type" : "param" => ["t"],
                            "body" => (import [* [forall "param"]] (vr "t"))}),
                     Assoc::new()),
-        Ok(ty!({"Type" "forall_type" : "param" => ["t"],
+        Ok(ast!({"Type" "forall_type" : "param" => ["t"],
                 "body" => (import [* [forall "param"]] (vr "t"))})));
     }
 
-    let ident_ty = ty!( { "Type" "Ident" : });
-    let nat_ty = ty!( { "Type" "Nat" : });
+    let ident_ty = ast!( { "Type" "Ident" : });
+    let nat_ty = ast!( { "Type" "Nat" : });
 
     let para_ty_env = assoc_n!(
-        "unary" => ty!({ "Type" "forall_type" :
+        "unary" => ast!({ "Type" "forall_type" :
             "param" => ["t"],
             "body" => (import [* [forall "param"]] { "Type" "fn" :
                 "param" => [ (, nat_ty.clone()) ],
                 "ret" => (vr "t") })}),
-        "binary" => ty!({ "Type" "forall_type" :
+        "binary" => ast!({ "Type" "forall_type" :
             "param" => ["t", "u"],
             "body" => (import [* [forall "param"]] { "Type" "fn" :
                 "param" => [ (vr "t"), (vr "u") ],
                 "ret" => (, nat_ty.clone()) })}));
-    let mued_ty_env = assoc_n!("unary" => ty!((vr "unary")), "binary" => ty!((vr "binary")));
+    let mued_ty_env = assoc_n!("unary" => ast!((vr "unary")), "binary" => ast!((vr "binary")));
 
     // If `unary` is `mu`ed, `unary< ident >` can't be simplified.
     assert_eq!(
@@ -532,7 +531,7 @@ fn parametric_types() {
             "arg" => [ (, ident_ty.clone()) ]}),
             mued_ty_env.clone()
         ),
-        Ok(ty!({ "Type" "type_apply" :
+        Ok(ast!({ "Type" "type_apply" :
             "type_rator" => (vr "unary"),
             "arg" => [ (, ident_ty.clone()) ]}))
     );
@@ -546,7 +545,7 @@ fn parametric_types() {
                 "param" => [(, nat_ty.clone())], "ret" => (, nat_ty.clone())} ]}),
             mued_ty_env.clone()
         ),
-        Ok(ty!({ "Type" "type_apply" :
+        Ok(ast!({ "Type" "type_apply" :
             "type_rator" => (vr "unary"),
             "arg" => [ { "Type" "fn" :
                 "param" => [(, nat_ty.clone())], "ret" => (, nat_ty.clone())} ]}))
@@ -560,7 +559,7 @@ fn parametric_types() {
             "arg" => [ (, ident_ty.clone()) ]}),
             para_ty_env
         ),
-        Ok(ty!({ "Type" "fn" :
+        Ok(ast!({ "Type" "fn" :
             "param" => [(, nat_ty.clone() )],
             "ret" => (, ident_ty.clone())}))
     );
