@@ -131,7 +131,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         Both(
             LiteralLike,
             cust_rc_box!(move |fn_parts| {
-                let actual = fn_parts.context_elt().concrete();
+                let actual = fn_parts.context_elt();
                 let actual_parts =
                     Subtype::context_match(&fn_parts.this_ast, &actual, fn_parts.env.clone())?;
 
@@ -139,22 +139,19 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 let actl_params = actual_parts.get_rep_leaf_or_panic(n("param"));
                 if expd_params.len() != actl_params.len() {
                     return Err(TyErr::LengthMismatch(
-                        actl_params.iter().map(|&a| Ty(a.clone())).collect(),
+                        actl_params.iter().map(|&a| a.clone()).collect(),
                         expd_params.len(),
                     ));
                 }
                 for (p_expected, p_got) in expd_params.iter().zip(actl_params.iter()) {
                     // Parameters have reversed subtyping:
-                    let _: Assoc<Name, Ty> = walk::<Subtype>(
-                        *p_got,
-                        &fn_parts.with_context(Ty::new(p_expected.clone())),
-                    )?;
+                    let _: Assoc<Name, Ty> =
+                        walk::<Subtype>(*p_got, &fn_parts.with_context(p_expected.clone()))?;
                 }
 
                 walk::<Subtype>(
                     &fn_parts.get_term(n("ret")),
-                    &fn_parts
-                        .with_context(Ty::new(actual_parts.get_leaf_or_panic(&n("ret")).clone())),
+                    &fn_parts.with_context(actual_parts.get_leaf_or_panic(&n("ret")).clone()),
                 )
             }),
         ),
@@ -179,7 +176,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
             cust_rc_box!(move |struct_parts| {
                 let actual_struct_parts = Subtype::context_match(
                     &struct_parts.this_ast,
-                    &struct_parts.context_elt().concrete(),
+                    struct_parts.context_elt(),
                     struct_parts.env.clone(),
                 )?;
 
@@ -198,10 +195,8 @@ pub fn make_core_syn_env_types() -> SynEnv {
                             continue;
                         }
                         found = true;
-                        let _ = walk::<Subtype>(
-                            &got_ty,
-                            &struct_parts.with_context(Ty(exp_ty.clone())),
-                        )?;
+                        let _ =
+                            walk::<Subtype>(&got_ty, &struct_parts.with_context(exp_ty.clone()))?;
                     }
                     if !found {
                         return Err(TyErr::NonexistentStructField(
@@ -233,7 +228,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
             cust_rc_box!(move |forall_parts| {
                 match Subtype::context_match(
                     &forall_parts.this_ast,
-                    &forall_parts.context_elt().concrete(),
+                    forall_parts.context_elt(),
                     forall_parts.env.clone(),
                 ) {
                     // ∀ X. ⋯ <: ∀ Y. ⋯ ? (so force X=Y)
@@ -242,7 +237,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
 
                         walk::<Subtype>(
                             &forall_parts.get_term(n("body")),
-                            &forall_parts.with_context(Ty::new(actl_inner_body.clone())),
+                            &forall_parts.with_context(actl_inner_body.clone()),
                         )
                     }
                     // ∀ X. ⋯ <: ⋯ ?  (so try to specialize X)
@@ -271,7 +266,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
             cust_rc_box!(move |mu_parts| {
                 let rhs_mu_parts = Subtype::context_match(
                     &mu_parts.this_ast,
-                    &mu_parts.context_elt().concrete(),
+                    mu_parts.context_elt(),
                     mu_parts.env.clone(),
                 )?;
 
@@ -281,7 +276,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                 let l_params = mu_parts.get_rep_term(n("param"));
                 if r_params.len() != l_params.len() {
                     return Err(TyErr::LengthMismatch(
-                        r_params.iter().map(|a| Ty((*a).clone())).collect(),
+                        r_params.iter().cloned().cloned().collect(),
                         l_params.len(),
                     ));
                 }
@@ -295,19 +290,19 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     };
                     if p_r == p_l // short-circuit if the names are the same...
                         || mu_parts.env.find(&p_r.vr_to_name()) // ...or Amber assumed so already
-                             == Some(&Ty(p_l.clone()))
+                             == Some(p_l)
                     {
                         continue;
                     }
 
-                    amber_environment = amber_environment.set(p_r.vr_to_name(), Ty(p_l.clone()));
+                    amber_environment = amber_environment.set(p_r.vr_to_name(), p_l.clone());
                 }
 
                 walk::<Subtype>(
                     &mu_parts.get_term(n("body")),
                     &mu_parts
                         .with_environment(amber_environment)
-                        .with_context(Ty::new(rhs_body.clone())),
+                        .with_context(rhs_body.clone()),
                 )
             }),
         ),
@@ -344,7 +339,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
             use crate::util::mbe::EnvMBE;
             let arg_res = tapp_parts.get_rep_res(n("arg"))?;
             let rator_res = tapp_parts.get_res(n("type_rator"))?;
-            match rator_res.0 {
+            match rator_res {
                 VariableReference(rator_vr) => {
                     // e.g. `X<int, Y>` underneath `mu X. ...`
 
@@ -359,13 +354,13 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     let mut args = vec![];
                     for individual__arg_res in arg_res {
                         args.push(EnvMBE::new_from_leaves(
-                            assoc_n!("arg" => individual__arg_res.concrete()),
+                            assoc_n!("arg" => individual__arg_res.clone()),
                         ));
                     }
                     new__tapp_parts.add_anon_repeat(args);
 
                     if let Node(ref f, _, ref exp) = tapp_parts.this_ast {
-                        Ok(Ty::new(Node(/* forall */ f.clone(), new__tapp_parts, exp.clone())))
+                        Ok(Node(/* forall */ f.clone(), new__tapp_parts, exp.clone()))
                     } else {
                         icp!()
                     }
@@ -377,13 +372,13 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     let mut args = vec![];
                     for individual__arg_res in arg_res {
                         args.push(EnvMBE::new_from_leaves(
-                            assoc_n!("arg" => individual__arg_res.concrete()),
+                            assoc_n!("arg" => individual__arg_res.clone()),
                         ));
                     }
                     new__tapp_parts.add_anon_repeat(args);
 
                     if let Node(ref f, _, ref exp) = tapp_parts.this_ast {
-                        Ok(Ty::new(Node(/* forall */ f.clone(), new__tapp_parts, exp.clone())))
+                        Ok(Node(/* forall */ f.clone(), new__tapp_parts, exp.clone()))
                     } else {
                         icp!()
                     }
@@ -477,7 +472,7 @@ pub fn less_quoted_ty(t: &Ty, nt: Option<Name>, loc: &Ast) -> Result<Ty, crate::
         {
             if let Some(nt) = nt { // Check it if you got it
                 ty_exp!(
-                    &Ty::new(tapp_parts.get_leaf_or_panic(&n("type_rator")).clone()),
+                    tapp_parts.get_leaf_or_panic(&n("type_rator")),
                     &get__primitive_type(nt),
                     loc
                 );
@@ -485,20 +480,20 @@ pub fn less_quoted_ty(t: &Ty, nt: Option<Name>, loc: &Ast) -> Result<Ty, crate::
 
             let args = tapp_parts.get_rep_leaf_or_panic(n("arg"));
             if args.len() != 1 {
-                ty_err!(LengthMismatch(args.iter().map(|t| Ty::new((*t).clone())).collect(), 1)
+                ty_err!(LengthMismatch(args.into_iter().cloned().collect(), 1)
                         at loc);
             }
 
             // ...returns `String` in that case
-            Ok(Ty(args[0].clone()))
+            Ok(args[0].clone())
         }
     )
 }
 
 pub fn more_quoted_ty(t: &Ty, nt: Name) -> Ty {
     ty!({"Type" "type_apply" :
-        "type_rator" => (, get__primitive_type(nt).concrete()),
-        "arg" => [(, t.concrete())]})
+        "type_rator" => (, get__primitive_type(nt)),
+        "arg" => [(, t.clone())]})
 }
 
 #[test]
@@ -520,13 +515,13 @@ fn parametric_types() {
         "unary" => ty!({ "Type" "forall_type" :
             "param" => ["t"],
             "body" => (import [* [forall "param"]] { "Type" "fn" :
-                "param" => [ (, nat_ty.concrete()) ],
+                "param" => [ (, nat_ty.clone()) ],
                 "ret" => (vr "t") })}),
         "binary" => ty!({ "Type" "forall_type" :
             "param" => ["t", "u"],
             "body" => (import [* [forall "param"]] { "Type" "fn" :
                 "param" => [ (vr "t"), (vr "u") ],
-                "ret" => (, nat_ty.concrete()) })}));
+                "ret" => (, nat_ty.clone()) })}));
     let mued_ty_env = assoc_n!("unary" => ty!((vr "unary")), "binary" => ty!((vr "binary")));
 
     // If `unary` is `mu`ed, `unary< ident >` can't be simplified.
@@ -534,12 +529,12 @@ fn parametric_types() {
         synth_type(
             &ast!( { "Type" "type_apply" :
             "type_rator" => (vr "unary"),
-            "arg" => [ (, ident_ty.concrete()) ]}),
+            "arg" => [ (, ident_ty.clone()) ]}),
             mued_ty_env.clone()
         ),
         Ok(ty!({ "Type" "type_apply" :
             "type_rator" => (vr "unary"),
-            "arg" => [ (, ident_ty.concrete()) ]}))
+            "arg" => [ (, ident_ty.clone()) ]}))
     );
 
     // If `unary` is `mu`ed, `unary< [nat -> nat] >` can't be simplified.
@@ -548,13 +543,13 @@ fn parametric_types() {
             &ast!( { "Type" "type_apply" :
             "type_rator" => (vr "unary"),
             "arg" => [ { "Type" "fn" :
-                "param" => [(, nat_ty.concrete())], "ret" => (, nat_ty.concrete())} ]}),
+                "param" => [(, nat_ty.clone())], "ret" => (, nat_ty.clone())} ]}),
             mued_ty_env.clone()
         ),
         Ok(ty!({ "Type" "type_apply" :
             "type_rator" => (vr "unary"),
             "arg" => [ { "Type" "fn" :
-                "param" => [(, nat_ty.concrete())], "ret" => (, nat_ty.concrete())} ]}))
+                "param" => [(, nat_ty.clone())], "ret" => (, nat_ty.clone())} ]}))
     );
 
     // Expand the definition of `unary`.
@@ -562,11 +557,11 @@ fn parametric_types() {
         synth_type(
             &ast!( { "Type" "type_apply" :
             "type_rator" => (vr "unary"),
-            "arg" => [ (, ident_ty.concrete()) ]}),
+            "arg" => [ (, ident_ty.clone()) ]}),
             para_ty_env
         ),
         Ok(ty!({ "Type" "fn" :
-            "param" => [(, nat_ty.concrete() )],
-            "ret" => (, ident_ty.concrete())}))
+            "param" => [(, nat_ty.clone() )],
+            "ret" => (, ident_ty.clone())}))
     );
 }

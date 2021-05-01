@@ -29,7 +29,7 @@ pub trait Reifiable {
     /// TODO: rename to `generic_ty`
     fn ty() -> Ast {
         // By default, this is an opaque primitive.
-        crate::core_type_forms::get__primitive_type(Self::ty_name()).concrete()
+        crate::core_type_forms::get__primitive_type(Self::ty_name())
     }
 
     /// A name for that type, so that recursive types are okay.
@@ -302,7 +302,7 @@ macro_rules! reify_types {
     ( $($t:ty),* ) => {{
         let mut res = Assoc::new();
         $(
-           res = res.set(<$t as Reifiable>::ty_name(), ::ty::Ty::new(<$t as Reifiable>::ty()));
+           res = res.set(<$t as Reifiable>::ty_name(), <$t as Reifiable>::ty());
         )*
         res
     }}
@@ -345,8 +345,8 @@ impl<T: Reifiable> Reifiable for Rc<T> {
 // for when we have a `Ty`, rather than a Rust type.
 pub fn sequence_type__of(ty: &crate::ty::Ty) -> crate::ty::Ty {
     ty!({ "Type" "type_apply" :
-        "type_rator" => (, crate::core_type_forms::get__primitive_type(n("Sequence")).concrete()),
-        "arg" => [(, ty.concrete()) ]})
+        "type_rator" => (, crate::core_type_forms::get__primitive_type(n("Sequence"))),
+        "arg" => [(, ty.clone()) ]})
 }
 
 pub fn un__sequence_type(

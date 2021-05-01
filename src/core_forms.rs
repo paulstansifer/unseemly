@@ -36,9 +36,8 @@ pub fn strip_ee(a: &Ast) -> &Ast {
 // lambda ==> [param: Atom  p_t: Type]*  body: Expr
 fn type_lambda(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
     let lambda_type: Ty = ty!({ find_type("fn") ;
-         "param" => [* part_types =>("param") part_types :
-                       (, part_types.get_res(n("p_t"))?.concrete() )],
-         "ret" => (, part_types.get_res(n("body"))?.concrete() )});
+         "param" => [* part_types =>("param") part_types : (, part_types.get_res(n("p_t"))? )],
+         "ret" => (, part_types.get_res(n("body"))? )});
     Ok(lambda_type)
 }
 fn eval_lambda(part_values: LazyWalkReses<Eval>) -> Result<Value, ()> {
@@ -57,9 +56,8 @@ fn type_apply(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
     // The `rator` must be a function that takes the `rand`s as arguments:
     let _ = crate::ty_compare::is_subtype(
         &ty!({ "Type" "fn" :
-            "param" => (,seq part_types.get_rep_res(n("rand"))?
-                 .iter().map(|t| t.concrete()).collect::<Vec<_>>() ),
-            "ret" => (, return_type.concrete() )}),
+            "param" => (,seq part_types.get_rep_res(n("rand"))? ),
+            "ret" => (, return_type.clone() )}),
         &part_types.get_res(n("rator"))?,
         &part_types,
     )
@@ -147,15 +145,14 @@ fn type_enum_expr(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
                     continue; // not the right arm
                 }
 
-                let component_types : Vec<Ty> =
-                    enum_type_part.get_rep_leaf_or_panic(n("component"))
-                        .iter().map(|a| Ty::new((*a).clone())).collect();
+                let component_types : Vec<&Ty> =
+                    enum_type_part.get_rep_leaf_or_panic(n("component"));
 
                 // TODO: check that they're the same length!
 
                 for (t, expected_t) in part_types.get_rep_res(n("component"))?
                         .iter().zip(component_types) {
-                    ty_exp!(t, &expected_t, part_types.this_ast);
+                    ty_exp!(t, expected_t, part_types.this_ast);
                 }
                 return Ok(res);
             }
@@ -173,8 +170,7 @@ fn eval_enum_expr(part_values: LazyWalkReses<Eval>) -> Result<Value, ()> {
 fn type_struct_expr(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
     Ok(ty!({ find_type("struct") ;
         "component_name" => (@"c" ,seq part_types.get_rep_term(n("component_name"))),
-        "component" => (@"c" ,seq part_types.get_rep_res(n("component"))?
-            .into_iter().map(|c : Ty| c.concrete()))
+        "component" => (@"c" ,seq part_types.get_rep_res(n("component"))?)
     }))
 }
 fn eval_struct_expr(part_values: LazyWalkReses<Eval>) -> Result<Value, ()> {
@@ -192,9 +188,7 @@ fn eval_struct_expr(part_values: LazyWalkReses<Eval>) -> Result<Value, ()> {
 
 // tuple_expr ==> [component: Expr]*
 fn type_tuple_expr(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
-    Ok(uty!({tuple : [,
-        part_types.get_rep_res(n("component"))?
-            .into_iter().map(|t| t.concrete()).collect() ]}))
+    Ok(uty!({tuple : [, part_types.get_rep_res(n("component"))? ]}))
 }
 fn eval_tuple_expr(part_values: LazyWalkReses<Eval>) -> Result<Value, ()> {
     Ok(crate::runtime::eval::Value::Sequence(
@@ -246,7 +240,7 @@ fn type_fold(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
 fn type__forall_expr(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
     Ok(ty!({"Type" "forall_type" :
         "param" => (,seq part_types.get_rep_term(n("param"))),
-        "body" => (import [* [forall "param"]] (, part_types.get_res(n("body"))?.concrete()))
+        "body" => (import [* [forall "param"]] (, part_types.get_res(n("body"))?))
     }))
 }
 
@@ -365,8 +359,7 @@ pub fn make_core_syn_env() -> SynEnv {
                             }
 
                             let component_types : Vec<Ty> =
-                                enum_type_part.get_rep_leaf_or_panic(n("component"))
-                                    .iter().map(|a| Ty::new((*a).clone())).collect();
+                                enum_type_part.get_rep_leaf_or_panic(n("component")).into_iter().cloned().collect();
 
                             let mut res = Assoc::new();
                             for sub_res in &part_types
@@ -377,7 +370,7 @@ pub fn make_core_syn_env() -> SynEnv {
                             return Ok(res);
                         }
                         ty_err!(NonexistentEnumArm(arm_name.to_name(),
-                            Ty::new(Trivial)) /* TODO `LazyWalkReses` needs more information */
+                            Trivial) /* TODO `LazyWalkReses` needs more information */
                             at arm_name.clone())
                 }
             )),
@@ -424,8 +417,8 @@ pub fn make_core_syn_env() -> SynEnv {
                                 }
                                 component_found = true;
 
-                                let component_type = Ty::new(
-                                    struct_type_part.get_leaf_or_panic(&n("component")).clone());
+                                let component_type =
+                                    struct_type_part.get_leaf_or_panic(&n("component")).clone();
                                 res = res.set_assoc(
                                     &component_ctx.with_context(component_type)
                                         .get_res(n("component"))?);
@@ -469,7 +462,7 @@ pub fn make_core_syn_env() -> SynEnv {
                     {
                         let component_types : Vec<Ty> =
                             ctxt_type_parts.get_rep_leaf_or_panic(n("component"))
-                                .iter().map(|a| Ty::new((*a).clone())).collect();
+                                .into_iter().cloned().collect();
 
                         let mut res = Assoc::new();
                         for sub_res in &part_types
@@ -730,10 +723,7 @@ fn alg_type() {
 
     // Typecheck enum expression
     assert_eq!(
-        synth_type(
-            &u!({enum_expr : Jefferson [x ; n] (, my_enum.concrete())}),
-            simple_ty_env.clone()
-        ),
+        synth_type(&u!({enum_expr : Jefferson [x ; n] (, my_enum.clone())}), simple_ty_env.clone()),
         Ok(my_enum.clone())
     );
 
@@ -932,14 +922,14 @@ fn recursive_types() {
         &ast!({"Expr" "unfold" : "body" => (vr "il_direct")}), ty_env.clone()),
         Ok(ty!({ "Type" "enum" :
                 "name" => [@"c" "Nil", "Cons"],
-                "component" => [@"c" [], [{"Type" "Int":}, (, int_list_ty.concrete()) ]]})));
+                "component" => [@"c" [], [{"Type" "Int":}, (, int_list_ty.clone()) ]]})));
 
     // folding an unfolded thing should give us back the same thing
     assert_eq!(synth_type(
         &ast!( { find_core_form("Expr", "fold") ;
             "body" => { find_core_form("Expr", "unfold") ;
                 "body" => (vr "il_direct") },
-            "t" => (, int_list_ty.concrete() )}),
+            "t" => (, int_list_ty.clone() )}),
         ty_env.clone()),
         Ok(int_list_ty.clone()));
 
@@ -1013,8 +1003,7 @@ fn use__let_type() {
 
     // useless type, but self-referential:
     let trivial_mu_type = ty!( { "Type" "mu_type" : "param" => [(import [prot "param"] (vr "T"))],
-                                  "body" => (import [* [prot "param"]] (vr "T")) })
-    .concrete();
+                                  "body" => (import [* [prot "param"]] (vr "T")) });
 
     without_freshening! {
     // Recursive usage:

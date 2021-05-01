@@ -19,51 +19,20 @@ use crate::{
 };
 use std::{fmt, rc::Rc};
 
-#[derive(PartialEq, Clone)]
-pub struct Ty(pub Ast);
-
-impl fmt::Debug for Ty {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "[TYPE {:#?}]", self.0) }
-}
+// TODO: remove this alias
+pub type Ty = Ast;
 
 impl Ty {
-    pub fn new(a: Ast) -> Ty { Ty(a) } // TODO: deprecate in favor of `Ty()`
-    pub fn concrete(&self) -> Ast {
-        // TODO: just use `Ty::to_ast()`; this name is obsolete
-        self.0.clone()
-    }
-
     // TODO: use this more
     // TODO: make `expd_form` a reference
-    pub fn destructure(
+    pub fn ty_destructure(
         &self,
         expd_form: Rc<Form>,
         loc: &Ast,
     ) -> Result<crate::util::mbe::EnvMBE<Ast>, TypeError> {
-        self.0
-            .destructure(expd_form.clone())
+        self.destructure(expd_form.clone())
             .ok_or(ty_err_val!(UnableToDestructure(self.clone(), expd_form.name) at loc /*TODO*/))
     }
-}
-
-// this kinda belongs in core_forms.rs
-impl fmt::Display for Ty {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{}", self.0) }
-}
-
-impl crate::runtime::reify::Reifiable for Ty {
-    fn ty() -> Ast { Ast::ty() }
-
-    fn ty_name() -> Name { n("Type") }
-
-    fn reify(&self) -> crate::runtime::eval::Value { self.0.reify() }
-
-    fn reflect(v: &crate::runtime::eval::Value) -> Self { Ty::new(Ast::reflect(v)) }
-}
-
-impl crate::walk_mode::WalkElt for Ty {
-    fn from_ast(a: &Ast) -> Ty { Ty::new(a.clone()) }
-    fn to_ast(&self) -> Ast { self.concrete() }
 }
 
 custom_derive! {
@@ -95,13 +64,13 @@ impl WalkMode for SynthTy {
         match parts.env.find(&name) {
             None => Err(crate::util::err::sp(TyErr::UnboundName(name), parts.this_ast.clone())),
             // If name is protected, stop:
-            Some(ty) if &Ty(VariableReference(name)) == ty => Ok(ty.clone()),
-            Some(ty) => synth_type(&ty.concrete(), parts.env.clone()),
+            Some(ty) if &VariableReference(name) == ty => Ok(ty.clone()),
+            Some(ref ty) => synth_type(ty, parts.env.clone()),
         }
     }
 
     // Simply protect the name; don't try to unify it.
-    fn underspecified(name: Name) -> Ty { Ty(VariableReference(name)) }
+    fn underspecified(name: Name) -> Ty { VariableReference(name) }
 }
 
 impl WalkMode for UnpackTy {
@@ -117,7 +86,7 @@ impl WalkMode for UnpackTy {
     fn get_walk_rule(f: &Form) -> WalkRule<UnpackTy> { f.synth_type.neg().clone() }
     fn automatically_extend_env() -> bool { true }
 
-    fn underspecified(name: Name) -> Ty { Ty(VariableReference(name)) }
+    fn underspecified(name: Name) -> Ty { VariableReference(name) }
 }
 
 impl crate::walk_mode::NegativeWalkMode for UnpackTy {
@@ -261,7 +230,7 @@ fn basic_type_synth() {
     assert_eq!(
         synth_type(
             &ast!({body.clone() ;
-                                     "type_of_new_var" => (, int_ty.concrete()),
+                                     "type_of_new_var" => (, int_ty.clone()),
                                      "new_var" => "y",
                                      "body" => (import ["new_var" : "type_of_new_var"] (vr "y"))}),
             simple_ty_env.clone()
@@ -296,20 +265,20 @@ fn basic_type_synth() {
 fn type_specialization() {
     let nat_ty = ty!( { "Type" "Nat" : });
 
-    fn tbn(nm: &'static str) -> Ty { Ty(crate::ast::Ast::VariableReference(n(nm))) }
+    fn tbn(nm: &'static str) -> Ty { crate::ast::Ast::VariableReference(n(nm)) }
 
     let _para_ty_env = assoc_n!(
         "some_int" => ty!( { "Type" "Int" : }),
         "convert_to_nat" => ty!({ "Type" "forall_type" :
             "param" => ["t"],
             "body" => (import [* [forall "param"]] { "Type" "fn" :
-                "param" => [ (, tbn("t").concrete() ) ],
-                "ret" => (, nat_ty.concrete() ) })}),
+                "param" => [ (, tbn("t") ) ],
+                "ret" => (, nat_ty.clone() ) })}),
         "identity" => ty!({ "Type" "forall_type" :
             "param" => ["t"],
             "body" => (import [* [forall "param"]] { "Type" "fn" :
-                "param" => [ (, tbn("t").concrete() ) ],
-                "ret" => (, tbn("t").concrete() ) })}));
+                "param" => [ (, tbn("t") ) ],
+                "ret" => (, tbn("t") ) })}));
 
     // assert_eq!(synth_type(&ast!({ "Expr" "apply" :
     //             "rator" => (vr "convert_to_nat"),

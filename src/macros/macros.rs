@@ -206,10 +206,9 @@ macro_rules! ast {
 
 // Ty
 
-// Note that interpolations into this have to be `Ast`, not `Ty`.
-// This isn't ideal, but the macrology involved in fixing that is a bridge too far for me
+// Now just an alias for `ast!`
 macro_rules! ty {
-    ( $($contents:tt)* ) => { crate::ty::Ty::new(ast!($($contents)*)) }
+    ( $($contents:tt)* ) => { ast!($($contents)*) }
 }
 
 // These construct spanned type errors (so, for type synthesis, not subtyping)
@@ -630,7 +629,7 @@ macro_rules! expect_node {
 macro_rules! expect_ty_node {
     ( ($node:expr ; $form:expr ; $loc:expr) $env:ident ; $body:expr ) => {{
         // This is tied to the signature of `Custom`
-        let $env = $node.destructure($form, $loc)?;
+        let $env = $node.ty_destructure($form, $loc)?;
         $body
     }};
 }

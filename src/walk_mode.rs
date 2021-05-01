@@ -190,12 +190,12 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
         // (Wait, in what way does it not?!?)
         match a {
             Node(f, parts, exports) => {
-                // TODO: This can probably be simplified: 
-                //  We need something that's like `map`, 
+                // TODO: This can probably be simplified:
+                //  We need something that's like `map`,
                 //   but that exposes the "current marchedness" of the `EnvMBE`/`Sky`,
                 //   so that references to siblings in the same march group are visible.
                 // Then we can just do `cnc.parts.map__with__current_marchedness`...
-                
+
                 // For the sake of `ExtendEnv`, we need to march out `cnc`:
                 //  betas look at the environment in a marched way.
                 let mut walked = parts

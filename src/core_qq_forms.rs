@@ -72,7 +72,7 @@ fn adjust_opacity(t: &Ty, env: Assoc<Name, Ty>, delta: i32) -> Ty {
         extra_info: delta,
         ..crate::ast_walk::LazyWalkReses::new_wrapper(env)
     };
-    crate::ast_walk::walk::<MuProtect>(&t.concrete(), &ctxt).unwrap()
+    crate::ast_walk::walk::<MuProtect>(t, &ctxt).unwrap()
 }
 
 fn remove_opacity(t: &Ty, delta: i32) -> Ty {
@@ -106,7 +106,7 @@ fn change_mu_opacity(parts: crate::ast_walk::LazyWalkReses<MuProtect>) -> Result
         }
 
         if opacity + delta == 0 {
-            return Ok(Ty(crate::core_forms::strip_ee(&parts.get_term(n("body"))).clone()));
+            return Ok(crate::core_forms::strip_ee(&parts.get_term(n("body"))).clone());
         }
     }
     match parts.this_ast {
@@ -117,7 +117,7 @@ fn change_mu_opacity(parts: crate::ast_walk::LazyWalkReses<MuProtect>) -> Result
                     Ast::Atom(n(&(opacity + delta).to_string())),
                 );
             }
-            Ok(Ty(Ast::Node(f, mu_parts, export)))
+            Ok(Ast::Node(f, mu_parts, export))
         }
         _ => icp!(),
     }
@@ -144,7 +144,7 @@ impl WalkMode for MuProtect {
 
     fn walk_var(name: Name, parts: &crate::ast_walk::LazyWalkReses<MuProtect>) -> Result<Ty, ()> {
         if parts.extra_info <= 0 {
-            return Ok(Ty(VariableReference(name)));
+            return Ok(VariableReference(name));
         }
         Ok(parts.env.find(&name).map(Clone::clone).unwrap_or_else(|| {
             ty!({"Type" "mu_type" :
@@ -353,11 +353,11 @@ macro_rules! ddd_type__body {
             let mut walked_env = Assoc::new();
 
             let repeats = match ddd_parts_uq.env.find(&drivers[0]) {
-                Some(&Ty(Node(ref form, ref parts, _))) if form.name == n("tuple") => {
+                Some(&Node(ref form, ref parts, _)) if form.name == n("tuple") => {
                     parts.get_rep_leaf_or_panic(n("component")).len()
                 }
                 // TODO: what if some are `tuple` and others are `dotdotdot`?
-                Some(&Ty(Node(ref form, _, _))) if form.name == n("dotdotdot") => 1,
+                Some(&Node(ref form, _, _)) if form.name == n("dotdotdot") => 1,
                 Some(other_t) => {
                     ty_err!(UnableToDestructure(other_t.clone(), n("tuple"))
                                 at ddd_parts_uq.this_ast);
@@ -371,7 +371,7 @@ macro_rules! ddd_type__body {
                 for (name, ty) in ddd_parts_uq.env.iter_pairs() {
                     if drivers.contains(name) {
                         walked_env = walked_env.set(*name, match ty {
-                            Ty(Node(ref form, ref parts, _)) if form.name == n("tuple") => {
+                            Node(ref form, ref parts, _) if form.name == n("tuple") => {
                                 let component
                                     = parts.get_rep_leaf_or_panic(n("component"))[i].clone();
                                 let ddd2_form = crate::core_forms::find("Type", "dotdotdot_type");
@@ -379,18 +379,16 @@ macro_rules! ddd_type__body {
                                     // HACK! If the tuple had a ddd, we should just unwrap it.
                                     // We should somehow eliminate this linkage between
                                     //  syntax repetition and tuples with type repetition.
-                                    Ty(ddd2_parts.get_leaf_or_panic(&n("body")).clone())
+                                    ddd2_parts.get_leaf_or_panic(&n("body")).clone()
                                 } else {
-                                    Ty(component)
+                                    component
                                 }
                             }
-                            Ty(Node(ref form, ref parts, _))
-                                if form.name == n("dotdotdot") =>
+                            Node(ref form, ref parts, _) if form.name == n("dotdotdot") =>
                             {
-                                Ty(parts.get_leaf_or_panic(&n("body")).clone())
+                                parts.get_leaf_or_panic(&n("body")).clone()
                             }
-                            t => ty_err!(UnableToDestructure(t.clone(), n("tuple"))
-                                            at t.0),
+                            t => ty_err!(UnableToDestructure(t.clone(), n("tuple")) at t),
                         });
                     } else {
                         walked_env = walked_env.set(*name, ty.clone());
@@ -555,10 +553,8 @@ pub fn quote(pos: bool) -> Rc<Form> {
                     // TODO #9: if the user provides an annotation, check it!
                     Ok(ty!({"Type" "type_apply" :
                         "type_rator" =>
-                            (, nt_to_type(quote_parts.get_term(n("nt")).vr_to_name()).concrete() ),
-                        "arg" => [(,
-                            remove_opacity(&quote_parts.get_res(n("body"))?, -1).concrete()
-                        )]
+                            (, nt_to_type(quote_parts.get_term(n("nt")).vr_to_name()) ),
+                        "arg" => [(, remove_opacity(&quote_parts.get_res(n("body"))?, -1) )]
                     }))
                 } else {
                     if !quote_parts.has(n("ty_annot")) {
@@ -581,9 +577,8 @@ pub fn quote(pos: bool) -> Rc<Form> {
 
                     Ok(ty!({"Type" "type_apply" :
                             "type_rator" =>
-                                (, nt_to_type(
-                                    quote_parts.get_term(n("nt")).vr_to_name()).concrete() ),
-                            "arg" => [ (,expected_type.concrete()) ]}))
+                                (, nt_to_type(quote_parts.get_term(n("nt")).vr_to_name()) ),
+                            "arg" => [ (,expected_type.clone()) ]}))
                 }
             }))
         } else {
@@ -723,8 +718,8 @@ fn quote_type_basic() {
         "qn" => ty!({"Type" "Nat" :})
     );
 
-    let expr_type = crate::core_type_forms::get__primitive_type(n("Expr")).concrete();
-    let pat_type = crate::core_type_forms::get__primitive_type(n("Pat")).concrete();
+    let expr_type = crate::core_type_forms::get__primitive_type(n("Expr"));
+    let pat_type = crate::core_type_forms::get__primitive_type(n("Pat"));
 
     fn synth_type_two_phased(
         expr: &Ast,
@@ -898,8 +893,8 @@ fn quote_unquote_type_basic() {
     let pos = true;
     let neg = false;
 
-    let expr_type = crate::core_type_forms::get__primitive_type(n("Expr")).concrete();
-    let pat_type = crate::core_type_forms::get__primitive_type(n("Pat")).concrete();
+    let expr_type = crate::core_type_forms::get__primitive_type(n("Expr"));
+    let pat_type = crate::core_type_forms::get__primitive_type(n("Pat"));
 
     assert_eq!(
         crate::ty::synth_type(
@@ -1085,8 +1080,8 @@ fn unquote_type_basic() {
     let pos = true;
     let _neg = false;
 
-    let expr_type = crate::core_type_forms::get__primitive_type(n("Expr")).concrete();
-    let _pat_type = crate::core_type_forms::get__primitive_type(n("Pat")).concrete();
+    let expr_type = crate::core_type_forms::get__primitive_type(n("Expr"));
+    let _pat_type = crate::core_type_forms::get__primitive_type(n("Pat"));
 
     let env = assoc_n!(
         "n" => ty!({"Type" "Nat" :}),
@@ -1124,7 +1119,7 @@ fn use_dotdotdot() {
     use crate::runtime::eval::Value;
 
     let pos = true;
-    let expr_type = crate::core_type_forms::get__primitive_type(n("Expr")).concrete();
+    let expr_type = crate::core_type_forms::get__primitive_type(n("Expr"));
 
     let env = assoc_n!(
         "n" => ty!({"Type" "Nat" :}),
@@ -1155,7 +1150,7 @@ fn use_dotdotdot() {
         "qnn" => val!(i 7)
     );
 
-    let expr_type = crate::core_type_forms::get__primitive_type(n("Expr")).concrete();
+    let expr_type = crate::core_type_forms::get__primitive_type(n("Expr"));
 
     fn synth_type_two_phased(
         expr: &Ast,
@@ -1219,7 +1214,7 @@ fn use_dotdotdot() {
                                     (import ["p" = "scrutinee"] (vr "qnn"))]})));
     }
 
-    let type_type = crate::core_type_forms::get__primitive_type(n("Type")).concrete();
+    let type_type = crate::core_type_forms::get__primitive_type(n("Type"));
 
     let ddd_env = assoc_n!(
         "names" =>  ty!({"Type" "tuple" :

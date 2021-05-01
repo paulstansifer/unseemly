@@ -131,7 +131,7 @@ fn macro_type(forall_ty_vars: &[Name], arguments: Vec<(Name, Ty)>, output: Ty) -
     let mac_fn = u!({Type fn : [(, argument_struct)] (, output.to_ast())});
 
     if forall_ty_vars.is_empty() {
-        Ty(mac_fn)
+        mac_fn
     } else {
         ty!({"Type" "forall_type" :
             "body" => (import [* [forall "param"]] (, mac_fn)),
@@ -155,22 +155,14 @@ fn type_macro_invocation(
                 binder,
                 depth,
                 &|ty: Ty| more_quoted_ty(&ty, nt),
-                &|ty_vec: Vec<Ty>| {
-                    ty!({"Type" "tuple" :
-                        "component" => (,seq ty_vec.iter().map(|ty| ty.concrete()))
-                    })
-                },
+                &|ty_vec: Vec<Ty>| ty!({"Type" "tuple" : "component" => (,seq ty_vec) }),
             )?
         } else {
             parts.flatten_generate_at_depth(
                 binder,
                 depth,
                 &|| crate::ty_compare::Subtype::underspecified(binder),
-                &|ty_vec: Vec<Ty>| {
-                    ty!({"Type" "tuple" :
-                        "component" => (,seq ty_vec.iter().map(|ty| ty.concrete()))
-                    })
-                },
+                &|ty_vec: Vec<Ty>| ty!({"Type" "tuple" : "component" => (,seq ty_vec) }),
             )
         };
         q_arguments.push((binder, term_ty));
@@ -317,19 +309,19 @@ pub fn macro_invocation(
 /// A tuple, driven by whatever names are `forall`ed in `env`.
 fn repeated_type(t: &Ty, env: &Assoc<Name, Ty>) -> Result<Ty, crate::ty::TypeError> {
     let mut drivers = vec![];
-    for v in t.0.free_vrs() {
-        if env.find(&v) == Some(&Ty(Ast::VariableReference(v))) {
+    for v in t.free_vrs() {
+        if env.find(&v) == Some(&Ast::VariableReference(v)) {
             drivers.push(Ast::VariableReference(v));
         }
     }
 
     if drivers.is_empty() {
-        ty_err!(NeedsDriver (()) at t.0);
+        ty_err!(NeedsDriver (()) at t);
     }
 
     Ok(ty!({"Type" "tuple" : "component" => (,seq vec![ast!({"Type" "dotdotdot_type" :
         "driver" => (,seq drivers),
-        "body" => (, t.0.clone())
+        "body" => (, t.clone())
     })])}))
 }
 

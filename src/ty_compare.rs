@@ -110,27 +110,27 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
     let u_f = underdetermined_form.with(|u_f| u_f.clone());
 
     let resolved = match t {
-        Ty(VariableReference(vr)) => {
+        VariableReference(vr) => {
             match env.find(&vr).cloned() {
                 // HACK: leave mu-protected variables alone, instead of recurring forever
-                Some(Ty(VariableReference(new_vr))) if vr == new_vr => None,
+                Some(VariableReference(new_vr)) if vr == new_vr => None,
                 Some(different) => Some(Clo { it: different, env: env.clone() }),
                 None => None,
             }
         }
-        Ty(Node(ref form, ref parts, _)) if form == &find_core_form("Type", "type_apply") => {
+        Node(ref form, ref parts, _) if form == &find_core_form("Type", "type_apply") => {
             // Expand defined type applications.
             // This is sorta similar to the type synthesis for "type_apply",
             //  but it does not recursively process the arguments (which may be underdetermined!).
             let arg_terms = parts.get_rep_leaf_or_panic(n("arg"));
 
             let resolved = resolve(
-                Clo { it: Ty(parts.get_leaf_or_panic(&n("type_rator")).clone()), env: env.clone() },
+                Clo { it: parts.get_leaf_or_panic(&n("type_rator")).clone(), env: env.clone() },
                 unif,
             );
 
             match resolved {
-                Clo { it: Ty(VariableReference(rator_vr)), env } => {
+                Clo { it: VariableReference(rator_vr), env } => {
                     // e.g. `X<int, Y>` underneath `mu X. ...`
 
                     // Rebuild a type_apply, but evaulate its arguments
@@ -151,11 +151,11 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
                     }
                     new__tapp_parts.add_anon_repeat(args);
 
-                    let res = Ty::new(Node(
+                    let res = Node(
                         find_core_form("Type", "type_apply"),
                         new__tapp_parts,
                         crate::beta::ExportBeta::Nothing,
-                    ));
+                    );
 
                     if res != t {
                         Some(Clo { it: res, env: env })
@@ -164,7 +164,7 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
                     }
                 }
                 Clo { it: defined_type, env } => {
-                    match defined_type.destructure(find_core_form("Type", "forall_type"), &t.0) {
+                    match defined_type.ty_destructure(find_core_form("Type", "forall_type"), &t) {
                         Err(_) => None, // Broken "type_apply", but let it fail elsewhere
                         Ok(ref got_forall) => {
                             let params = got_forall.get_rep_leaf_or_panic(n("param"));
@@ -181,12 +181,12 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
                             }
 
                             Some(Clo {
-                                it: Ty(crate::alpha::substitute(
+                                it: crate::alpha::substitute(
                                     crate::core_forms::strip_ee(
                                         got_forall.get_leaf_or_panic(&n("body")),
                                     ),
                                     &actual_params,
-                                )),
+                                ),
                                 env: env,
                             })
                         }
@@ -197,25 +197,25 @@ pub fn resolve(Clo { it: t, env }: Clo<Ty>, unif: &HashMap<Name, Clo<Ty>>) -> Cl
         // TODO: This needs to be implemented (unless issue #28 obviates it)
         // Ty(Node(ref form, ref parts, _)) if form == &find_core_form("Type", "dotdotdot") => {
         // }
-        Ty(Node(ref form, ref parts, _)) if form == &u_f => {
+        Node(ref form, ref parts, _) if form == &u_f => {
             // underdetermined
             unif.get(&parts.get_leaf_or_panic(&n("id")).to_name()).cloned()
         }
         _ => None,
     };
 
-    resolved.map(|clo| resolve(clo, unif)).unwrap_or(Clo { it: t, env: env })
+    resolved.map(|clo: Clo<Ty>| resolve(clo, unif)).unwrap_or(Clo { it: t, env: env })
 }
 
 thread_local! {
     // Invariant: `underdetermined_form`s in the HashMap must not form a cycle.
     pub static unification: RefCell<HashMap<Name, Clo<Ty>>>
-        = RefCell::new(HashMap::new());
+        = RefCell::new(HashMap::<Name, Clo<Ty>>::new());
     pub static underdetermined_form : Rc<Form> = Rc::new(Form {
         name: n("<underdetermined>"),
         grammar: Rc::new(form_pat!((named "id", atom))),
         type_compare: Both(
-            // pre-match handles the negative case; we need to do the positive case manually:
+            // pre-match handle s the negative case; we need to do the positive case manually:
             cust_rc_box!(|udet_parts| {
                 let id = udet_parts.get_term(n("id")).to_name();
                 unification.with(|unif| {
@@ -261,14 +261,14 @@ impl WalkMode for Canonicalize {
     fn walk_var(n: Name, cnc: &LazyWalkReses<Canonicalize>) -> Result<Ty, TyErr> {
         match cnc.env.find(&n) {
             // If it's protected, stop:
-            Some(t) if &Ty(VariableReference(n)) == t => Ok(t.clone()),
+            Some(t) if &VariableReference(n) == t => Ok(t.clone()),
             Some(t) => canonicalize(t, cnc.env.clone()),
-            None => Ok(Ty(VariableReference(n))), // TODO why can this happen?
+            None => Ok(VariableReference(n)), // TODO why can this happen?
         }
     }
 
     // Simply protect the name; don't try to unify it.
-    fn underspecified(name: Name) -> Ty { Ty(VariableReference(name)) }
+    fn underspecified(name: Name) -> Ty { VariableReference(name) }
 }
 
 fn splice_ddd(
@@ -298,11 +298,7 @@ fn splice_ddd(
             .map(|a: &Ast| {
                 (
                     a.vr_to_name(),
-                    resolve(
-                        Clo { it: Ty((*a).clone()), env: ddd_parts.env.clone() },
-                        &unif.borrow(),
-                    )
-                    .it,
+                    resolve(Clo { it: a.clone(), env: ddd_parts.env.clone() }, &unif.borrow()).it,
                 )
             })
             .collect()
@@ -314,24 +310,25 @@ fn splice_ddd(
     // Make sure tuples are the right length,
     // and force underdetermined types to *be* tuples of the right length.
     for (name, driver) in drivers {
-        if let Some(tuple_parts) = driver.0.destructure(tuple_form.clone()) {
+        // TODO: Why not use `ty_destructure` here?
+        if let Some(tuple_parts) = driver.destructure(tuple_form.clone()) {
             let components = tuple_parts.get_rep_leaf_or_panic(n("component"));
             if components.len() != expected_len {
                 return Err(TyErr::LengthMismatch(
-                    components.into_iter().map(|a| Ty(a.clone())).collect(),
+                    components.into_iter().map(|a| a.clone()).collect(),
                     expected_len,
                 ));
             }
 
             for i in 0..expected_len {
                 envs_with_walked_drivers[i] =
-                    envs_with_walked_drivers[i].set(name, Ty(components[i].clone()));
+                    envs_with_walked_drivers[i].set(name, components[i].clone());
             }
-        } else if let Some(undet_parts) = driver.0.destructure(undet_form.clone()) {
+        } else if let Some(undet_parts) = driver.destructure(undet_form.clone()) {
             unification.with(|unif| {
                 let mut undet_components = vec![];
                 undet_components
-                    .resize_with(expected_len, || Subtype::underspecified(n("ddd_bit")).0);
+                    .resize_with(expected_len, || Subtype::underspecified(n("ddd_bit")));
                 unif.borrow_mut().insert(undet_parts.get_leaf_or_panic(&n("id")).to_name(), Clo {
                     it: ty!({"Type" "tuple" :
                             "component" => (,seq undet_components.clone()) }),
@@ -339,11 +336,11 @@ fn splice_ddd(
                 });
                 for i in 0..expected_len {
                     envs_with_walked_drivers[i] =
-                        envs_with_walked_drivers[i].set(name, Ty::new(undet_components[i].clone()));
+                        envs_with_walked_drivers[i].set(name, undet_components[i].clone());
                 }
             })
         } else {
-            return Err(TyErr::UnableToDestructure(Ty(driver.0), n("tuple")));
+            return Err(TyErr::UnableToDestructure(driver, n("tuple")));
         }
     }
 
@@ -375,15 +372,15 @@ impl WalkMode for Subtype {
     /// Look up the reference and keep going.
     fn walk_var(n: Name, cnc: &LazyWalkReses<Subtype>) -> Result<Assoc<Name, Ty>, TyErr> {
         let lhs: &Ty = cnc.env.find_or_panic(&n);
-        if lhs == &Ty(VariableReference(n)) {
+        if lhs == &VariableReference(n) {
             // mu-protected!
             return match cnc.context_elt() {
                 // mu-protected type variables have to exactly match by name:
-                &Ty(VariableReference(other_n)) if other_n == n => Ok(Assoc::new()),
+                &VariableReference(other_n) if other_n == n => Ok(Assoc::new()),
                 different => Err(TyErr::Mismatch(different.clone(), lhs.clone())),
             };
         }
-        walk::<Subtype>(&lhs.concrete(), cnc)
+        walk::<Subtype>(lhs, cnc)
     }
 
     fn needs__splice_healing() -> bool { true }
@@ -423,13 +420,13 @@ impl crate::walk_mode::NegativeWalkMode for Subtype {
             let lhs: Clo<Ty> = resolve(Clo { it: lhs_ty, env: env.clone() }, &unif.borrow());
             let rhs: Clo<Ty> = resolve(Clo { it: rhs_ty, env: env.clone() }, &unif.borrow());
 
-            let lhs_name = lhs.it.destructure(u_f.clone(), &Trivial).map(
+            let lhs_name = lhs.it.ty_destructure(u_f.clone(), &Trivial).map(
                 // errors get swallowed ↓
                 |p| p.get_leaf_or_panic(&n("id")).to_name(),
             );
             let rhs_name = rhs
                 .it
-                .destructure(u_f.clone(), &Trivial)
+                .ty_destructure(u_f.clone(), &Trivial)
                 .map(|p| p.get_leaf_or_panic(&n("id")).to_name());
 
             match (lhs_name, rhs_name) {
@@ -456,7 +453,7 @@ impl crate::walk_mode::NegativeWalkMode for Subtype {
 }
 
 pub fn canonicalize(t: &Ty, env: Assoc<Name, Ty>) -> Result<Ty, TyErr> {
-    walk::<Canonicalize>(&t.concrete(), &LazyWalkReses::<Canonicalize>::new_wrapper(env))
+    walk::<Canonicalize>(t, &LazyWalkReses::<Canonicalize>::new_wrapper(env))
 }
 
 // `sub` must be a subtype of `sup`. (Note that `sub` becomes the context element!)
@@ -465,7 +462,7 @@ pub fn is_subtype(
     sup: &Ty,
     parts: &LazyWalkReses<crate::ty::SynthTy>,
 ) -> Result<Assoc<Name, Ty>, TyErr> {
-    walk::<Subtype>(&sup.concrete(), &parts.switch_mode::<Subtype>().with_context(sub.clone()))
+    walk::<Subtype>(sup, &parts.switch_mode::<Subtype>().with_context(sub.clone()))
 }
 
 // `sub` must be a subtype of `sup`. (Note that `sub` becomes the context element!)
@@ -475,15 +472,13 @@ pub fn must_subtype(sub: &Ty, sup: &Ty, env: Assoc<Name, Ty>) -> Result<Assoc<Na
     // TODO: they might need different environments?
     let lwr_env = &LazyWalkReses::<Subtype>::new_wrapper(env).with_context(sub.clone());
 
-    walk::<Subtype>(&sup.concrete(), lwr_env)
+    walk::<Subtype>(sup, lwr_env)
 }
 
 // TODO: I think we need to route some other things (especially in macros.rs) through this...
 pub fn must_equal(lhs: &Ty, rhs: &Ty, env: Assoc<Name, Ty>) -> Result<(), TyErr> {
     let lwr_env = &LazyWalkReses::new_wrapper(env);
-    if walk::<Canonicalize>(&lhs.concrete(), lwr_env)
-        == walk::<Canonicalize>(&rhs.concrete(), lwr_env)
-    {
+    if walk::<Canonicalize>(lhs, lwr_env) == walk::<Canonicalize>(rhs, lwr_env) {
         Ok(())
     } else {
         Err(TyErr::Mismatch(lhs.clone(), rhs.clone()))
@@ -512,8 +507,8 @@ fn basic_subtyping() {
             { "Type" "fn" : "param" => [ (vr "t") ], "ret" => (vr "t") })});
 
     let int_to_int_fn_ty = ty!({ "Type" "fn" :
-         "param" => [(, int_ty.concrete())],
-         "ret" => (, int_ty.concrete())});
+         "param" => [(, int_ty.clone())],
+         "ret" => (, int_ty.clone())});
 
     assert_m!(must_subtype(&int_to_int_fn_ty, &int_to_int_fn_ty, mt_ty_env.clone()), Ok(_));
 
@@ -532,7 +527,7 @@ fn basic_subtyping() {
             "body" => (import [* [forall "param"]]
                 { "Type" "fn" :
                     "param" => [ (vr "t") ],
-                    "ret" => (, nat_ty.concrete() ) })}),
+                    "ret" => (, nat_ty.clone() ) })}),
         "identity" => id_fn_ty.clone(),
         "int_to_int" => int_to_int_fn_ty.clone());
 
@@ -550,7 +545,7 @@ fn basic_subtyping() {
         // A function, so we get a fresh underspecified type each time.
         ty!({ "Type" "fn" :
             "param" => [ { "Type" "Int" : } ],
-            "ret" => (, Subtype::underspecified(n("<return_type>")).concrete() )})
+            "ret" => (, Subtype::underspecified(n("<return_type>")) )})
     }
 
     assert_m!(must_subtype(&incomplete_fn_ty(), &int_to_int_fn_ty, mt_ty_env.clone()), Ok(_));
@@ -631,8 +626,8 @@ fn misc_subtyping_problems() {
     let nat_ty = ty!({ "Type" "Nat" : });
 
     let int_to_int_fn_ty = ty!({ "Type" "fn" :
-        "param" => [(, int_ty.concrete())],
-        "ret" => (, int_ty.concrete())});
+        "param" => [(, int_ty.clone())],
+        "ret" => (, int_ty.clone())});
 
     let parametric_ty_env = assoc_n!(
         "some_int" => ty!( { "Type" "Int" : }),
@@ -641,7 +636,7 @@ fn misc_subtyping_problems() {
             "body" => (import [* [forall "param"]]
                 { "Type" "fn" :
                     "param" => [ (vr "t") ],
-                    "ret" => (, nat_ty.concrete() ) })}),
+                    "ret" => (, nat_ty.clone() ) })}),
         "identity" => id_fn_ty.clone(),
         "int_to_int" => int_to_int_fn_ty.clone());
 
@@ -678,8 +673,9 @@ fn misc_subtyping_problems() {
 
     assert_m!(
         must_subtype(
-            &ty!({"Type" "type_apply" : "type_rator" => (, ty_env.find_or_panic(&n("List")).0.clone()),
-                                    "arg" => [{"Type" "Int" :}]}),
+            &ty!({"Type" "type_apply" :
+               "type_rator" => (, ty_env.find_or_panic(&n("List")).clone()),
+                "arg" => [{"Type" "Int" :}]}),
             &ty!({"Type" "type_apply" : "type_rator" => (vr "List"), "arg" => [{"Type" "Int" :}]}),
             ty_env.clone()
         ),

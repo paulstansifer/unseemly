@@ -20,7 +20,7 @@ pub struct TypedValue {
 }
 
 pub fn erase_type(tv: &TypedValue) -> Value { tv.val.clone() }
-pub fn erase_value(tv: &TypedValue) -> Ty { Ty::new(tv.ty.clone()) }
+pub fn erase_value(tv: &TypedValue) -> Ty { tv.ty.clone() }
 
 pub fn core_typed_values() -> Assoc<Name, TypedValue> {
     assoc_n!(
@@ -84,7 +84,7 @@ pub fn core_values() -> Assoc<Name, Value> { core_typed_values().map(&erase_type
 // Helper for building an environment by reifying a bunch of Rust types
 macro_rules! reified_ty_env {
     ( $($t:ty),* ) => {
-        Assoc::new() $( .set(<$t>::ty_name(), Ty(<$t>::ty())))*
+        Assoc::new() $( .set(<$t>::ty_name(), <$t>::ty()))*
     };
 }
 
