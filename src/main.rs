@@ -173,7 +173,7 @@ fn main() {
         let comment = regex::Regex::new("^#").unwrap();
 
         println!();
-        println!("                  \x1b[1;38mUnseemly\x1b[0m");
+        println!("                    \x1b[1;38mUnseemly\x1b[0m");
         println!("    `<expr>` to (typecheck and expand and) evaluate `<expr>`.");
         println!("    `:x <expr>` to (typecheck and) expand `<expr>`.");
         println!("    `:e <expr>` to (expand and) evaluate `<expr>` without typechecking.");
@@ -188,6 +188,7 @@ fn main() {
         println!("    Command history is saved over sessions.");
         println!("    Tab-completion works on variables, and lots of Bash-isms work.");
         println!();
+        println!("This virtual machine kills cyber-fascists.");
 
         if let Ok(prelude_file) = File::open(&Path::new(&prelude_filename)) {
             let prelude = std::io::BufReader::new(prelude_file);
