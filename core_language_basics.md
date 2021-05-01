@@ -1,7 +1,8 @@
 The Unseemly core language is not intended to be ergonomic,
 but to support the bare minimum of an algebraic type system and a procedural macro system.
 
-The typical file extension for Unseemly source code is `.≉`.
+The typical file extension for Unseemly source code is `.unseemly`.
+It used to be `.≉`, which was cute, but also maaaaybe a little user-hostile.
 
 ## Low-level structure
 The default Unseemly tokenizer is very simple.
@@ -162,7 +163,7 @@ You'll tend to see constructs like `.[ ].`, `'[ ]'`, and `hi[ ]hi`.
     Currently, you'll want to leave a space between the angle brackets and any punctuation
      (the definition of `DefaultToken` needs revision to handle this).
 
-* `:::[,T, >> Type]:::` is a type-level "splicing map". It requires `T` to refer to a tuple type. 
+* `:::[,T, >> Type]:::` is a type-level "splicing map". It requires `T` to refer to a tuple type.
     Suppose `T` is `**[A B Int]**`. Then
     `[:::[,T, >> [T -> X]]::: -> Bool]` is `[ [A -> X] [B -> X] [Int -> X] -> Bool]`.
 
@@ -244,13 +245,13 @@ These are defined in `core_forms.rs`, and their definitions are relatively short
 ## Example unseemly programs
 *(in `src/examples/`)*
 
-*  `fact.≉` takes 5 factorial
+*  `fact.unseemly` takes 5 factorial
     Demonstrates recursion with `fix`
 
-*  `sum_list.≉` sums the list "1, 2, 3"
+*  `sum_list.unseemly` sums the list "1, 2, 3"
     Demonstrates `let_type`, `match`, `fold`, `unfold`, and the need for a macro system.
 
-*  `if_macro.≉` introduces `if expr then expr else expr` to the language.
+*  `if_macro.unseemly` introduces `if expr then expr else expr` to the language.
 
 *  `.unseemly_prelude` is intended to be copied to your home directory.
     It's automatically loaded by the REPL.
