@@ -1,8 +1,18 @@
-The Unseemly core language is not intended to be ergonomic,
-but to support the bare minimum of an algebraic type system and a procedural macro system.
+> And so this is null country. ... Down here you are behind the scenes, and there are no special effects.
 
-The typical file extension for Unseemly source code is `.unseemly`.
-It used to be `.≉`, which was cute, but also maaaaybe a little user-hostile.
+<div style="text-align: right">—Sam Hughes, *Ra*</div>
+
+Unseemly is not ergonomic; it's a "core" language
+in which a usable langage can be implemented out of macros.
+
+For example, the `fold` and `unfold` operations are, in a normal language,
+implicit in data constructors and `match` respectively.
+The assumption is that any language based on Unseemly
+would define all of its surface syntax as macros,
+and would insert them where appropriate.
+
+The file extension for Unseemly source code is `.unseemly`;
+derived languages will have their own file extensions.
 
 ## Low-level structure
 The default Unseemly tokenizer is very simple.
@@ -69,7 +79,7 @@ You'll tend to see constructs like `.[ ].`, `'[ ]'`, and `hi[ ]hi`.
     `Type` is the type you want after adding the `mu`.
     ```
     fold +[Cons eight my_list]+ : List<Int>
-    # Normal languages make `fold` and `unfold` implicit.
+    # (where `List` is defined to be `forall T . mu_type List . { +[Nil]+ +[Cons T List<T> ]+ }`)
     ```
 
 * `[Nonterminal<Type> | whatever_that_nonterminal_represents ]` is syntax quotation.
@@ -222,8 +232,8 @@ These are defined in `core_forms.rs`, and their definitions are relatively short
   DefaultSeparator ::= /((?s:\s|#[^\n]*)*)/ ;
   # Adds Python-style comments to the language
   ```
-* `DafaultToken` is a `DefaultSeparator` followed by a token.
-* `DafaultWord` is a `DefaultSeparator` followed by an identifier.
+* `DefaultToken` is a `DefaultSeparator` followed by a token.
+* `DefaultWord` is a `DefaultSeparator` followed by an identifier.
 * `DefaultAtom` is a `DefaultWord`, except it doesn't match reserved words.
 * `DefaultReference` is a `DefaultAtom`, except that it produces variable references,
     rather than atoms (which are binding-introducers).
