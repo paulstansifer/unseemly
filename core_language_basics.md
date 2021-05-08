@@ -1,9 +1,11 @@
+> But somewhere down the line, abstraction runs out and a machine has to execute an instruction.
+>
 > And so this is null country. ... Down here you are behind the scenes, and there are no special effects.
 
-<div style="text-align: right">—Sam Hughes, *Ra*</div>
+<div style="text-align: right">—Sam Hughes, <i>Ra</i></div>
 
 Unseemly is not ergonomic; it's a "core" language
-in which a usable langage can be implemented out of macros.
+in which a usable langage can be implemented as a library of macros.
 
 For example, the `fold` and `unfold` operations are, in a normal language,
 implicit in data constructors and `match` respectively.
@@ -255,10 +257,10 @@ These are defined in `core_forms.rs`, and their definitions are relatively short
 ## Example unseemly programs
 *(in `src/examples/`)*
 
-*  `fact.unseemly` takes 5 factorial
+*  `fact.unseemly` takes 5 factorial.
     Demonstrates recursion with `fix`
 
-*  `sum_list.unseemly` sums the list "1, 2, 3"
+*  `sum_list.unseemly` sums the list "1, 2, 3".
     Demonstrates `let_type`, `match`, `fold`, `unfold`, and the need for a macro system.
 
 *  `if_macro.unseemly` introduces `if expr then expr else expr` to the language.
