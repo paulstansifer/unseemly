@@ -677,6 +677,31 @@ macro_rules! cop_out_reifiability {
     }
 }
 
+macro_rules! vrep {
+    ( $( $contents:tt )*) => {
+        vrep_accum![ ( $( $contents )* , ) ]
+    };
+}
+
+macro_rules! vrep_accum {
+    // For ease of parsing, expects a trailing comma!
+    (($elt:expr, $($rest:tt)*)  $($accum:tt)* ) => {
+        // ... and produces a leading comma
+        vrep_accum!(($($rest)*)  $($accum)* , crate::util::vrep::VRepElt::Single($elt))
+    };
+    (($elt:expr => ( $( $driver:expr),* ), $($rest:tt)*)  $($accum:tt)* ) => {
+        vrep_accum!(($($rest)*)
+                    $($accum)* ,
+                    crate::util::vrep::VRepElt::Rep($elt,
+                        vec![ $( crate::name::n(stringify!($driver)) ),* ])
+                )
+    };
+    // Expect the leading comma:
+    (() , $($accum:tt)* ) => {
+        crate::util::vrep::VRep(vec![ $( $accum )* ])
+    };
+}
+
 // Testing
 
 macro_rules! assert_m {

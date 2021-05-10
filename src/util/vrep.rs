@@ -1,12 +1,43 @@
-use crate::name::{Name, n};
-use crate::runtime::reify::Reifiable;
-
+use crate::{
+    name::{n, Name},
+    runtime::reify::Reifiable,
+};
+use std::iter::FromIterator;
 
 custom_derive! {
     #[derive(Clone, PartialEq, Eq, Debug, Reifiable)]
     pub enum VRepElt<T> {
         Single(T),
         Rep(T, Vec<Name>),
+    }
+}
+
+impl<T> VRepElt<T> {
+    pub fn map<U, F>(&self, f: F) -> VRepElt<U>
+    where F: FnMut(&T) -> U {
+        match self {
+            Single(e) => Single(f(e)),
+            Rep(e, names) => Rep(f(e), names.clone()),
+        }
+    }
+
+    pub fn into_map<U, F>(self, f: F) -> VRepElt<U>
+    where F: FnMut(T) -> U {
+        match self {
+            Single(e) => Single(f(e)),
+            Rep(e, names) => Rep(f(e), names),
+        }
+    }
+
+    pub fn zip_map<U, F>(&self, other: &VRepElt<T>, f: F) -> Option<VRepElt<U>>
+    where F: FnMut(&T, &T) -> U {
+        match (self, other) {
+            (Single(s), Single(r)) => Some(Single(f(s, r))),
+            (Rep(s, s_names), Rep(r, r_names)) if s_names == r_names => {
+                Some(Rep(f(s, r), s_names.clone()))
+            }
+            _ => None,
+        }
     }
 }
 
@@ -23,7 +54,7 @@ pub struct VRep<T>(Vec<VRepElt<T>>);
 pub struct SRep<'a, T>(&'a [VRepElt<T>]);
 
 impl<T> VRep<T> {
-    fn expand_reps<F>(&self, mut f: F) -> Vec<T>
+    pub fn expand_reps<F>(&self, mut f: F) -> Vec<T>
     where
         F: FnMut(&T, &Vec<Name>) -> Vec<T>,
         T: Clone,
@@ -41,7 +72,7 @@ impl<T> VRep<T> {
         res
     }
 
-    fn concrete(&self) -> bool {
+    pub fn concrete(&self) -> bool {
         for elt in &self.0 {
             match elt {
                 Rep(_, _) => return false,
@@ -51,7 +82,19 @@ impl<T> VRep<T> {
         return true;
     }
 
-    fn len(&self) -> VRepLen {
+    pub fn is_empty(&self) -> bool { self.0.is_empty() }
+
+    pub fn can_be_empty(&self) -> bool {
+        for elt in &self.0 {
+            match elt {
+                Rep(_, _) => {}
+                Single(_) => return false,
+            }
+        }
+        return true;
+    }
+
+    pub fn len(&self) -> VRepLen {
         let mut min_len: usize = 0;
         let mut exact: bool = true;
         for elt in &self.0 {
@@ -66,15 +109,33 @@ impl<T> VRep<T> {
             VRepLen::AtLeast(min_len)
         }
     }
+
+    pub fn iter(&self) -> std::slice::Iter<VRepElt<T>> { self.0.iter() }
+
+    pub fn map<U, F>(&self, f: F) -> VRep<U>
+    where F: FnMut(&T) -> U {
+        let mut res = vec![];
+        for elt in self.0 {
+            res.push(elt.map(f));
+        }
+        VRep(res)
+    }
+
+    pub fn into_map<U, F>(&self, f: F) -> VRep<U>
+    where F: FnMut(T) -> U {
+        let mut res = vec![];
+        for elt in self.0 {
+            res.push(elt.into_map(f));
+        }
+        VRep(res)
+    }
 }
 
 // Only needed because our custom_derive! doesn't support newtype-style structs:
 impl<T: Clone + Reifiable> Reifiable for VRep<T> {
     fn ty_name() -> Name { n("VRep") }
 
-    fn concrete_arguments() -> Option<Vec<crate::ast::Ast>> {
-        Some(vec![T::ty_invocation()])
-    }
+    fn concrete_arguments() -> Option<Vec<crate::ast::Ast>> { Some(vec![T::ty_invocation()]) }
 
     fn reify(&self) -> crate::runtime::eval::Value {
         let res: Vec<_> = self.0.iter().map(|e| std::rc::Rc::new(e.reify())).collect();
@@ -117,29 +178,28 @@ impl<T: std::fmt::Debug> std::fmt::Debug for VRep<T> {
     }
 }
 
-macro_rules! vrep {
-    ( $( $contents:tt )*) => {
-        vrep_accum![ ( $( $contents )* , ) ]
-    };
+impl<T> IntoIterator for VRep<T> {
+    type Item = VRepElt<T>;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }
 
-macro_rules! vrep_accum {
-    // For ease of parsing, expects a trailing comma!
-    (($elt:expr, $($rest:tt)*)  $($accum:tt)* ) => {
-        // ... and produces a leading comma
-        vrep_accum!(($($rest)*)  $($accum)* , crate::util::vrep::VRepElt::Single($elt))
-    };
-    (($elt:expr => ( $( $driver:expr),* ), $($rest:tt)*)  $($accum:tt)* ) => {
-        vrep_accum!(($($rest)*)
-                    $($accum)* ,
-                    crate::util::vrep::VRepElt::Rep($elt,
-                        vec![ $( crate::name::n(stringify!($driver)) ),* ])
-                )
-    };
-    // Expect the leading comma:
-    (() , $($accum:tt)* ) => {
-        crate::util::vrep::VRep(vec![ $( $accum )* ])
-    };
+impl<'a, T: 'a> IntoIterator for &'a VRep<T> {
+    type Item = &'a VRepElt<T>;
+    type IntoIter = std::slice::Iter<'a, VRepElt<T>>;
+
+    fn into_iter(self) -> Self::IntoIter { self.0.iter() }
+}
+
+impl<T> FromIterator<VRepElt<T>> for VRep<T> {
+    fn from_iter<I: IntoIterator<Item = VRepElt<T>>>(iter: I) -> Self {
+        let mut res = vec![];
+        for i in iter {
+            res.push(i);
+        }
+        VRep(res)
+    }
 }
 
 #[test]

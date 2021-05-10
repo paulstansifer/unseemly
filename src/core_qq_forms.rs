@@ -503,6 +503,9 @@ pub fn quote(pos: bool) -> Rc<Form> {
 
         let pos_inside = nt_is_positive(starter_nt);
 
+        // TODO: Editing forms is really sketchy!
+        // Maybe we should go back to having a special (gensymmed) NT
+        //  or some other way to signal to the parser to treat repetitions differently.
         let new_grammar = pc
             .grammar
             .keyed_map_borrow_f(&mut |nt: &Name, nt_def: &Rc<FormPat>| {
