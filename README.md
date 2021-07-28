@@ -26,7 +26,7 @@ Unseemly is still pretty early-stage, so, while all of the features below exist,
     (the pretty-printer is rather limited at the moment, though)
  * Hygenic macros (all operations respect α-equivalence)
  * Macro By Example (easily implement n-ary forms without writing boilerplate loops).
-### Unique features
+### Unusual features
  * Typechecking under syntax quotation
    (so `'[Expr | (plus one ,[e1],)]'` is a type error if `e1` has the type `Expr<String>`)
  * No type errors in generated code
@@ -84,7 +84,7 @@ It provides sound language extensions, but
 
 (TODO: are the extensions themselves statically verified to be type-preserving?
  I think so, but I don't remember for sure.)
-
+ 
 ### Practical languages
 #### [Scala](https://www.scala-lang.org/)
 
@@ -114,6 +114,17 @@ Terra, from a quick glance (TODO: learn more),
 
 In this case, it looks like the goal is to marry a high-level and low-level language together,
  without an FFI and with inline embedding.
+
+#### [MetaOCaml](http://okmij.org/ftp/ML/MetaOCaml.html)
+
+MetaOCaml is an extension to OCaml that supports type-safe syntax quotation.
+Though Unseemly uses "quasiquotation" to describe syntax quotation,
+ it is more similar to [MetaOCaml's bracket](http://okmij.org/ftp/meta-programming/implementations.html#meta-scheme)
+   than to Scheme's quasiquotation,
+  because it respects alpha-equivalence.
+
+
+Unlike Unseemly, MetaOCaml doesn't use its safe syntax quotation to implement a macro system.
 
 #### [Rust](http://rust-lang.org) and [SweetJS](https://www.sweetjs.org/)
 
