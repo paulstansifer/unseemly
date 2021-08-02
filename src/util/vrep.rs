@@ -13,15 +13,15 @@ custom_derive! {
 }
 
 impl<T> VRepElt<T> {
-    pub fn map<U, F>(&self, f: F) -> VRepElt<U>
-    where F: FnMut(&T) -> U {
+    pub fn map<'a, U, F>(&'a self, f: &mut F) -> VRepElt<U>
+    where F: FnMut(&'a T) -> U {
         match self {
             Single(e) => Single(f(e)),
             Rep(e, names) => Rep(f(e), names.clone()),
         }
     }
 
-    pub fn into_map<U, F>(self, f: F) -> VRepElt<U>
+    pub fn into_map<U, F>(self, f: &mut F) -> VRepElt<U>
     where F: FnMut(T) -> U {
         match self {
             Single(e) => Single(f(e)),
@@ -29,7 +29,7 @@ impl<T> VRepElt<T> {
         }
     }
 
-    pub fn zip_map<U, F>(&self, other: &VRepElt<T>, f: F) -> Option<VRepElt<U>>
+    pub fn zip_map<U, F>(&self, other: &VRepElt<T>, mut f: F) -> Option<VRepElt<U>>
     where F: FnMut(&T, &T) -> U {
         match (self, other) {
             (Single(s), Single(r)) => Some(Single(f(s, r))),
@@ -112,20 +112,20 @@ impl<T> VRep<T> {
 
     pub fn iter(&self) -> std::slice::Iter<VRepElt<T>> { self.0.iter() }
 
-    pub fn map<U, F>(&self, f: F) -> VRep<U>
-    where F: FnMut(&T) -> U {
+    pub fn map<'a, U, F>(&'a self, mut f: F) -> VRep<U>
+    where F: FnMut(&'a T) -> U {
         let mut res = vec![];
-        for elt in self.0 {
-            res.push(elt.map(f));
+        for elt in &self.0 {
+            res.push(elt.map(&mut f));
         }
         VRep(res)
     }
 
-    pub fn into_map<U, F>(&self, f: F) -> VRep<U>
+    pub fn into_map<U, F>(self, mut f: F) -> VRep<U>
     where F: FnMut(T) -> U {
         let mut res = vec![];
         for elt in self.0 {
-            res.push(elt.into_map(f));
+            res.push(elt.into_map(&mut f));
         }
         VRep(res)
     }
