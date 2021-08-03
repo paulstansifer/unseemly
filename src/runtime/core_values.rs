@@ -24,9 +24,11 @@ pub fn erase_value(tv: &TypedValue) -> Ast { tv.ty.clone() }
 
 pub fn sequence_operations() -> Assoc<Name, TypedValue> {
     assoc_n!(
-        "no_integers" => TypedValue {
-            ty: ast!({ "Type" "type_apply" :
-                    "type_rator" => (vr "Sequence"), "arg" => [{"Type" "Int" :}]}),
+        "empty" => TypedValue {
+            ty: ast!({"Type" "forall_type" :
+                "param" => ["T"],
+                "body" => (import [* [forall "param"]] { "Type" "type_apply" :
+                    "type_rator" => (vr "Sequence"), "arg" => [(vr "T")]})}),
             val: val!(seq)},
         "index" =>
             tyf!( { "Type" "forall_type" :
@@ -255,10 +257,10 @@ fn type_sequence_primitives() {
     let mut prelude = core_types();
     use crate::ty::synth_type;
 
-    assert_eq!(synth_type(&u!({apply : len [no_integers]}), prelude.clone()), Ok(uty!({Int :})));
+    assert_eq!(synth_type(&u!({apply : len [empty]}), prelude.clone()), Ok(uty!({Int :})));
 
     assert_eq!(
-        synth_type(&u!({apply : push [{apply : push [no_integers ; one]} ; two]}), prelude.clone()),
+        synth_type(&u!({apply : push [{apply : push [empty ; one]} ; two]}), prelude.clone()),
         synth_type(&uty!({type_apply : Sequence [{Int :}]}), prelude.clone())
     );
 
@@ -285,10 +287,10 @@ fn type_sequence_primitives() {
 fn eval_sequence_primitives() {
     let mut prelude = core_values();
 
-    assert_eq!(eval(&u!({apply : len [no_integers]}), prelude.clone()), Ok(val!(i 0)));
+    assert_eq!(eval(&u!({apply : len [empty]}), prelude.clone()), Ok(val!(i 0)));
 
     assert_eq!(
-        eval(&u!({apply : push [{apply : push [no_integers ; one]} ; two]}), prelude.clone()),
+        eval(&u!({apply : push [{apply : push [empty ; one]} ; two]}), prelude.clone()),
         Ok(val!(seq (i 1) (i 2)))
     );
 
