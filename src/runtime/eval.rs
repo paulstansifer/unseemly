@@ -36,9 +36,9 @@ pub struct Closure {
 // Built-in function
 pub struct BIF(pub Rc<(dyn Fn(Vec<Value>) -> Value)>);
 
-pub fn apply__function_value(f: &Value, args: Vec<Rc<Value>>) -> Value {
+pub fn apply__function_value(f: &Value, args: Vec<Value>) -> Value {
     match *f {
-        BuiltInFunction(BIF(ref f)) => f(args.into_iter().map(|elt| (*elt).clone()).collect()),
+        BuiltInFunction(BIF(ref f)) => f(args.into_iter().collect()),
         Function(ref cl) => {
             let mut clo_env = cl.env.clone();
             if cl.params.len() != args.len() {
@@ -50,7 +50,7 @@ pub fn apply__function_value(f: &Value, args: Vec<Rc<Value>>) -> Value {
                 );
             }
             for (p, a) in cl.params.iter().zip(args.into_iter()) {
-                clo_env = clo_env.set(*p, (*a).clone())
+                clo_env = clo_env.set(*p, a)
             }
             eval(&cl.body, clo_env).unwrap()
         }

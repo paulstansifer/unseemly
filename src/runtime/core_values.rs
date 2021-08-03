@@ -84,9 +84,26 @@ pub fn sequence_operations() -> Assoc<Name, TypedValue> {
                             "arg" => [(vr "U")]} })},
                 ( Sequence(seq), f) => {
                     Sequence(seq.into_iter().map(
-                        |elt| Rc::new(apply__function_value(&f, vec![elt]))).collect())
+                        |elt| Rc::new(apply__function_value(&f, vec![(*elt).clone()]))).collect())
+                }),
+        "fold" =>
+            tyf!( { "Type" "forall_type" :
+                "param" => ["T", "U"],
+                "body" => (import [* [forall "param"]] { "Type" "fn" :
+                    "param" => [
+                        { "Type" "type_apply" :
+                            "type_rator" => (vr "Sequence"),
+                            "arg" => [(vr "T")]},
+                        (vr "U"),
+                        { "Type" "fn" : "param" => [(vr "U"), (vr "T")], "ret" => (vr "U") }
+                        ],
+                    "ret" => (vr "U") })},
+                ( Sequence(seq), init, f) => {
+                    seq.into_iter().fold(init, |running, elt| {
+                        apply__function_value(&f, vec![running, (*elt).clone()])
+                    })
                 })
-    )
+        )
 }
 
 pub fn core_typed_values() -> Assoc<Name, TypedValue> {
@@ -281,6 +298,11 @@ fn type_sequence_primitives() {
         ),
         synth_type(&uty!({type_apply : Sequence [Bool]}), prelude.clone())
     );
+
+    assert_eq!(
+        synth_type(&u!({apply : fold [one_two ; zero ; plus ]}), prelude.clone()),
+        Ok(uty!({Int :}))
+    );
 }
 
 #[test]
@@ -304,5 +326,10 @@ fn eval_sequence_primitives() {
             prelude.clone()
         ),
         Ok(val!(seq (b false) (b false)))
+    );
+
+    assert_eq!(
+        eval(&u!({apply : fold [one_two ; zero ; plus ]}), prelude.clone()),
+        Ok(val!(i 3))
     );
 }
