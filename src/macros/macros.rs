@@ -558,6 +558,7 @@ macro_rules! tyf {
 macro_rules! bind_patterns {
     ( $iter:expr; () => $body:expr ) => { $body };
     ( $iter:expr; ($p_car:pat, $($p_cdr:pat,)* ) => $body:expr ) => {
+        #[allow(unreachable_patterns)]  // in case `$p_car` is irrefutable
         match $iter.next() {
             Some($p_car) => {
                 bind_patterns!($iter; ($( $p_cdr, )*) => $body)

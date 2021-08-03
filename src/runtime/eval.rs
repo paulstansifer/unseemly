@@ -36,6 +36,28 @@ pub struct Closure {
 // Built-in function
 pub struct BIF(pub Rc<(dyn Fn(Vec<Value>) -> Value)>);
 
+pub fn apply__function_value(f: &Value, args: Vec<Rc<Value>>) -> Value {
+    match *f {
+        BuiltInFunction(BIF(ref f)) => f(args.into_iter().map(|elt| (*elt).clone()).collect()),
+        Function(ref cl) => {
+            let mut clo_env = cl.env.clone();
+            if cl.params.len() != args.len() {
+                panic!(
+                    "[type error] Attempted to apply {} arguments to function requiring {} \
+                     parameters",
+                    args.len(),
+                    cl.params.len()
+                );
+            }
+            for (p, a) in cl.params.iter().zip(args.into_iter()) {
+                clo_env = clo_env.set(*p, (*a).clone())
+            }
+            eval(&cl.body, clo_env).unwrap()
+        }
+        _ => panic!("[type error] {:#?} is not a function", f),
+    }
+}
+
 impl PartialEq for BIF {
     fn eq(&self, other: &BIF) -> bool { self as *const BIF == other as *const BIF }
 }

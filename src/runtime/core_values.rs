@@ -1,8 +1,9 @@
 use crate::{
     ast::Ast,
+    core_type_forms::get__primitive_type,
     name::*,
     runtime::eval::{
-        eval,
+        apply__function_value, eval,
         Value::{self, *},
         BIF,
     },
@@ -10,7 +11,7 @@ use crate::{
 };
 use std::rc::Rc;
 
-use num::BigInt;
+use num::{BigInt, ToPrimitive};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypedValue {
@@ -20,6 +21,71 @@ pub struct TypedValue {
 
 pub fn erase_type(tv: &TypedValue) -> Value { tv.val.clone() }
 pub fn erase_value(tv: &TypedValue) -> Ast { tv.ty.clone() }
+
+pub fn sequence_operations() -> Assoc<Name, TypedValue> {
+    assoc_n!(
+        "no_integers" => TypedValue {
+            ty: ast!({ "Type" "type_apply" :
+                    "type_rator" => (vr "Sequence"), "arg" => [{"Type" "Int" :}]}),
+            val: val!(seq)},
+        "index" =>
+            tyf!( { "Type" "forall_type" :
+                "param" => ["T"],
+                "body" => (import [* [forall "param"]] { "Type" "fn" :
+                    "param" => [
+                        { "Type" "type_apply" :
+                            "type_rator" => (vr "Sequence"),
+                            "arg" => [(vr "T")]},
+                        { "Type" "Int" : }
+                        ],
+                    "ret" => (vr "T")})},
+                ( Sequence(seq), Int(idx)) => (*seq[idx.to_usize().unwrap()]).clone()),
+        "len" =>
+            tyf!( { "Type" "forall_type" :
+                "param" => ["T"],
+                "body" => (import [* [forall "param"]] { "Type" "fn" :
+                    "param" => [
+                        { "Type" "type_apply" :
+                            "type_rator" => (vr "Sequence"),
+                            "arg" => [(vr "T")]}
+                        ],
+                    "ret" => { "Type" "Int" : }})},
+                ( Sequence(seq) ) => val!(i seq.len())),
+        "push" =>
+            tyf!( { "Type" "forall_type" :
+            "param" => ["T"],
+            "body" => (import [* [forall "param"]] { "Type" "fn" :
+                "param" => [
+                    { "Type" "type_apply" :
+                        "type_rator" => (vr "Sequence"),
+                        "arg" => [(vr "T")]},
+                    (vr "T")
+                    ],
+                "ret" => { "Type" "type_apply" :
+                    "type_rator" => (vr "Sequence"),
+                    "arg" => [(vr "T")]}})},
+            ( Sequence(seq), elt) => {
+                let mut result = seq.clone(); result.push(Rc::new(elt)); Sequence(result)}),
+        "map" =>
+            tyf!( { "Type" "forall_type" :
+                "param" => ["T", "U"],
+                "body" => (import [* [forall "param"]] { "Type" "fn" :
+                    "param" => [
+                        { "Type" "type_apply" :
+                            "type_rator" => (vr "Sequence"),
+                            "arg" => [(vr "T")]},
+                        { "Type" "fn" : "param" => [(vr "T")], "ret" => (vr "U") }
+                        ],
+                    "ret" =>
+                        { "Type" "type_apply" :
+                            "type_rator" => (vr "Sequence"),
+                            "arg" => [(vr "U")]} })},
+                ( Sequence(seq), f) => {
+                    Sequence(seq.into_iter().map(
+                        |elt| Rc::new(apply__function_value(&f, vec![elt]))).collect())
+                })
+    )
+}
 
 pub fn core_typed_values() -> Assoc<Name, TypedValue> {
     assoc_n!(
@@ -76,6 +142,7 @@ pub fn core_typed_values() -> Assoc<Name, TypedValue> {
         "false" => TypedValue { ty: ast!((vr "Bool")), val: val!(b false)},
         "true" => TypedValue { ty: ast!((vr "Bool")), val: val!(b true)}
     )
+    .set_assoc(&sequence_operations())
 }
 
 pub fn core_values() -> Assoc<Name, Value> { core_typed_values().map(&erase_type) }
@@ -88,10 +155,7 @@ macro_rules! reified_ty_env {
 }
 
 pub fn core_types() -> Assoc<Name, Ast> {
-    use crate::{
-        core_type_forms::get__primitive_type,
-        runtime::reify::{Irr, Reifiable},
-    };
+    use crate::runtime::reify::{Irr, Reifiable};
     core_typed_values()
         .map(&erase_value)
         .set(
@@ -183,5 +247,60 @@ fn fixpoint_evaluation() {
             core_values()
         ),
         Ok(val!(i 120))
+    );
+}
+
+#[test]
+fn type_sequence_primitives() {
+    let mut prelude = core_types();
+    use crate::ty::synth_type;
+
+    assert_eq!(synth_type(&u!({apply : len [no_integers]}), prelude.clone()), Ok(uty!({Int :})));
+
+    assert_eq!(
+        synth_type(&u!({apply : push [{apply : push [no_integers ; one]} ; two]}), prelude.clone()),
+        synth_type(&uty!({type_apply : Sequence [{Int :}]}), prelude.clone())
+    );
+
+    prelude = prelude.set(
+        n("one_two"),
+        synth_type(&uty!({type_apply : Sequence [{Int :}]}), prelude.clone()).unwrap(),
+    );
+
+    assert_eq!(
+        synth_type(&u!({apply : index [one_two ; one]}), prelude.clone()),
+        Ok(uty!({Int :}))
+    );
+
+    assert_eq!(
+        synth_type(
+            &u!({apply : map [one_two ; (, Ast::VariableReference(n("zero?"))) ]}),
+            prelude.clone()
+        ),
+        synth_type(&uty!({type_apply : Sequence [Bool]}), prelude.clone())
+    );
+}
+
+#[test]
+fn eval_sequence_primitives() {
+    let mut prelude = core_values();
+
+    assert_eq!(eval(&u!({apply : len [no_integers]}), prelude.clone()), Ok(val!(i 0)));
+
+    assert_eq!(
+        eval(&u!({apply : push [{apply : push [no_integers ; one]} ; two]}), prelude.clone()),
+        Ok(val!(seq (i 1) (i 2)))
+    );
+
+    prelude = prelude.set(n("one_two"), val!(seq (i 1) (i 2)));
+
+    assert_eq!(eval(&u!({apply : index [one_two ; one]}), prelude.clone()), Ok(val!(i 2)));
+
+    assert_eq!(
+        eval(
+            &u!({apply : map [one_two ; (, Ast::VariableReference(n("zero?"))) ]}),
+            prelude.clone()
+        ),
+        Ok(val!(seq (b false) (b false)))
     );
 }
