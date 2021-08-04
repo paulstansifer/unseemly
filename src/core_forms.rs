@@ -244,6 +244,58 @@ fn type__forall_expr(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
     }))
 }
 
+fn extend__capture_language(
+    pc: crate::earley::ParseContext,
+    _starter_info: Ast,
+) -> crate::earley::ParseContext {
+    use crate::runtime::reify::Reifiable;
+    let reified_language = pc.reify();
+    crate::earley::ParseContext {
+        grammar: assoc_n!("OnlyNt" =>
+            Rc::new(FormPat::Named(n("body"), Rc::new(FormPat::Anyways(Ast::Node(
+                basic_typed_form!(
+                    [], // No syntax
+                    cust_rc_box!(|_| { Ok(get__primitive_type(n("Language"))) }),
+                    // Return the captured language:
+                    cust_rc_box!(move |_| Ok(reified_language.clone()))
+                ),
+            crate::util::mbe::EnvMBE::<Ast>::new(),
+            crate::beta::ExportBeta::Nothing
+        )))))),
+        // We can't just squirrel `reified_language` here:
+        //  these only affect earlier phases, and we need the language in phase 0
+        eval_ctxt: LazyWalkReses::<crate::runtime::eval::Eval>::new_empty(),
+        type_ctxt: LazyWalkReses::<crate::ty::SynthTy>::new_empty(),
+    }
+}
+
+fn extend_import(
+    _pc: crate::earley::ParseContext,
+    starter_info: Ast,
+) -> crate::earley::ParseContext {
+    let filename = match starter_info {
+        Shape(ref parts) => match parts[2] { // Skip "import" and the separator
+            IncompleteNode(ref parts) => {
+                parts.get_leaf_or_panic(&n("filename")).to_name().orig_sp()
+            }
+            _ => icp!("Unexpected structure {:#?}", parts),
+        },
+        _ => icp!("Unexpected structure {:#?}", starter_info),
+    };
+    let mut raw_library = String::new();
+
+    use std::io::Read;
+    std::fs::File::open(std::path::Path::new(&filename))
+        .expect("Error opening file")
+        .read_to_string(&mut raw_library)
+        .expect("Error reading file");
+    // TODO: I guess this ought to return `Result`, too...
+    let lib = crate::eval_unseemly_program(&raw_library).expect("Error loading library");
+    use crate::runtime::reify::Reifiable;
+
+    crate::earley::ParseContext::reflect(&lib)
+}
+
 // TODO: pull out all the other form implementations into freestanding functions.
 
 /// This is the Unseemly language.
@@ -338,56 +390,13 @@ pub fn make_core_syn_env() -> SynEnv {
         typed_form!("capture_language",
             // Immediately descend into a grammar with one NT pointing to one form,
             //  which has captured the whole parse context.
-            (extend_nt [(lit "capture_language")], "OnlyNt",
-                |pc: crate::earley::ParseContext, _starter_info: Ast| {
-                    use crate::runtime::reify::Reifiable;
-                    let reified_language = pc.reify();
-                    crate::earley::ParseContext {
-                        grammar: assoc_n!("OnlyNt" =>
-                            Rc::new(FormPat::Named(n("body"), Rc::new(FormPat::Anyways(Ast::Node(
-                                basic_typed_form!(
-                                    [], // No syntax
-                                    cust_rc_box!(|_| { Ok(get__primitive_type(n("Language"))) }),
-                                    // Return the captured language:
-                                    cust_rc_box!(move |_| Ok(reified_language.clone()))
-                                ),
-                            crate::util::mbe::EnvMBE::<Ast>::new(),
-                            crate::beta::ExportBeta::Nothing
-                        )))))),
-                        // We can't just squirrel `reified_language` here:
-                        //  these only affect earlier phases, and we need the language in phase 0
-                        eval_ctxt: LazyWalkReses::<crate::runtime::eval::Eval>::new_empty(),
-                        type_ctxt: LazyWalkReses::<crate::ty::SynthTy>::new_empty()
-                    }}),
+            (extend_nt [(lit "capture_language")], "OnlyNt", extend__capture_language),
             Body(n("body")),
             Body(n("body"))),
         typed_form!("import_language_from_file",
             (extend [(lit "import"), (call "DefaultSeparator"),
                         (named "filename", (scan r"/\[(.*)]/"))], (named "body", (call "Expr")),
-                |_pc: crate::earley::ParseContext, starter_info: Ast| {
-                    let filename = match starter_info {
-                        Shape(ref parts) =>
-                            match parts[2] { // Skip "import" and the separator
-                                IncompleteNode(ref parts) =>
-                                parts.get_leaf_or_panic(&n("filename")).to_name().orig_sp(),
-                                _ => icp!("Unexpected structure {:#?}", parts)
-                            }
-                        _ => icp!("Unexpected structure {:#?}", starter_info)
-                    };
-                    let mut raw_library = String::new();
-
-                    use std::io::Read;
-                    std::fs::File::open(std::path::Path::new(&filename))
-                        .expect("Error opening file")
-                        .read_to_string(&mut raw_library)
-                        .expect("Error reading file");
-                    // TODO: I guess this ought to return `Result`, too...
-                    let lib = crate::eval_unseemly_program(&raw_library)
-                        .expect("Error loading library");
-                    use crate::runtime::reify::Reifiable;
-
-                    crate::earley::ParseContext::reflect(&lib)
-                }),
+                extend_import),
             Body(n("body")),
             Body(n("body"))
             ),
