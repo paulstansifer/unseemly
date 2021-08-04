@@ -24,86 +24,86 @@ pub fn erase_value(tv: &TypedValue) -> Ast { tv.ty.clone() }
 
 pub fn sequence_operations() -> Assoc<Name, TypedValue> {
     assoc_n!(
-        "empty" => TypedValue {
-            ty: ast!({"Type" "forall_type" :
-                "param" => ["T"],
-                "body" => (import [* [forall "param"]] { "Type" "type_apply" :
-                    "type_rator" => (vr "Sequence"), "arg" => [(vr "T")]})}),
-            val: val!(seq)},
-        "index" =>
-            tyf!( { "Type" "forall_type" :
-                "param" => ["T"],
-                "body" => (import [* [forall "param"]] { "Type" "fn" :
-                    "param" => [
-                        { "Type" "type_apply" :
-                            "type_rator" => (vr "Sequence"),
-                            "arg" => [(vr "T")]},
-                        { "Type" "Int" : }
-                        ],
-                    "ret" => (vr "T")})},
-                ( Sequence(seq), Int(idx)) => (*seq[idx.to_usize().unwrap()]).clone()),
-        "len" =>
-            tyf!( { "Type" "forall_type" :
-                "param" => ["T"],
-                "body" => (import [* [forall "param"]] { "Type" "fn" :
-                    "param" => [
-                        { "Type" "type_apply" :
-                            "type_rator" => (vr "Sequence"),
-                            "arg" => [(vr "T")]}
-                        ],
-                    "ret" => { "Type" "Int" : }})},
-                ( Sequence(seq) ) => val!(i seq.len())),
-        "push" =>
-            tyf!( { "Type" "forall_type" :
+    "empty" => TypedValue {
+        ty: ast!({"Type" "forall_type" :
+            "param" => ["T"],
+            "body" => (import [* [forall "param"]] { "Type" "type_apply" :
+                "type_rator" => (vr "Sequence"), "arg" => [(vr "T")]})}),
+        val: val!(seq)},
+    "index" =>
+        tyf!( { "Type" "forall_type" :
             "param" => ["T"],
             "body" => (import [* [forall "param"]] { "Type" "fn" :
                 "param" => [
                     { "Type" "type_apply" :
                         "type_rator" => (vr "Sequence"),
                         "arg" => [(vr "T")]},
-                    (vr "T")
+                    { "Type" "Int" : }
                     ],
-                "ret" => { "Type" "type_apply" :
+                "ret" => (vr "T")})},
+            ( Sequence(seq), Int(idx)) => (*seq[idx.to_usize().unwrap()]).clone()),
+    "len" =>
+        tyf!( { "Type" "forall_type" :
+            "param" => ["T"],
+            "body" => (import [* [forall "param"]] { "Type" "fn" :
+                "param" => [
+                    { "Type" "type_apply" :
+                        "type_rator" => (vr "Sequence"),
+                        "arg" => [(vr "T")]}
+                    ],
+                "ret" => { "Type" "Int" : }})},
+            ( Sequence(seq) ) => val!(i seq.len())),
+    "push" =>
+        tyf!( { "Type" "forall_type" :
+        "param" => ["T"],
+        "body" => (import [* [forall "param"]] { "Type" "fn" :
+            "param" => [
+                { "Type" "type_apply" :
                     "type_rator" => (vr "Sequence"),
-                    "arg" => [(vr "T")]}})},
-            ( Sequence(seq), elt) => {
-                let mut result = seq.clone(); result.push(Rc::new(elt)); Sequence(result)}),
-        "map" =>
-            tyf!( { "Type" "forall_type" :
-                "param" => ["T", "U"],
-                "body" => (import [* [forall "param"]] { "Type" "fn" :
-                    "param" => [
-                        { "Type" "type_apply" :
-                            "type_rator" => (vr "Sequence"),
-                            "arg" => [(vr "T")]},
-                        { "Type" "fn" : "param" => [(vr "T")], "ret" => (vr "U") }
-                        ],
-                    "ret" =>
-                        { "Type" "type_apply" :
-                            "type_rator" => (vr "Sequence"),
-                            "arg" => [(vr "U")]} })},
-                ( Sequence(seq), f) => {
-                    Sequence(seq.into_iter().map(
-                        |elt| Rc::new(apply__function_value(&f, vec![(*elt).clone()]))).collect())
-                }),
-        "fold" =>
-            tyf!( { "Type" "forall_type" :
-                "param" => ["T", "U"],
-                "body" => (import [* [forall "param"]] { "Type" "fn" :
-                    "param" => [
-                        { "Type" "type_apply" :
-                            "type_rator" => (vr "Sequence"),
-                            "arg" => [(vr "T")]},
-                        (vr "U"),
-                        { "Type" "fn" : "param" => [(vr "U"), (vr "T")], "ret" => (vr "U") }
-                        ],
-                    "ret" => (vr "U") })},
-                ( Sequence(seq), init, f) => {
-                    seq.into_iter().fold(init, |running, elt| {
-                        apply__function_value(&f, vec![running, (*elt).clone()])
-                    })
+                    "arg" => [(vr "T")]},
+                (vr "T")
+                ],
+            "ret" => { "Type" "type_apply" :
+                "type_rator" => (vr "Sequence"),
+                "arg" => [(vr "T")]}})},
+        ( Sequence(seq), elt) => {
+            let mut result = seq.clone(); result.push(Rc::new(elt)); Sequence(result)}),
+    "map" =>
+        tyf!( { "Type" "forall_type" :
+            "param" => ["T", "U"],
+            "body" => (import [* [forall "param"]] { "Type" "fn" :
+                "param" => [
+                    { "Type" "type_apply" :
+                        "type_rator" => (vr "Sequence"),
+                        "arg" => [(vr "T")]},
+                    { "Type" "fn" : "param" => [(vr "T")], "ret" => (vr "U") }
+                    ],
+                "ret" =>
+                    { "Type" "type_apply" :
+                        "type_rator" => (vr "Sequence"),
+                        "arg" => [(vr "U")]} })},
+            ( Sequence(seq), f) => {
+                Sequence(seq.into_iter().map(
+                    |elt| Rc::new(apply__function_value(&f, vec![(*elt).clone()]))).collect())
+            }),
+    "fold" =>
+        tyf!( { "Type" "forall_type" :
+            "param" => ["T", "U"],
+            "body" => (import [* [forall "param"]] { "Type" "fn" :
+                "param" => [
+                    { "Type" "type_apply" :
+                        "type_rator" => (vr "Sequence"),
+                        "arg" => [(vr "T")]},
+                    (vr "U"),
+                    { "Type" "fn" : "param" => [(vr "U"), (vr "T")], "ret" => (vr "U") }
+                    ],
+                "ret" => (vr "U") })},
+            ( Sequence(seq), init, f) => {
+                seq.into_iter().fold(init, |running, elt| {
+                    apply__function_value(&f, vec![running, (*elt).clone()])
                 })
-        )
+            })
+    )
 }
 
 pub fn core_typed_values() -> Assoc<Name, TypedValue> {
@@ -328,8 +328,5 @@ fn eval_sequence_primitives() {
         Ok(val!(seq (b false) (b false)))
     );
 
-    assert_eq!(
-        eval(&u!({apply : fold [one_two ; zero ; plus ]}), prelude.clone()),
-        Ok(val!(i 3))
-    );
+    assert_eq!(eval(&u!({apply : fold [one_two ; zero ; plus ]}), prelude.clone()), Ok(val!(i 3)));
 }

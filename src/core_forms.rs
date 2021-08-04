@@ -291,8 +291,7 @@ pub fn make_core_syn_env() -> SynEnv {
                     (named "component", (call "Expr"))])),
             cust_rc_box!(type_struct_expr),
             cust_rc_box!(eval_struct_expr)),
-        typed_form!(
-            "tuple_expr",
+        typed_form!("tuple_expr",
             (delim "**[", "[", (star (named "component", (call "Expr")))),
             cust_rc_box!(type_tuple_expr),
             cust_rc_box!(eval_tuple_expr)
@@ -336,6 +335,62 @@ pub fn make_core_syn_env() -> SynEnv {
              (named "body", (import [* [forall "param"]], (call "Expr")))],
             cust_rc_box!(type__forall_expr),
             Body(n("body"))),
+        typed_form!("capture_language",
+            // Immediately descend into a grammar with one NT pointing to one form,
+            //  which has captured the whole parse context.
+            (extend_nt [(lit "capture_language")], "OnlyNt",
+                |pc: crate::earley::ParseContext, _starter_info: Ast| {
+                    use crate::runtime::reify::Reifiable;
+                    let reified_language = pc.reify();
+                    crate::earley::ParseContext {
+                        grammar: assoc_n!("OnlyNt" =>
+                            Rc::new(FormPat::Named(n("body"), Rc::new(FormPat::Anyways(Ast::Node(
+                                basic_typed_form!(
+                                    [], // No syntax
+                                    cust_rc_box!(|_| { Ok(get__primitive_type(n("Language"))) }),
+                                    // Return the captured language:
+                                    cust_rc_box!(move |_| Ok(reified_language.clone()))
+                                ),
+                            crate::util::mbe::EnvMBE::<Ast>::new(),
+                            crate::beta::ExportBeta::Nothing
+                        )))))),
+                        // We can't just squirrel `reified_language` here:
+                        //  these only affect earlier phases, and we need the language in phase 0
+                        eval_ctxt: LazyWalkReses::<crate::runtime::eval::Eval>::new_empty(),
+                        type_ctxt: LazyWalkReses::<crate::ty::SynthTy>::new_empty()
+                    }}),
+            Body(n("body")),
+            Body(n("body"))),
+        typed_form!("import_language_from_file",
+            (extend [(lit "import"), (call "DefaultSeparator"),
+                        (named "filename", (scan r"/\[(.*)]/"))], (named "body", (call "Expr")),
+                |_pc: crate::earley::ParseContext, starter_info: Ast| {
+                    let filename = match starter_info {
+                        Shape(ref parts) =>
+                            match parts[2] { // Skip "import" and the separator
+                                IncompleteNode(ref parts) =>
+                                parts.get_leaf_or_panic(&n("filename")).to_name().orig_sp(),
+                                _ => icp!("Unexpected structure {:#?}", parts)
+                            }
+                        _ => icp!("Unexpected structure {:#?}", starter_info)
+                    };
+                    let mut raw_library = String::new();
+
+                    use std::io::Read;
+                    std::fs::File::open(std::path::Path::new(&filename))
+                        .expect("Error opening file")
+                        .read_to_string(&mut raw_library)
+                        .expect("Error reading file");
+                    // TODO: I guess this ought to return `Result`, too...
+                    let lib = crate::eval_unseemly_program(&raw_library)
+                        .expect("Error loading library");
+                    use crate::runtime::reify::Reifiable;
+
+                    crate::earley::ParseContext::reflect(&lib)
+                }),
+            Body(n("body")),
+            Body(n("body"))
+            ),
         crate::core_qq_forms::quote(/* positive= */ true),
         crate::core_macro_forms::extend_syntax()
     ];
@@ -507,6 +562,7 @@ pub fn make_core_syn_env() -> SynEnv {
         n("unfold"),
         n("extend_syntax"),
         n("in"),
+        n("import"),
     ];
 
     syn_env!(

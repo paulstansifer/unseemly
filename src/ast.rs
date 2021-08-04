@@ -148,7 +148,7 @@ impl Ast {
             Node(ref _f, ref _body, ref _export) => {
                 // TODO: think about what should happen when
                 //  `Scope` contains a `Scope` without an intervening `Named`
-                panic!("I don't know what to do here!")
+                panic!("I don't know what to do with {:#?}!", self)
             }
             QuoteMore(ref body, _) => body.flatten(),
             QuoteLess(ref body, _) => body.flatten(),

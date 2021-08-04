@@ -1,0 +1,5 @@
+extend_syntax
+    DefaultSeparator ::= /((?s:\s|%|#[^\n|][^\n]*|#\|.*?\|#)*)/ ;
+in
+    # Don't bother defining `let`, just bind `comment_usefulness`:
+    (.[ comment_usefulness : Int . capture_language ]. one)

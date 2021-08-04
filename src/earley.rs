@@ -559,7 +559,7 @@ impl Item {
                             // These are byte indices!
                             self.finish_with(
                                 ParsedAtom(Ast::Atom(n(&toks[cur_idx + start..cur_idx + end]))),
-                                end,
+                                caps.get(0).unwrap().1, // End of the *whole string consumed*
                             )
                         }
                         None => self.finish_with(NothingYet, caps.get(0).unwrap().1),
@@ -626,15 +626,24 @@ impl Item {
                     }
                 };
 
-                let new_ctxt = all_parse_contexts.with(|grammars| {
-                    let mut mut_grammars = grammars.borrow_mut();
-                    mut_grammars
-                        .entry(self.id.get_ref()) // memoize
-                        .or_insert_with(||
-                            f.0(ParseContext::new(
-                                self.grammar.clone(), (*self.envs).clone()), partial_parse))
-                        .clone()
-                });
+                // We can't use `.or_insert_with()` here,
+                //  since "import" can encounter grammars with extensions while extending!
+                let existing_pc = all_parse_contexts
+                    .with(|grammars| grammars.borrow().get(&self.id.get_ref()).cloned());
+
+                let new_ctxt = match existing_pc {
+                    Some(pc) => pc,
+                    None => {
+                        let new_ctxt = f.0(
+                            ParseContext::new(self.grammar.clone(), (*self.envs).clone()),
+                            partial_parse,
+                        );
+                        all_parse_contexts.with(|grammars| {
+                            grammars.borrow_mut().insert(self.id.get_ref(), new_ctxt.clone())
+                        });
+                        new_ctxt.clone()
+                    }
+                };
 
                 vec![(
                     Item {

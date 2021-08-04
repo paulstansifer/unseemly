@@ -1,0 +1,5 @@
+import /[comment_library.unseemly]/
+(plus
+    one 
+    # We can use comments, even though the definition is in another file!
+    one)

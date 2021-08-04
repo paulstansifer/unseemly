@@ -269,13 +269,16 @@ fn main() {
         }
         rl.save_history(&history_filename).unwrap();
     } else {
-        let filename = &arguments[1];
+        let filename = Path::new(&arguments[1]);
 
         let mut raw_input = String::new();
-        File::open(&Path::new(filename))
+        File::open(&filename)
             .expect("Error opening file")
             .read_to_string(&mut raw_input)
             .expect("Error reading file");
+
+        // So the file can import (etc.) relative to its own location:
+        std::env::set_current_dir(filename.parent().unwrap()).unwrap();
 
         let result = eval_unseemly_program(&raw_input);
 
