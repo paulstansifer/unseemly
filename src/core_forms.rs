@@ -255,9 +255,31 @@ fn extend__capture_language(
             Rc::new(FormPat::Named(n("body"), Rc::new(FormPat::Anyways(Ast::Node(
                 basic_typed_form!(
                     [], // No syntax
-                    cust_rc_box!(|_| { Ok(get__primitive_type(n("Language"))) }),
-                    // Return the captured language:
-                    cust_rc_box!(move |_| Ok(reified_language.clone()))
+                    cust_rc_box!(|parts| {
+                        // Reify the current type environment:
+                        let mut struct_body = vec![];
+
+                        for (k, v) in parts.env.iter_pairs() {
+                            struct_body.push(crate::util::mbe::EnvMBE::new_from_leaves(assoc_n!(
+                                "component_name" => Ast::Atom(*k),
+                                "component" => v.clone()
+                            )))
+                        }
+
+                        Ok(ast!({"Type" "tuple" :
+                            "component" => [
+                                (, get__primitive_type(n("LanguageSyntax"))),
+                                (, Node(crate::core_forms::find("Type", "struct"),
+                                     crate::util::mbe::EnvMBE::new_from_anon_repeat(struct_body),
+                                     crate::beta::ExportBeta::Nothing))]
+                    }))}),
+                    cust_rc_box!(move |parts| {
+                        Ok(Value::Sequence(vec![
+                            // The captured reified language syntax:
+                            Rc::new(reified_language.clone()),
+                            // Reifying the value environment is easy:
+                            Rc::new(Value::Struct(parts.env))
+                        ]))})
                 ),
             crate::util::mbe::EnvMBE::<Ast>::new(),
             crate::beta::ExportBeta::Nothing
@@ -269,12 +291,15 @@ fn extend__capture_language(
     }
 }
 
+// Shift the parser into the language specified in "filename".
+// TODO: This is probably unhygenic in some sense. Perhaps this needs to be a new kind of `Beta`?
 fn extend_import(
     _pc: crate::earley::ParseContext,
     starter_info: Ast,
 ) -> crate::earley::ParseContext {
     let filename = match starter_info {
-        Shape(ref parts) => match parts[2] { // Skip "import" and the separator
+        // Skip "import" and the separator:
+        Shape(ref parts) => match parts[2] {
             IncompleteNode(ref parts) => {
                 parts.get_leaf_or_panic(&n("filename")).to_name().orig_sp()
             }
@@ -282,18 +307,72 @@ fn extend_import(
         },
         _ => icp!("Unexpected structure {:#?}", starter_info),
     };
-    let mut raw_library = String::new();
+    let mut raw_lib = String::new();
 
     use std::io::Read;
     std::fs::File::open(std::path::Path::new(&filename))
         .expect("Error opening file")
-        .read_to_string(&mut raw_library)
+        .read_to_string(&mut raw_lib)
         .expect("Error reading file");
-    // TODO: I guess this ought to return `Result`, too...
-    let lib = crate::eval_unseemly_program(&raw_library).expect("Error loading library");
-    use crate::runtime::reify::Reifiable;
 
-    crate::earley::ParseContext::reflect(&lib)
+    let core_envs = crate::runtime::core_values::get_core_envs();
+    // TODO: I guess syntax extensions ought to return `Result`, too...
+    let lib_ast =
+        crate::grammar::parse(&outermost_form(), &get_core_forms(), core_envs.clone(), &raw_lib)
+            .unwrap();
+    // TODO: This gets roundtripped (LazyWalkReses -> Assoc -> LazyWalkReses). Fix `get_core_envs`?
+    let lib_typed = crate::ty::synth_type(&lib_ast, core_envs.0.env).unwrap();
+    let lib_evaled = crate::runtime::eval::eval(&lib_ast, core_envs.1.env).unwrap();
+    let (new_pc, new__value_env) = if let Sequence(ref lang_and_env) = lib_evaled {
+        use crate::runtime::reify::Reifiable;
+        let new_pc = crate::earley::ParseContext::reflect(&(*lang_and_env[0]));
+        let new__value_env = if let Struct(ref env) = *lang_and_env[1] {
+            let mut new__value_env = Assoc::new();
+            // We need to un-freshen the names that we're importing
+            //  so they can actually be referred to.
+            for (k, v) in env.iter_pairs() {
+                new__value_env = new__value_env.set(k.unhygienic_orig(), v.clone())
+            }
+            new__value_env
+        } else {
+            icp!("[type error] Unexpected lib syntax structure: {:#?}", *lang_and_env[1])
+        };
+        (new_pc, new__value_env)
+    } else {
+        icp!("[type error] Unexpected lib syntax strucutre: {:#?}", lib_evaled);
+    };
+
+    node_let!(lib_typed => {Type tuple}
+        lang_and_types *= component);
+    node_let!(lang_and_types[1] => {Type struct}
+        keys *= component_name, values *= component);
+
+    let mut new__type_env = Assoc::<Name, Ast>::new();
+    for (k, v) in keys.into_iter().zip(values.into_iter()) {
+        // As above, unfreshen:
+        new__type_env = new__type_env.set(k.to_name().unhygienic_orig(), v.clone());
+    }
+
+    crate::earley::ParseContext {
+        grammar: new_pc.grammar.set(
+            n("ImportStarter"),
+            Rc::new(Scope(
+                basic_typed_form!(
+                    (named "body", (call "Expr")),
+                    cust_rc_box!(move |parts| {
+                        parts.with_environment(
+                            parts.env.set_assoc(&new__type_env)).get_res(n("body"))
+                    }),
+                    cust_rc_box!(move |parts| {
+                        parts.with_environment(
+                            parts.env.set_assoc(&new__value_env)).get_res(n("body"))
+                    })
+                ),
+                crate::beta::ExportBeta::Nothing,
+            )),
+        ),
+        ..new_pc
+    }
 }
 
 // TODO: pull out all the other form implementations into freestanding functions.
@@ -394,8 +473,10 @@ pub fn make_core_syn_env() -> SynEnv {
             Body(n("body")),
             Body(n("body"))),
         typed_form!("import_language_from_file",
-            (extend [(lit "import"), (call "DefaultSeparator"),
-                        (named "filename", (scan r"/\[(.*)]/"))], (named "body", (call "Expr")),
+            (extend
+                [(lit "import"), (call "DefaultSeparator"),
+                    (named "filename", (scan r"/\[(.*)]/"))],
+                (named "body", (call "ImportStarter")),
                 extend_import),
             Body(n("body")),
             Body(n("body"))

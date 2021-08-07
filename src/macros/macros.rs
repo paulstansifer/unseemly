@@ -628,13 +628,28 @@ macro_rules! expect_ty_node {
     }};
 }
 
-// TODO: this ought to have some MBE support
-macro_rules! destructure_node {
-    ( ($node:expr ; $form:expr) $( $n:ident = $name:expr ),* ; $body:expr ) => (
-        expect_node!( ($node ; $form) env ; {
-            let ( $( $n ),* ) = ( $( env.get_leaf_or_panic(&::name::n($name)) ),* );
-            $body
-        })
+macro_rules! _get_leaf_operation {
+    ($env:expr, =, $name:tt) => {
+        $env.get_leaf_or_panic(crate::name::n(stringify!($name)))
+    };
+    ($env:expr, *=, $name:tt) => {
+        $env.get_rep_leaf_or_panic(crate::name::n(stringify!($name)))
+    };
+}
+
+// Bind names based on the contents of a `Node`.
+// Use `=` for plain leaves, or `*=` for repeated leaves.
+// This uses barewords like `u!` does, but it's fine for runtime use.
+// TODO: use this a lot more
+macro_rules! node_let {
+    ( $node:expr => {$nt:tt $form:tt } $( $n:ident $operation:tt $name:tt ),* ) => (
+        // Extra element is the ensure it's a tuple and not trigger `unused_params`.
+        let ( (), $( $n ),* ) = {
+            expect_node!( ($node ;
+                crate::core_forms::find_core_form(stringify!($nt), stringify!($form))) env ;
+                    ((), $( _get_leaf_operation!(env, $operation, $name) ),* )
+            )
+        };
     )
 }
 
