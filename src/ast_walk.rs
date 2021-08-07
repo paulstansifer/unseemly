@@ -1,20 +1,17 @@
-// We often need to walk an `Ast` while maintaining an environment.
-// This seems to be true at typecheck time and at runtime.
+// A lot of language implementation consists of walking an `Ast` while maintaining an environment.
 //
-// Our `Ast`s have information about
-//  what should happen environment-wise baked-in,
+// Our `Ast`s have baked-in information about
+//  what should happen environment-wise,
 //   so `walk` processes `ExtendEnv` and `VariableReference` on its own.
-// When it reaches a `Node`, the user has to specify
-//  (through the definition of the respective form)
-//   what to do, using a `WalkRule`.
+// When it reaches a `Node`, the `Form` of that node specifies what to do, using a `WalkRule`.
 // The most interesting `WalkRule`, `Custom`,
-//  specifies an arbitrary function on the results of walking its subterms.
+//   specifies an arbitrary function on the results of walking its subterms,
+//  but a lot of forms can use `Body`,
+//   which means that the `Ast` structure already did all the work.
 // Subterms are walked lazily, since not all of them are even evaluable/typeable,
 //  and they might need to be walked in a specific order.
-//
-// I may have committed some light type sorcery to make this happen.
 
-// There are different kinds of walks. Here are the ones Unseemly needs so far:
+// There are different kinds of walks. Here are the major ones Unseemly needs so far:
 //
 // Evaluation produces a `Value` or an error.
 // During evaluation, each `lambda` form may be processed many times,
@@ -31,7 +28,8 @@
 //
 // Quasiquotation, typically a part of evaluation, produces a `Value::AbstractSyntax`.
 // Typically, it is triggered by a specific quotative form,
-//  and it's very simple to implement; it just reifies syntax.
+//  and it's very simple to implement; it just reifies syntax
+//   (until it hits a dotdotdot or unquote).
 // Unseemly is special in that `lambda` even binds under quasiquotation,
 //  despite the fact that it doesn't do anything until the reified syntax is evaluated.
 
@@ -44,8 +42,8 @@
 //
 // Negative forms (e.g. patterns and variable bindings)
 //  still can access their environment,
-//   but primarily they look at one special "result" in it, and when they are walked,
-//    they produce an environment from that special result.
+//   but primarily they look at one special "context value" in it, and when they are walked,
+//    they produce an environment from that context value.
 //
 // For example, suppose that `five` has type `nat` and `hello` has type `string`:
 //   - the expression `struct{a: five, b: hello}` produces the type `struct{a: nat, b: string}`

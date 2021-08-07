@@ -18,9 +18,13 @@ derived languages will have their own file extensions.
 
 ## Low-level structure
 The default Unseemly tokenizer is very simple.
-Names start with a letter, and contain letters, numbers, and `?` and `_`.
+Names start with a letter, and contain letters, numbers, `?` and `_`.
 Non-name tokens are typically separated by whitespace and the *inside edges* of `([{}])`.
 You'll tend to see constructs like `.[ ].`, `'[ ]'`, and `hi[ ]hi`.
+
+Sequences tend not to be comma-separated.
+This is 50% because of Scheme,
+ and 50% because the feature to make it easy hasn't been added to the parser yet.
 
 ## Expressions
 * `(expr expr ⋯)` is function application.
@@ -137,7 +141,6 @@ You'll tend to see constructs like `.[ ].`, `'[ ]'`, and `hi[ ]hi`.
      in
          if (zero? five) then eight else two
    ```
-
 
 ### Pre-defined values
 * `zero` through `ten` are integers. (What are these "literals" you speak of?)
@@ -264,6 +267,8 @@ These are defined in `core_forms.rs`, and their definitions are relatively short
     Demonstrates `let_type`, `match`, `fold`, `unfold`, and the need for a macro system.
 
 *  `if_macro.unseemly` introduces `if expr then expr else expr` to the language.
+
+*  `build_a_language.unseemly` add comments, `let`, and function definitions to a language.
 
 *  `.unseemly_prelude` is intended to be copied to your home directory.
     It's automatically loaded by the REPL.

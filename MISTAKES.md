@@ -24,6 +24,8 @@ If I had to do it all over again...
   and the user is supposed to assume that neither is a subtype of the other.
   That's unintuitive!
   Also, they are a little similar-looking.
+* Forms ought to be all given names (at the Rust level, I mean);
+   `find_core_form()` is unpleasant and should be removed.
 
   Former mistakes:
   * There used to be a `Ty` type that was just a wrapper around `Ast` (in the

@@ -75,7 +75,10 @@ pub fn enable_fake_freshness(ff: bool) {
 // impl !Send for Name {}
 
 impl Name {
+    /// Two names that are unequal to each other will have different "spelling"s.
+    /// Tomatoes (🍅) may have been added to the end to ensure uniqueness.
     pub fn sp(self) -> String { spellings.with(|us| us.borrow()[self.id].unique.clone()) }
+    /// The "original spelling" of a name; the string that was used to define it. These may collide.
     pub fn orig_sp(self) -> String { spellings.with(|us| us.borrow()[self.id].orig.clone()) }
 
     /// This extracts the "original" `Name`, prior to any freshening.
@@ -84,9 +87,10 @@ impl Name {
         spellings.with(|us| Name::new(&us.borrow()[self.id].orig, false))
     }
 
-    // Printable names are unique, like `unique_spelling`s, but are assigned during printing.
-    // This way if the compiler freshens some name a bunch of times, producing a tomato-filled mess,
-    // but only prints one version of the name, it gets to print an unadorned name.
+    /// Printable names are unique, like names from `sp()`, but generated lazily.
+    /// So, if the compiler freshens some name a bunch of times, producing a tomato-filled mess,
+    /// but only prints one version of the name, it gets to print an unadorned name.
+    /// If absolutely necessary to avoid collision, carrots (🥕) are added to the end.
     pub fn print(self) -> String {
         printables.with(|printables_| {
             printables_used.with(|printables_used_| {
