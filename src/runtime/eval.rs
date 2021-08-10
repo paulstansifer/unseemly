@@ -22,6 +22,11 @@ pub enum Value {
     AbstractSyntax(Ast),
     Struct(Assoc<Name, Value>),
     Enum(Name, Vec<Value>),
+    // Hypothesis: all strings are either
+    //  in a formal language (and should be stored as ASTs instead)
+    //  or in a human language (and should be tokens for localization).
+    // But for now, here's a plain string.
+    Text(String),
 }
 
 pub use self::Value::*;
@@ -93,6 +98,7 @@ impl std::fmt::Display for Value {
                 }
                 write!(f, "]+")
             }
+            Text(ref st) => write!(f, "{}", st),
         }
     }
 }

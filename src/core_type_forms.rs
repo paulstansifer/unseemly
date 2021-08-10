@@ -420,6 +420,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
         type_defn("Int", form_pat!((name_lit "Int"))),
         type_defn("Nat", form_pat!((name_lit "Nat"))),
         type_defn("Float", form_pat!((name_lit "Float"))),
+        type_defn("String", form_pat!((name_lit "Float"))),
         enum_type,
         struct_type,
         tuple_type,

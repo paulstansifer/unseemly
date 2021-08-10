@@ -1,13 +1,13 @@
 use crate::{
     ast::{Ast, Ast::*},
     ast_walk::{LazyWalkReses, WalkRule::*},
+    core_forms::{get_core_forms, outermost_form},
     core_type_forms::get__primitive_type,
-    core_forms::{outermost_form, get_core_forms},
     form::Form,
     grammar::FormPat,
     name::*,
     runtime::eval::Value,
-    util::assoc::Assoc
+    util::assoc::Assoc,
 };
 use std::rc::Rc;
 
@@ -178,6 +178,17 @@ pub fn make_core_extra_forms() -> FormPat {
                 (named "body", (call "ImportStarter")),
                 extend_import),
             Body(n("body")),
-            Body(n("body")))
+            Body(n("body"))),
+        typed_form!("string_literal",
+            (named "body", (scan r#"\s*"((?:[^"\\]|\\")*)""#)),
+            cust_rc_box!(|_| {
+                Ok(ast!({"Type" "String" :}))
+            }),
+            cust_rc_box!(|parts| {
+                // Undo the escaping:
+                Ok(Value::Text(parts.get_term(n("body")).to_name().orig_sp()
+                    .replace(r#"\""#, r#"""#)))
+            })
+        )
     ]
 }

@@ -21,7 +21,60 @@ pub struct TypedValue {
 
 pub fn erase_type(tv: &TypedValue) -> Value { tv.val.clone() }
 pub fn erase_value(tv: &TypedValue) -> Ast { tv.ty.clone() }
+pub fn string_operations() -> Assoc<Name, TypedValue> {
+    assoc_n!(
+    "concat" => tyf! {
+        {"Type" "fn" :
+            "param" => [{"Type" "String" :}, {"Type" "String" :}],
+            "ret" => {"Type" "String" :}
+        },
+        (Text(lhs), Text(rhs)) => Text(format!("{}{}", lhs, rhs))},
+    "join" => tyf! {
+        {"Type" "fn" :
+            "param" => [{"Type" "type_apply" : "type_rator" => (vr "Sequence"),
+                                               "arg" => [{"Type" "String" :}]},
+                        {"Type" "String" :}],
+            "ret" => {"Type" "String" :}
+        },
+        (Sequence(seq), Text(joiner)) => {
+            let mut buf = String::new();
+            let mut first = true;
+            for elt in seq {
+                if !first {
+                    buf.push_str(&joiner);
+                }
+                first = false;
+                if let Text(ref str_elt) = *elt {
+                    buf.push_str(str_elt);
+                }
+            }
+            Text(buf)
+        }},
+    "read_file" => tyf! {
+        {"Type" "fn" :
+            "param" => [{"Type" "String" :}],
+            "ret" => {"Type" "String" :}
+        },
+        (Text(filename)) => {
+            let mut contents = String::new();
 
+            use std::io::Read;
+            std::fs::File::open(std::path::Path::new(&filename))
+                .expect("Error opening file")
+                .read_to_string(&mut contents)
+                .expect("Error reading file");
+            Text(contents)
+        }},
+    "write_file" => tyf! {
+        {"Type" "fn" :
+            "param" => [{"Type" "String" :}, {"Type" "String" :}],
+            "ret" => (vr "Unit")
+        },
+        (Text(filename), Text(contents)) => {
+            std::fs::write(filename, contents).expect("Error writing file");
+            Sequence(vec![])
+        }})
+}
 pub fn sequence_operations() -> Assoc<Name, TypedValue> {
     assoc_n!(
     "empty" => TypedValue {
@@ -162,6 +215,7 @@ pub fn core_typed_values() -> Assoc<Name, TypedValue> {
         "true" => TypedValue { ty: ast!((vr "Bool")), val: val!(b true)}
     )
     .set_assoc(&sequence_operations())
+    .set_assoc(&string_operations())
 }
 
 pub fn core_values() -> Assoc<Name, Value> { core_typed_values().map(&erase_type) }
@@ -179,8 +233,10 @@ pub fn core_types() -> Assoc<Name, Ast> {
         .map(&erase_value)
         .set(
             n("Bool"),
-            ast!({"Type" "enum" : "name" => [@"c" "True", "False"], "component" => [@"c" [], []]}),
-        )
+            ast!({"Type" "enum" : "name" => [@"c" "True", "False"], "component" => [@"c" [], []]}))
+        .set(
+            n("Unit"),
+            ast!({"Type" "tuple" : "component" => []}))
         // These need to be in the environment, not just atomic types
         //  because we sometimes look them up internally in the compiler
         //   in the environment,
@@ -270,7 +326,7 @@ fn fixpoint_evaluation() {
 }
 
 #[test]
-fn type_sequence_primitives() {
+fn type_sequence_operations() {
     let mut prelude = core_types();
     use crate::ty::synth_type;
 
@@ -306,7 +362,7 @@ fn type_sequence_primitives() {
 }
 
 #[test]
-fn eval_sequence_primitives() {
+fn eval_sequence_operations() {
     let mut prelude = core_values();
 
     assert_eq!(eval(&u!({apply : len [empty]}), prelude.clone()), Ok(val!(i 0)));
@@ -329,4 +385,25 @@ fn eval_sequence_primitives() {
     );
 
     assert_eq!(eval(&u!({apply : fold [one_two ; zero ; plus ]}), prelude.clone()), Ok(val!(i 3)));
+}
+
+#[test]
+fn eval_string_operations() {
+    let mut prelude = core_values();
+
+    prelude = prelude.set(n("first"), val!(s "Frederick"));
+    prelude = prelude.set(n("last"), val!(s "Douglass"));
+
+    assert_eq!(
+        eval(&u!({apply : concat [first; last]}), prelude.clone()),
+        Ok(val!(s "FrederickDouglass"))
+    );
+
+    prelude = prelude.set(n("names"), val!(seq (s "Frederick") (s "Douglass")));
+    prelude = prelude.set(n("space"), val!(s " "));
+
+    assert_eq!(
+        eval(&u!({apply : join [names; space]}), prelude.clone()),
+        Ok(val!(s "Frederick Douglass"))
+    );
 }

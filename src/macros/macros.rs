@@ -494,6 +494,9 @@ macro_rules! val {
     (b $b:expr) => {
         crate::runtime::eval::Value::Enum( crate::name::n(if $b {"True"} else {"False"}), vec![])
     };
+    (s $s:expr) => {
+        crate::runtime::eval::Value::Text( String::from($s) )
+    };
     (cons $a:tt, $d:tt) => {
         crate::runtime::eval::Value::Cons(Rc::new(val!($a)), Rc::new(val! $d ))
     };

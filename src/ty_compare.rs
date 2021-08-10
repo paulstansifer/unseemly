@@ -14,7 +14,7 @@ use crate::{
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 // Let me write down an example subtyping hierarchy, to stop myself from getting confused.
-// ⊤ (any type/dynamic type/"dunno"/∀X.X)
+//          ⊤ (any type/dynamic type/"dunno"/∀X.X)
 // ╱              |                       |          ╲
 // Num          ∀X Y.(X⇒Y)               Nat⇒Int     ∀X Y.(X,Y)
 // |           ╱         ╲              ╱     ╲         ╲
@@ -22,7 +22,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 // |           ╲         ╱              ╲     ╱           |
 // Nat           Bool⇒Bool               Int⇒Nat      (Nat,Bool)
 // ╲               |                      |            ╱
-// ⊥ (uninhabited type/panic/"can't happen"/enum{})
+//   ⊥ (uninhabited type/panic/"can't happen"/enum{})
 //
 // How do we see if S is a subtype of T?
 // First, we positively walk S, turning `∀X.(X⇒X)` into `(G23⇒G23)`
