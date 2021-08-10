@@ -180,14 +180,15 @@ pub fn make_core_extra_forms() -> FormPat {
             Body(n("body")),
             Body(n("body"))),
         typed_form!("string_literal",
-            (named "body", (scan r#"\s*"((?:[^"\\]|\\")*)""#)),
+            (named "body", (scan r#"\s*"((?:[^"\\]|\\"|\\\\)*)""#)),
             cust_rc_box!(|_| {
                 Ok(ast!({"Type" "String" :}))
             }),
             cust_rc_box!(|parts| {
                 // Undo the escaping:
                 Ok(Value::Text(parts.get_term(n("body")).to_name().orig_sp()
-                    .replace(r#"\""#, r#"""#)))
+                    .replace(r#"\""#, r#"""#)
+                    .replace(r#"\\"#, r#"\"#)))
             })
         )
     ]

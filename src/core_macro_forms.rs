@@ -28,7 +28,7 @@ use std::rc::Rc;
 // The programmer writes a macro definition, e.g.:
 //
 // extend_syntax macro
-//     Expr :+:=
+//     Expr ::=also
 //         forall T . '{ (lit if) ,{Expr<Bool> | cond},
 //             (lit then) ,{Expr<T> | then_e},
 //             (lit else) ,{Expr<T> | else_e}, }'
@@ -398,25 +398,29 @@ pub fn make_core_macro_forms() -> SynEnv {
         syntax_syntax!( ((lit "impossible")) Impossible ) => [],
         syntax_syntax!( (  // TODO: this might have to be both positive and negative
             [(lit "lit"), (named "body", (call "Syntax")),
-             // TODO: Why can't these `scan`s be joined into `(scan r"\s*'([^']+)'")`?
-             // TODO: Allow escaped `'`s! And other things, presumably.
-             (lit "="), (scan r"(\s*')"), (named "expected", (scan r"([^']+)")), (scan r"(')")] )
+             // Allow \\ and \' as escapes:
+             (lit "="), (named "expected", (scan r"\s*'((?:[^'\\]|\\'|\\\\)*)'"))])
         Literal {
             |parts| {
                 parts.get_res(n("body"))
             }
         } {
             |parts| {
+                let literal = parts.get_term(n("expected")).to_name().orig_sp()
+                    .replace(r#"\'"#, r#"'"#).replace(r#"\\"#, r#"\"#);
                 Ok(FormPat::Literal(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?)),
-                                    parts.get_term(n("expected")).to_name()).reify())
+                                    n(&literal)).reify())
             }
         }) => [],
-        syntax_syntax!( ([(scan r"(\s*/)"), (named "pat", (scan r"([^/]*)")), (scan r"(/)")]) Scan {
+        // Allow \/ as an escape
+        // (plain backslashes get passed through; fortunately \/ itself isn't useful regex syntax)
+        syntax_syntax!( ([(named "pat", (scan r"\s*/((?:[^/\\]|\\.)*)/"))]) Scan {
             |_| { Ok(Assoc::new()) }
         } {
             |parts| {
-                Ok(crate::grammar::new_scan(
-                    &parts.get_term(n("pat")).to_name().orig_sp()).reify())
+                let regex = parts.get_term(n("pat")).to_name().orig_sp()
+                    .replace(r#"\/"#, r#"/"#);
+                Ok(crate::grammar::new_scan(&regex).reify())
             }
         }) => [],
         syntax_syntax!( ([(lit "vr"), (named "body", (call "Syntax"))]) VarRef (
@@ -628,7 +632,7 @@ pub fn extend_syntax() -> Rc<Form> {
             .collect();
         let rhses: Vec<&Ast> = bnf_parts.get_rep_leaf_or_panic(n("rhs"));
 
-        // Figure out the  the syntax extension:
+        // Figure out the syntax extension:
         let mut syn_env = pc.grammar;
         for ((nt, extend), rhs) in nts.into_iter().zip(ops.into_iter()).zip(rhses.into_iter()) {
             let rhs_form_pat =
@@ -646,6 +650,7 @@ pub fn extend_syntax() -> Rc<Form> {
         ParseContext { grammar: syn_env, type_ctxt: pc.type_ctxt, eval_ctxt: pc.eval_ctxt }
     };
 
+    // The `Syntax` argument, `rhs`, doesn't care about the context element, so we make one up:
     let trivial_type_form = crate::core_type_forms::type_defn("unused", form_pat!((impossible)));
 
     Rc::new(Form {
