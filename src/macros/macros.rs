@@ -497,15 +497,12 @@ macro_rules! val {
     (s $s:expr) => {
         crate::runtime::eval::Value::Text( String::from($s) )
     };
-    (cons $a:tt, $d:tt) => {
-        crate::runtime::eval::Value::Cons(Rc::new(val!($a)), Rc::new(val! $d ))
-    };
     (f $body:tt, $params:expr, $env:tt) => {
         crate::runtime::eval::Value::Function(
-            Rc::new(::runtime::eval::Closure(ast!($body), $params, assoc_n! $env)))
+            std::rc::Rc::new(::runtime::eval::Closure(ast!($body), $params, assoc_n! $env)))
     };
     (bif $f:expr) => {
-        crate::runtime::eval::Value::BuiltInFunction(::runtime::eval::BIF(Rc::new($f)))
+        crate::runtime::eval::Value::BuiltInFunction(::runtime::eval::BIF(std::rc::Rc::new($f)))
     };
     (ast $body:tt) => {
         crate::runtime::eval::Value::AbstractSyntax(ast!($body))
@@ -517,7 +514,10 @@ macro_rules! val {
         crate::runtime::eval::Value::Enum(crate::name::n($nm), vec![ $( val! $v ),* ])
     };
     (seq $($v:tt)*) => {
-        crate::runtime::eval::Value::Sequence(vec![ $( Rc::new(val! $v) ),* ])
+        crate::runtime::eval::Value::Sequence(vec![ $( std::rc::Rc::new(val! $v) ),* ])
+    };
+    (cell $v:tt) => {
+        crate::runtime::eval::Value::Cell(std::rc::Rc::new(std::cell::RefCell::new(val! $v) ))
     };
     (, $interpolate:expr) => { $interpolate }
 }

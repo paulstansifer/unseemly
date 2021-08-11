@@ -27,6 +27,7 @@ pub enum Value {
     //  or in a human language (and should be tokens for localization).
     // But for now, here's a plain string.
     Text(String),
+    Cell(Rc<std::cell::RefCell<Value>>),
 }
 
 pub use self::Value::*;
@@ -99,6 +100,7 @@ impl std::fmt::Display for Value {
                 write!(f, "]+")
             }
             Text(ref st) => write!(f, "{}", st),
+            Cell(ref cell) => write!(f, "{}", cell.borrow()),
         }
     }
 }

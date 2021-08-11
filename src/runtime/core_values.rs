@@ -29,6 +29,12 @@ pub fn string_operations() -> Assoc<Name, TypedValue> {
             "ret" => {"Type" "String" :}
         },
         (Text(lhs), Text(rhs)) => Text(format!("{}{}", lhs, rhs))},
+    "replace" => tyf! {
+        {"Type" "fn" :
+            "param" => [{"Type" "String" :}, {"Type" "String" :}, {"Type" "String" :}],
+            "ret" => {"Type" "String" :}
+        },
+        (Text(body), Text(old), Text(new)) => Text(body.replace(&old, &new))},
     "join" => tyf! {
         {"Type" "fn" :
             "param" => [{"Type" "type_apply" : "type_rator" => (vr "Sequence"),
@@ -158,6 +164,51 @@ pub fn sequence_operations() -> Assoc<Name, TypedValue> {
             })
     )
 }
+pub fn cell_operations() -> Assoc<Name, TypedValue> {
+    assoc_n!(
+        "new_cell" =>
+        tyf!( { "Type" "forall_type" :
+            "param" => ["T"],
+            "body" => (import [* [forall "param"]] { "Type" "fn" :
+                "param" => [(vr "T")],
+                "ret" =>
+                    { "Type" "type_apply" : "type_rator" => (vr "Cell"), "arg" => [(vr "T")]}})},
+            ( val ) => {
+                Cell(Rc::new(std::cell::RefCell::new(val)))
+            }
+        ),
+        "assign" =>
+        tyf!( { "Type" "forall_type" :
+            "param" => ["T"],
+            "body" => (import [* [forall "param"]] { "Type" "fn" :
+                "param" => [
+                    { "Type" "type_apply" :
+                        "type_rator" => (vr "Cell"),
+                        "arg" => [(vr "T")]},
+                    (vr "T")
+                    ],
+                "ret" => (vr "Unit")})},
+            ( Cell(cell), val ) => {
+                cell.replace(val);
+                Sequence(vec![])
+            }
+        ),
+        "value" =>
+        tyf!( { "Type" "forall_type" :
+            "param" => ["T"],
+            "body" => (import [* [forall "param"]] { "Type" "fn" :
+                "param" => [
+                    { "Type" "type_apply" :
+                        "type_rator" => (vr "Cell"),
+                        "arg" => [(vr "T")]}
+                    ],
+                "ret" => (vr "T")})},
+            ( Cell(cell) ) => {
+                (*cell.borrow()).clone()
+            }
+        )
+    )
+}
 
 pub fn core_typed_values() -> Assoc<Name, TypedValue> {
     assoc_n!(
@@ -216,6 +267,7 @@ pub fn core_typed_values() -> Assoc<Name, TypedValue> {
     )
     .set_assoc(&sequence_operations())
     .set_assoc(&string_operations())
+    .set_assoc(&cell_operations())
 }
 
 pub fn core_values() -> Assoc<Name, Value> { core_typed_values().map(&erase_type) }
@@ -245,6 +297,7 @@ pub fn core_types() -> Assoc<Name, Ast> {
         .set(n("Type"), get__primitive_type(n("Type")))
         .set(n("Expr"), get__primitive_type(n("Expr")))
         .set(n("Sequence"), get__primitive_type(n("Sequence")))
+        .set(n("Cell"), get__primitive_type(n("Cell")))
         .set_assoc(&reified_ty_env!(
             Option<Irr>, u8, usize,
             crate::util::assoc::Assoc<Irr, Irr>,
@@ -405,5 +458,22 @@ fn eval_string_operations() {
     assert_eq!(
         eval(&u!({apply : join [names; space]}), prelude.clone()),
         Ok(val!(s "Frederick Douglass"))
+    );
+}
+
+#[test]
+fn eval_cell_operations() {
+    let prelude = core_values().set(n("c"), val!(cell (i 5)));
+
+    assert_eq!(
+        eval(
+            &u!(
+            {block :
+                [(~ {apply : assign [c ; {apply : plus [one ; {apply : value [c]}]}]})]
+                {apply : value [c]}
+            }),
+            prelude.clone()
+        ),
+        Ok(val!(i 6))
     );
 }

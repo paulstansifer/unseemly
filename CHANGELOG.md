@@ -9,7 +9,8 @@
     This overwrites the current syntactic environment and extends the runtime environment.
     (So, only the most recent `import` provides macros.)
 - Introduced string literals and the `String` type.
-- Introduced some basic operations on `Sequence` and `String` types.
+- Introduced the `Cell` type for side-effects.
+- Introduced some basic operations on `Sequence<T>`, `String`, and `Cell` types.
 ### Fixed
 - Display of multiline error messages now uses newlines instead of "\n".
 
