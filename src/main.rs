@@ -152,122 +152,9 @@ impl rustyline::Helper for LineHelper {}
 #[cfg_attr(tarpaulin, skip)]
 fn main() {
     let arguments: Vec<String> = std::env::args().collect();
-    let prelude_filename = format!("{}/.unseemly_prelude", dirs::home_dir().unwrap().display());
-    let history_filename = format!("{}/.unseemly_history", dirs::home_dir().unwrap().display());
 
     if arguments.len() == 1 {
-        let mut rl = rustyline::Editor::<LineHelper>::new();
-        rl.set_helper(Some(LineHelper::new()));
-
-        let just_parse = regex::Regex::new("^:p (.*)$").unwrap();
-        let just_parse_debug_print = regex::Regex::new("^:pd (.*)$").unwrap();
-
-        let just_type = regex::Regex::new("^:t (.*)$").unwrap();
-        let just_eval = regex::Regex::new("^:e (.*)$").unwrap();
-        let type_and_expand = regex::Regex::new("^:x (.*)$").unwrap();
-        let canon_type = regex::Regex::new("^:tt (.*)$").unwrap();
-        let assign_value = regex::Regex::new("^(\\w+)\\s*:=(.*)$").unwrap();
-        let save_value = regex::Regex::new("^:s +((\\w+)\\s*:=(.*))$").unwrap();
-        let assign_type = regex::Regex::new("^(\\w+)\\s*t=(.*)$").unwrap();
-        let save_type = regex::Regex::new("^:s +((\\w+)\\s*t=(.*))$").unwrap();
-        let comment = regex::Regex::new("^#").unwrap();
-
-        println!();
-        println!("                    \x1b[1;38mUnseemly\x1b[0m");
-        println!("    `<expr>` to (typecheck and expand and) evaluate `<expr>`.");
-        println!("    `:x <expr>` to (typecheck and) expand `<expr>`.");
-        println!("    `:e <expr>` to (expand and) evaluate `<expr>` without typechecking.");
-        println!("    `<name> := <expr>` to bind a name for this session.");
-        println!("    `:t <expr>` to synthesize the type of <expr>.");
-        println!("    `:tt <type>` to canonicalize <type>.");
-        println!("    `<name> t= <type>` to bind a type for this session.");
-        println!("    `:s <name> := <expr>` to save a binding to the prelude for the future.");
-        println!("    `:s <name> t= <expr>` to save a type binding to the prelude.");
-        println!("    `:p <expr>` to parse `<expr>` and pretty-print its AST output.");
-        println!("    `:pd <expr>` to parse `<expr>` and debug-print its AST output.");
-        println!("    Command history is saved over sessions.");
-        println!("    Tab-completion works on variables, and lots of Bash-isms work.");
-        println!();
-        println!("This virtual machine kills cyber-fascists.");
-
-        if let Ok(prelude_file) = File::open(&Path::new(&prelude_filename)) {
-            let prelude = std::io::BufReader::new(prelude_file);
-            for line in prelude.lines() {
-                let line = line.unwrap();
-                if comment.captures(&line).is_some() {
-                    // comment
-                } else if let Some(caps) = assign_value.captures(&line) {
-                    if let Err(e) = assign_variable(&caps[1], &caps[2]) {
-                        println!("    Error in prelude line: {}\n    {}", line, e);
-                    }
-                } else if let Some(caps) = assign_type.captures(&line) {
-                    if let Err(e) = assign_t_var(&caps[1], &caps[2]) {
-                        println!("    Error in prelude line: {}\n    {}", line, e);
-                    }
-                }
-            }
-            println!("    [prelude loaded from {}]", prelude_filename);
-        }
-
-        let _ = rl.load_history(&history_filename);
-        while let Ok(line) = rl.readline("\x1b[1;36m≫\x1b[0m ") {
-            // TODO: count delimiters, and allow line continuation!
-            rl.add_history_entry(line.clone());
-
-            let result_display = if let Some(caps) = just_parse.captures(&line) {
-                parse_unseemly_program(&caps[1], true)
-            } else if let Some(caps) = just_parse_debug_print.captures(&line) {
-                parse_unseemly_program(&caps[1], false)
-            } else if let Some(caps) = just_type.captures(&line) {
-                type_unseemly_program(&caps[1]).map(|x| format!("{}", x))
-            } else if let Some(caps) = just_eval.captures(&line) {
-                eval_unseemly_program_without_typechecking(&caps[1]).map(|x| format!("{}", x))
-            } else if let Some(caps) = type_and_expand.captures(&line) {
-                type_and_expand_unseemly_program(&caps[1]).map(|x| format!("{}", x))
-            } else if let Some(caps) = canon_type.captures(&line) {
-                canonicalize_type(&caps[1]).map(|x| format!("{}", x))
-            } else if let Some(caps) = assign_value.captures(&line) {
-                assign_variable(&caps[1], &caps[2]).map(|x| format!("{}", x))
-            } else if let Some(caps) = save_value.captures(&line) {
-                match assign_variable(&caps[2], &caps[3]) {
-                    Ok(_) => {
-                        use std::io::Write;
-                        let mut prel_file = std::fs::OpenOptions::new()
-                            .create(true)
-                            .append(true)
-                            .open(&prelude_filename)
-                            .unwrap();
-                        writeln!(prel_file, "{}", &caps[1]).unwrap();
-                        Ok(format!("[saved to {}]", &prelude_filename))
-                    }
-                    Err(e) => Err(e),
-                }
-            } else if let Some(caps) = assign_type.captures(&line) {
-                assign_t_var(&caps[1], &caps[2]).map(|x| format!("{}", x))
-            } else if let Some(caps) = save_type.captures(&line) {
-                match assign_t_var(&caps[2], &caps[3]) {
-                    Ok(_) => {
-                        use std::io::Write;
-                        let mut prel_file = std::fs::OpenOptions::new()
-                            .create(true)
-                            .append(true)
-                            .open(&prelude_filename)
-                            .unwrap();
-                        writeln!(prel_file, "{}", &caps[1]).unwrap();
-                        Ok(format!("[saved to {}]", &prelude_filename))
-                    }
-                    Err(e) => Err(e),
-                }
-            } else {
-                eval_unseemly_program(&line).map(|x| format!("{}", x))
-            };
-
-            match result_display {
-                Ok(v) => println!("\x1b[1;32m≉\x1b[0m {}", v),
-                Err(s) => println!("\x1b[1;31m✘\x1b[0m {}", s),
-            }
-        }
-        rl.save_history(&history_filename).unwrap();
+        repl();
     } else {
         let filename = Path::new(&arguments[1]);
 
@@ -287,6 +174,129 @@ fn main() {
             Err(e) => println!("\x1b[1;31m✘\x1b[0m {}", e),
         }
     }
+}
+
+fn repl() {
+    let prelude_filename = dirs::home_dir().unwrap().join(".unseemly_prelude");
+    let history_filename = dirs::home_dir().unwrap().join(".unseemly_history");
+
+    let mut rl = rustyline::Editor::<LineHelper>::new();
+    rl.set_helper(Some(LineHelper::new()));
+
+    let quit = regex::Regex::new(r"\s*quit\s*").unwrap();
+    let just_parse = regex::Regex::new(r"^:p (.*)$").unwrap();
+    let just_parse_debug_print = regex::Regex::new(r"^:pd (.*)$").unwrap();
+    let just_type = regex::Regex::new(r"^:t (.*)$").unwrap();
+    let just_eval = regex::Regex::new(r"^:e (.*)$").unwrap();
+    let type_and_expand = regex::Regex::new(r"^:x (.*)$").unwrap();
+    let canon_type = regex::Regex::new(r"^:tt (.*)$").unwrap();
+    let assign_value = regex::Regex::new(r"^(\w+)\s*:=(.*)$").unwrap();
+    let save_value = regex::Regex::new(r"^:s +((\w+)\s*:=(.*))$").unwrap();
+    let assign_type = regex::Regex::new(r"^(\w+)\s*t=(.*)$").unwrap();
+    let save_type = regex::Regex::new(r"^:s +((\w+)\s*t=(.*))$").unwrap();
+    let comment = regex::Regex::new(r"^#").unwrap();
+
+    println!();
+    println!("                    \x1b[1;38mUnseemly\x1b[0m");
+    println!("    `<expr>` to (typecheck and expand and) evaluate `<expr>`.");
+    println!("    `:x <expr>` to (typecheck and) expand `<expr>`.");
+    println!("    `:e <expr>` to (expand and) evaluate `<expr>` without typechecking.");
+    println!("    `<name> := <expr>` to bind a name for this session.");
+    println!("    `:t <expr>` to synthesize the type of <expr>.");
+    println!("    `:tt <type>` to canonicalize <type>.");
+    println!("    `<name> t= <type>` to bind a type for this session.");
+    println!("    `:s <name> := <expr>` to save a binding to the prelude for the future.");
+    println!("    `:s <name> t= <expr>` to save a type binding to the prelude.");
+    println!("    `:p <expr>` to parse `<expr>` and pretty-print its AST output.");
+    println!("    `:pd <expr>` to parse `<expr>` and debug-print its AST output.");
+    println!("    Command history is saved over sessions.");
+    println!("    Tab-completion works on variables, and lots of Bash-isms work.");
+    println!();
+    println!("This virtual machine kills cyber-fascists.");
+
+    if let Ok(prelude_file) = File::open(&prelude_filename) {
+        let prelude = std::io::BufReader::new(prelude_file);
+        for line in prelude.lines() {
+            let line = line.unwrap();
+            if comment.captures(&line).is_some() {
+                // comment
+            } else if let Some(caps) = assign_value.captures(&line) {
+                if let Err(e) = assign_variable(&caps[1], &caps[2]) {
+                    println!("    Error in prelude line: {}\n    {}", line, e);
+                }
+            } else if let Some(caps) = assign_type.captures(&line) {
+                if let Err(e) = assign_t_var(&caps[1], &caps[2]) {
+                    println!("    Error in prelude line: {}\n    {}", line, e);
+                }
+            }
+        }
+        println!("    [prelude loaded from {}]", prelude_filename.display());
+    }
+
+    let _ = rl.load_history(&history_filename);
+    while let Ok(line) = rl.readline("\x1b[1;36m≫\x1b[0m ") {
+        // TODO: count delimiters, and allow line continuation!
+        rl.add_history_entry(line.clone());
+
+        if quit.captures(&line).is_some() {
+            break;
+        }
+
+        let result_display = if let Some(caps) = just_parse.captures(&line) {
+            parse_unseemly_program(&caps[1], true)
+        } else if let Some(caps) = just_parse_debug_print.captures(&line) {
+            parse_unseemly_program(&caps[1], false)
+        } else if let Some(caps) = just_type.captures(&line) {
+            type_unseemly_program(&caps[1]).map(|x| format!("{}", x))
+        } else if let Some(caps) = just_eval.captures(&line) {
+            eval_unseemly_program_without_typechecking(&caps[1]).map(|x| format!("{}", x))
+        } else if let Some(caps) = type_and_expand.captures(&line) {
+            type_and_expand_unseemly_program(&caps[1]).map(|x| format!("{}", x))
+        } else if let Some(caps) = canon_type.captures(&line) {
+            canonicalize_type(&caps[1]).map(|x| format!("{}", x))
+        } else if let Some(caps) = assign_value.captures(&line) {
+            assign_variable(&caps[1], &caps[2]).map(|x| format!("{}", x))
+        } else if let Some(caps) = save_value.captures(&line) {
+            match assign_variable(&caps[2], &caps[3]) {
+                Ok(_) => {
+                    use std::io::Write;
+                    let mut prel_file = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(&prelude_filename)
+                        .unwrap();
+                    writeln!(prel_file, "{}", &caps[1]).unwrap();
+                    Ok(format!("[saved to {}]", &prelude_filename.display()))
+                }
+                Err(e) => Err(e),
+            }
+        } else if let Some(caps) = assign_type.captures(&line) {
+            assign_t_var(&caps[1], &caps[2]).map(|x| format!("{}", x))
+        } else if let Some(caps) = save_type.captures(&line) {
+            match assign_t_var(&caps[2], &caps[3]) {
+                Ok(_) => {
+                    use std::io::Write;
+                    let mut prel_file = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(&prelude_filename)
+                        .unwrap();
+                    writeln!(prel_file, "{}", &caps[1]).unwrap();
+                    Ok(format!("[saved to {}]", &prelude_filename.display()))
+                }
+                Err(e) => Err(e),
+            }
+        } else {
+            eval_unseemly_program(&line).map(|x| format!("{}", x))
+        };
+
+        match result_display {
+            Ok(v) => println!("\x1b[1;32m≉\x1b[0m {}", v),
+            Err(s) => println!("\x1b[1;31m✘\x1b[0m {}", s),
+        }
+    }
+    println!("Bye! Saving history to {}", &history_filename.display());
+    rl.save_history(&history_filename).unwrap();
 }
 
 fn assign_variable(name: &str, expr: &str) -> Result<Value, String> {
