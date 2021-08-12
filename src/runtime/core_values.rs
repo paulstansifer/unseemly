@@ -312,13 +312,6 @@ pub fn core_types() -> Assoc<Name, Ast> {
             ))
 }
 
-pub fn get_core_envs() -> crate::earley::CodeEnvs {
-    (
-        crate::ast_walk::LazyWalkReses::new_wrapper(core_types()),
-        crate::ast_walk::LazyWalkReses::new_wrapper(core_values()),
-    )
-}
-
 #[test]
 fn basic_core_value_evaluation() {
     use crate::core_forms::find_core_form;

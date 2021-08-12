@@ -709,13 +709,8 @@ fn formpat_reflection() {
 
     let string_to_form_pat = |s: &str| -> FormPat {
         syntax_to_form_pat(
-            crate::earley::parse(
-                &form_pat!((call "Syntax")),
-                &macro_forms,
-                crate::earley::empty__code_envs(),
-                s,
-            )
-            .unwrap(),
+            crate::earley::parse_in_syn_env(&form_pat!((call "Syntax")), macro_forms.clone(), s)
+                .unwrap(),
         )
     };
 
@@ -967,17 +962,9 @@ fn type_ddd_macro() {
 }
 #[test]
 fn define_and_parse_macros() {
-    let ty_ctxt = crate::ast_walk::LazyWalkReses::<crate::ty::SynthTy>::new_wrapper(
-        crate::runtime::core_values::core_types(),
-    );
-    let ev_ctxt = crate::ast_walk::LazyWalkReses::<crate::runtime::eval::Eval>::new_wrapper(
-        crate::runtime::core_values::core_values(),
-    );
-
     crate::grammar::parse(
         &form_pat!((scope extend_syntax())),
-        &crate::core_forms::get_core_forms(),
-        (ty_ctxt, ev_ctxt),
+        crate::core_forms::outermost__parse_context(),
         "extend_syntax
              Expr ::=also forall T . '{
                  [ lit ,{ DefaultToken }, = '['

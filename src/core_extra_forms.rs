@@ -1,7 +1,7 @@
 use crate::{
     ast::{Ast, Ast::*},
     ast_walk::{LazyWalkReses, WalkRule::*},
-    core_forms::{get_core_forms, outermost_form},
+    core_forms::outermost_form,
     core_type_forms::get__primitive_type,
     form::Form,
     grammar::FormPat,
@@ -58,38 +58,25 @@ fn extend__capture_language(
     }
 }
 
-// Shift the parser into the language specified in "filename".
-// TODO: This is probably unhygenic in some sense. Perhaps this needs to be a new kind of `Beta`?
-fn extend_import(
-    _pc: crate::earley::ParseContext,
-    starter_info: Ast,
-) -> crate::earley::ParseContext {
-    let filename = match starter_info {
-        // Skip "import" and the separator:
-        Shape(ref parts) => match parts[2] {
-            IncompleteNode(ref parts) => {
-                parts.get_leaf_or_panic(&n("filename")).to_name().orig_sp()
-            }
-            _ => icp!("Unexpected structure {:#?}", parts),
-        },
-        _ => icp!("Unexpected structure {:#?}", starter_info),
-    };
+/// Run the file (which hopefully evaluates to `capture_language`), and get the language it defines.
+pub fn language_from_file(
+    path: &std::path::Path,
+) -> (crate::earley::ParseContext, Assoc<Name, Ast>, Assoc<Name, Value>) {
     let mut raw_lib = String::new();
 
     use std::io::Read;
-    std::fs::File::open(std::path::Path::new(&filename))
+    std::fs::File::open(path)
         .expect("Error opening file")
         .read_to_string(&mut raw_lib)
         .expect("Error reading file");
 
-    let core_envs = crate::runtime::core_values::get_core_envs();
+    let orig_pc = crate::core_forms::outermost__parse_context();
+
     // TODO: I guess syntax extensions ought to return `Result`, too...
-    let lib_ast =
-        crate::grammar::parse(&outermost_form(), &get_core_forms(), core_envs.clone(), &raw_lib)
-            .unwrap();
-    // TODO: This gets roundtripped (LazyWalkReses -> Assoc -> LazyWalkReses). Fix `get_core_envs`?
-    let lib_typed = crate::ty::synth_type(&lib_ast, core_envs.0.env).unwrap();
-    let lib_evaled = crate::runtime::eval::eval(&lib_ast, core_envs.1.env).unwrap();
+    let lib_ast = crate::grammar::parse(&outermost_form(), orig_pc.clone(), &raw_lib).unwrap();
+    // TODO: This gets roundtripped (LazyWalkReses -> Assoc -> LazyWalkReses). Just call `walk`?
+    let lib_typed = crate::ty::synth_type(&lib_ast, orig_pc.type_ctxt.env).unwrap();
+    let lib_evaled = crate::runtime::eval::eval(&lib_ast, orig_pc.eval_ctxt.env).unwrap();
     let (new_pc, new__value_env) = if let Value::Sequence(ref lang_and_env) = lib_evaled {
         use crate::runtime::reify::Reifiable;
         let new_pc = crate::earley::ParseContext::reflect(&(*lang_and_env[0]));
@@ -119,6 +106,29 @@ fn extend_import(
         // As above, unfreshen:
         new__type_env = new__type_env.set(k.to_name().unhygienic_orig(), v.clone());
     }
+
+    (new_pc, new__type_env, new__value_env)
+}
+
+// Shift the parser into the language specified in "filename".
+// TODO: This is probably unhygenic in some sense. Perhaps this needs to be a new kind of `Beta`?
+fn extend_import(
+    _pc: crate::earley::ParseContext,
+    starter_info: Ast,
+) -> crate::earley::ParseContext {
+    let filename = match starter_info {
+        // Skip "import" and the separator:
+        Shape(ref parts) => match parts[2] {
+            IncompleteNode(ref parts) => {
+                parts.get_leaf_or_panic(&n("filename")).to_name().orig_sp()
+            }
+            _ => icp!("Unexpected structure {:#?}", parts),
+        },
+        _ => icp!("Unexpected structure {:#?}", starter_info),
+    };
+
+    let (new_pc, new__type_env, new__value_env) =
+        language_from_file(&std::path::Path::new(&filename));
 
     crate::earley::ParseContext {
         grammar: new_pc.grammar.set(

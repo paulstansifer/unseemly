@@ -155,7 +155,7 @@ fn main() {
 
     if arguments.len() == 1 {
         repl();
-    } else {
+    } else if arguments.len() == 2 {
         let filename = Path::new(&arguments[1]);
 
         let mut raw_input = String::new();
@@ -319,8 +319,7 @@ fn assign_variable(name: &str, expr: &str) -> Result<Value, String> {
 fn assign_t_var(name: &str, t: &str) -> Result<Ast, String> {
     let ast = grammar::parse(
         &grammar::FormPat::Call(n("Type")),
-        &core_forms::get_core_forms(),
-        runtime::core_values::get_core_envs(),
+        core_forms::outermost__parse_context(),
         t,
     )
     .map_err(|e| e.msg)?;
@@ -341,8 +340,7 @@ fn assign_t_var(name: &str, t: &str) -> Result<Ast, String> {
 fn canonicalize_type(t: &str) -> Result<Ast, String> {
     let ast = grammar::parse(
         &grammar::FormPat::Call(n("Type")),
-        &core_forms::get_core_forms(),
-        runtime::core_values::get_core_envs(),
+        core_forms::outermost__parse_context(),
         t,
     )
     .map_err(|e| e.msg)?;
@@ -353,8 +351,7 @@ fn canonicalize_type(t: &str) -> Result<Ast, String> {
 fn parse_unseemly_program(program: &str, pretty: bool) -> Result<String, String> {
     let ast = grammar::parse(
         &core_forms::outermost_form(),
-        &core_forms::get_core_forms(),
-        runtime::core_values::get_core_envs(),
+        core_forms::outermost__parse_context(),
         program,
     )
     .map_err(|e| e.msg)?;
@@ -369,8 +366,7 @@ fn parse_unseemly_program(program: &str, pretty: bool) -> Result<String, String>
 fn type_unseemly_program(program: &str) -> Result<Ast, String> {
     let ast = grammar::parse(
         &core_forms::outermost_form(),
-        &core_forms::get_core_forms(),
-        runtime::core_values::get_core_envs(),
+        core_forms::outermost__parse_context(),
         program,
     )
     .map_err(|e| e.msg)?;
@@ -381,8 +377,7 @@ fn type_unseemly_program(program: &str) -> Result<Ast, String> {
 fn eval_unseemly_program_without_typechecking(program: &str) -> Result<Value, String> {
     let ast: Ast = grammar::parse(
         &core_forms::outermost_form(),
-        &core_forms::get_core_forms(),
-        runtime::core_values::get_core_envs(),
+        core_forms::outermost__parse_context(),
         program,
     )
     .map_err(|e| e.msg)?;
@@ -395,8 +390,7 @@ fn eval_unseemly_program_without_typechecking(program: &str) -> Result<Value, St
 fn eval_unseemly_program(program: &str) -> Result<Value, String> {
     let ast: Ast = grammar::parse(
         &core_forms::outermost_form(),
-        &core_forms::get_core_forms(),
-        runtime::core_values::get_core_envs(),
+        core_forms::outermost__parse_context(),
         program,
     )
     .map_err(|e| e.msg)?;
@@ -412,8 +406,7 @@ fn eval_unseemly_program(program: &str) -> Result<Value, String> {
 fn type_and_expand_unseemly_program(program: &str) -> Result<ast::Ast, String> {
     let ast: Ast = grammar::parse(
         &core_forms::outermost_form(),
-        &core_forms::get_core_forms(),
-        runtime::core_values::get_core_envs(),
+        core_forms::outermost__parse_context(),
         program,
     )
     .map_err(|e| e.msg)?;
@@ -744,8 +737,7 @@ fn language_building() {
         in (plus x y)";
     let bound_wrong_ast = grammar::parse(
         &core_forms::outermost_form(),
-        &core_forms::get_core_forms(),
-        runtime::core_values::get_core_envs(),
+        core_forms::outermost__parse_context(),
         bound_wrong_prog,
     )
     .unwrap();
@@ -782,8 +774,7 @@ fn language_building() {
         in (plus x times)";
     let inner_expr_wrong_ast = grammar::parse(
         &core_forms::outermost_form(),
-        &core_forms::get_core_forms(),
-        runtime::core_values::get_core_envs(),
+        core_forms::outermost__parse_context(),
         inner_expr_wrong_prog,
     )
     .unwrap();

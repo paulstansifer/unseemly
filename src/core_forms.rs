@@ -610,6 +610,18 @@ pub fn outermost_form() -> FormPat {
     form_pat!((pick [(named "program", (call "Expr")), (call "DefaultSeparator")], "program"))
 }
 
+pub fn outermost__parse_context() -> crate::earley::ParseContext {
+    crate::earley::ParseContext {
+        grammar: get_core_forms(),
+        type_ctxt: crate::ast_walk::LazyWalkReses::new_wrapper(
+            crate::runtime::core_values::core_types(),
+        ),
+        eval_ctxt: crate::ast_walk::LazyWalkReses::new_wrapper(
+            crate::runtime::core_values::core_values(),
+        ),
+    }
+}
+
 pub fn find(nt: &str, name: &str) -> Rc<Form> { core_forms.with(|cf| find_form(cf, nt, name)) }
 
 // Deprecated; use `::core_forms::find` instead (keep it qualified!)
@@ -619,18 +631,15 @@ pub fn get_core_forms() -> SynEnv { core_forms.with(|cf| cf.clone()) }
 
 #[test]
 fn form_grammar() {
-    let cse = make_core_syn_env();
-
     assert_eq!(
         crate::grammar::parse(
             &form_pat!((call "Type")),
-            &cse.clone(),
-            crate::runtime::core_values::get_core_envs(),
-            tokens_s!("[" "Ident" "->" "Ident" "]")
+            outermost__parse_context(),
+            tokens_s!("[" "Ident" "->" "Ident" "]"),
         ),
-        Ok(ast!({ find_form(&cse, "Type", "fn");
-                   ["ret" => {find_form(&cse, "Type", "Ident") ; []},
-                    "param" => [{find_form(&cse, "Type", "Ident") ; []}]]}))
+        Ok(ast!({ find("Type", "fn");
+                   ["ret" => {find("Type", "Ident") ; []},
+                    "param" => [{find("Type", "Ident") ; []}]]}))
     );
 }
 
