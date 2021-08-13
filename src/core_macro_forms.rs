@@ -149,21 +149,31 @@ fn type_macro_invocation(
     let mut q_arguments = vec![];
 
     for (binder, depth) in grammar.binders() {
-        let nt = grammar.find_named_call(binder).unwrap();
-        let term_ty = if crate::core_type_forms::nt_is_positive(nt) {
-            parts.flatten_res_at_depth(
-                binder,
-                depth,
-                &|ty: Ast| more_quoted_ty(&ty, nt),
-                &|ty_vec: Vec<Ast>| ast!({"Type" "tuple" : "component" => (,seq ty_vec) }),
-            )?
+        // Things like `token := (/some_stuff/)` are well-typed in all invocations;
+        //  examine things like `token := (,{Expr<T>},)
+        let term_ty = if let Some(nt) = grammar.find_named_call(binder) {
+            // For example, `body := (,{Expr<T>},)`
+            if crate::core_type_forms::nt_is_positive(nt) {
+                parts.flatten_res_at_depth(
+                    binder,
+                    depth,
+                    &|ty: Ast| more_quoted_ty(&ty, nt),
+                    &|ty_vec: Vec<Ast>| ast!({"Type" "tuple" : "component" => (,seq ty_vec) }),
+                )?
+            } else {
+                parts.flatten_generate_at_depth(
+                    binder,
+                    depth,
+                    &|| crate::ty_compare::Subtype::underspecified(binder),
+                    &|ty_vec: Vec<Ast>| ast!({"Type" "tuple" : "component" => (,seq ty_vec) }),
+                )
+            }
         } else {
-            parts.flatten_generate_at_depth(
-                binder,
-                depth,
-                &|| crate::ty_compare::Subtype::underspecified(binder),
-                &|ty_vec: Vec<Ast>| ast!({"Type" "tuple" : "component" => (,seq ty_vec) }),
-            )
+            // For example, `token := /(foo)/`.
+            // HACK: currently this is the only other type possible,
+            //  but if multiple ones become available, figuring out the right one is tricky.
+            //  (and ∀ T. T doesn't work: it's the opposite of what we want!)
+            ast!({"Type" "Ident" :})
         };
         q_arguments.push((binder, term_ty));
     }
@@ -272,9 +282,9 @@ pub fn macro_invocation(
             // This code is like that for "apply".
             let mut env = implementation.env.clone();
             for (param, depth) in &grammar.binders() {
-                let nt = grammar.find_named_call(*param).unwrap();
+                let nt = grammar.find_named_call(*param);
 
-                if nt != n("DefaultAtom") && nt != n("Ident") {
+                if nt != Some(n("DefaultAtom")) && nt != Some(n("Ident")) {
                     // TODO: why not for those two NTs?
                     let rhs = parts.map_flatten_term_at_depth(
                         *param,
@@ -412,17 +422,6 @@ pub fn make_core_macro_forms() -> SynEnv {
                                     n(&literal)).reify())
             }
         }) => [],
-        // Allow \/ as an escape
-        // (plain backslashes get passed through; fortunately \/ itself isn't useful regex syntax)
-        syntax_syntax!( ([(named "pat", (scan r"\s*/((?:[^/\\]|\\.)*)/"))]) Scan {
-            |_| { Ok(Assoc::new()) }
-        } {
-            |parts| {
-                let regex = parts.get_term(n("pat")).to_name().orig_sp()
-                    .replace(r#"\/"#, r#"/"#);
-                Ok(crate::grammar::new_scan(&regex).reify())
-            }
-        }) => [],
         syntax_syntax!( ([(lit "vr"), (named "body", (call "Syntax"))]) VarRef (
             body =>  Rc::new(FormPat::reflect(&body))
         )) => [],
@@ -536,6 +535,23 @@ pub fn make_core_macro_forms() -> SynEnv {
             })),
             quasiquote: Both(LiteralLike, LiteralLike)
         }) => [],
+        // `Scan` can be positive or negative (may be under a `Named`)
+        Rc::new(Form {
+            name: n("scan"),
+            grammar: Rc::new(form_pat!(
+                [(named "pat", (scan r"\s*/((?:[^/\\]|\\.)*)/"))]
+            )),
+            type_compare: Both(NotWalked,NotWalked), // Not a type
+            synth_type: Both(
+                cust_rc_box!(|_| { Ok(ast!({"Type" "Ident" :})) }),
+                cust_rc_box!(|_| { Ok(Assoc::new()) } )),
+            eval: Positive(cust_rc_box!(|parts| {
+                let regex = parts.get_term(n("pat")).to_name().orig_sp()
+                    .replace(r#"\/"#, r#"/"#);
+                Ok(crate::grammar::new_scan(&regex).reify())
+            })),
+            quasiquote: Both(LiteralLike, LiteralLike)
+        }) => [],
         // `Import` is positive (has to be under a `Named`)
         Rc::new(Form {
             name: n("import"),
@@ -549,6 +565,24 @@ pub fn make_core_macro_forms() -> SynEnv {
             eval: Positive(cust_rc_box!(|parts| {
                 Ok(NameImport(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?)),
                               Beta::reflect(&parts.get_res(n("imported"))?)).reify())
+            })),
+            quasiquote: Both(LiteralLike, LiteralLike)
+        }) => [],
+        // `Pick` is positive (has to be under a `Named`), but its body is negative.
+        Rc::new(Form {
+            name: n("pick"),
+            grammar: Rc::new(form_pat!(
+                [(lit "pick"), (named "selection", atom), (lit "in"),
+                 (named "body", (call "Syntax"))])),
+            type_compare: Both(NotWalked,NotWalked), // Not a type
+            synth_type: Both(cust_rc_box!(|parts| {
+                    let env = parts.switch_to_negative().get_res(n("body"))?;
+                    Ok(env.find_or_panic(&parts.get_term(n("selection")).to_name()).clone())
+                }),
+                cust_rc_box!(|_| panic!("TODO prevent `pick`s outside of `named`s"))),
+            eval: Positive(cust_rc_box!(|parts| {
+                Ok(Pick(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?)),
+                        parts.get_term(n("selection")).to_name()).reify())
             })),
             quasiquote: Both(LiteralLike, LiteralLike)
         }) => [],

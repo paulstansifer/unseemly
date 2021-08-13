@@ -200,7 +200,7 @@ pub fn make_core_syn_env_types() -> SynEnv {
                     if !found {
                         return Err(TyErr::NonexistentStructField(
                             got_name.to_name(),
-                            struct_parts.context_elt().clone(),
+                            struct_parts.this_ast,
                         ));
                     }
                 }

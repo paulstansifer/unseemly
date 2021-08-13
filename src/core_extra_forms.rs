@@ -3,7 +3,6 @@ use crate::{
     ast_walk::{LazyWalkReses, WalkRule::*},
     core_forms::outermost_form,
     core_type_forms::get__primitive_type,
-    form::Form,
     grammar::FormPat,
     name::*,
     runtime::eval::Value,

@@ -441,7 +441,7 @@ macro_rules! cust_rc_box {
 
 macro_rules! basic_typed_form {
     ( $p:tt, $gen_type:expr, $eval:expr ) => {
-        Rc::new(Form {
+        Rc::new(crate::form::Form {
             name: crate::name::n("unnamed form"),
             grammar: Rc::new(form_pat!($p)),
             type_compare: crate::form::Positive(crate::ast_walk::WalkRule::NotWalked),
@@ -457,7 +457,7 @@ macro_rules! basic_typed_form {
 
 macro_rules! typed_form {
     ( $name:expr, $p:tt, $gen_type:expr, $eval:expr ) => {
-        Rc::new(Form {
+        Rc::new(crate::form::Form {
             name: crate::name::n($name),
             grammar: Rc::new(form_pat!($p)),
             type_compare: crate::form::Positive(crate::ast_walk::WalkRule::NotWalked),
@@ -473,7 +473,7 @@ macro_rules! typed_form {
 
 macro_rules! negative_typed_form {
     ( $name:expr, $p:tt, $gen_type:expr, $eval:expr ) => {
-        Rc::new(Form {
+        Rc::new(crate::form::Form {
             name: crate::name::n($name),
             grammar: Rc::new(form_pat!($p)),
             type_compare: crate::form::Positive(crate::ast_walk::WalkRule::NotWalked),

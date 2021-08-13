@@ -127,6 +127,7 @@ impl FormPat {
             }
             Named(_, _) => None, // Otherwise, skip
             Call(_) => None,
+            // TODO: `Pick` should return a result.
             Scope(_, _) | Pick(_, _) => None, // Only look in the current scope
             Anyways(_) | Impossible | Scan(_) => None,
             Star(ref body)
