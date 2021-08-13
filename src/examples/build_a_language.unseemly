@@ -1,5 +1,5 @@
 extend_syntax
-    DefaultSeparator ::= /((?s:\s|%|#[^\n|][^\n]*|#\|.*?\|#)*)/ ;
+    DefaultSeparator ::= /((?s:\s|#[^\n|][^\n]*|#\|.*?\|#)*)/ ;
 in
 # Now we've got comments!
 extend_syntax

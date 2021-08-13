@@ -23,6 +23,21 @@ pub fn erase_type(tv: &TypedValue) -> Value { tv.val.clone() }
 pub fn erase_value(tv: &TypedValue) -> Ast { tv.ty.clone() }
 pub fn string_operations() -> Assoc<Name, TypedValue> {
     assoc_n!(
+    "string_to_sequence" => tyf! {
+        {"Type" "fn" :
+            "param" => [{"Type" "String" :}],
+            "ret" => { "Type" "type_apply" :
+                "type_rator" => (vr "Sequence"), "arg" => [{"Type" "Int" :}]}
+        },
+        (Text(s)) =>
+            Sequence(s.chars().map(|c: char| Rc::new(Int(BigInt::from(c as u32)))).collect())
+    },
+    "ident_to_string" => tyf! {
+        {"Type" "fn" :
+            "param" => [{"Type" "Ident" :}],
+            "ret" => {"Type" "String" :}
+        },
+        (AbstractSyntax(Ast::Atom(name))) => Text(name.orig_sp())},
     "concat" => tyf! {
         {"Type" "fn" :
             "param" => [{"Type" "String" :}, {"Type" "String" :}],
@@ -233,6 +248,28 @@ pub fn core_typed_values() -> Assoc<Name, TypedValue> {
                                       // TODO: `core_values` does the `map` every time...
                                       "fix" => core_values().find_or_panic(&n("fix")).clone())})));
                 eval(&cl.body, new_env).unwrap() // TODO: should be able to return `Result`
+            }
+        ),
+        // From a value, produces an expression that evalutes to it.
+        // Not quite the same as Racket prefab structures.
+        "prefab" =>
+        tyf!( { "Type" "forall_type" :
+            "param" => ["T"],
+            "body" => (import [* [forall "param"]] {"Type" "fn" :
+                "param" => [(vr "T")],
+                "ret" => {"Type" "type_apply" :
+                    "type_rator" => (vr "Expr"),
+                    "arg" => [(vr "T")]}})},
+            ( val ) => {
+                AbstractSyntax(Ast::Node(typed_form!("prefab_internal",
+                    (impossible), // no syntax
+                    cust_rc_box!(move |_| Ok(ast!(
+                        // Cheat: has the universal type, but we know it's safe because <mumble>.
+                        {"Type" "forall_type" :
+                            "param" => ["T"],
+                            "body" => (import [* [forall "param"]] (vr "T"))})) ),
+                    cust_rc_box!(move |_| Ok(val.clone()) )
+                ), crate::util::mbe::EnvMBE::new(), crate::beta::ExportBeta::Nothing))
             }
         ),
         "plus" =>

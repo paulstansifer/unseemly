@@ -1,0 +1,19 @@
+extend_syntax
+    DefaultSeparator ::= /((?s:\s|#[^\n|][^\n]*|#\|.*?\|#)*)/ ;
+in
+    # Full-line comments look like this
+    #| In-line comments look like this |#
+extend_syntax
+    # # # Add numeric literals.
+    Expr ::=also
+        forall . '{
+            # The awkward `pick` construction here is so that these literals
+            #  benefit from the standard whitespace/comment consumption.
+            # We have to call `DefaultSeparator`, but then we have to throw it out
+            #  and just look at `tok`, the actual digits.
+            number := (pick tok in [,{DefaultSeparator}, tok := (/([0-9]+)/) ])
+        }' base_ten_literal -> .{
+            (prefab (string_to_sequence (ident_to_string number)))
+        }. ;
+in
+    101
