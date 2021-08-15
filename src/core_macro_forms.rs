@@ -669,8 +669,9 @@ pub fn extend_syntax() -> Rc<Form> {
         // Figure out the syntax extension:
         let mut syn_env = pc.grammar;
         for ((nt, extend), rhs) in nts.into_iter().zip(ops.into_iter()).zip(rhses.into_iter()) {
+            let expanded_rhs = crate::expand::expand(&rhs).unwrap();
             let rhs_form_pat =
-                FormPat::reflect(&crate::ast_walk::walk(rhs, &pc.eval_ctxt).unwrap());
+                FormPat::reflect(&crate::ast_walk::walk(&expanded_rhs, &pc.eval_ctxt).unwrap());
             syn_env = syn_env.set(
                 nt,
                 Rc::new(if extend {
