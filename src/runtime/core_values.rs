@@ -160,7 +160,7 @@ pub fn sequence_operations() -> Assoc<Name, TypedValue> {
                 Sequence(seq.into_iter().map(
                     |elt| Rc::new(apply__function_value(&f, vec![(*elt).clone()]))).collect())
             }),
-    "fold" =>
+    "foldl" =>
         tyf!( { "Type" "forall_type" :
             "param" => ["T", "U"],
             "body" => (import [* [forall "param"]] { "Type" "fn" :
@@ -439,7 +439,7 @@ fn type_sequence_operations() {
     );
 
     assert_eq!(
-        synth_type(&u!({apply : fold [one_two ; zero ; plus ]}), prelude.clone()),
+        synth_type(&u!({apply : foldl [one_two ; zero ; plus ]}), prelude.clone()),
         Ok(uty!({Int :}))
     );
 }
@@ -467,7 +467,7 @@ fn eval_sequence_operations() {
         Ok(val!(seq (b false) (b false)))
     );
 
-    assert_eq!(eval(&u!({apply : fold [one_two ; zero ; plus ]}), prelude.clone()), Ok(val!(i 3)));
+    assert_eq!(eval(&u!({apply : foldl [one_two ; zero ; plus ]}), prelude.clone()), Ok(val!(i 3)));
 }
 
 #[test]

@@ -4,16 +4,60 @@ in
     # Full-line comments look like this
     #| In-line comments look like this |#
 extend_syntax
-    # # # Add numeric literals.
+    Expr ::=also
+        forall T S . '{ [
+            lit ,{ DefaultToken }, = 'let'
+            [
+                pat := ( ,{ Pat<S> }, )
+                lit ,{ DefaultToken }, = '='
+                value := ( ,{ Expr<S> }, )
+                lit ,{ DefaultToken }, = ';'
+            ] *
+            lit ,{ DefaultToken }, = 'in'
+            body := ( ,{ Expr<T> }, <-- ...[pat = value]... )
+        ] }' let_macro -> .{
+            '[Expr |
+                match **[...[,value, >> ,[value], ]... ]**
+                    { **[...[,pat, >> ,[pat],]... ]** => ,[body], } ]'
+        }. ;
+in
+extend_syntax
+    ### Add loops
+    Expr ::=also forall T . '{ [
+        lit ,{ DefaultToken }, = 'for'
+        pat := ( ,{ Pat<T> }, )
+        lit ,{ DefaultToken }, = ':'
+        type := ( ,{ Type<T> }, )    # Only needed because of limitations in beta
+        lit ,{ DefaultToken }, = 'in'
+        seq := ( ,{ Expr<Sequence<T>> }, )
+        body := ( ,{ Expr<Unit> }, <-- pat : type )
+    ] }' for_loop -> .{
+        '[Expr |
+            (foldl ,[seq],
+                **[]**
+                .[unit : Unit  arg : ,[prefab_type T], .
+                    let ,[pat], = arg ; in ,[body],
+                ]. )
+        ]'
+    }. ;
+in
+extend_syntax
+    ### Add numeric literals.
     Expr ::=also
         forall . '{
             # The awkward `pick` construction here is so that these literals
             #  benefit from the standard whitespace/comment consumption.
             # We have to call `DefaultSeparator`, but then we have to throw it out
             #  and just look at `tok`, the actual digits.
-            number := (pick tok in [,{DefaultSeparator}, tok := (/([0-9]+)/) ])
+            digit_string := (pick tok in [,{DefaultSeparator}, tok := (/([0-9]+)/) ])
         }' base_ten_literal -> .{
-            (prefab (string_to_sequence (ident_to_string number)))
+            let number = (new_cell zero) ; in
+            -{
+                for digit : Int in (string_to_sequence (ident_to_string digit_string))
+                    (assign number (plus (times (value number) ten)
+                                         (minus digit (plus (times ten four) eight)))) ;
+                (prefab (value number))
+            }-
         }. ;
 in
     101
