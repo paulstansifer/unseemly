@@ -523,11 +523,12 @@ pub fn make_core_syn_env() -> SynEnv {
         "DefaultWord" => (common (pick [(call "DefaultSeparator"),
             (named "name", (scan r"(\p{Letter}(?:\p{Letter}|\p{Number}|[_?])*)"))],
                 "name")),
-        // TODO: come up with more normal tokenization rules
+        // TODO: come up with more normal tokenization rules.
+        // HACK: it's really confusing to weld semicolon and colon onto brackets, so exempt them.
         "DefaultToken" =>
            (common (pick [(call "DefaultSeparator"),
                    (named "tok",
-                       (scan r"([\]\)\}][^\[\]\(\)\{\}\s]*|[^\[\]\(\)\{\}\s]*[\[\(\{]|[^\[\]\(\)\{\}\s]+)"))],
+                       (scan r"([\]\)\}][^\[\]\(\)\{\}\s;:]*|[^\[\]\(\)\{\}\s;:]*[\[\(\{]|[^\[\]\(\)\{\}\s]+)"))],
             "tok"))
     )
     .set_assoc(&ctf) // throw in types!
