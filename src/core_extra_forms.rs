@@ -162,6 +162,21 @@ pub fn make_core_extra_forms() -> FormPat {
     // Should "Item"s be valid "Stmt"s? Let's do whatever Rust does.
 
     forms_to_form_pat![
+        typed_form!("prefab_type",
+            [(lit "prefab_type"), (named "ty", (call "Type"))],
+            /* type */
+            cust_rc_box!(move |part_types| {
+                Ok(ast!({"Type" "type_apply" :
+                    "type_rator" => (, (get__primitive_type(n("Type")))),
+                    "arg" => [(, part_types.get_res(n("ty"))?)]
+                }))
+            }),
+            /* evaluation */
+            // HACK: at evaluation time, nobody cares
+            cust_rc_box!(move |_| {
+                Ok(Value::AbstractSyntax(ast!((trivial))))
+            })
+        ),
         typed_form!("block",
             (delim "-{", "{", [(star [(named "effect", (call "Expr")), (lit ";")]),
                             (named "result", (call "Expr"))]),
