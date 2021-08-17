@@ -14,8 +14,6 @@ fn extend__capture_language(
     pc: crate::earley::ParseContext,
     _starter_info: Ast,
 ) -> crate::earley::ParseContext {
-    use crate::runtime::reify::Reifiable;
-    let reified_language = pc.reify();
     crate::earley::ParseContext {
         grammar: assoc_n!("OnlyNt" =>
             Rc::new(FormPat::Named(n("body"), Rc::new(FormPat::Anyways(Node(
@@ -41,8 +39,8 @@ fn extend__capture_language(
                     }))}),
                     cust_rc_box!(move |parts| {
                         Ok(Value::Sequence(vec![
-                            // The captured reified language syntax:
-                            Rc::new(reified_language.clone()),
+                            // The captured language syntax:
+                            Rc::new(Value::Language(Box::new(pc.clone()))),
                             // Reifying the value environment is easy:
                             Rc::new(Value::Struct(parts.env))
                         ]))})
@@ -76,10 +74,14 @@ pub fn language_from_file(
     // TODO: This gets roundtripped (LazyWalkReses -> Assoc -> LazyWalkReses). Just call `walk`?
     let lib_typed = crate::ty::synth_type(&lib_ast, orig_pc.type_ctxt.env).unwrap();
     let lib_evaled = crate::runtime::eval::eval(&lib_ast, orig_pc.eval_ctxt.env).unwrap();
-    let (new_pc, new__value_env) = if let Value::Sequence(ref lang_and_env) = lib_evaled {
-        use crate::runtime::reify::Reifiable;
-        let new_pc = crate::earley::ParseContext::reflect(&(*lang_and_env[0]));
-        let new__value_env = if let Value::Struct(ref env) = *lang_and_env[1] {
+    let (new_pc, new__value_env) = if let Value::Sequence(mut lang_and_env) = lib_evaled {
+        let env_value = lang_and_env.pop().unwrap();
+        let lang_value = lang_and_env.pop().unwrap();
+        let new_pc = match &*lang_value {
+            Value::Language(boxed_pc) => (**boxed_pc).clone(),
+            _ => icp!("[type error] not a language")
+        };
+        let new__value_env = if let Value::Struct(ref env) = *env_value {
             let mut new__value_env = Assoc::new();
             // We need to un-freshen the names that we're importing
             //  so they can actually be referred to.
@@ -88,7 +90,7 @@ pub fn language_from_file(
             }
             new__value_env
         } else {
-            icp!("[type error] Unexpected lib syntax structure: {:#?}", *lang_and_env[1])
+            icp!("[type error] Unexpected lib syntax structure: {:#?}", env_value)
         };
         (new_pc, new__value_env)
     } else {

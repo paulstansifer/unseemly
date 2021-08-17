@@ -1,0 +1,6 @@
+import /[build_a_language.unseemly]/
+let eleven = (plus ten one) ;
+in
+letfn (plusplusplus a: Int  b: Int) -> Int = (plus a b) ;
+in
+(plusplusplus eleven (foldl (range 1 10) 0 plus))

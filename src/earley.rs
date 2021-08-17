@@ -76,11 +76,17 @@ impl std::fmt::Debug for UniqueIdRef {
 // TODO: We should probably refactor to use `ParseContext`
 //  everywhere we currently use these two things together (particularly `earley.rs`).
 custom_derive! {
-    #[derive(Clone, Reifiable)]
+    #[derive(Clone, Reifiable, Debug)]
     pub struct ParseContext {
         pub grammar: SynEnv,
         pub type_ctxt: LazyWalkReses<crate::ty::SynthTy>,
         pub eval_ctxt: LazyWalkReses<crate::runtime::eval::Eval>
+    }
+}
+
+impl PartialEq for ParseContext {
+    fn eq(&self, other: &ParseContext) -> bool {
+        self as *const ParseContext == other as *const ParseContext
     }
 }
 
