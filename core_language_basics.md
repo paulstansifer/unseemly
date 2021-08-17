@@ -7,6 +7,9 @@
 Unseemly is not ergonomic; it's a "core" language
 in which a usable langage can be implemented as a library of macros.
 
+This is a reference guide. It might be easier to get started by looking at the "tutorial"
+ in `src/examples/worked_example.unseemly`.
+
 For example, the `fold` and `unfold` operations are, in a normal language,
 implicit in data constructors and `match` respectively.
 The assumption is that any language based on Unseemly
@@ -149,6 +152,7 @@ This is 50% because of Scheme,
 * `true` and `false` are boolean values.
 * `fix` is the fixpoint function. A simple way to run forever, calculating the largest number:
     `(fix .[again: [ -> [Int -> Int]] . .[ n: Int . ((again) (plus n one))]. ].)`
+* There are a bunch more functions defined in (`core_values.rs`)[https://github.com/paulstansifer/unseemly/blob/master/src/runtime/core_values.rs]
 
 ## Patterns
 * `+[Choice pat ⋯]+` deconstructs an enumerated value.
@@ -269,6 +273,9 @@ These are defined in `core_forms.rs`, and their definitions are relatively short
 *  `if_macro.unseemly` introduces `if expr then expr else expr` to the language.
 
 *  `build_a_language.unseemly` add comments, `let`, and function definitions to a language.
+
+*  `worked_example.unseemly` bootstraps a basic language,
+     and has a lot of comments explaining what's going on.
 
 *  `.unseemly_prelude` is intended to be copied to your home directory.
     It's automatically loaded by the REPL.

@@ -23,14 +23,13 @@ extend_syntax
 in
 extend_syntax
     ### Add loops
-    Expr ::=also forall T . '{ [
-        lit ,{ DefaultToken }, = 'for'
-        pat := ( ,{ Pat<T> }, )
-        lit ,{ DefaultToken }, = ':'
-        type := ( ,{ Type<T> }, )    # Only needed because of limitations in beta
-        lit ,{ DefaultToken }, = 'in'
-        seq := ( ,{ Expr<Sequence<T>> }, )
-        body := ( ,{ Expr<Unit> }, <-- pat : type )
+    Expr ::=also
+        forall T . '{ [
+            lit ,{ DefaultToken }, = 'for'
+            pat := ( ,{ Pat<T> }, )
+            lit ,{ DefaultToken }, = 'in'
+            seq := ( ,{ Expr<Sequence<T>> }, )
+            body := ( ,{ Expr<Unit> }, <-- pat : T )
     ] }' for_loop -> .{
         '[Expr |
             (foldl ,[seq],
@@ -53,7 +52,7 @@ extend_syntax
         }' base_ten_literal -> .{
             let number = (new_cell zero) ; in
             -{
-                for digit : Int in (string_to_sequence (ident_to_string digit_string))
+                for digit in (string_to_sequence (ident_to_string digit_string))
                     (assign number (plus (times (value number) ten)
                                          (minus digit (plus (times ten four) eight)))) ;
                 (prefab (value number))

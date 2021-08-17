@@ -1,8 +1,12 @@
 extend_syntax
     DefaultSeparator ::= /((?s:\s|#[^\n|][^\n]*|#\|.*?\|#)*)/ ;
 in
-# Now we've got comments!
+    # Now we've got comments!
+    # This builds up a sort-of useable language in Unseemly.
+    # See `worked_example.unseemly` for a similar process,
+    #  but with detailed explanations.
 extend_syntax
+    ### Introduce `let` expressions.
     Expr ::=also
         forall T S . '{ [
             lit ,{ DefaultToken }, = 'let'
@@ -21,15 +25,35 @@ extend_syntax
         }. ;
 in
 extend_syntax
+    ### Introduce `for` loops
+    Expr ::=also forall T . '{ [
+        lit ,{ DefaultToken }, = 'for'
+        pat := ( ,{ Pat<T> }, )
+        lit ,{ DefaultToken }, = 'in'
+        seq := ( ,{ Expr<Sequence<T>> }, )
+        # This uses `:` instead of `=`, because `T` is a type.
+        # `body` returns `Unit`; it's just being invoked for side-effects.
+        body := ( ,{ Expr<Unit> }, <-- pat : T )
+    ] }' for_loop -> .{
+        '[Expr |
+            (foldl ,[seq],
+                **[]**
+                # Interpolation into atom positions doesn't work yet,
+                #  so we use `let` to interpolate a pattern.
+                .[unit : Unit  arg : ,[prefab_type T], .
+                    let ,[pat], = arg ; in ,[body],
+                ]. )
+        ]'
+    }. ;
+in
+extend_syntax
+    ### Introduce `letfn` for defining 2-argument functions.
+    # Currently, `...[]...` can only be put around a whole expression/pattern/type (issue #38),
+    #  so, one has to make a separate macro for each number of arguments.
     Expr ::=also
-        # Currently, one has to make a separate macro for each number of arguments.
-        # That definitely needs to be fixed.
-        # Interpolation into atom positions is necessary,
-        #  but there's other jankiness to `:::[]:::` types that also needs to be fixed.
         forall I0 I1 O T . '{ [
             lit ,{ DefaultToken }, = 'letfn'
             lit ,{ DefaultToken }, = '('
-            # We currently can't interpolate in atom positions, so we have to use patterns here.
             fn_name := ( ,{ Pat< [I0 I1 -> O] > }, )
             arg_name0 := ( ,{ Pat<I0> }, )
             lit ,{ DefaultToken }, = ':'
@@ -63,4 +87,4 @@ let eleven = (plus ten one) ;
 in
 letfn (plusplusplus a: Int  b: Int) -> Int = (plus a b) ;
 in
-(plusplusplus eleven one)
+(plusplusplus eleven (foldl (range one ten) zero plus))

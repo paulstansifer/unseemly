@@ -94,10 +94,36 @@ pub fn string_operations() -> Assoc<Name, TypedValue> {
         (Text(filename), Text(contents)) => {
             std::fs::write(filename, contents).expect("Error writing file");
             Sequence(vec![])
-        }})
+        }},
+    "os_command" => tyf! {
+        {"Type" "fn" :
+            "param" => [
+                {"Type" "String" :},
+                {"Type" "type_apply" :
+                    "type_rator" => (vr "Sequence"),
+                    "arg" => [{"Type" "String" :}]
+            }],
+            "ret" => {"Type" "String" :}
+        },
+        (Text(command_name), Sequence(args)) => {
+            Text(std::str::from_utf8(&std::process::Command::new(&command_name)
+                .args(args.iter().map(|arg| match &**arg { Text(str_arg) => str_arg, _ => icp!()}))
+                .output()
+                .expect("process failure")
+                .stdout).unwrap().to_string())
+        }
+    })
 }
 pub fn sequence_operations() -> Assoc<Name, TypedValue> {
     assoc_n!(
+    "range" => tyf!( {"Type" "fn" :
+        "param" => [{"Type" "Int" :}, {"Type" "Int" :}],
+        "ret" => {"Type" "type_apply" :
+            "type_rator" => (vr "Sequence"),
+            "arg" => [{"Type" "Int" :}]}},
+        (Int(start), Int(end)) => Sequence((start.to_i32().unwrap()..end.to_i32().unwrap()).map(
+            |i| Rc::new(Int(BigInt::from(i)))).collect())
+    ),
     "empty" => TypedValue {
         ty: ast!({"Type" "forall_type" :
             "param" => ["T"],
