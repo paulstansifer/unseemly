@@ -107,6 +107,32 @@ extend_syntax
     }. ;
 in
 extend_syntax
+    ### Add numeric literals.
+    Expr ::=also
+        # This macro doesn't have any unknown types,
+        #  so the `forall` that's part of the syntax looks a little weird.
+        forall . '{
+            # The awkward `pick` construction here is so that these literals
+            #  benefit from the standard whitespace/comment consumption.
+            # We have to call `DefaultSeparator`, but then we have to throw it out
+            #  and just look at `tok`, the actual digits.
+            digit_string := (pick tok in [,{DefaultSeparator}, tok := (/([0-9]+)/) ])
+        }' base_ten_literal -> .{
+            # Here we use the `let` (as opposed to just invoking it) in some "real" Unseemly code
+            #  (which is to say that it's not just a syntax quotation).
+            # `new_cell` creates a mutable value. `assign` and `value` write and read it.
+            let number = (new_cell zero) ; in
+            # Block, for sequencing side-effects:
+            -{
+                for digit in (string_to_sequence (ident_to_string digit_string))
+                    (assign number (plus (times (value number) ten)
+                                         # The character for digit 0 is codepoint 48:
+                                         (minus digit (plus (times ten four) eight)))) ;
+                (prefab (value number))
+            }-
+        }. ;
+in
+extend_syntax
     ### Introduce `letfn` for defining 2-argument functions.
     # Currently, one has to make a separate macro for each number of arguments,
     #  because `...[]...` can only be put around a whole expression/pattern/type (issue #38).
@@ -142,7 +168,7 @@ extend_syntax
              ]'
         }. ;
 in
-let eleven = (plus ten one) ;
+let eleven = (plus 10 one) ;
 in
 letfn (plusplusplus a: Int  b: Int) -> Int = (plus a b) ;
 in
