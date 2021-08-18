@@ -152,6 +152,9 @@ impl WalkMode for MuProtect {
                 "body" => (import [* [prot "param"]] (, Ast::VariableReference(name)))})
         }))
     }
+
+    // TODO: it seems like we always need to define this; think about this more.
+    fn underspecified(name: Name) -> Ast { VariableReference(name) }
 }
 
 impl WalkMode for UnusedNegativeMuProtect {
