@@ -88,16 +88,14 @@ extend_syntax
     ### Add numeric literals.
     Expr ::=also
         forall . '{
-            # The awkward `pick` construction here is so that these literals
-            #  benefit from the standard whitespace/comment consumption.
-            # We have to call `DefaultSeparator`, but then we have to throw it out
-            #  and just look at `tok`, the actual digits.
+            # Awkward `pick` stuff just to have and then throw away `DefaultSeparator`:
             digit_string := (pick tok in [,{DefaultSeparator}, tok := (/([0-9]+)/) ])
         }' base_ten_literal -> .{
             let number = (new_cell zero) ; in
             -{
                 for digit in (string_to_sequence (ident_to_string digit_string))
                     (assign number (plus (times (value number) ten)
+                                         # The character for digit 0 is codepoint 48:
                                          (minus digit (plus (times ten four) eight)))) ;
                 (prefab (value number))
             }-

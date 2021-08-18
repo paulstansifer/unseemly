@@ -216,6 +216,35 @@ pub fn make_core_extra_forms() -> FormPat {
                     .replace(r#"\""#, r#"""#)
                     .replace(r#"\\"#, r#"\"#)))
             })
+        ),
+        // Sequence literals. These actually can't be implemented as a macro
+        //  until we get recursive macro invocations:
+        //  there's no other way to go from a tuple to a sequence.
+        typed_form!("seq_literal",
+        (delim "s[", "[", (star (named "elt", (call "Expr")))),
+            cust_rc_box!(|parts| {
+                let mut elts = parts.get_rep_res(n("elt"))?;
+                match elts.pop() {
+                    None => Ok(ast!({"Type" "forall_type" :
+                        "param" => ["T"],
+                        "body" => (import [* [forall "param"]] { "Type" "type_apply" :
+                        "type_rator" => (vr "Sequence"), "arg" => [(vr "T")]})})),
+                    Some(ref t) => {
+                        for ref other_elt in elts {
+                            crate::ty_compare::must_equal(t, other_elt, parts.env.clone()).map_err(
+                                |e| crate::util::err::sp(e, parts.this_ast.clone())
+                            )?;
+                        }
+                        Ok(ast!({ "Type" "type_apply" :
+                            "type_rator" => (vr "Sequence"),
+                            "arg" => [(, t.clone())]}))
+                    }
+                }
+            }),
+            cust_rc_box!(|parts| {
+                Ok(Value::Sequence(
+                    parts.get_rep_res(n("elt"))?.into_iter().map(|elt| Rc::new(elt)).collect()))
+            })
         )
     ]
 }
