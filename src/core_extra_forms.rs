@@ -93,7 +93,8 @@ pub fn language_from_file(
     let lib_ast = crate::grammar::parse(&outermost_form(), orig_pc.clone(), &raw_lib).unwrap();
     // TODO: This gets roundtripped (LazyWalkReses -> Assoc -> LazyWalkReses). Just call `walk`?
     let lib_typed = crate::ty::synth_type(&lib_ast, orig_pc.type_ctxt.env).unwrap();
-    let lib_evaled = crate::runtime::eval::eval(&lib_ast, orig_pc.eval_ctxt.env).unwrap();
+    let lib_expanded = crate::expand::expand(&lib_ast).unwrap();
+    let lib_evaled = crate::runtime::eval::eval(&lib_expanded, orig_pc.eval_ctxt.env).unwrap();
     let (new_pc, new__value_env) = if let Value::Sequence(mut lang_and_env) = lib_evaled {
         let env_value = lang_and_env.pop().unwrap();
         let lang_value = lang_and_env.pop().unwrap();
