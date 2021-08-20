@@ -82,10 +82,16 @@ pub fn language_from_file(
     let mut raw_lib = String::new();
 
     use std::io::Read;
+    let orig_dir = std::env::current_dir().unwrap();
     std::fs::File::open(path)
         .expect("Error opening file")
         .read_to_string(&mut raw_lib)
         .expect("Error reading file");
+    // Evaluate the file in its own directory:
+    if let Some(dir) = path.parent() {
+        // Might be empty:
+        if dir.is_dir() { std::env::set_current_dir(dir).unwrap(); }
+    }
 
     let orig_pc = crate::core_forms::outermost__parse_context();
 
@@ -139,6 +145,9 @@ pub fn language_from_file(
         // As above, unfreshen:
         new__type_env__phaseless = new__type_env__phaseless.set(k.to_name().unhygienic_orig(), v.clone());
     }
+
+    // Go back to the original directory:
+    std::env::set_current_dir(orig_dir).unwrap();
 
     (new_pc, new__type_env, new__type_env__phaseless, new__value_env)
 }

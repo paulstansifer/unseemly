@@ -165,8 +165,9 @@ fn main() {
             .expect("Error reading file");
 
         // So the file can import (etc.) relative to its own location:
-        std::env::set_current_dir(filename.parent().unwrap()).unwrap();
-
+        if let Some(dir) = filename.parent() {
+            if dir.is_dir() { std::env::set_current_dir(dir).unwrap(); }
+        }
         let result = eval_unseemly_program(&raw_input);
 
         match result {
@@ -184,6 +185,9 @@ fn main() {
             .read_to_string(&mut second_program)
             .expect("Error reading file");
 
+        if let Some(dir) = Path::new(&arguments[2]).parent() {
+            if dir.is_dir() { std::env::set_current_dir(dir).unwrap(); }
+        }
         match eval_program(&second_program, pc, type_env, type_env__phaseless, value_env) {
             Ok(v) => println!("{}", v),
             Err(e) => println!("\x1b[1;31m✘\x1b[0m {}", e),
