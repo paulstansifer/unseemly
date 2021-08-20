@@ -64,6 +64,21 @@ impl Ren {
             q_lev: self.q_lev,
         }
     }
+
+    /// For debugging: find a freshening based on `orig_sp` (the never-fresehened spelling).
+    pub fn find_orig(&self, orig: &str) -> Option<(Name, Ast)> {
+        for (k, v) in self.env.iter_pairs() {
+            if k.orig_sp() == orig {
+                return Some((*k, v.clone()))
+            }
+        }
+        for (k, v) in self.env_phaseless.iter_pairs() {
+            if k.orig_sp() == orig {
+                return Some((*k, v.clone()))
+            }
+        }
+        None
+    }
 }
 
 impl From<Assoc<Name, Ast>> for Ren {
@@ -175,6 +190,7 @@ fn freshen_rec(node: &Ast, renamings: &EnvMBE<(Ast, Ren)>, env: Ren) -> Ast {
 
 thread_local! {
     pub static freshening_enabled: std::cell::RefCell<bool> = std::cell::RefCell::new(true);
+    pub static watching: Option<String> = std::env::var(&"UNSEEMLY_FRESHEN_WATCH").ok();
 }
 
 pub fn freshen(a: &Ast) -> Ast {
@@ -187,7 +203,7 @@ pub fn freshen(a: &Ast) -> Ast {
                 // ...needs to have its binders freshend:
                 let fresh_ast_and_rens = freshen_binders_inside_node(p, &mentioned);
 
-                Node(
+                let freshened_node = Node(
                     f.clone(),
                     fresh_ast_and_rens.marched_map(
                         &mut |_, marched: &EnvMBE<(Ast, Ren)>, &(ref part, _)| {
@@ -195,7 +211,23 @@ pub fn freshen(a: &Ast) -> Ast {
                         },
                     ),
                     export.clone(),
-                )
+                );
+                watching.with(|watching_name|
+                    if let Some(name) = watching_name {
+                        let freshened_to = fresh_ast_and_rens.map_reduce(
+                            &|ast_and_ren: &(Ast, Ren)| ast_and_ren.1.find_orig(name),
+                            &|lhs: &Option<(Name, Ast)>, rhs: &Option<(Name, Ast)>| {
+                                lhs.clone().or(rhs.clone())
+                            },
+                            None);
+                        if let Some((k, new_ast)) = freshened_to {
+                            println!("🥦 Renaming {} => {}:", k, new_ast);
+                            println!("🥦 {}", freshened_node)
+                        }
+                    }
+                );
+
+                freshened_node
             }
             non_node => non_node.clone(),
         }
