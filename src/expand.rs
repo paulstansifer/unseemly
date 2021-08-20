@@ -44,10 +44,7 @@ impl WalkMode for ExpandMacros {
     // TODO: maybe keep this from being called?
     fn underspecified(_: Name) -> Value { val!(enum "why is this here?", ) }
 
-    fn walk_var(
-        name: Name,
-        _parts: &LazyWalkReses<ExpandMacros>,
-    ) -> Result<Value, Self::Err> {
+    fn walk_var(name: Name, _parts: &LazyWalkReses<ExpandMacros>) -> Result<Value, Self::Err> {
         use crate::runtime::reify::Reifiable;
         Ok(crate::ast::VariableReference(name).reify()) // Even variables are literal in macro expansion!
     }

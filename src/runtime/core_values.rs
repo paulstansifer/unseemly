@@ -255,9 +255,7 @@ thread_local! {
     pub static static_core_values: Assoc<Name, TypedValue> = make_core_typed_values();
 }
 
-pub fn core_typed_values() -> Assoc<Name, TypedValue> {
-    static_core_values.with(|cv| cv.clone())
-}
+pub fn core_typed_values() -> Assoc<Name, TypedValue> { static_core_values.with(|cv| cv.clone()) }
 
 fn make_core_typed_values() -> Assoc<Name, TypedValue> {
     assoc_n!(
