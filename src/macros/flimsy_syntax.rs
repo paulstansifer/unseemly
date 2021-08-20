@@ -211,6 +211,14 @@ where I: Iterator<Item = &'a Ast> {
             let consuming = match grammar {
                 Named(_, ref body) => match **body {
                     Anyways(_) => false,
+                    // HACK: special case for core_macro_forms::macro_invocation.
+                    // There has to be a less flimsy way of doing this.
+                    QuoteDeepen(ref body, _) | QuoteEscape(ref body, _) => {
+                        match **body {
+                            Anyways(_) => false,
+                            _ => true
+                        }
+                    }
                     _ => true,
                 },
                 _ => true,
