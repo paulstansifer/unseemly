@@ -1,62 +1,96 @@
-extend_syntax
-    DefaultSeparator ::= /((?s:\s|#[^\n|][^\n]*|#\|.*?\|#)*)/ ;
+import /[../build_a_language.unseemly]/
+# This is a demo of a super-basic Scene Description Language for 3D scenes
+#  that compiles to the POV-Ray SDL.
+# If you install POV-Ray, it should pop up an image if you run
+#  `unseemly sdl.unseemly example_scene.sdl`
+
+# We will use strings to represent numbers, since we're just going to pass them through...
+let_type
+    # We should probably remove semicolons from `let` for consistency.
+    Coord = *[x: String y: String z: String]*
 in
-    # Full-line comments look like this
-    #| In-line comments look like this |#
-extend_syntax
-    Expr ::=also
-        forall T S . '{ [
-            lit ,{ DefaultToken }, = 'let'
-            [
-                pat := ( ,{ Pat<S> }, )
-                lit ,{ DefaultToken }, = '='
-                value := ( ,{ Expr<S> }, )
-                lit ,{ DefaultToken }, = ';'
-            ] *
-            lit ,{ DefaultToken }, = 'in'
-            body := ( ,{ Expr<T> }, <-- ...[pat = value]... )
-        ] }' let_macro -> .{
-            '[Expr |
-                match **[...[,value, >> ,[value], ]... ]**
-                    { **[...[,pat, >> ,[pat],]... ]** => ,[body], } ]'
-        }. ;
+let_type
+    Shape = {
+        +[Box Coord Coord]+
+        +[Sphere Coord String]+
+    }
+in
+let header = "
+// based on 'Cube Building' in http://www.ms.uky.edu/~lee/visual05/povray/
+#include \"colors.inc\"
+#include \"stones.inc\"
+#include \"metals.inc\"
+
+camera {
+    sky <0,0,1> direction < -1,0,0>
+    location <10,10,5> look_at <0,0,0>
+    right < -4/3,0,0> angle 30
+}
+
+light_source {<10,-10,10> color rgb <3,3,3>}
+
+background { color rgb <2,2,2> }
+
+plane { // floor
+  <0,0,-1>,0
+  texture { T_Silver_1B }
+}
+" ;
+in
+letfn (write_coord c: Coord) -> String =
+    let *[x: x  y: y  z: z]* = c;
+    in
+    (join s["<" x "," y "," z ">"]s  "")
+;
+in
+letfn (write_shape s: Shape) -> String =
+    match s {
+        +[Box c_a c_b]+ => (join
+            s[ "object { box { " (write_coord c_a) " " (write_coord c_b) "} texture {T_Stone32}}" ]s
+            "")
+        +[Sphere center radius]+ => "???"
+    }
+;
 in
 extend_syntax
-    ### Add loops
-    Expr ::=also
-        forall T . '{ [
-            lit ,{ DefaultToken }, = 'for'
-            pat := ( ,{ Pat<T> }, )
-            lit ,{ DefaultToken }, = 'in'
-            seq := ( ,{ Expr<Sequence<T>> }, )
-            body := ( ,{ Expr<Unit> }, <-- pat : T )
-    ] }' for_loop -> .{
-        '[Expr |
-            (foldl ,[seq],
-                **[]**
-                .[unit : Unit  arg : ,[prefab_type T], .
-                    let ,[pat], = arg ; in ,[body],
-                ]. )
-        ]'
-    }. ;
+    Expr ::=
+        alt[
+            forall . '{
+                # Awkward `pick` stuff just to have and then throw away `DefaultSeparator`:
+                digit_string := (pick tok in [,{DefaultSeparator}, tok := (/-?([0-9.]+)/) ])
+            }' base_ten_literal_new -> .{
+                (prefab (ident_to_string digit_string))
+            }.
+            forall . '{[
+                lit ,{ DefaultToken }, = '<'
+                x := ( ,{Expr<String>}, )
+                y := ( ,{Expr<String>}, )
+                z := ( ,{Expr<String>}, )
+                lit ,{ DefaultToken }, = '>'
+            ]}' coords -> .{
+                '[Expr| *[x: ,[x],  y: ,[y],  z: ,[z],]*]'
+            }.
+            forall . '{[
+                lit ,{ DefaultToken }, = '('
+                lit ,{ DefaultToken }, = 'box'
+                corner_a := ( ,{Expr<Coord>}, )
+                corner_b := ( ,{Expr<Coord>}, )
+                lit ,{ DefaultToken }, = ')'
+            ]}' box -> .{
+                '[Expr| +[Box ,[corner_a], ,[corner_b], ]+ : Shape]'
+            }.
+            forall . '{[
+                lit ,{ DefaultToken }, = 'scene'
+                body := ( ,{Expr<Shape>}, )
+            ]}' whole_scene -> .{
+                '[Expr| -{
+                    (write_file "/tmp/tmp.pov" (concat header (write_shape ,[body], ))) ;
+                    (os_command "povray" s["/tmp/tmp.pov" "+P" "+A0.1" "+H1200" "+W1600"]s)
+                }- ]'
+            }.
+            # Add `capture_language` to the SDL, so we can be a library.
+            # Making a macro expand to `'[Expr| capture_language]'` doesn't do the right thing!
+            capture_language_form
+        ]alt ;
 in
-extend_syntax
-    ### Add numeric literals.
-    Expr ::=also
-        forall . '{
-            # The awkward `pick` construction here is so that these literals
-            #  benefit from the standard whitespace/comment consumption.
-            # We have to call `DefaultSeparator`, but then we have to throw it out
-            #  and just look at `tok`, the actual digits.
-            digit_string := (pick tok in [,{DefaultSeparator}, tok := (/([0-9]+)/) ])
-        }' base_ten_literal -> .{
-            let number = (new_cell zero) ; in
-            -{
-                for digit in (string_to_sequence (ident_to_string digit_string))
-                    (assign number (plus (times (value number) ten)
-                                         (minus digit (plus (times ten four) eight)))) ;
-                (prefab (value number))
-            }-
-        }. ;
-in
-    101
+capture_language

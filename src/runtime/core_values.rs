@@ -305,6 +305,12 @@ fn make_core_typed_values() -> Assoc<Name, TypedValue> {
         "times" =>
         tf!([( "Int", "Int" ) -> "Int"],
              ( Int(a), Int(b) ) => Int( a * b )),
+        "int_div" =>
+        tf!([( "Int", "Int" ) -> "Int"],
+            ( Int(a), Int(b) ) => Int( a / b )),
+        "modulo" =>
+        tf!([( "Int", "Int" ) -> "Int"],
+            ( Int(a), Int(b) ) => Int( a % b )),
         "zero?" =>
         tyf!( {"Type" "fn" : "param" => [ {"Type" "Int" :}], "ret" => (vr "Bool") },
               ( Int(a) ) => val!(b   a == BigInt::from(0))),

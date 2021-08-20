@@ -11,7 +11,7 @@ use crate::{
 };
 use std::rc::Rc;
 
-fn extend__capture_language(
+pub fn extend__capture_language(
     pc: crate::earley::ParseContext,
     _starter_info: Ast,
 ) -> crate::earley::ParseContext {

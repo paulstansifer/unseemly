@@ -514,6 +514,7 @@ pub fn make_core_syn_env() -> SynEnv {
         n("extend_syntax"),
         n("in"),
         n("import"),
+        n("capture_language"),
     ];
 
     syn_env!(

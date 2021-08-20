@@ -411,12 +411,29 @@ pub fn make_core_macro_forms() -> SynEnv {
         }) => []
     ];
 
+    let capture_language_form = typed_form!("capture_language",
+        (extend_nt [(lit "capture_language")], "OnlyNt",
+            crate::core_extra_forms::extend__capture_language),
+        Body(n("body")),
+        Body(n("body")));
+
     // Most of "Syntax" is a negative walk (because it produces an environment),
     //  but lacking a `negative_ret_val`.
     let grammar_grammar = forms_to_form_pat_export![
         syntax_syntax!( ( (delim "anyways,{", "{", (named "body", (call "Expr"))) ) Anyways (
             body => Ast::reflect(&body)
         )) => ["body"],
+        // HACK: expanding to `'[Expr| capture_language]'` doesn't do what you want, so do this:
+        Rc::new(Form {
+            name: n("capture_language_form"),
+            grammar: Rc::new(form_pat!( (lit "capture_language_form") )),
+            type_compare: Both(NotWalked, NotWalked),
+            synth_type: Negative(cust_rc_box!(|_| Ok(Assoc::new()))),
+            eval: Positive(cust_rc_box!(move |_| {
+                Ok(FormPat::Scope(capture_language_form.clone(), crate::beta::ExportBeta::Nothing).reify())
+            })),
+            quasiquote: Both(LiteralLike, LiteralLike)
+        }) => [],
         syntax_syntax!( ((lit "impossible")) Impossible ) => [],
         syntax_syntax!( (  // TODO: this might have to be both positive and negative
             [(lit "lit"), (named "body", (call "Syntax")),
