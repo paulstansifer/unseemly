@@ -1,0 +1,19 @@
+extend_syntax
+    Expr ::=also
+        forall T S . '{ [
+            lit ,{ DefaultToken }, = 'let'
+            pat := ( ,{ Pat<S> }, )
+            lit ,{ DefaultToken }, = '='
+            value := ( ,{ Expr<S> }, )
+            lit ,{ DefaultToken }, = ';'
+            lit ,{ DefaultToken }, = 'in'
+            body := ( ,{ Expr<T> }, <-- pat = value )
+        ] }' let_macro -> .{
+            '[Expr | ( .[ arg : ,[ Type<S> | prefab_type S ], .
+                    match arg { ,[pat], =>  ,[body], } ].
+                ,[value], ) ]'
+        }. ;
+in
+let fifteen = (plus five ten) ;
+in
+(plus fifteen one)
