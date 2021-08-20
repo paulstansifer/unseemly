@@ -1,6 +1,6 @@
 ## Changelog
 
-## Current
+## 0.0.1 - 2021-08-20
 ### Added
 - Added rudimentary multi-file program support.
   * To define a library, introduce the syntax and values that should be exposed,
