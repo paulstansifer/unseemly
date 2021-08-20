@@ -442,7 +442,7 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
             // or where a driver isn't in scope.
             let count = match *ddd_parts_uq.env.find_or_panic(&drivers[0]) {
                 Sequence(ref contents) => contents.len(),
-                _ => icp!("type error"),
+                ref other => icp!("type error: {} isn't a sequence", other),
             };
             let mut reps: Vec<Ast> = vec![];
 

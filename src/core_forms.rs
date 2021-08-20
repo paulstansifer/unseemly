@@ -29,7 +29,9 @@ pub fn strip_ee(a: &Ast) -> &Ast {
     match *a {
         ExtendEnv(ref body, _) => (&**body),
         ExtendEnvPhaseless(ref body, _) => (&**body),
-        _ => icp!("malformed thing"),
+        _ => icp!("Not an EE"),
+    }
+}
     }
 }
 

@@ -46,7 +46,7 @@ impl WalkMode for ExpandMacros {
 
     fn walk_var(
         name: Name,
-        _parts: &crate::ast_walk::LazyWalkReses<ExpandMacros>,
+        _parts: &LazyWalkReses<ExpandMacros>,
     ) -> Result<Value, Self::Err> {
         use crate::runtime::reify::Reifiable;
         Ok(crate::ast::VariableReference(name).reify()) // Even variables are literal in macro expansion!
