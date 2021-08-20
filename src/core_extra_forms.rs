@@ -6,8 +6,7 @@ use crate::{
     grammar::FormPat,
     name::*,
     runtime::eval::Value,
-    util::assoc::Assoc,
-    util::mbe::EnvMBE,
+    util::{assoc::Assoc, mbe::EnvMBE},
 };
 use std::rc::Rc;
 
@@ -90,7 +89,9 @@ pub fn language_from_file(
     // Evaluate the file in its own directory:
     if let Some(dir) = path.parent() {
         // Might be empty:
-        if dir.is_dir() { std::env::set_current_dir(dir).unwrap(); }
+        if dir.is_dir() {
+            std::env::set_current_dir(dir).unwrap();
+        }
     }
 
     let orig_pc = crate::core_forms::outermost__parse_context();
@@ -139,11 +140,11 @@ pub fn language_from_file(
     node_let!(lang_and_types[2] => {Type struct}
         pl_keys *= component_name, pl_values *= component);
 
-
     let mut new__type_env__phaseless = Assoc::<Name, Ast>::new();
     for (k, v) in pl_keys.into_iter().zip(pl_values.into_iter()) {
         // As above, unfreshen:
-        new__type_env__phaseless = new__type_env__phaseless.set(k.to_name().unhygienic_orig(), v.clone());
+        new__type_env__phaseless =
+            new__type_env__phaseless.set(k.to_name().unhygienic_orig(), v.clone());
     }
 
     // Go back to the original directory:

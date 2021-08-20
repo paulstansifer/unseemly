@@ -69,12 +69,12 @@ impl Ren {
     pub fn find_orig(&self, orig: &str) -> Option<(Name, Ast)> {
         for (k, v) in self.env.iter_pairs() {
             if k.orig_sp() == orig {
-                return Some((*k, v.clone()))
+                return Some((*k, v.clone()));
             }
         }
         for (k, v) in self.env_phaseless.iter_pairs() {
             if k.orig_sp() == orig {
-                return Some((*k, v.clone()))
+                return Some((*k, v.clone()));
             }
         }
         None
@@ -212,20 +212,21 @@ pub fn freshen(a: &Ast) -> Ast {
                     ),
                     export.clone(),
                 );
-                watching.with(|watching_name|
+                watching.with(|watching_name| {
                     if let Some(name) = watching_name {
                         let freshened_to = fresh_ast_and_rens.map_reduce(
                             &|ast_and_ren: &(Ast, Ren)| ast_and_ren.1.find_orig(name),
                             &|lhs: &Option<(Name, Ast)>, rhs: &Option<(Name, Ast)>| {
                                 lhs.clone().or(rhs.clone())
                             },
-                            None);
+                            None,
+                        );
                         if let Some((k, new_ast)) = freshened_to {
                             println!("🥦 Renaming {} => {}:", k, new_ast);
                             println!("🥦 {}", freshened_node)
                         }
                     }
-                );
+                });
 
                 freshened_node
             }

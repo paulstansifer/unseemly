@@ -166,7 +166,9 @@ fn main() {
 
         // So the file can import (etc.) relative to its own location:
         if let Some(dir) = filename.parent() {
-            if dir.is_dir() { std::env::set_current_dir(dir).unwrap(); }
+            if dir.is_dir() {
+                std::env::set_current_dir(dir).unwrap();
+            }
         }
         let result = eval_unseemly_program(&raw_input);
 
@@ -186,7 +188,9 @@ fn main() {
             .expect("Error reading file");
 
         if let Some(dir) = Path::new(&arguments[2]).parent() {
-            if dir.is_dir() { std::env::set_current_dir(dir).unwrap(); }
+            if dir.is_dir() {
+                std::env::set_current_dir(dir).unwrap();
+            }
         }
         match eval_program(&second_program, pc, type_env, type_env__phaseless, value_env) {
             Ok(v) => println!("{}", v),
@@ -391,14 +395,11 @@ fn eval_program(
 ) -> Result<Value, String> {
     let ast: Ast = grammar::parse(&core_forms::outermost_form(), pc, program).map_err(|e| e.msg)?;
 
-    let _type = ast_walk::walk::<ty::SynthTy>(&ast,
-        &ast_walk::LazyWalkReses::new(
-            type_env,
-            type_env__phaseless,
-            ast.node_parts(),
-            ast.clone()
-        )
-    ).map_err(|e| format!("{}", e))?;
+    let _type = ast_walk::walk::<ty::SynthTy>(
+        &ast,
+        &ast_walk::LazyWalkReses::new(type_env, type_env__phaseless, ast.node_parts(), ast.clone()),
+    )
+    .map_err(|e| format!("{}", e))?;
 
     let core_ast = crate::expand::expand(&ast).map_err(|_| "???".to_string())?;
 

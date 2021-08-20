@@ -318,7 +318,9 @@ pub fn macro_invocation(
                 }
             }
             let expanded = Ast::reflect(&crate::runtime::eval::eval(
-                crate::core_forms::strip_ql(parts.get_term_ref(n("impl"))), env)?);
+                crate::core_forms::strip_ql(parts.get_term_ref(n("impl"))),
+                env,
+            )?);
 
             // Expand any macros produced by expansion, or that were already present in subterms:
             Ok(crate::expand::expand(&expanded)?.reify())

@@ -46,15 +46,20 @@ impl Value {
     /// Turns this `Value` into a "magic" `Ast` that evaluates to it.
     /// The `Ast` will have the universal type
     pub fn prefab(self) -> Ast {
-        Ast::Node(typed_form!("prefab_internal",
-                    (impossible), // no syntax
-                    cust_rc_box!(move |_| Ok(ast!(
+        Ast::Node(
+            typed_form!(
+                "prefab_internal",
+                (impossible), // no syntax
+                cust_rc_box!(move |_| Ok(ast!(
                         // Cheat: has the universal type, but we know it's safe because <mumble>.
                         {"Type" "forall_type" :
                             "param" => ["T"],
-                            "body" => (import [* [forall "param"]] (vr "T"))})) ),
-                    cust_rc_box!(move |_| Ok(self.clone()) )
-                ), crate::util::mbe::EnvMBE::new(), crate::beta::ExportBeta::Nothing)
+                            "body" => (import [* [forall "param"]] (vr "T"))}))),
+                cust_rc_box!(move |_| Ok(self.clone()))
+            ),
+            crate::util::mbe::EnvMBE::new(),
+            crate::beta::ExportBeta::Nothing,
+        )
     }
 }
 
