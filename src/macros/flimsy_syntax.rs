@@ -293,6 +293,9 @@ fn parse_flimsy_ast(flimsy: &Ast, grammar: &FormPat) -> Ast {
         NameImport(body, beta) => {
             ExtendEnv(Box::new(parse_flimsy_ast(flimsy, &*body)), beta.clone())
         }
+        NameImportPhaseless(body, beta) => {
+            ExtendEnvPhaseless(Box::new(parse_flimsy_ast(flimsy, &*body)), beta.clone())
+        }
         QuoteDeepen(body, pos) => QuoteMore(Box::new(parse_flimsy_ast(flimsy, &*body)), *pos),
         QuoteEscape(body, depth) => QuoteLess(Box::new(parse_flimsy_ast(flimsy, &*body)), *depth),
 
