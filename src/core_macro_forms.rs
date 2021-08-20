@@ -208,6 +208,14 @@ pub fn macro_invocation(
 ) -> Rc<Form> {
     use crate::{ty_compare, walk_mode::WalkMode};
 
+    // TODO: instead of stripping the lambda, we should be invoking it with the syntax arguments.
+    let prefab_impl = implementation.prefab();
+    // Strip off the lambda (`env` now binds its names for us):
+    node_let!(prefab_impl => {Expr lambda}
+        impl_body__with__ee = body);
+    // ...and its binding:
+    let impl_body = strip_ee(&impl_body__with__ee).clone();
+
     let grammar1 = grammar.clone();
     let grammar2 = grammar.clone();
     Rc::new(Form {
@@ -217,6 +225,9 @@ pub fn macro_invocation(
             (named "macro_name", (anyways (,
                 Ast::VariableReference(macro_name)
             ))),
+            // Capture this here so that its environmental names get freshened properly.
+            // Need to store this one phase unquoted.
+            (named "impl", (-- 1 (anyways (,impl_body)))),
             (, grammar.clone())
         ])),
         type_compare: Both(NotWalked, NotWalked),
@@ -280,7 +291,7 @@ pub fn macro_invocation(
         eval: Positive(cust_rc_box!(move |parts| {
             use crate::runtime::eval::Value;
             // This code is like that for "apply".
-            let mut env = implementation.env.clone();
+            let mut env = parts.env.clone();
             for (param, depth) in &grammar.binders() {
                 let nt = grammar.find_named_call(*param);
 
@@ -306,7 +317,8 @@ pub fn macro_invocation(
                     env = env.set(*param, rhs);
                 }
             }
-            let expanded = Ast::reflect(&crate::runtime::eval::eval(&implementation.body, env)?);
+            let expanded = Ast::reflect(&crate::runtime::eval::eval(
+                crate::core_forms::strip_ql(parts.get_term_ref(n("impl"))), env)?);
 
             // Expand any macros produced by expansion, or that were already present in subterms:
             Ok(crate::expand::expand(&expanded)?.reify())
