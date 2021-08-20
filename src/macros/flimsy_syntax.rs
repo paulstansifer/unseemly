@@ -207,21 +207,22 @@ where I: Iterator<Item = &'a Ast> {
             result
         }
         _ => {
+            // `Anyways`es shouldn't consume anything (and they'll always be `Named`):
+            let consuming = match grammar {
+                Named(_, ref body) => match **body {
+                    Anyways(_) => false,
+                    _ => true,
+                },
+                _ => true,
+            };
             let flimsy = *match flimsy_seq.peek() {
-                None => return EnvMBE::new(), // Or is this an error?
+                None if consuming => return EnvMBE::new(), // Or is this an error?
+                None => &&Ast::Trivial,
                 Some(f) => f,
             };
             match parse_flimsy_mbe(flimsy, grammar) {
                 None => EnvMBE::new(),
                 Some(res) => {
-                    // `Anyways`es shouldn't consume anything (and they'll always be `Named`):
-                    let consuming = match grammar {
-                        Named(_, ref body) => match **body {
-                            Anyways(_) => false,
-                            _ => true,
-                        },
-                        _ => true,
-                    };
                     if consuming {
                         let _ = flimsy_seq.next();
                     }
