@@ -42,6 +42,38 @@ pub struct Closure {
     pub env: Assoc<Name, Value>,
 }
 
+impl Value {
+    /// Turns this `Value` into a "magic" `Ast` that evaluates to it.
+    /// The `Ast` will have the universal type
+    pub fn prefab(self) -> Ast {
+        Ast::Node(typed_form!("prefab_internal",
+                    (impossible), // no syntax
+                    cust_rc_box!(move |_| Ok(ast!(
+                        // Cheat: has the universal type, but we know it's safe because <mumble>.
+                        {"Type" "forall_type" :
+                            "param" => ["T"],
+                            "body" => (import [* [forall "param"]] (vr "T"))})) ),
+                    cust_rc_box!(move |_| Ok(self.clone()) )
+                ), crate::util::mbe::EnvMBE::new(), crate::beta::ExportBeta::Nothing)
+    }
+}
+
+/// Creates an (ill-typed!) lambda expression that behaves like the closure.
+/// Free names in `self.body` remain free.
+impl Closure {
+    pub fn prefab(&self) -> Ast {
+        ast!({"Expr" "lambda" :
+            "param" => (@"p" ,seq self.params.iter().map(|n| Ast::Atom(*n))),
+            "p_t" => (@"p" ,seq self.params.iter().map(|_| ast!((trivial)))),
+            "body" => (import [* ["param" : "p_t"]] (,
+                crate::alpha::substitute(&self.body,
+                    &self.env.map(|v| v.clone().prefab())
+                )
+            ))
+        })
+    }
+}
+
 // Built-in function
 pub struct BIF(pub Rc<(dyn Fn(Vec<Value>) -> Value)>);
 

@@ -293,15 +293,7 @@ fn make_core_typed_values() -> Assoc<Name, TypedValue> {
                     "type_rator" => (vr "Expr"),
                     "arg" => [(vr "T")]}})},
             ( val ) => {
-                AbstractSyntax(Ast::Node(typed_form!("prefab_internal",
-                    (impossible), // no syntax
-                    cust_rc_box!(move |_| Ok(ast!(
-                        // Cheat: has the universal type, but we know it's safe because <mumble>.
-                        {"Type" "forall_type" :
-                            "param" => ["T"],
-                            "body" => (import [* [forall "param"]] (vr "T"))})) ),
-                    cust_rc_box!(move |_| Ok(val.clone()) )
-                ), crate::util::mbe::EnvMBE::new(), crate::beta::ExportBeta::Nothing))
+                AbstractSyntax(val.prefab())
             }
         ),
         "plus" =>
