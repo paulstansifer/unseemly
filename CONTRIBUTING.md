@@ -24,6 +24,7 @@ Things to know about developing Unseemly:
     So if you get test failures, try `UNSEEMLY_TRACE=full cargo test`
   * Appended carrots (🥕) distinguish variable names that "look" the same, but differ due to
     freshening. (If you see tomatoes; they serve a similar purpose, but for debug-printing.)
-  * To observe freshening, try `UNSEEMLY_FRESHEN_WATCH=variable_name`.
+  * To observe freshening, try `UNSEEMLY_FRESHEN_WATCH=variable_name`; it will show what's happening
+    each time that name is freshened.
   * In the REPL (`cargo run --release`), use ctrl-R to search your REPL history.
     Add commonly-used definitions to your `~/.unseemly_prelude` file.

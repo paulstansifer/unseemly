@@ -18,6 +18,8 @@ The weirdness of this language implementation starts with the AST.
 Well, the parser and tokenizer are weird, but they don't have to be.
 
 
+TODO: a demo of the steps involved in typing and expanding an actual program
+ would probably be more informative than the "Pipeline" diagram.
 
 Language definition:
 
@@ -51,11 +53,11 @@ There are separate files
 
 Pipeline:
                                  ⋮                  ⋮                   ⋮
-               ↱     `Ast`→ [TypeSynth] →`Ast`
+               ↱     `Ast`→ [TypeSynth] →`Ok(_)`
                           →  [Expand]   →`Ast`→ [Evaluate]  →`Value`→ [Reflect] ↩ (phase 2)
-               ↱     `Ast`→ [TypeSynth] →`Ast`
+               ↱     `Ast`→ [TypeSynth] →`Ok(_)`
                           →  [Expand]   →`Ast`→ [Evaluate]  →`Value`→ [Reflect] ↩ (phase 1)
-    `&str`→ [Parse] →`Ast`→ [TypeSynth] →`Ast`
+    `&str`→ [Parse] →`Ast`→ [TypeSynth] →`Ok(_)`
                           →  [Expand]   →`Ast`→ [Evaluate]  →`Value`              (runtime)
 
 [Parse] grammar.rs and earley.rs

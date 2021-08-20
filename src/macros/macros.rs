@@ -633,7 +633,7 @@ macro_rules! expect_ty_node {
 
 macro_rules! _get_leaf_operation {
     ($env:expr, =, $name:tt) => {
-        $env.get_leaf_or_panic(crate::name::n(stringify!($name)))
+        $env.get_leaf_or_panic(&crate::name::n(stringify!($name)))
     };
     ($env:expr, *=, $name:tt) => {
         $env.get_rep_leaf_or_panic(crate::name::n(stringify!($name)))
