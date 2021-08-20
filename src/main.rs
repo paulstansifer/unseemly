@@ -174,7 +174,7 @@ fn main() {
             Err(e) => println!("\x1b[1;31m✘\x1b[0m {}", e),
         }
     } else if arguments.len() == 3 {
-        let (new_pc, new__type_env, new__value_env) =
+        let (pc, type_env, type_env__phaseless, value_env) =
             core_extra_forms::language_from_file(&std::path::Path::new(&arguments[1]));
 
         // Run the second program in the language defined by the first:
@@ -184,7 +184,7 @@ fn main() {
             .read_to_string(&mut second_program)
             .expect("Error reading file");
 
-        match eval_program(&second_program, new_pc, new__type_env, new__value_env) {
+        match eval_program(&second_program, pc, type_env, type_env__phaseless, value_env) {
             Ok(v) => println!("{}", v),
             Err(e) => println!("\x1b[1;31m✘\x1b[0m {}", e),
         }
@@ -382,11 +382,19 @@ fn eval_program(
     program: &str,
     pc: crate::earley::ParseContext,
     type_env: Assoc<Name, Ast>,
+    type_env__phaseless: Assoc<Name, Ast>,
     value_env: Assoc<Name, Value>,
 ) -> Result<Value, String> {
     let ast: Ast = grammar::parse(&core_forms::outermost_form(), pc, program).map_err(|e| e.msg)?;
 
-    let _type = ty::synth_type(&ast, type_env).map_err(|e| format!("{}", e))?;
+    let _type = ast_walk::walk::<ty::SynthTy>(&ast,
+        &ast_walk::LazyWalkReses::new(
+            type_env,
+            type_env__phaseless,
+            ast.node_parts(),
+            ast.clone()
+        )
+    ).map_err(|e| format!("{}", e))?;
 
     let core_ast = crate::expand::expand(&ast).map_err(|_| "???".to_string())?;
 

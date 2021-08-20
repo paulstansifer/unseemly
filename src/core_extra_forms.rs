@@ -7,6 +7,7 @@ use crate::{
     name::*,
     runtime::eval::Value,
     util::assoc::Assoc,
+    util::mbe::EnvMBE,
 };
 use std::rc::Rc;
 
@@ -24,7 +25,20 @@ fn extend__capture_language(
                         let mut struct_body = vec![];
 
                         for (k, v) in parts.env.iter_pairs() {
-                            struct_body.push(crate::util::mbe::EnvMBE::new_from_leaves(assoc_n!(
+                            struct_body.push(EnvMBE::new_from_leaves(assoc_n!(
+                                "component_name" => Atom(*k),
+                                "component" => v.clone()
+                            )))
+                        }
+
+                        // HACK: Anything extra in the prelude is phaseless.
+                        let phaseless_env = parts.prelude_env.cut_common(
+                            &crate::runtime::core_values::core_types());
+
+                        let mut struct_body__phaseless = vec![];
+
+                        for (k, v) in phaseless_env.iter_pairs() {
+                            struct_body__phaseless.push(EnvMBE::new_from_leaves(assoc_n!(
                                 "component_name" => Atom(*k),
                                 "component" => v.clone()
                             )))
@@ -34,9 +48,12 @@ fn extend__capture_language(
                             "component" => [
                                 (, get__primitive_type(n("LanguageSyntax"))),
                                 (, Node(crate::core_forms::find("Type", "struct"),
-                                     crate::util::mbe::EnvMBE::new_from_anon_repeat(struct_body),
+                                     EnvMBE::new_from_anon_repeat(struct_body),
+                                     crate::beta::ExportBeta::Nothing)),
+                                (, Node(crate::core_forms::find("Type", "struct"),
+                                     EnvMBE::new_from_anon_repeat(struct_body__phaseless),
                                      crate::beta::ExportBeta::Nothing))]
-                    }))}),
+                        }))}),
                     cust_rc_box!(move |parts| {
                         Ok(Value::Sequence(vec![
                             // The captured language syntax:
@@ -45,7 +62,7 @@ fn extend__capture_language(
                             Rc::new(Value::Struct(parts.env))
                         ]))})
                 ),
-            crate::util::mbe::EnvMBE::<Ast>::new(),
+            EnvMBE::<Ast>::new(),
             crate::beta::ExportBeta::Nothing
         )))))),
         // We can't just squirrel `reified_language` here:
@@ -56,9 +73,12 @@ fn extend__capture_language(
 }
 
 /// Run the file (which hopefully evaluates to `capture_language`), and get the language it defines.
+/// Returns the parse context, the type environment, the phaseless version of the type environment,
+/// and the value environment.
+/// TODO: we only need the phaseless
 pub fn language_from_file(
     path: &std::path::Path,
-) -> (crate::earley::ParseContext, Assoc<Name, Ast>, Assoc<Name, Value>) {
+) -> (crate::earley::ParseContext, Assoc<Name, Ast>, Assoc<Name, Ast>, Assoc<Name, Value>) {
     let mut raw_lib = String::new();
 
     use std::io::Read;
@@ -108,7 +128,18 @@ pub fn language_from_file(
         new__type_env = new__type_env.set(k.to_name().unhygienic_orig(), v.clone());
     }
 
-    (new_pc, new__type_env, new__value_env)
+    // Do it again, to unpack the phaseless type environment:
+    node_let!(lang_and_types[2] => {Type struct}
+        pl_keys *= component_name, pl_values *= component);
+
+
+    let mut new__type_env__phaseless = Assoc::<Name, Ast>::new();
+    for (k, v) in pl_keys.into_iter().zip(pl_values.into_iter()) {
+        // As above, unfreshen:
+        new__type_env__phaseless = new__type_env__phaseless.set(k.to_name().unhygienic_orig(), v.clone());
+    }
+
+    (new_pc, new__type_env, new__type_env__phaseless, new__value_env)
 }
 
 // Shift the parser into the language specified in "filename".
@@ -128,7 +159,7 @@ fn extend_import(
         _ => icp!("Unexpected structure {:#?}", starter_info),
     };
 
-    let (new_pc, new__type_env, new__value_env) =
+    let (new_pc, new__type_env, new__type_env__phaseless, new__value_env) =
         language_from_file(&std::path::Path::new(&filename));
 
     crate::earley::ParseContext {
@@ -138,8 +169,17 @@ fn extend_import(
                 basic_typed_form!(
                     (named "body", (call "Expr")),
                     cust_rc_box!(move |parts| {
-                        parts.with_environment(
-                            parts.env.set_assoc(&new__type_env)).get_res(n("body"))
+                        // HACK: Copied from `ExtendEnvPhaseless`
+                        LazyWalkReses {
+                            env: parts.env.set_assoc(&new__type_env)
+                                .set_assoc(&new__type_env__phaseless),
+                            prelude_env: parts.prelude_env.set_assoc(&new__type_env__phaseless),
+                            more_quoted_env: parts.more_quoted_env.iter().map(
+                                |e| e.set_assoc(&new__type_env__phaseless)).collect(),
+                            less_quoted_env: parts.less_quoted_env.iter().map(
+                                |e| e.set_assoc(&new__type_env__phaseless)).collect(),
+                            .. parts.clone()
+                        }.get_res(n("body"))
                     }),
                     cust_rc_box!(move |parts| {
                         parts.with_environment(
