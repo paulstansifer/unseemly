@@ -13,14 +13,14 @@ extend_syntax
             [
                 pat := ( ,{ Pat<S> }, )
                 lit ,{ DefaultToken }, = '='
-                value := ( ,{ Expr<S> }, )
+                val := ( ,{ Expr<S> }, )
                 lit ,{ DefaultToken }, = ';'
             ] *
             lit ,{ DefaultToken }, = 'in'
-            body := ( ,{ Expr<T> }, <-- ...[pat = value]... )
+            body := ( ,{ Expr<T> }, <-- ...[pat = val]... )
         ] }' let_macro -> .{
             '[Expr |
-                match **[...[,value, >> ,[value], ]... ]**
+                match **[...[,val, >> ,[val], ]... ]**
                     { **[...[,pat, >> ,[pat],]... ]** => ,[body], } ]'
         }. ;
 in
@@ -47,10 +47,42 @@ extend_syntax
     }. ;
 in
 extend_syntax
-    ### Introduce `letfn` for defining 2-argument functions.
+    ### Introduce `letfn` for defining 1-argument functions.
     # Currently, `...[]...` can only be put around a whole expression/pattern/type (issue #38),
     #  so, one has to make a separate macro for each number of arguments.
     # Also, we can't interpolate into atom positions (issue #37).
+    Expr ::=also
+        forall I0 O T . '{ [
+            lit ,{ DefaultToken }, = 'letfn'
+            lit ,{ DefaultToken }, = '('
+            fn_name := ( ,{ Pat< [I0 -> O] > }, )
+            arg_name0 := ( ,{ Pat<I0> }, )
+            lit ,{ DefaultToken }, = ':'
+            # The fact that the syntax `[Int -> Int]` has type `Type<[Int -> Int]>` is weird,
+            #  but so far it works fine!
+            arg_type0 := ( ,{ Type<I0> }, )
+            lit ,{ DefaultToken }, = ')'
+            lit ,{ DefaultToken }, = '->'
+            ret_type := ( ,{ Type<O> }, )
+            lit ,{ DefaultToken }, = '='
+            fn_body := ( ,{ Expr<O> }, <-- arg_name0 = arg_type0 )
+            lit ,{ DefaultToken }, = ';'
+            lit ,{ DefaultToken }, = 'in'
+            body := ( ,{ Expr<T> }, <-- fn_name = [ arg_type0 -> ret_type ]  )
+        ] }' let_fn1 -> .{
+            # In case the function is recursive, wrap it in `fix`:
+            '[Expr | let ,[fn_name], = (fix
+                .[ again: [ -> [ ,[arg_type0], -> ,[ret_type], ] ] .
+                    .[ a0: ,[arg_type0],  .
+                        # Workaround for not being able to interpolate atoms:
+                        let ,[arg_name0], = a0; in ,[fn_body], ].
+            ].) ; in
+                ,[body],
+             ]'
+        }. ;
+in
+extend_syntax
+    ### Introduce `letfn` for defining 2-argument functions.
     Expr ::=also
         forall I0 I1 O T . '{ [
             lit ,{ DefaultToken }, = 'letfn'
