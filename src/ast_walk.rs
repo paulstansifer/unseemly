@@ -638,7 +638,10 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             less_quoted_env: vec![],
             less_quoted_out_env: vec![],
             parts: EnvMBE::new(),
-            this_ast: ast!("wrapper"),
+            // TODO #46: This sets us up with a "default" value for `literally`.
+            this_ast: ast!({
+                crate::form::simple_form("wrapper", crate::grammar::FormPat::Impossible);
+            }),
             extra_info: std::default::Default::default(),
         }
     }
@@ -654,7 +657,10 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             less_quoted_env: vec![],
             less_quoted_out_env: vec![], // If we want a `lqe`, we need to fill this in, too!
             parts: EnvMBE::new(),
-            this_ast: ast!("wrapper"),
+            // TODO #46: This sets us up with a "default" value for `literally`.
+            this_ast: ast!({
+                crate::form::simple_form("wrapper", crate::grammar::FormPat::Impossible);
+            }),
             extra_info: std::default::Default::default(),
         }
     }
@@ -855,7 +861,8 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         let env = self.less_quoted_env.pop().unwrap_or_else(|| self.prelude_env.clone());
         let less_quoted_env = self.less_quoted_env;
 
-        let out_env: Option<OutEnvHandle<Mode>> = self.less_quoted_out_env.pop().unwrap();
+        let out_env: Option<OutEnvHandle<Mode>> =
+            self.less_quoted_out_env.pop().unwrap_or_else(|| Mode::D::oeh_if_negative());
         let less_quoted_out_env = self.less_quoted_out_env;
 
         self.more_quoted_env.push(self.env);

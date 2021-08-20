@@ -5,7 +5,7 @@ use crate::{
         WalkRule::{Body, LiteralLike, NotWalked},
     },
     beta::{Beta, Beta::*, ExportBeta},
-    core_forms::strip_ee,
+    core_forms::{strip_ee, strip_ql},
     core_type_forms::{less_quoted_ty, more_quoted_ty},
     form::{EitherPN::*, Form},
     grammar::{
@@ -595,10 +595,14 @@ pub fn make_core_macro_forms() -> SynEnv {
                                       (import [* [forall "param"]],  (call "Syntax"))))),
                           (named "macro_name", atom), (lit "->"),
                           (delim ".{", "{", (named "implementation",
-                              // TODO `beta!` needs `Shadow` so we can combine these `import`s:
-                              (import [* [forall "param"]],
+                               // TODO: `beta!` needs `Shadow` so we can combine these `import`s.
+                               // TODO: Why can't these be regular imports,
+                               //   and why can't the `--` be on the outside?
+                               //    (Things have to be this way to have the `--` at all.)
+                               (import_phaseless [* [forall "param"]],
                                   // Arbitrary context element:
-                                  (import ["syntax" == {trivial_type_form ; }], (call "Expr"))))),
+                                  (import_phaseless ["syntax" == {trivial_type_form ; }],
+                                      (-- 1 (call "Expr")))))),
                           (alt [], // TODO: needs proper `beta` structure, not just a name list:
                                [(lit "=>"), (star (named "export", atom))])])
         Scope {
@@ -617,8 +621,8 @@ pub fn make_core_macro_forms() -> SynEnv {
                 // TODO: This is the right thing to do, right?
                 let macro_params = crate::beta::bound_from_export_beta(
                     &ebeta!(["syntax"]), &parts.this_ast.node_parts(), 0);
-                let implementation = strip_ee(
-                    &strip_ee(&parts.get_term(n("implementation")))).clone();
+                let implementation = strip_ql(&strip_ee(
+                    &strip_ee(&parts.get_term(n("implementation"))))).clone();
 
                 let mut export = ExportBeta::Nothing;
                 let export_names = parts.get_rep_term(n("export")).iter()

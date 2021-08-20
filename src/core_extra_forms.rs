@@ -79,7 +79,7 @@ pub fn language_from_file(
         let lang_value = lang_and_env.pop().unwrap();
         let new_pc = match &*lang_value {
             Value::Language(boxed_pc) => (**boxed_pc).clone(),
-            _ => icp!("[type error] not a language")
+            _ => icp!("[type error] not a language"),
         };
         let new__value_env = if let Value::Struct(ref env) = *env_value {
             let mut new__value_env = Assoc::new();

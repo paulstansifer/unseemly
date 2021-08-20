@@ -32,6 +32,11 @@ pub fn strip_ee(a: &Ast) -> &Ast {
         _ => icp!("Not an EE"),
     }
 }
+
+pub fn strip_ql(a: &Ast) -> &Ast {
+    match a {
+        QuoteLess(ref body, _) => &**body,
+        _ => icp!("Not an unquote"),
     }
 }
 
