@@ -670,11 +670,10 @@ impl Item {
                 log!("===Ambiguity===\n");
                 // Show both parses...
                 *self.local_parse.borrow_mut() = l;
-                let l_res = self.c_parse(chart, done_tok);
+                let l_res = self.c_parse(chart, done_tok).unwrap();
                 *self.local_parse.borrow_mut() = r;
-                let r_res = self.c_parse(chart, done_tok);
-
-                panic!("Ambiguity! \n{:#?}\n{:#?}\n", l_res, r_res)
+                let r_res = self.c_parse(chart, done_tok).unwrap();
+                panic!("Ambiguity! \n=L=>{}\n=R=>{}\n", l_res, r_res)
             }
             _ => icp!("tried to parse unjustified item: {:#?} ", self),
         };
