@@ -76,11 +76,24 @@ impl std::fmt::Debug for UniqueIdRef {
 // TODO: We should probably refactor to use `ParseContext`
 //  everywhere we currently use these two things together (particularly `earley.rs`).
 custom_derive! {
-    #[derive(Clone, Reifiable, Debug)]
+    #[derive(Clone, Debug)]
     pub struct ParseContext {
         pub grammar: SynEnv,
         pub type_ctxt: LazyWalkReses<crate::ty::SynthTy>,
         pub eval_ctxt: LazyWalkReses<crate::runtime::eval::Eval>
+    }
+}
+
+impl crate::runtime::reify::Reifiable for ParseContext {
+    fn ty_name() -> Name { n("Language") }
+
+    fn reify(&self) -> crate::runtime::eval::Value {
+        crate::runtime::eval::Value::Language(Box::new(self.clone()))
+    }
+
+    fn reflect(v: &crate::runtime::eval::Value) -> ParseContext {
+        extract!((v) crate::runtime::eval::Value::Language = (ref lang)
+            => (**lang).clone())
     }
 }
 
