@@ -340,6 +340,8 @@ fn repeated_type(t: &Ast, env: &Assoc<Name, Ast>) -> Result<Ast, crate::ty::Type
     }
 
     if drivers.is_empty() {
+        // TODO: this is just a tuple where every element has the same type...
+        //  ...but how do we constrain the length?
         ty_err!(NeedsDriver (()) at t);
     }
 
@@ -453,8 +455,12 @@ pub fn make_core_macro_forms() -> SynEnv {
                                     n(&literal)).reify())
             }
         }) => [],
-        syntax_syntax!( ([(lit "vr"), (named "body", (call "Syntax"))]) VarRef (
-            body =>  Rc::new(FormPat::reflect(&body))
+        syntax_syntax!( ([(lit "vr"), (delim "(", "(", (named "body", (call "Syntax")))]) VarRef (
+            body => Rc::new(FormPat::reflect(&body))
+        )) => [],
+        syntax_syntax!( ([(lit "common"), (delim "(", "(", (named "body", (call "Syntax")))]) Common
+        (
+            body => Rc::new(FormPat::reflect(&body))
         )) => [],
         // TODO: split out a separate SyntaxSeq, so that we can get rid of the [ ] delimiters
         syntax_syntax!( ( (delim "[", "[", (star (named "elt", (call "Syntax"))))) Seq {
@@ -490,6 +496,19 @@ pub fn make_core_macro_forms() -> SynEnv {
         } {
             |parts| {
                 Ok(Plus(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?))).reify())
+            }
+        }) => ["body"],
+        syntax_syntax!( ([(named "body", (call "Syntax")), (lit "reserving"),
+                          (star (named "words", (scan r"\s*'((?:[^'\\]|\\'|\\\\)*)'")))
+                         ]) Reserved {
+            |parts| {
+                parts.get_res(n("body"))
+            }
+        } {
+            |parts| {
+                Ok(Reserved(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?)),
+                   parts.get_rep_term(n("words")).iter().map(Ast::to_name).collect::<Vec<_>>()
+                ).reify())
             }
         }) => ["body"],
         // TODO: support seprators, and add a separator here
