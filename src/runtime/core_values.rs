@@ -32,6 +32,12 @@ pub fn string_operations() -> Assoc<Name, TypedValue> {
         (Text(s)) =>
             Sequence(s.chars().map(|c: char| Rc::new(Int(BigInt::from(c as u32)))).collect())
     },
+    "anything_to_string" => tyf!{ { "Type" "forall_type" :
+        "param" => ["T"],
+        "body" => (import [* [forall "param"]] { "Type" "fn" :
+            "param" => [(vr "T")],
+            "ret" => {"Type" "String" :}})},
+        (anything) => Text(format!("{}", anything)) },
     "ident_to_string" => tyf! {
         {"Type" "fn" :
             "param" => [{"Type" "Ident" :}],
@@ -50,6 +56,12 @@ pub fn string_operations() -> Assoc<Name, TypedValue> {
             "ret" => {"Type" "String" :}
         },
         (Text(body), Text(old), Text(new)) => Text(body.replace(&old, &new))},
+    "contains?" => tyf! {
+        {"Type" "fn" :
+            "param" => [{"Type" "String" :}, {"Type" "String" :}],
+            "ret" => (vr "Bool")
+        },
+        (Text(lhs), Text(rhs)) => val!(b lhs.contains(&rhs))},
     "join" => tyf! {
         {"Type" "fn" :
             "param" => [{"Type" "type_apply" : "type_rator" => (vr "Sequence"),
@@ -112,7 +124,21 @@ pub fn string_operations() -> Assoc<Name, TypedValue> {
                 .expect("process failure")
                 .stdout).unwrap().to_string())
         }
-    })
+    },
+    "env_var" => tyf! {
+        {"Type" "fn" :
+            "param" => [{"Type" "String" :}],
+            "ret" => {"Type" "type_apply" :
+               "type_rator" => (vr "Option"),
+                "arg" => [{"Type" "String" :}]}},
+        (Text(env_var)) => {
+            match std::env::var(&env_var) {
+                Ok(contents) => val!(enum "Some", (s contents)),
+                Err(_) => val!(enum "None", )
+            }
+        }
+    }
+)
 }
 pub fn sequence_operations() -> Assoc<Name, TypedValue> {
     assoc_n!(
@@ -353,6 +379,13 @@ pub fn core_types() -> Assoc<Name, Ast> {
         .set(
             n("Bool"),
             ast!({"Type" "enum" : "name" => [@"c" "True", "False"], "component" => [@"c" [], []]}))
+        .set(
+            n("Option"),
+            ast!({ "Type" "forall_type" :
+                "param" => ["T"],
+                "body" => (import [* [forall "param"]]
+                    {"Type" "enum" : "name" => [@"c" "Some", "None"],
+                                     "component" => [@"c" [], [(vr "T")]]})}))
         .set(
             n("Unit"),
             ast!({"Type" "tuple" : "component" => []}))
