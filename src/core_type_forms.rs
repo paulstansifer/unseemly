@@ -107,7 +107,7 @@ pub fn get__primitive_type(called: Name) -> Ast {
 
 fn is_primitive(form: &Rc<Form>) -> bool { form == &primitive_type.with(|p_t| p_t.clone()) }
 
-pub fn make_core_syn_env_types() -> SynEnv {
+fn make_core_syn_env_types() -> SynEnv {
     // Regarding the value/type/kind hierarchy, Benjamin Pierce generously assures us that
     // "For programming languages ... three levels have proved sufficient."
 

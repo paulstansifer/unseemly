@@ -589,7 +589,9 @@ pub fn make_core_macro_forms() -> SynEnv {
         Rc::new(Form {
             name: n("scan"),
             grammar: Rc::new(form_pat!(
-                [(named "pat", (scan r"\s*/((?:[^/\\]|\\.)*)/"))]
+                (named "pat", (pick
+                    [(call "DefaultSeparator"), (named "pat", (scan r"/((?:[^/\\]|\\.)*)/"))],
+                    "pat"))
             )),
             type_compare: Both(NotWalked,NotWalked), // Not a type
             synth_type: Both(
