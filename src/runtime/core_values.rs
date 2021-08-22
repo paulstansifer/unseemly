@@ -344,6 +344,18 @@ fn make_core_typed_values() -> Assoc<Name, TypedValue> {
         tyf!( {"Type" "fn" : "param" => [ {"Type" "Int" :}, {"Type" "Int" :} ],
                              "ret" => (vr "Bool")},
               ( Int(a), Int(b) ) => val!(b a == b) ),
+        "and" =>
+        tyf!( {"Type" "fn" : "param" => [ (vr "Bool"), (vr "Bool") ],
+                            "ret" => (vr "Bool")},
+            ( Enum(lhs, _) , Enum(rhs, _)) => val!(b (lhs == n("True")) && (rhs == n("True"))) ),
+        "or" =>
+        tyf!( {"Type" "fn" : "param" => [ (vr "Bool"), (vr "Bool") ],
+                            "ret" => (vr "Bool")},
+            ( Enum(lhs, _) , Enum(rhs, _)) => val!(b (lhs == n("True")) || (rhs == n("True"))) ),
+        "not" =>
+        tyf!( {"Type" "fn" : "param" => [ (vr "Bool") ],
+                            "ret" => (vr "Bool")},
+            ( Enum(arg, _) ) => val!(b !(arg == n("True"))) ),
         "zero" => tf!( "Int", val!(i 0) ),
         "one" => tf!( "Int", val!(i 1) ),
         "two" => tf!( "Int", val!(i 2) ),
