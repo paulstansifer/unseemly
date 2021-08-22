@@ -480,7 +480,7 @@ checksum = "9337591893a19b88d8d87f2cec1e73fad5cdfd10e5a6f349f498ad6ea2ffb1e3"
 
 [[package]]
 name = "unseemly"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "color-backtrace",
  "custom_derive",

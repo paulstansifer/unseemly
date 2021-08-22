@@ -187,8 +187,10 @@ This is 50% because of Scheme,
     `[:::[,T, >> [T -> X]]::: -> Bool]` is `[ [A -> X] [B -> X] [Int -> X] -> Bool]`.
 
 ### Pre-defined types
-* `Int` is a built-in type.
+* `Int` and `String` are built-in types.
 * `Bool` is defined as `{ +[True]+  +[False]+ }`.
+* `Sequence<T>` is an ordered list of `T`s.
+* `Option<T>` is defined as `{ +[Some T]+ +[None]+ }`.
 
 ## Syntax
 * `lit ,{ Nt }, = 'arbitrary string'` is syntax for the exact text `arbitrary string`,
@@ -232,6 +234,11 @@ This is 50% because of Scheme,
   ```
   body := ( ,{Expr<T>}, ) <-- pat = value
   ```
+* `common ( Syntax )` indicates that `Syntax` should be treated as atomic for the purpose of
+  reporting parse errors.
+* `Syntax reserving = 'arbitrary_string' …` matches `Syntax` if it's not equal to any of the
+  `'arbitrary_string'`s.
+
 TODO: there's more syntax than this
 
 ### Pre-defined nonterminals
@@ -272,10 +279,14 @@ These are defined in `core_forms.rs`, and their definitions are relatively short
 
 *  `if_macro.unseemly` introduces `if expr then expr else expr` to the language.
 
-*  `build_a_language.unseemly` add comments, `let`, and function definitions to a language.
+*  `build_a_language.unseemly` add comments, `let`, numeric literals, and function definitions to a
+   language.
 
 *  `worked_example.unseemly` bootstraps a basic language,
-     and has a lot of comments explaining what's going on.
+   and has a lot of comments explaining what's going on.
+
+*  `sdl/sdl.unseemly` creates a very small and totally distinct domain language for representing 3D
+   scenes.
 
 *  `.unseemly_prelude` is intended to be copied to your home directory.
     It's automatically loaded by the REPL.

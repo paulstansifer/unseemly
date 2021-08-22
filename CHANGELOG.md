@@ -1,5 +1,13 @@
 ## Changelog
 
+## 0.0.2 - 2021-08-22
+### Added
+ - Added more builtin functions, and the `Option<T>` type.
+ - Added `common` and `reserving` to the syntax for grammars.
+### Fixed
+ - Fixed an erratic bug where `Form` identity was lost.
+ - Improved display of parse ambiguities.
+
 ## 0.0.1 - 2021-08-20
 ### Added
 - Added rudimentary multi-file program support.
