@@ -70,15 +70,16 @@ impl fmt::Debug for Beta {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Nothing => write!(f, "∅"),
-            Shadow(ref lhs, ref rhs) => write!(f, "({:#?} ▷ {:#?})", lhs, rhs),
+            Shadow(ref lhs, ref rhs) => write!(f, "({:?} ▷ {:?})", lhs, rhs),
             ShadowAll(ref sub_beta, ref drivers) => {
-                write!(f, "( {:#?} ▷ ... by {:#?})", sub_beta, drivers)
+                write!(f, "( {:?} ▷ ... by {})",
+                    sub_beta, drivers.iter().map(|name| name.print()).collect::<Vec<_>>().join(" "))
             }
-            Basic(ref name, ref ty) => write!(f, "{:#?}:{:#?}", name, ty),
-            SameAs(ref name, ref ty_source) => write!(f, "{:#?}={:#?}", name, ty_source),
-            BoundButNotUsable(ref name) => write!(f, "!{:#}", name),
-            Underspecified(ref name) => write!(f, "∀{:#?}", name),
-            Protected(ref name) => write!(f, "↫{:#?}", name),
+            Basic(ref name, ref ty) => write!(f, "{}:{}", name, ty),
+            SameAs(ref name, ref ty_source) => write!(f, "{}={}", name, ty_source),
+            BoundButNotUsable(ref name) => write!(f, "!{}", name),
+            Underspecified(ref name) => write!(f, "∀{}", name),
+            Protected(ref name) => write!(f, "↫{}", name),
         }
     }
 }
