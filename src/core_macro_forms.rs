@@ -424,7 +424,7 @@ pub fn make_core_macro_forms() -> SynEnv {
     // Most of "Syntax" is a negative walk (because it produces an environment),
     //  but lacking a `negative_ret_val`.
     let grammar_grammar = forms_to_form_pat_export![
-        syntax_syntax!( ( (delim "anyways,{", "{", (named "body", (call "Expr"))) ) Anyways (
+        syntax_syntax!( ( (delim "anyways{", "{", (named "body", (call "Expr"))) ) Anyways (
             body => Ast::reflect(&body)
         )) => ["body"],
         // HACK: expanding to `'[Expr| capture_language]'` doesn't do what you want, so do this:
@@ -440,6 +440,20 @@ pub fn make_core_macro_forms() -> SynEnv {
             quasiquote: Both(LiteralLike, LiteralLike)
         }) => [],
         syntax_syntax!( ((lit "impossible")) Impossible ) => [],
+        syntax_syntax!( ([(named "body", (call "Syntax")), (lit "reserving"),
+                (star (named "words", (scan r"\s*'((?:[^'\\]|\\'|\\\\)*)'")))
+            ]) Reserved {
+        |parts| {
+            parts.get_res(n("body"))
+        }
+        } {
+        |parts| {
+            Ok(Reserved(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?)),
+                parts.get_rep_term(n("words")).iter().map(Ast::to_name).collect::<Vec<_>>()
+            ).reify())
+            }
+        }) => ["body"],
+
         syntax_syntax!( (  // TODO: this might have to be both positive and negative
             [(lit "lit"), (named "body", (call "Syntax")),
              // Allow \\ and \' as escapes:
@@ -457,10 +471,6 @@ pub fn make_core_macro_forms() -> SynEnv {
             }
         }) => [],
         syntax_syntax!( ([(lit "vr"), (delim "(", "(", (named "body", (call "Syntax")))]) VarRef (
-            body => Rc::new(FormPat::reflect(&body))
-        )) => [],
-        syntax_syntax!( ([(lit "common"), (delim "(", "(", (named "body", (call "Syntax")))]) Common
-        (
             body => Rc::new(FormPat::reflect(&body))
         )) => [],
         // TODO: split out a separate SyntaxSeq, so that we can get rid of the [ ] delimiters
@@ -497,19 +507,6 @@ pub fn make_core_macro_forms() -> SynEnv {
         } {
             |parts| {
                 Ok(Plus(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?))).reify())
-            }
-        }) => ["body"],
-        syntax_syntax!( ([(named "body", (call "Syntax")), (lit "reserving"),
-                          (star (named "words", (scan r"\s*'((?:[^'\\]|\\'|\\\\)*)'")))
-                         ]) Reserved {
-            |parts| {
-                parts.get_res(n("body"))
-            }
-        } {
-            |parts| {
-                Ok(Reserved(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?)),
-                   parts.get_rep_term(n("words")).iter().map(Ast::to_name).collect::<Vec<_>>()
-                ).reify())
             }
         }) => ["body"],
         // TODO: support seprators, and add a separator here
@@ -602,6 +599,20 @@ pub fn make_core_macro_forms() -> SynEnv {
                 let regex = parts.get_term(n("pat")).to_name().orig_sp()
                     .replace(r#"\/"#, r#"/"#);
                 Ok(crate::grammar::new_scan(&regex).reify())
+            })),
+            quasiquote: Both(LiteralLike, LiteralLike)
+        }) => [],
+        // `Common` can be positive or negative (may be under a `Named`)
+        Rc::new(Form {
+            name: n("common"),
+            grammar: Rc::new(form_pat!(
+                [(lit "common"), (delim "(", "(", (named "body", (call "Syntax")))])),
+            type_compare: Both(NotWalked,NotWalked), // Not a type
+            synth_type: Both(
+                cust_rc_box!(|parts| { parts.get_res(n("body")) }),
+                cust_rc_box!(|parts| { parts.get_res(n("body")) })),
+            eval: Positive(cust_rc_box!(|parts| {
+                Ok(Common(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?))).reify())
             })),
             quasiquote: Both(LiteralLike, LiteralLike)
         }) => [],

@@ -121,7 +121,7 @@ extend_syntax
     Expr ::=also
         forall . '{
             # Awkward `pick` stuff just to have and then throw away `DefaultSeparator`:
-            digit_string := (pick tok in [,{DefaultSeparator}, tok := (/([0-9]+)/) ])
+            digit_string := (common (pick tok in [,{DefaultSeparator}, tok := (/([0-9]+)/) ]))
         }' base_ten_literal -> .{
             let number = (new_cell zero) ; in
             -{
