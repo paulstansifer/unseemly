@@ -23,122 +23,122 @@ pub fn erase_type(tv: &TypedValue) -> Value { tv.val.clone() }
 pub fn erase_value(tv: &TypedValue) -> Ast { tv.ty.clone() }
 pub fn string_operations() -> Assoc<Name, TypedValue> {
     assoc_n!(
-    "string_to_sequence" => tyf! {
-        {"Type" "fn" :
-            "param" => [{"Type" "String" :}],
-            "ret" => { "Type" "type_apply" :
-                "type_rator" => (vr "Sequence"), "arg" => [{"Type" "Int" :}]}
+        "string_to_sequence" => tyf! {
+            {"Type" "fn" :
+                "param" => [{"Type" "String" :}],
+                "ret" => { "Type" "type_apply" :
+                    "type_rator" => (vr "Sequence"), "arg" => [{"Type" "Int" :}]}
+            },
+            (Text(s)) =>
+                Sequence(s.chars().map(|c: char| Rc::new(Int(BigInt::from(c as u32)))).collect())
         },
-        (Text(s)) =>
-            Sequence(s.chars().map(|c: char| Rc::new(Int(BigInt::from(c as u32)))).collect())
-    },
-    "anything_to_string" => tyf!{ { "Type" "forall_type" :
-        "param" => ["T"],
-        "body" => (import [* [forall "param"]] { "Type" "fn" :
-            "param" => [(vr "T")],
-            "ret" => {"Type" "String" :}})},
-        (anything) => Text(format!("{}", anything)) },
-    "ident_to_string" => tyf! {
-        {"Type" "fn" :
-            "param" => [{"Type" "Ident" :}],
-            "ret" => {"Type" "String" :}
-        },
-        (AbstractSyntax(Ast::Atom(name))) => Text(name.orig_sp())},
-    "concat" => tyf! {
-        {"Type" "fn" :
-            "param" => [{"Type" "String" :}, {"Type" "String" :}],
-            "ret" => {"Type" "String" :}
-        },
-        (Text(lhs), Text(rhs)) => Text(format!("{}{}", lhs, rhs))},
-    "replace" => tyf! {
-        {"Type" "fn" :
-            "param" => [{"Type" "String" :}, {"Type" "String" :}, {"Type" "String" :}],
-            "ret" => {"Type" "String" :}
-        },
-        (Text(body), Text(old), Text(new)) => Text(body.replace(&old, &new))},
-    "contains?" => tyf! {
-        {"Type" "fn" :
-            "param" => [{"Type" "String" :}, {"Type" "String" :}],
-            "ret" => (vr "Bool")
-        },
-        (Text(lhs), Text(rhs)) => val!(b lhs.contains(&rhs))},
-    "join" => tyf! {
-        {"Type" "fn" :
-            "param" => [{"Type" "type_apply" : "type_rator" => (vr "Sequence"),
-                                               "arg" => [{"Type" "String" :}]},
-                        {"Type" "String" :}],
-            "ret" => {"Type" "String" :}
-        },
-        (Sequence(seq), Text(joiner)) => {
-            let mut buf = String::new();
-            let mut first = true;
-            for elt in seq {
-                if !first {
-                    buf.push_str(&joiner);
+        "anything_to_string" => tyf!{ { "Type" "forall_type" :
+            "param" => ["T"],
+            "body" => (import [* [forall "param"]] { "Type" "fn" :
+                "param" => [(vr "T")],
+                "ret" => {"Type" "String" :}})},
+            (anything) => Text(format!("{}", anything)) },
+        "ident_to_string" => tyf! {
+            {"Type" "fn" :
+                "param" => [{"Type" "Ident" :}],
+                "ret" => {"Type" "String" :}
+            },
+            (AbstractSyntax(Ast::Atom(name))) => Text(name.orig_sp())},
+        "concat" => tyf! {
+            {"Type" "fn" :
+                "param" => [{"Type" "String" :}, {"Type" "String" :}],
+                "ret" => {"Type" "String" :}
+            },
+            (Text(lhs), Text(rhs)) => Text(format!("{}{}", lhs, rhs))},
+        "replace" => tyf! {
+            {"Type" "fn" :
+                "param" => [{"Type" "String" :}, {"Type" "String" :}, {"Type" "String" :}],
+                "ret" => {"Type" "String" :}
+            },
+            (Text(body), Text(old), Text(new)) => Text(body.replace(&old, &new))},
+        "contains?" => tyf! {
+            {"Type" "fn" :
+                "param" => [{"Type" "String" :}, {"Type" "String" :}],
+                "ret" => (vr "Bool")
+            },
+            (Text(lhs), Text(rhs)) => val!(b lhs.contains(&rhs))},
+        "join" => tyf! {
+            {"Type" "fn" :
+                "param" => [{"Type" "type_apply" : "type_rator" => (vr "Sequence"),
+                                                   "arg" => [{"Type" "String" :}]},
+                            {"Type" "String" :}],
+                "ret" => {"Type" "String" :}
+            },
+            (Sequence(seq), Text(joiner)) => {
+                let mut buf = String::new();
+                let mut first = true;
+                for elt in seq {
+                    if !first {
+                        buf.push_str(&joiner);
+                    }
+                    first = false;
+                    if let Text(ref str_elt) = *elt {
+                        buf.push_str(str_elt);
+                    }
                 }
-                first = false;
-                if let Text(ref str_elt) = *elt {
-                    buf.push_str(str_elt);
-                }
-            }
-            Text(buf)
-        }},
-    "read_file" => tyf! {
-        {"Type" "fn" :
-            "param" => [{"Type" "String" :}],
-            "ret" => {"Type" "String" :}
-        },
-        (Text(filename)) => {
-            let mut contents = String::new();
+                Text(buf)
+            }},
+        "read_file" => tyf! {
+            {"Type" "fn" :
+                "param" => [{"Type" "String" :}],
+                "ret" => {"Type" "String" :}
+            },
+            (Text(filename)) => {
+                let mut contents = String::new();
 
-            use std::io::Read;
-            std::fs::File::open(std::path::Path::new(&filename))
-                .expect("Error opening file")
-                .read_to_string(&mut contents)
-                .expect("Error reading file");
-            Text(contents)
-        }},
-    "write_file" => tyf! {
-        {"Type" "fn" :
-            "param" => [{"Type" "String" :}, {"Type" "String" :}],
-            "ret" => (vr "Unit")
+                use std::io::Read;
+                std::fs::File::open(std::path::Path::new(&filename))
+                    .expect("Error opening file")
+                    .read_to_string(&mut contents)
+                    .expect("Error reading file");
+                Text(contents)
+            }},
+        "write_file" => tyf! {
+            {"Type" "fn" :
+                "param" => [{"Type" "String" :}, {"Type" "String" :}],
+                "ret" => (vr "Unit")
+            },
+            (Text(filename), Text(contents)) => {
+                std::fs::write(filename, contents).expect("Error writing file");
+                Sequence(vec![])
+            }},
+        "os_command" => tyf! {
+            {"Type" "fn" :
+                "param" => [
+                    {"Type" "String" :},
+                    {"Type" "type_apply" :
+                        "type_rator" => (vr "Sequence"),
+                        "arg" => [{"Type" "String" :}]
+                }],
+                "ret" => {"Type" "String" :}
+            },
+            (Text(command_name), Sequence(args)) => {
+                Text(std::str::from_utf8(&std::process::Command::new(&command_name)
+                    .args(args.iter().map(|arg| match &**arg { Text(str_arg) => str_arg, _ => icp!()}))
+                    .output()
+                    .expect("process failure")
+                    .stdout).unwrap().to_string())
+            }
         },
-        (Text(filename), Text(contents)) => {
-            std::fs::write(filename, contents).expect("Error writing file");
-            Sequence(vec![])
-        }},
-    "os_command" => tyf! {
-        {"Type" "fn" :
-            "param" => [
-                {"Type" "String" :},
-                {"Type" "type_apply" :
-                    "type_rator" => (vr "Sequence"),
-                    "arg" => [{"Type" "String" :}]
-            }],
-            "ret" => {"Type" "String" :}
-        },
-        (Text(command_name), Sequence(args)) => {
-            Text(std::str::from_utf8(&std::process::Command::new(&command_name)
-                .args(args.iter().map(|arg| match &**arg { Text(str_arg) => str_arg, _ => icp!()}))
-                .output()
-                .expect("process failure")
-                .stdout).unwrap().to_string())
-        }
-    },
-    "env_var" => tyf! {
-        {"Type" "fn" :
-            "param" => [{"Type" "String" :}],
-            "ret" => {"Type" "type_apply" :
-               "type_rator" => (vr "Option"),
-                "arg" => [{"Type" "String" :}]}},
-        (Text(env_var)) => {
-            match std::env::var(&env_var) {
-                Ok(contents) => val!(enum "Some", (s contents)),
-                Err(_) => val!(enum "None", )
+        "env_var" => tyf! {
+            {"Type" "fn" :
+                "param" => [{"Type" "String" :}],
+                "ret" => {"Type" "type_apply" :
+                   "type_rator" => (vr "Option"),
+                    "arg" => [{"Type" "String" :}]}},
+            (Text(env_var)) => {
+                match std::env::var(&env_var) {
+                    Ok(contents) => val!(enum "Some", (s contents)),
+                    Err(_) => val!(enum "None", )
+                }
             }
         }
-    }
-)
+    )
 }
 pub fn sequence_operations() -> Assoc<Name, TypedValue> {
     assoc_n!(

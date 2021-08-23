@@ -434,7 +434,8 @@ pub fn make_core_macro_forms() -> SynEnv {
             type_compare: Both(NotWalked, NotWalked),
             synth_type: Negative(cust_rc_box!(|_| Ok(Assoc::new()))),
             eval: Positive(cust_rc_box!(move |_| {
-                Ok(FormPat::Scope(capture_language_form.clone(), crate::beta::ExportBeta::Nothing).reify())
+                Ok(FormPat::Scope(capture_language_form.clone(),
+                                  crate::beta::ExportBeta::Nothing).reify())
             })),
             quasiquote: Both(LiteralLike, LiteralLike)
         }) => [],
