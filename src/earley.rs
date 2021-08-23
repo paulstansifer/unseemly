@@ -525,8 +525,16 @@ impl Item {
             if let Call(_) = *res[0].0.rule {
                 // HACK: I think that `Call` is uninformative
             } else if !self.common {
-                best_token
-                    .with(|bt| *bt.borrow_mut() = (cur_idx, res[0].0.rule.clone(), res[0].0.pos));
+                // Possibly set the high-water mark for parse error purposes:
+                best_token.with(|bt| {
+                    if cur_idx > bt.borrow().0 {
+                        // We've parsed further than ever before
+                        *bt.borrow_mut() = (cur_idx, res[0].0.rule.clone(), res[0].0.pos)
+                    } else if cur_idx == bt.borrow().0 && res[0].0.pos > bt.borrow().2 {
+                        // We're deeper into a rule than ever before
+                        *bt.borrow_mut() = (cur_idx, res[0].0.rule.clone(), res[0].0.pos)
+                    }
+                });
             }
         }
 
@@ -827,7 +835,12 @@ pub struct ParseError {
 }
 
 pub fn parse(rule: &FormPat, pc: ParseContext, toks: &str) -> ParseResult {
-    best_token.with(|bt| *bt.borrow_mut() = (0, Rc::new(rule.clone()), 0));
+    // `parse` gets called recursively, so stash our mutable state:
+    let orig_best_token = best_token.with(|bt| {
+        let orig = bt.borrow().clone();
+        *bt.borrow_mut() = (0, Rc::new(rule.clone()), 0);
+        orig
+    });
 
     let (start_but_startier, chart) = create_chart(Rc::new(rule.clone()), pc, toks);
     let final_item = chart[chart.len() - 1].iter().find(|item| {
@@ -835,7 +848,7 @@ pub fn parse(rule: &FormPat, pc: ParseContext, toks: &str) -> ParseResult {
             && *item.done.borrow()
     });
     log!("-------\n");
-    match final_item {
+    let result = match final_item {
         Some(i) => i.c_parse(&chart, chart.len() - 1),
         None => best_token.with(|bt| {
             let (idx, ref grammar, pos) = *bt.borrow();
@@ -854,7 +867,11 @@ pub fn parse(rule: &FormPat, pc: ParseContext, toks: &str) -> ParseResult {
                 ),
             })
         }),
-    }
+    };
+
+    best_token.with(|bt| *bt.borrow_mut() = orig_best_token); // unstash
+
+    result
 }
 
 pub fn parse_in_syn_env(rule: &FormPat, syn_env: SynEnv, toks: &str) -> ParseResult {
