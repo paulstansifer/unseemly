@@ -846,12 +846,11 @@ pub fn parse(rule: &FormPat, pc: ParseContext, toks: &str) -> ParseResult {
 
             Err(ParseError {
                 msg: format!(
-                    "Could not parse past “{}•{}” (on line {}) \nin rule {:?} at {}",
+                    "Could not parse past “{}•{}” (on line {}) \nin rule {}",
                     &toks[line_begin..idx],
                     &toks[idx..line_end],
                     line_number,
-                    grammar,
-                    pos
+                    grammar.mark_up(Some(pos)),
                 ),
             })
         }),
