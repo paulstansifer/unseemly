@@ -102,7 +102,7 @@ impl FormPat {
             Reserved(ref body, ref names) =>
                 format!("{} reserving {}", body,
                     names.iter().map(|name| format!("'{}'", name)).collect::<Vec<_>>().join(" ")),
-            Literal(ref body, name) => format!("lit {} = '{}'", body, name),
+            Literal(ref _body, name) => format!("\x1b[1;38m{}\x1b[0m", name),
             VarRef(ref body) => format!("vr ({})", body),
             Seq(ref elts) => {
                 let mut formatted_elts =
