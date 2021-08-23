@@ -47,6 +47,29 @@ extend_syntax
     }. ;
 in
 extend_syntax
+    ### Introduce `reclet` expressions.
+    Expr ::=also
+        forall T S . '{ [
+            lit ,{ DefaultToken }, = 'reclet'
+            pat := ( ,{ Pat<S> }, )
+            lit ,{ DefaultToken }, = '='
+            val := ( ,{ Expr<S> }, <-- pat = val )
+            lit ,{ DefaultToken }, = ';'
+            lit ,{ DefaultToken }, = 'in'
+            body := ( ,{ Expr<T> }, <-- pat = val )
+        ] }' reclet_macro -> .{
+            '[Expr |
+                let opt = (new_cell fold +[None]+ : {+[Some ,[prefab_type S],]+ +[None]+} : Option< ,[prefab_type S], >);
+                in
+                    -{
+                        (assign opt fold +[Some ,[val],]+ : {+[Some ,[prefab_type S],]+ +[None]+} : Option< ,[prefab_type S], >);
+                        match unfold (value opt) {
+                            +[Some ,[pat],]+ => ,[body],
+                        }
+                    }- ]'
+        }. ;
+in
+extend_syntax
     ### Introduce `letfn` for defining 1-argument functions.
     # Currently, `...[]...` can only be put around a whole expression/pattern/type (issue #38),
     #  so, one has to make a separate macro for each number of arguments.
@@ -119,9 +142,9 @@ in
 extend_syntax
     ### Add numeric literals.
     Expr ::=also
-        forall . '{
+        common (forall . '{
             # Awkward `pick` stuff just to have and then throw away `DefaultSeparator`:
-            digit_string := (common (pick tok in [,{DefaultSeparator}, tok := (/([0-9]+)/) ]))
+            digit_string := (pick tok in [,{DefaultSeparator}, tok := (/([0-9]+)/) ])
         }' base_ten_literal -> .{
             let number = (new_cell zero) ; in
             -{
@@ -131,6 +154,6 @@ extend_syntax
                                          (minus digit (plus (times ten four) eight)))) ;
                 (prefab (value number))
             }-
-        }. ;
+        }.) ;
 in
 capture_language

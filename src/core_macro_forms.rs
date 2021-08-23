@@ -615,7 +615,7 @@ pub fn make_core_macro_forms() -> SynEnv {
                 Ok(Common(Rc::new(FormPat::reflect(&parts.get_res(n("body"))?))).reify())
             })),
             quasiquote: Both(LiteralLike, LiteralLike)
-        }) => [],
+        }) => ["body"],
         // `Import` is positive (has to be under a `Named`)
         Rc::new(Form {
             name: n("import"),
