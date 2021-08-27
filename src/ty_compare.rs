@@ -109,16 +109,16 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 pub fn resolve(Clo { it: t, env }: Clo<Ast>, unif: &HashMap<Name, Clo<Ast>>) -> Clo<Ast> {
     let u_f = underdetermined_form.with(|u_f| u_f.clone());
 
-    let resolved = match t {
+    let resolved = match t.c() {
         VariableReference(vr) => {
-            match env.find(&vr).cloned() {
+            match env.find(vr) {
                 // HACK: leave mu-protected variables alone, instead of recurring forever
-                Some(VariableReference(new_vr)) if vr == new_vr => None,
-                Some(different) => Some(Clo { it: different, env: env.clone() }),
+                Some(vr_ast) if vr_ast.c() == &VariableReference(*vr) => None,
+                Some(different) => Some(Clo { it: different.clone(), env: env.clone() }),
                 None => None,
             }
         }
-        Node(ref form, ref parts, _) if form == &find_core_form("Type", "type_apply") => {
+        Node(form, parts, _) if form == &find_core_form("Type", "type_apply") => {
             // Expand defined type applications.
             // This is sorta similar to the type synthesis for "type_apply",
             //  but it does not recursively process the arguments (which may be underdetermined!).
@@ -130,7 +130,11 @@ pub fn resolve(Clo { it: t, env }: Clo<Ast>, unif: &HashMap<Name, Clo<Ast>>) -> 
             );
 
             match resolved {
-                Clo { it: VariableReference(rator_vr), env } => {
+                Clo { it: vr_ast, env } if matches!(vr_ast.c(), VariableReference(_)) => {
+                    let rator_vr = match vr_ast.c() {
+                        VariableReference(rator_vr) => *rator_vr,
+                        _ => icp!(),
+                    };
                     // e.g. `X<int, Y>` underneath `mu X. ...`
 
                     // Rebuild a type_apply, but evaulate its arguments
@@ -139,9 +143,8 @@ pub fn resolve(Clo { it: t, env }: Clo<Ast>, unif: &HashMap<Name, Clo<Ast>>) -> 
                     // In System F, this is avoided by performing capture-avoiding substitution.
                     use crate::util::mbe::EnvMBE;
 
-                    let mut new__tapp_parts = EnvMBE::new_from_leaves(
-                        assoc_n!("type_rator" => VariableReference(rator_vr)),
-                    );
+                    let mut new__tapp_parts =
+                        EnvMBE::new_from_leaves(assoc_n!("type_rator" => ast!((vr rator_vr))));
 
                     let mut args = vec![];
                     for individual__arg_res in arg_terms {
@@ -151,11 +154,11 @@ pub fn resolve(Clo { it: t, env }: Clo<Ast>, unif: &HashMap<Name, Clo<Ast>>) -> 
                     }
                     new__tapp_parts.add_anon_repeat(args);
 
-                    let res = Node(
+                    let res = raw_ast!(Node(
                         find_core_form("Type", "type_apply"),
                         new__tapp_parts,
-                        crate::beta::ExportBeta::Nothing,
-                    );
+                        crate::beta::ExportBeta::Nothing
+                    ));
 
                     if res != t {
                         Some(Clo { it: res, env: env })
@@ -261,14 +264,14 @@ impl WalkMode for Canonicalize {
     fn walk_var(n: Name, cnc: &LazyWalkReses<Canonicalize>) -> Result<Ast, TyErr> {
         match cnc.env.find(&n) {
             // If it's protected, stop:
-            Some(t) if &VariableReference(n) == t => Ok(t.clone()),
+            Some(t) if &VariableReference(n) == t.c() => Ok(t.clone()),
             Some(t) => canonicalize(t, cnc.env.clone()),
-            None => Ok(VariableReference(n)), // TODO why can this happen?
+            None => Ok(ast!((vr n))), // TODO why can this happen?
         }
     }
 
     // Simply protect the name; don't try to unify it.
-    fn underspecified(name: Name) -> Ast { VariableReference(name) }
+    fn underspecified(nm: Name) -> Ast { ast!((vr nm)) }
 }
 
 fn splice_ddd(
@@ -365,19 +368,20 @@ impl WalkMode for Subtype {
         underdetermined_form.with(|u_f| {
             let new_name = Name::gensym(&format!("{}⚁", name));
 
-            ast!({ u_f.clone() ; "id" => (, Atom(new_name))})
+            ast!({ u_f.clone() ; "id" => (at new_name)})
         })
     }
 
     /// Look up the reference and keep going.
     fn walk_var(n: Name, cnc: &LazyWalkReses<Subtype>) -> Result<Assoc<Name, Ast>, TyErr> {
         let lhs: &Ast = cnc.env.find_or_panic(&n);
-        if lhs == &VariableReference(n) {
+        if lhs.c() == &VariableReference(n) {
             // mu-protected!
-            return match cnc.context_elt() {
+            return if cnc.context_elt().c() == &VariableReference(n) {
                 // mu-protected type variables have to exactly match by name:
-                &VariableReference(other_n) if other_n == n => Ok(Assoc::new()),
-                different => Err(TyErr::Mismatch(different.clone(), lhs.clone())),
+                Ok(Assoc::new())
+            } else {
+                Err(TyErr::Mismatch(cnc.context_elt().clone(), lhs.clone()))
             };
         }
         walk::<Subtype>(lhs, cnc)
@@ -420,13 +424,13 @@ impl crate::walk_mode::NegativeWalkMode for Subtype {
             let lhs: Clo<Ast> = resolve(Clo { it: lhs_ty, env: env.clone() }, &unif.borrow());
             let rhs: Clo<Ast> = resolve(Clo { it: rhs_ty, env: env.clone() }, &unif.borrow());
 
-            let lhs_name = lhs.it.ty_destructure(u_f.clone(), &Trivial).map(
+            let lhs_name = lhs.it.ty_destructure(u_f.clone(), &ast!((trivial))).map(
                 // errors get swallowed ↓
                 |p| p.get_leaf_or_panic(&n("id")).to_name(),
             );
             let rhs_name = rhs
                 .it
-                .ty_destructure(u_f.clone(), &Trivial)
+                .ty_destructure(u_f.clone(), &ast!((trivial)))
                 .map(|p| p.get_leaf_or_panic(&n("id")).to_name());
 
             match (lhs_name, rhs_name) {

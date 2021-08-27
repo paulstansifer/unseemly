@@ -26,16 +26,16 @@ use std::rc::Rc; // type forms are kinda bulky
 /// This is safe if directly inside a `Node` that was just freshened.
 /// (TODO: think about what "just" means here. It's super-subtle!)
 pub fn strip_ee(a: &Ast) -> &Ast {
-    match *a {
-        ExtendEnv(ref body, _) => (&**body),
-        ExtendEnvPhaseless(ref body, _) => (&**body),
+    match a.c() {
+        ExtendEnv(body, _) => (&*body),
+        ExtendEnvPhaseless(body, _) => (&*body),
         _ => icp!("Not an EE"),
     }
 }
 
 pub fn strip_ql(a: &Ast) -> &Ast {
-    match a {
-        QuoteLess(ref body, _) => &**body,
+    match a.c() {
+        QuoteLess(body, _) => &*body,
         _ => icp!("Not an unquote"),
     }
 }
@@ -123,7 +123,7 @@ fn type_match(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
         None => {
             // TODO #2: this isn't anywhere near exhaustive
             ty_err!(NonExhaustiveMatch(part_types.get_res(n("scrutinee")).unwrap())
-                at Trivial /* TODO */)
+                at ast!((trivial)) /* TODO */)
         }
         Some(ty_res) => Ok(ty_res),
     }
@@ -216,7 +216,7 @@ fn type_unfold(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
     mu_parts;
     {
         // This acts like the `mu` was never there (and hiding the binding)
-        if let ExtendEnv(ref body, _) = *mu_parts.get_leaf_or_panic(&n("body")) {
+        if let ExtendEnv(body, _) = mu_parts.get_leaf_or_panic(&n("body")).c() {
             synth_type(body, part_types.env)
         } else { icp!("no protection to remove!"); }
     })
@@ -232,7 +232,7 @@ fn type_fold(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
     mu_parts;
     {
         // This acts like the `mu` was never there (and hiding the binding)
-        if let ExtendEnv(ref body, _) = *mu_parts.get_leaf_or_panic(&n("body")) {
+        if let ExtendEnv(ref body, _) = mu_parts.get_leaf_or_panic(&n("body")).c() {
             synth_type(body, part_types.env.clone())?
         } else {
             icp!("no protection to remove!");
@@ -376,7 +376,7 @@ pub fn make_core_syn_env() -> SynEnv {
                             return Ok(res);
                         }
                         ty_err!(NonexistentEnumArm(arm_name.to_name(),
-                            Trivial) /* TODO `LazyWalkReses` needs more information */
+                            ast!((trivial))) /* TODO `LazyWalkReses` needs more information */
                             at arm_name.clone())
                 }
             )),

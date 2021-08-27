@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Ast, Ast::*},
+    ast::{Ast, AstContents::*},
     ast_walk::{LazyWalkReses, WalkRule::*},
     core_forms::outermost_form,
     core_type_forms::get__primitive_type,
@@ -16,7 +16,7 @@ pub fn extend__capture_language(
 ) -> crate::earley::ParseContext {
     crate::earley::ParseContext {
         grammar: assoc_n!("OnlyNt" =>
-            Rc::new(FormPat::Named(n("body"), Rc::new(FormPat::Anyways(Node(
+            Rc::new(FormPat::Named(n("body"), Rc::new(FormPat::Anyways(raw_ast!(Node(
                 basic_typed_form!(
                     [], // No syntax
                     cust_rc_box!(|parts| {
@@ -25,12 +25,12 @@ pub fn extend__capture_language(
 
                         for (k, v) in parts.env.iter_pairs() {
                             struct_body.push(EnvMBE::new_from_leaves(assoc_n!(
-                                "component_name" => Atom(*k),
+                                "component_name" => ast!((at *k)),
                                 "component" => v.clone()
                             )))
                         }
 
-                        // HACK: Anything extra in the prelude is phaseless.
+                        // HACK: Anything that was added to the prelude is phaseless.
                         let phaseless_env = parts.prelude_env.cut_common(
                             &crate::runtime::core_values::core_types());
 
@@ -38,7 +38,7 @@ pub fn extend__capture_language(
 
                         for (k, v) in phaseless_env.iter_pairs() {
                             struct_body__phaseless.push(EnvMBE::new_from_leaves(assoc_n!(
-                                "component_name" => Atom(*k),
+                                "component_name" => ast!((at *k)),
                                 "component" => v.clone()
                             )))
                         }
@@ -46,12 +46,12 @@ pub fn extend__capture_language(
                         Ok(ast!({"Type" "tuple" :
                             "component" => [
                                 (, get__primitive_type(n("LanguageSyntax"))),
-                                (, Node(crate::core_forms::find("Type", "struct"),
+                                (, raw_ast!(Node(crate::core_forms::find("Type", "struct"),
                                      EnvMBE::new_from_anon_repeat(struct_body),
-                                     crate::beta::ExportBeta::Nothing)),
-                                (, Node(crate::core_forms::find("Type", "struct"),
+                                     crate::beta::ExportBeta::Nothing))),
+                                (, raw_ast!(Node(crate::core_forms::find("Type", "struct"),
                                      EnvMBE::new_from_anon_repeat(struct_body__phaseless),
-                                     crate::beta::ExportBeta::Nothing))]
+                                     crate::beta::ExportBeta::Nothing)))]
                         }))}),
                     cust_rc_box!(move |parts| {
                         Ok(Value::Sequence(vec![
@@ -63,7 +63,7 @@ pub fn extend__capture_language(
                 ),
             EnvMBE::<Ast>::new(),
             crate::beta::ExportBeta::Nothing
-        )))))),
+        ))))))),
         // We can't just squirrel `reified_language` here:
         //  these only affect earlier phases, and we need the language in phase 0
         eval_ctxt: LazyWalkReses::<crate::runtime::eval::Eval>::new_empty(),
@@ -159,9 +159,9 @@ fn extend_import(
     _pc: crate::earley::ParseContext,
     starter_info: Ast,
 ) -> crate::earley::ParseContext {
-    let filename = match starter_info {
+    let filename = match starter_info.c() {
         // Skip "import" and the separator:
-        Shape(ref parts) => match parts[2] {
+        Shape(ref parts) => match parts[2].c() {
             IncompleteNode(ref parts) => {
                 parts.get_leaf_or_panic(&n("filename")).to_name().orig_sp()
             }

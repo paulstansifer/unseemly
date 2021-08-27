@@ -10,20 +10,20 @@ use crate::{
     name::*,
     util::mbe::EnvMBE,
 };
-use std::{fmt, iter};
+use std::{fmt, iter, rc::Rc};
 
 // TODO: This really ought to be an `Rc` around an `enum`
 #[derive(Clone, PartialEq)]
-pub enum Ast {
+pub enum AstContents {
     Trivial,
     /// Typically, a binder
     Atom(Name),
     VariableReference(Name),
 
     /// Shift environment to quote more (the `bool` indicates whether it's positive or negative)
-    QuoteMore(Box<Ast>, bool),
+    QuoteMore(Ast, bool),
     /// Shift environment to quote less (the `u8` indicates the number of steps out)
-    QuoteLess(Box<Ast>, u8),
+    QuoteLess(Ast, u8),
 
     /// A meaningful chunk of syntax, governed by a form, containing an environment,
     ///  potentially exporting some names.
@@ -35,10 +35,27 @@ pub enum Ast {
     Shape(Vec<Ast>),
 
     /// Variable binding
-    ExtendEnv(Box<Ast>, Beta),
+    ExtendEnv(Ast, Beta),
     /// Variable binding, affects all phases.
     /// This is weird, but needed for marcos, it seems.
-    ExtendEnvPhaseless(Box<Ast>, Beta),
+    ExtendEnvPhaseless(Ast, Beta),
+}
+
+#[derive(Clone, PartialEq)]
+pub struct LocatedAst {
+    /// "contents"
+    pub c: AstContents,
+    pub filename: usize,
+    pub begin: usize,
+    pub end: usize,
+}
+
+#[derive(Clone)]
+pub struct Ast(pub Rc<LocatedAst>);
+
+// For testing purposes, we want to ignore span information
+impl PartialEq for Ast {
+    fn eq(&self, other: &Ast) -> bool { self.c() == other.c() }
 }
 
 // Reification macros would totally work for this,
@@ -55,15 +72,19 @@ impl crate::runtime::reify::Reifiable for Ast {
     }
 }
 
-pub use self::Ast::*;
+pub use self::AstContents::*;
 
 impl fmt::Debug for Ast {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{:#?}", self.c()) }
+}
+
+impl fmt::Debug for AstContents {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
+        match self {
             Trivial => write!(f, "⨉"),
-            Atom(ref n) => write!(f, "∘{}∘", n.print()),
-            VariableReference(ref v) => write!(f, "{}", v.print()),
-            Shape(ref v) => {
+            Atom(n) => write!(f, "∘{}∘", n.print()),
+            VariableReference(v) => write!(f, "{}", v.print()),
+            Shape(v) => {
                 write!(f, "(")?;
                 let mut first = true;
                 for elt in v {
@@ -75,7 +96,7 @@ impl fmt::Debug for Ast {
                 }
                 write!(f, ")")
             }
-            Node(ref form, ref body, ref export) => {
+            Node(form, body, export) => {
                 write!(f, "{{ ({}); {:#?}", form.name.sp(), body)?;
                 match *export {
                     crate::beta::ExportBeta::Nothing => {}
@@ -83,25 +104,29 @@ impl fmt::Debug for Ast {
                 }
                 write!(f, "}}")
             }
-            QuoteMore(ref body, pos) => {
-                if pos {
+            QuoteMore(body, pos) => {
+                if *pos {
                     write!(f, "pos``{:#?}``", body)
                 } else {
                     write!(f, "neg``{:#?}``", body)
                 }
             }
-            QuoteLess(ref body, depth) => write!(f, ",,({}){:#?},,", depth, body),
-            IncompleteNode(ref body) => write!(f, "{{ INCOMPLETE; {:#?} }}", body),
-            ExtendEnv(ref body, ref beta) => write!(f, "{:#?}↓{:#?}", body, beta),
-            ExtendEnvPhaseless(ref body, ref beta) => write!(f, "{:#?}±↓{:#?}", body, beta),
+            QuoteLess(body, depth) => write!(f, ",,({}){:#?},,", depth, body),
+            IncompleteNode(body) => write!(f, "{{ INCOMPLETE; {:#?} }}", body),
+            ExtendEnv(body, beta) => write!(f, "{:#?}↓{:#?}", body, beta),
+            ExtendEnvPhaseless(body, beta) => write!(f, "{:#?}±↓{:#?}", body, beta),
         }
     }
 }
 
 // Warning: this assumes the core language! To properly display an `Ast`, you need the `SynEnv`.
 impl fmt::Display for Ast {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{}", self.c()) }
+}
+
+impl fmt::Display for AstContents {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
+        match self {
             Atom(ref n) => write!(f, "{}", n.print()),
             VariableReference(ref v) => write!(f, "{}", v.print()),
             Node(ref form, ref body, _) => {
@@ -132,9 +157,25 @@ impl fmt::Display for Ast {
 }
 
 impl Ast {
+    /// "Contents". Ignore location information and get the interesting bits
+    pub fn c(&self) -> &AstContents { &self.0.c }
+
+    /// Replace the contents.
+    pub fn c_map(&self, f: &dyn Fn(&AstContents) -> AstContents) -> Ast { self.with_c(f(self.c())) }
+
+    /// Keep the location information, but replace the contents.
+    pub fn with_c(&self, c: AstContents) -> Ast {
+        Ast(Rc::new(LocatedAst {
+            c: c,
+            filename: self.0.filename,
+            begin: self.0.begin,
+            end: self.0.end,
+        }))
+    }
+
     // TODO: this ought to at least warn if we're losing anything other than `Shape`
     pub fn flatten(&self) -> EnvMBE<Ast> {
-        match *self {
+        match self.c() {
             Trivial | Atom(_) => EnvMBE::new(),
             VariableReference(_) => EnvMBE::new(),
             Shape(ref v) => {
@@ -161,7 +202,7 @@ impl Ast {
         &self,
         expd_form: std::rc::Rc<Form>,
     ) -> Option<crate::util::mbe::EnvMBE<Ast>> {
-        if let Node(ref f, ref parts, _) = self {
+        if let Node(ref f, ref parts, _) = self.c() {
             if f == &expd_form {
                 return Some(parts.clone());
             }
@@ -170,7 +211,7 @@ impl Ast {
     }
 
     pub fn is_node(&self) -> bool {
-        match *self {
+        match self.c() {
             Node(_, _, _) => true,
             _ => false,
         }
@@ -178,22 +219,22 @@ impl Ast {
 
     // TODO: I think we have a lot of places where we ought to use this function:
     pub fn node_parts(&self) -> &EnvMBE<Ast> {
-        match *self {
+        match self.c() {
             Node(_, ref body, _) => body,
             _ => icp!(),
         }
     }
     pub fn node_form(&self) -> &Form {
-        match *self {
+        match self.c() {
             Node(ref form, _, _) => form,
             _ => icp!(),
         }
     }
 
     pub fn free_vrs(&self) -> Vec<Name> {
-        match *self {
+        match self.c() {
             Trivial | Atom(_) => vec![],
-            VariableReference(v) => vec![v],
+            VariableReference(v) => vec![*v],
             Shape(_) | IncompleteNode(_) => unimplemented!("TODO"),
             QuoteLess(_, _) | QuoteMore(_, _) => unimplemented!("TODO"),
             // This one is actually encounterable by real-world code
@@ -213,15 +254,15 @@ impl Ast {
     }
 
     pub fn to_name(&self) -> Name {
-        match *self {
-            Atom(n) => n,
+        match self.c() {
+            Atom(n) => *n,
             _ => icp!("{:#?} is not an atom", self),
         }
     }
 
     pub fn vr_to_name(&self) -> Name {
-        match *self {
-            VariableReference(n) => n,
+        match self.c() {
+            VariableReference(n) => *n,
             _ => icp!("{:#?} is not an atom", self),
         }
     }
@@ -230,7 +271,9 @@ impl Ast {
 // This is used by combine::many, which is used by the Star parser
 impl iter::FromIterator<Ast> for Ast {
     fn from_iter<I: IntoIterator<Item = Ast>>(i: I) -> Self {
-        IncompleteNode(EnvMBE::new_from_anon_repeat(i.into_iter().map(|a| a.flatten()).collect()))
+        raw_ast!(IncompleteNode(EnvMBE::new_from_anon_repeat(
+            i.into_iter().map(|a| a.flatten()).collect()
+        )))
     }
 }
 
@@ -256,7 +299,7 @@ fn combine_from_kleene_star() {
              "b" => [@"triple" "8.0", "8.1", "8.2"]);
     expected_mbe.anonimize_repeat(n("triple"));
 
-    assert_eq!(parsed, IncompleteNode(expected_mbe));
+    assert_eq!(parsed.c(), &IncompleteNode(expected_mbe));
 }
 
 #[test]

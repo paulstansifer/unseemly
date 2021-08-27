@@ -1,5 +1,6 @@
 use crate::{
-    ast::{Ast, Atom, Node},
+    ast,
+    ast::Ast,
     ast_walk::{
         LazyWalkReses,
         WalkRule::{Body, LiteralLike, NotWalked},
@@ -120,14 +121,14 @@ fn macro_type(forall_ty_vars: &[Name], arguments: Vec<(Name, Ast)>, output: Ast)
         // TODO: this can go wrong if a macro-defining macro collides two term names.
         // Fixing this probably requires rethinking how "component_name" works.
         // Perhaps not using structs at all might also work.
-        components.push(mbe!("component_name" => (, Atom(k.unhygienic_orig())),
+        components.push(mbe!("component_name" => (, ast!(k.unhygienic_orig())),
                              "component" => (, v.to_ast())));
     }
-    let argument_struct = Node(
+    let argument_struct = raw_ast!(Node(
         crate::core_forms::find_core_form("Type", "struct"),
         crate::util::mbe::EnvMBE::new_from_anon_repeat(components),
-        ExportBeta::Nothing,
-    );
+        ExportBeta::Nothing
+    ));
     let mac_fn = u!({Type fn : [(, argument_struct)] (, output.to_ast())});
 
     if forall_ty_vars.is_empty() {
@@ -135,7 +136,7 @@ fn macro_type(forall_ty_vars: &[Name], arguments: Vec<(Name, Ast)>, output: Ast)
     } else {
         ast!({"Type" "forall_type" :
             "body" => (import [* [forall "param"]] (, mac_fn)),
-            "param" => (,seq forall_ty_vars.iter().map(|n| { Atom(*n) }).collect::<Vec<_>>())
+            "param" => (,seq forall_ty_vars.iter().map(|n: &Name| { ast!(*n) }).collect::<Vec<_>>())
         })
     }
 }
@@ -222,9 +223,7 @@ pub fn macro_invocation(
         name: n("macro_invocation"), // TODO: maybe generate a fresh name?
         grammar: Rc::new(form_pat!([
             // `type_macro_invocation` expects "macro_name" to be set
-            (named "macro_name", (anyways (,
-                Ast::VariableReference(macro_name)
-            ))),
+            (named "macro_name", (anyways (vr macro_name))),
             // Capture this here so that its environmental names get freshened properly.
             // Need to store this one phase unquoted.
             (named "impl", (-- 1 (anyways (,impl_body)))),
@@ -304,8 +303,8 @@ pub fn macro_invocation(
                             // Nuke all binding, since we're abandoning its context.
                             // The user will† deposit this syntax inside a replacement binding form.
                             // (†still not enforced until issue #31 is fixed)
-                            while let Ast::ExtendEnv(ref body, _)
-                            | Ast::ExtendEnvPhaseless(ref body, _) = a
+                            while let ast::ExtendEnv(ref body, _)
+                            | ast::ExtendEnvPhaseless(ref body, _) = a.c()
                             {
                                 a = &*body;
                             }
@@ -334,8 +333,8 @@ pub fn macro_invocation(
 fn repeated_type(t: &Ast, env: &Assoc<Name, Ast>) -> Result<Ast, crate::ty::TypeError> {
     let mut drivers = vec![];
     for v in t.free_vrs() {
-        if env.find(&v) == Some(&Ast::VariableReference(v)) {
-            drivers.push(Ast::VariableReference(v));
+        if env.find(&v).map(|a| a.c()) == Some(&ast::VariableReference(v)) {
+            drivers.push(env.find_or_panic(&v).clone());
         }
     }
 
@@ -722,15 +721,15 @@ pub fn extend_syntax() -> Rc<Form> {
     let perform_extension = move |pc: ParseContext, extension_info: Ast| -> ParseContext {
         let bnf_parts =
             // TODO: getting a `Shape` (the second element is the `(lit "in")`) must be a parser bug
-            extract!((&extension_info) Ast::Shape = (ref subs) =>
-                extract!((&subs[0]) Ast::IncompleteNode = (ref parts) => parts));
+            extract!((extension_info.c()) ast::Shape = (ref subs) =>
+                extract!((subs[0].c()) ast::IncompleteNode = (ref parts) => parts));
 
         let nts: Vec<Name> =
             bnf_parts.get_rep_leaf_or_panic(n("nt")).iter().map(|a| a.to_name()).collect();
         let ops: Vec<bool> = bnf_parts
             .get_rep_leaf_or_panic(n("operator"))
             .iter()
-            .map(|a| a == &&Ast::Atom(n("::=also")))
+            .map(|a| a.to_name() == n("::=also"))
             .collect();
         let rhses: Vec<&Ast> = bnf_parts.get_rep_leaf_or_panic(n("rhs"));
 

@@ -43,9 +43,7 @@ thread_local! {
 impl crate::runtime::reify::Reifiable for Name {
     fn ty_name() -> Name { n("Name") }
 
-    fn reify(&self) -> crate::runtime::eval::Value {
-        crate::runtime::eval::Value::AbstractSyntax(crate::ast::Ast::Atom(*self))
-    }
+    fn reify(&self) -> crate::runtime::eval::Value { val!(ast(at * self)) }
 
     fn reflect(v: &crate::runtime::eval::Value) -> Name {
         extract!((v) crate::runtime::eval::Value::AbstractSyntax = (ref ast)
@@ -154,6 +152,14 @@ impl Name {
     pub fn is(self, s: &str) -> bool { self.sp() == s }
 
     pub fn is_name(self, n: Name) -> bool { self.sp() == n.sp() }
+}
+
+impl From<&str> for Name {
+    fn from(s: &str) -> Name { Name::global(s) }
+}
+
+impl From<&String> for Name {
+    fn from(s: &String) -> Name { Name::global(&*s) }
 }
 
 // TODO: move to `ast_walk`

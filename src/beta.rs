@@ -2,8 +2,8 @@
 
 use crate::{
     alpha::Ren,
-    ast::{Ast, Atom, ExtendEnv},
-    ast_walk::{LazilyWalkedTerm, LazyWalkReses},
+    ast::{Ast, Atom, ExtendEnv, Node, QuoteLess, QuoteMore},
+    ast_walk::LazyWalkReses,
     name::*,
     util::{assoc::Assoc, mbe::EnvMBE},
     walk_mode::WalkElt,
@@ -72,8 +72,12 @@ impl fmt::Debug for Beta {
             Nothing => write!(f, "∅"),
             Shadow(ref lhs, ref rhs) => write!(f, "({:?} ▷ {:?})", lhs, rhs),
             ShadowAll(ref sub_beta, ref drivers) => {
-                write!(f, "( {:?} ▷ ... by {})",
-                    sub_beta, drivers.iter().map(|name| name.print()).collect::<Vec<_>>().join(" "))
+                write!(
+                    f,
+                    "( {:?} ▷ ... by {})",
+                    sub_beta,
+                    drivers.iter().map(|name| name.print()).collect::<Vec<_>>().join(" ")
+                )
             }
             Basic(ref name, ref ty) => write!(f, "{}:{}", name, ty),
             SameAs(ref name, ref ty_source) => write!(f, "{}={}", name, ty_source),
@@ -174,14 +178,12 @@ pub fn env_from_beta<Mode: crate::walk_mode::WalkMode>(
             Ok(res)
         }
         Basic(name_source, rhs_source) => {
-            if let LazilyWalkedTerm { term: Atom(ref name), .. } =
-                **parts.parts.get_leaf_or_panic(&name_source)
-            {
+            if let &Atom(name) = parts.parts.get_leaf_or_panic(&name_source).term.c() {
                 // let LazilyWalkedTerm {term: ref rhs_stx, ..}
                 //    = **parts.parts.get_leaf_or_panic(rhs_source);
                 let rhs = parts.switch_to_positive().get_res(rhs_source)?;
 
-                Ok(Assoc::new().set(*name, rhs))
+                Ok(Assoc::new().set(name, rhs))
             } else {
                 panic!(
                     "User error: {:#?} is supposed to supply names, but is not an Atom.",
@@ -246,17 +248,15 @@ pub fn env_from_beta<Mode: crate::walk_mode::WalkMode>(
 
             let mut res = Assoc::new();
             for name in expected_res_keys {
-                res = res.set(name, <Mode::Elt as WalkElt>::from_ast(&crate::ast::Trivial));
+                res = res.set(name, <Mode::Elt as WalkElt>::from_ast(&ast!((trivial))));
             }
 
             Ok(res)
         }
 
         Underspecified(ref name_source) => {
-            if let LazilyWalkedTerm { term: Atom(ref name), .. } =
-                **parts.parts.get_leaf_or_panic(name_source)
-            {
-                Ok(Assoc::new().set(*name, Mode::underspecified(*name)))
+            if let &Atom(name) = parts.parts.get_leaf_or_panic(&name_source).term.c() {
+                Ok(Assoc::new().set(name, Mode::underspecified(name)))
             } else {
                 panic!(
                     "{:#?} is supposed to supply names, but is not an Atom.",
@@ -267,9 +267,7 @@ pub fn env_from_beta<Mode: crate::walk_mode::WalkMode>(
 
         Protected(ref name_source) => {
             // Since protection isn't binding, it gets variable references instead
-            if let LazilyWalkedTerm { term: ExtendEnv(ref boxed_vr, _), .. } =
-                **parts.parts.get_leaf_or_panic(name_source)
-            {
+            if let ExtendEnv(boxed_vr, _) = parts.parts.get_leaf_or_panic(&name_source).term.c() {
                 // HACK: rely on the fact that `walk_var`
                 //  won't recursively substitute until it "hits bottom"
                 // Drop the variable reference right into the environment.
@@ -357,9 +355,9 @@ impl ExportBeta {
 fn names_exported_by(ast: &Ast, quote_depth: i16) -> Vec<Name> {
     use tap::tap::Tap;
 
-    match *ast {
-        Ast::Atom(n) => vec![n],
-        Ast::Node(_, ref sub_parts, ref export) => {
+    match ast.c() {
+        Atom(n) => vec![*n],
+        Node(_, sub_parts, export) => {
             if quote_depth <= 0 {
                 bound_from_export_beta(export, sub_parts, quote_depth)
             } else {
@@ -370,10 +368,10 @@ fn names_exported_by(ast: &Ast, quote_depth: i16) -> Vec<Name> {
                 )
             }
         }
-        Ast::ExtendEnv(ref body, _) => names_exported_by(body, quote_depth),
-        Ast::QuoteMore(ref body, _) => names_exported_by(body, quote_depth + 1),
-        Ast::QuoteLess(ref body, _) => names_exported_by(body, quote_depth - 1),
-        ref ast if quote_depth <= 0 => icp!("beta SameAs refers to an invalid AST node: {}", ast),
+        ExtendEnv(body, _) => names_exported_by(body, quote_depth),
+        QuoteMore(body, _) => names_exported_by(body, quote_depth + 1),
+        QuoteLess(body, _) => names_exported_by(body, quote_depth - 1),
+        ast if quote_depth <= 0 => icp!("beta SameAs refers to an invalid AST node: {}", ast),
         _ => vec![],
     }
 }
@@ -464,9 +462,9 @@ pub fn freshening_from_beta(
 
             Assoc::new().set(
                 this_name,
-                crate::ast::VariableReference(
-                    *memo.entry((n_s, this_name)).or_insert_with(|| this_name.freshen()),
-                ),
+                raw_ast!(VariableReference(
+                    *memo.entry((n_s, this_name)).or_insert_with(|| this_name.freshen())
+                )),
             )
         }
     }

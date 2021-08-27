@@ -5,7 +5,7 @@
 // `freshen_rec` gets a value and its pattern ready for destructuring.
 
 use crate::{
-    ast::Ast::{self, *},
+    ast::{Ast, AstContents::*},
     name::*,
     util::{assoc::Assoc, mbe::EnvMBE},
 };
@@ -86,25 +86,25 @@ impl From<Assoc<Name, Ast>> for Ren {
 }
 
 fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Ren) -> Ast {
-    match *node {
+    match node.c() {
         Node(ref f, ref new_parts, ref export) => {
             // let new_cnc = parts.clone();
-            Node(
+            node.with_c(Node(
                 f.clone(),
                 new_parts.marched_map(&mut |_, marched_parts: &EnvMBE<Ast>, part: &Ast| {
                     substitute_rec(part, marched_parts, env)
                 }),
                 export.clone(),
-            )
+            ))
         }
-        VariableReference(n) => env.find(n).unwrap_or(&node.clone()).clone(),
+        VariableReference(n) => env.find(*n).unwrap_or(&node.clone()).clone(),
         ExtendEnv(ref body, ref beta) => {
             let mut new_env = env.clone();
             for bound_name in crate::beta::bound_from_beta(beta, cur_node_contents, 0) {
                 new_env = new_env.unset(bound_name);
             }
 
-            ExtendEnv(Box::new(substitute_rec(body, cur_node_contents, &new_env)), beta.clone())
+            node.with_c(ExtendEnv(substitute_rec(body, cur_node_contents, &new_env), beta.clone()))
         }
         ExtendEnvPhaseless(ref body, ref beta) => {
             let mut new_env = env.clone();
@@ -112,17 +112,18 @@ fn substitute_rec(node: &Ast, cur_node_contents: &EnvMBE<Ast>, env: &Ren) -> Ast
                 new_env = new_env.unset(bound_name);
             }
 
-            ExtendEnvPhaseless(
-                Box::new(substitute_rec(body, cur_node_contents, &new_env)),
+            node.with_c(ExtendEnvPhaseless(
+                substitute_rec(body, cur_node_contents, &new_env),
                 beta.clone(),
-            )
+            ))
         }
         QuoteMore(ref body, pos) => {
-            QuoteMore(Box::new(substitute_rec(body, cur_node_contents, &env.q_more(1))), pos)
+            node.with_c(QuoteMore(substitute_rec(body, cur_node_contents, &env.q_more(1)), *pos))
         }
-        QuoteLess(ref body, depth) => {
-            QuoteLess(Box::new(substitute_rec(body, cur_node_contents, &env.q_less(depth))), depth)
-        }
+        QuoteLess(ref body, depth) => node.with_c(QuoteLess(
+            substitute_rec(body, cur_node_contents, &env.q_less(*depth)),
+            *depth,
+        )),
         _ => node.clone(),
     }
 }
@@ -141,7 +142,7 @@ pub fn substitute(node: &Ast, env: &Assoc<Name, Ast>) -> Ast {
 /// Like `beta::names_mentioned`, but for all the imports in `parts`
 fn mentioned_in_import(parts: &EnvMBE<Ast>) -> Vec<Name> {
     fn process_ast(a: &Ast, v: &mut Vec<Name>) {
-        match *a {
+        match a.c() {
             Node(_, _, _) => {} // new scope
             ExtendEnv(ref body, ref beta) | ExtendEnvPhaseless(ref body, ref beta) => {
                 let mut beta_mentions = beta.names_mentioned_and_bound();
@@ -162,13 +163,13 @@ fn mentioned_in_import(parts: &EnvMBE<Ast>) -> Vec<Name> {
 
 fn freshen_rec(node: &Ast, renamings: &EnvMBE<(Ast, Ren)>, env: Ren) -> Ast {
     //  `env` is used to update the references to those atoms to match
-    match *node {
+    match node.c() {
         Node(_, _, _) => substitute_rec(node, &EnvMBE::new(), &env),
-        VariableReference(n) => env.find(n).unwrap_or(&node.clone()).clone(),
+        VariableReference(n) => env.find(*n).unwrap_or(&node.clone()).clone(),
         ExtendEnv(ref body, ref beta) => {
             let new_env = env.set_assoc(&beta.extract_from_mbe(renamings, &|x: &(_, Ren)| &x.1));
 
-            ExtendEnv(Box::new(freshen_rec(body, renamings, new_env)), beta.clone())
+            node.with_c(ExtendEnv(freshen_rec(body, renamings, new_env), beta.clone()))
         }
         ExtendEnvPhaseless(ref body, ref beta) => {
             // Everything bound this way becomes phaseless.
@@ -176,13 +177,13 @@ fn freshen_rec(node: &Ast, renamings: &EnvMBE<(Ast, Ren)>, env: Ren) -> Ast {
                 &beta.extract_from_mbe(renamings, &|x: &(_, Ren)| &x.1).become_phaseless(),
             );
 
-            ExtendEnvPhaseless(Box::new(freshen_rec(body, renamings, new__env)), beta.clone())
+            node.with_c(ExtendEnvPhaseless(freshen_rec(body, renamings, new__env), beta.clone()))
         }
         QuoteMore(ref body, pos) => {
-            QuoteMore(Box::new(freshen_rec(body, renamings, env.q_more(1))), pos)
+            node.with_c(QuoteMore(freshen_rec(body, renamings, env.q_more(1)), *pos))
         }
         QuoteLess(ref body, depth) => {
-            QuoteLess(Box::new(freshen_rec(body, renamings, env.q_less(depth))), depth)
+            node.with_c(QuoteLess(freshen_rec(body, renamings, env.q_less(*depth)), *depth))
         }
         Atom(_) | Trivial | IncompleteNode(_) | Shape(_) => node.clone(),
     }
@@ -196,7 +197,7 @@ thread_local! {
 pub fn freshen(a: &Ast) -> Ast {
     // TODO: I think this shouldn't take a reference for performance
     if freshening_enabled.with(|f| *f.borrow()) {
-        match a {
+        a.c_map(&|c| match c {
             &Node(ref f, ref p, ref export) => {
                 // Every part that gets mentioned inside this node...
                 let mentioned = mentioned_in_import(p);
@@ -231,7 +232,7 @@ pub fn freshen(a: &Ast) -> Ast {
                 freshened_node
             }
             non_node => non_node.clone(),
-        }
+        })
     } else {
         a.clone()
     }
@@ -239,7 +240,7 @@ pub fn freshen(a: &Ast) -> Ast {
 // TODO: verify that this handles internal `ExtendEnv`s right
 pub fn freshen_with(lhs: &Ast, rhs: &Ast) -> (Ast, Ast) {
     if freshening_enabled.with(|f| *f.borrow()) {
-        match (lhs, rhs) {
+        match (lhs.c(), rhs.c()) {
             (&Node(ref f, ref p_lhs, ref export), &Node(ref f_rhs, ref p_rhs, ref export_rhs)) => {
                 if f != f_rhs || export != export_rhs {
                     return (lhs.clone(), rhs.clone());
@@ -273,8 +274,8 @@ pub fn freshen_with(lhs: &Ast, rhs: &Ast) -> (Ast, Ast) {
                             },
                         );
                         (
-                            Node(f.clone(), new_p_lhs, export.clone()),
-                            Node(f.clone(), new_p_rhs, export.clone()),
+                            lhs.with_c(Node(f.clone(), new_p_lhs, export.clone())),
+                            rhs.with_c(Node(f.clone(), new_p_rhs, export.clone())),
                         )
                     }
                     None => (lhs.clone(), rhs.clone()), // No destructuring will be performed!
@@ -320,11 +321,14 @@ pub fn freshen_binders_inside_node_with(
 /// Returns an `Ast` like `a`, but with fresh `Atom`s
 ///  and a map to change references in the same manner
 pub fn freshen_binders(a: &Ast) -> (Ast, Ren) {
-    match *a {
+    match a.c() {
         Trivial | VariableReference(_) => (a.clone(), Ren::new()),
         Atom(old_name) => {
             let new_name = old_name.freshen();
-            (Atom(new_name), Ren::single(old_name, VariableReference(new_name)))
+            (
+                a.with_c(Atom(new_name)),
+                Ren::single(*old_name, raw_ast!(VariableReference(new_name))),
+            )
         }
         Node(ref f, ref parts, ref export) => {
             if export == &crate::beta::ExportBeta::Nothing {
@@ -336,43 +340,43 @@ pub fn freshen_binders(a: &Ast) -> (Ast, Ren) {
             let fresh_ast = fresh_pairs.map(&mut |&(ref a, _): &(Ast, _)| a.clone());
             let renaming = export.extract_from_mbe(&fresh_pairs, &|&(_, ref r): &(_, Ren)| &r);
 
-            (Node(f.clone(), fresh_ast, export.clone()), renaming)
+            (a.with_c(Node(f.clone(), fresh_ast, export.clone())), renaming)
         }
         IncompleteNode(_) | Shape(_) => icp!("didn't think this was needed"),
         QuoteMore(ref body, pos) => {
-            let (a, r) = freshen_binders(body);
-            (QuoteMore(Box::new(a), pos), r.q_less(1))
+            let (new_a, r) = freshen_binders(body);
+            (a.with_c(QuoteMore(new_a, *pos)), r.q_less(1))
         }
         QuoteLess(ref body, depth) => {
-            let (a, r) = freshen_binders(body);
-            (QuoteLess(Box::new(a), depth), r.q_more(depth))
+            let (new_a, r) = freshen_binders(body);
+            (a.with_c(QuoteLess(new_a, *depth)), r.q_more(*depth))
         }
         ExtendEnv(ref sub, ref beta) => {
             // We're only looking at `Atom`s, so this is transparent
             let (new_sub, subst) = freshen_binders(&*sub);
-            (ExtendEnv(Box::new(new_sub), beta.clone()), subst)
+            (a.with_c(ExtendEnv(new_sub, beta.clone())), subst)
         }
         ExtendEnvPhaseless(ref sub, ref beta) => {
             // We're only looking at `Atom`s, so this is transparent
             let (new_sub, subst) = freshen_binders(&*sub);
-            (ExtendEnvPhaseless(Box::new(new_sub), beta.clone()), subst.become_phaseless())
+            (a.with_c(ExtendEnvPhaseless(new_sub, beta.clone())), subst.become_phaseless())
         }
     }
 }
 
 /// Like `freshen_binders`, but to unite two `Ast`s with identical structure (else returns `None`).
 pub fn freshen_binders_with(lhs: &Ast, rhs: &Ast) -> Option<(Ast, Ren, Ast, Ren)> {
-    match (lhs, rhs) {
+    match (lhs.c(), rhs.c()) {
         (&Trivial, &Trivial) | (&VariableReference(_), &VariableReference(_)) => {
             Some((lhs.clone(), Ren::new(), rhs.clone(), Ren::new()))
         }
         (&Atom(old_name_lhs), &Atom(old_name_rhs)) => {
             let new_name = old_name_lhs.freshen();
             Some((
-                Atom(new_name),
-                Ren::single(old_name_lhs, VariableReference(new_name)),
-                Atom(new_name),
-                Ren::single(old_name_rhs, VariableReference(new_name)),
+                lhs.with_c(Atom(new_name)),
+                Ren::single(old_name_lhs, raw_ast!(VariableReference(new_name))),
+                rhs.with_c(Atom(new_name)),
+                Ren::single(old_name_rhs, raw_ast!(VariableReference(new_name))),
             ))
         }
         // TODO: Handle matching `'[let (a,b) = ⋯]'` against the pattern `'[let ,[p], = ⋯]'` !!
@@ -397,9 +401,9 @@ pub fn freshen_binders_with(lhs: &Ast, rhs: &Ast) -> Option<(Ast, Ren, Ast, Ren)
                     let ren_lhs = export.extract_from_mbe(&fresh_pairs, &|t: &(_, Ren, _, _)| &t.1);
                     let ren_rhs = export.extract_from_mbe(&fresh_pairs, &|t: &(_, _, _, Ren)| &t.3);
                     Some((
-                        Node(f.clone(), fresh_ast_lhs, export.clone()),
+                        lhs.with_c(Node(f.clone(), fresh_ast_lhs, export.clone())),
                         ren_lhs,
-                        Node(f.clone(), fresh_ast_rhs, export.clone()),
+                        rhs.with_c(Node(f.clone(), fresh_ast_rhs, export.clone())),
                         ren_rhs,
                     ))
                 }
@@ -409,9 +413,9 @@ pub fn freshen_binders_with(lhs: &Ast, rhs: &Ast) -> Option<(Ast, Ren, Ast, Ren)
         (&QuoteMore(ref body_lhs, pos), &QuoteMore(ref body_rhs, pos_rhs)) if pos == pos_rhs => {
             match freshen_binders_with(&*body_lhs, &*body_rhs) {
                 Some((n_lhs, ren_lhs, n_rhs, ren_rhs)) => Some((
-                    QuoteMore(Box::new(n_lhs), pos),
+                    lhs.with_c(QuoteMore(n_lhs, pos)),
                     ren_lhs.q_less(1),
-                    QuoteMore(Box::new(n_rhs), pos),
+                    rhs.with_c(QuoteMore(n_rhs, pos)),
                     ren_rhs.q_less(1),
                 )),
                 None => None,
@@ -422,9 +426,9 @@ pub fn freshen_binders_with(lhs: &Ast, rhs: &Ast) -> Option<(Ast, Ren, Ast, Ren)
         {
             match freshen_binders_with(&*body_lhs, &*body_rhs) {
                 Some((n_lhs, ren_lhs, n_rhs, ren_rhs)) => Some((
-                    QuoteLess(Box::new(n_lhs), depth),
+                    lhs.with_c(QuoteLess(n_lhs, depth)),
                     ren_lhs.q_more(depth),
-                    QuoteLess(Box::new(n_rhs), depth),
+                    rhs.with_c(QuoteLess(n_rhs, depth)),
                     ren_rhs.q_more(depth),
                 )),
                 None => None,
@@ -440,10 +444,10 @@ pub fn freshen_binders_with(lhs: &Ast, rhs: &Ast) -> Option<(Ast, Ren, Ast, Ren)
                 return None;
             }
             let ee = |a: Ast| -> Ast {
-                if let ExtendEnv(_, _) = lhs {
-                    ExtendEnv(Box::new(a), beta.clone())
+                if let ExtendEnv(_, _) = lhs.c() {
+                    a.with_c(ExtendEnv(a.clone(), beta.clone()))
                 } else {
-                    ExtendEnvPhaseless(Box::new(a), beta.clone())
+                    a.with_c(ExtendEnvPhaseless(a.clone(), beta.clone()))
                 }
             };
             // We're only looking at `Atom`s, so this is transparent

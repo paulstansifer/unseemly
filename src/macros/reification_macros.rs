@@ -95,8 +95,7 @@ macro_rules! Reifiable {
                 for $name<$($($ty_param),*)*> {
             fn ty() -> crate::ast::Ast {
                 type_defn_wrapper!($(<$($ty_param_ty),*>)* => { "Type" "struct" :
-                   "component_name" => [@"c" $(
-                       (, crate::ast::Ast::Atom(crate::name::n(stringify!($field)))) ),* ],
+                   "component_name" => [@"c" $( (at stringify!($field)) ),* ],
                    "component" =>
                    // TODO: unless we specify arguments with the same name as parameters,
                    //  we get bogus results
@@ -195,8 +194,7 @@ macro_rules! Reifiable {
 
             fn ty() -> crate::ast::Ast {
                 type_defn_wrapper!($(<$($ty_param_ty),*>)* => { "Type" "enum" :
-                    "name" => [@"c" $(
-                        (, crate::ast::Ast::Atom(crate::name::n(stringify!($choice)))) ),* ],
+                    "name" => [@"c" $( (at (stringify!($choice))) ),* ],
                     "component" => [@"c" $( [ $($(
                         (, <$part as crate::runtime::reify::Reifiable>::ty_invocation() )
                     ),*)*]),*]
@@ -318,12 +316,10 @@ macro_rules! type_defn_wrapper {
         //  this is safe, but a nuisance.
         // All types will be μ. I think this is the way things work in most languages.
         ast!({"Type" "forall_type" :
-            "param" => [ $($(
-                (, crate::ast::Ast::Atom(crate::name::n(stringify!($ty_param_ty))))
-            ),*)*],
+            "param" => [ $($( (at stringify!($ty_param_ty))),*)*],
             "body" => (import [* [forall "param"]] {"Type" "mu_type" :
                  "param" => [(import [prot "param"]
-                              (, crate::ast::Ast::VariableReference(Self::ty_name())))],
+                              (vr Self::ty_name()))],
                  "body" => (import [* [prot "param"]] $body)
              })
         })

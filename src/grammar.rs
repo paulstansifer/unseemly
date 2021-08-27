@@ -99,46 +99,47 @@ impl FormPat {
             Impossible => format!("impossible"),
             Scan(ref scanner) => format!("/{}/", scanner.0),
             Common(ref body) => format!("common ({})", body),
-            Reserved(ref body, ref names) =>
-                format!("{} reserving {}", body,
-                    names.iter().map(|name| format!("'{}'", name)).collect::<Vec<_>>().join(" ")),
+            Reserved(ref body, ref names) => format!(
+                "{} reserving {}",
+                body,
+                names.iter().map(|name| format!("'{}'", name)).collect::<Vec<_>>().join(" ")
+            ),
             Literal(ref _body, name) => format!("\x1b[1;38m{}\x1b[0m", name),
             VarRef(ref body) => format!("vr ({})", body),
             Seq(ref elts) => {
-                let mut formatted_elts =
-                    elts.iter().map(|e| format!("{}", e)).collect::<Vec<_>>();
-                if let Some(pos) = pos{
+                let mut formatted_elts = elts.iter().map(|e| format!("{}", e)).collect::<Vec<_>>();
+                if let Some(pos) = pos {
                     formatted_elts.insert(pos, "•".to_string());
                 }
                 format!("[{}]", formatted_elts.join(" "))
             }
             Star(ref body) => format!("{} *", body),
             Plus(ref body) => format!("{} +", body),
-            Alt(ref elts) =>
-                format!("alt[{}]alt",
-                    elts.iter().map(|e| format!("{}", e)).collect::<Vec<_>>().join(" ")),
+            Alt(ref elts) => format!(
+                "alt[{}]alt",
+                elts.iter().map(|e| format!("{}", e)).collect::<Vec<_>>().join(" ")
+            ),
             Biased(ref plan_a, ref plan_b) => format!("{} or{{{}}}or", plan_a, plan_b),
             // In macro definitions, we need a type here, but it's not present in the grammar:
             Call(ref name) => format!(",{{{}}},", name),
-            SynImport(ref def, ref body, ref _synex) => {
-                match pos {
-                    None => format!("??syntax extension {} => {} ??", def, body),
-                    Some(0) => format!("??syntax extension • {} => {} ??", def, body),
-                    Some(1) => format!("??syntax extension {} => • {} ??", def, body),
-                    _ => icp!()
-                }
-            }
+            SynImport(ref def, ref body, ref _synex) => match pos {
+                None => format!("??syntax extension {} => {} ??", def, body),
+                Some(0) => format!("??syntax extension • {} => {} ??", def, body),
+                Some(1) => format!("??syntax extension {} => • {} ??", def, body),
+                Some(2) => format!("??syntax extension {} => {} • ??", def, body),
+                _ => icp!(),
+            },
 
-            Scope(ref form, ref ebeta) =>
-                format!("'{{{}}}' ??? -> .{{??}}. => {:?}", form.grammar, ebeta),
+            Scope(ref form, ref ebeta) => {
+                format!("'{{{}}}' ??? -> .{{??}}. => {:?}", form.grammar, ebeta)
+            }
             Named(name, ref body) => format!("{} := ({})", name, body),
             Pick(ref body, name) => format!("pick {} in {}", name, body),
             NameImport(ref body, ref beta) => format!("{} <-- {:?}", body, beta),
             NameImportPhaseless(ref body, ref beta) => format!("{} <--?? {:?}", body, beta),
             QuoteDeepen(ref body, pos) => format!("??deepen?? {} {}", body, pos),
-            QuoteEscape(ref body, levels) => format!("??escape?? {} {}", body, levels)
+            QuoteEscape(ref body, levels) => format!("??escape?? {} {}", body, levels),
         }
-
     }
 
     // Finds all `Named` nodes, and how many layers of repetition they are underneath.
@@ -446,7 +447,7 @@ fn advanced_parsing() {
 #[test]
 fn extensible_parsing() {
     use crate::{
-        ast::Ast::IncompleteNode,
+        ast::AstContents::IncompleteNode,
         earley::{parse_in_syn_env, ParseContext},
     };
 
@@ -505,7 +506,7 @@ fn extensible_parsing() {
     );
 
     fn counter_synex(_: ParseContext, a: Ast) -> ParseContext {
-        let count = match a {
+        let count = match a.c() {
             IncompleteNode(mbe) => mbe,
             _ => panic!(),
         }

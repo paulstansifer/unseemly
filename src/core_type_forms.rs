@@ -102,7 +102,7 @@ thread_local! {
 }
 
 pub fn get__primitive_type(called: Name) -> Ast {
-    ast!({primitive_type.with(|p_t| p_t.clone()) ; "name" => (, Atom(called))})
+    ast!({primitive_type.with(|p_t| p_t.clone()) ; "name" => (at called)})
 }
 
 fn is_primitive(form: &Rc<Form>) -> bool { form == &primitive_type.with(|p_t| p_t.clone()) }
@@ -282,8 +282,9 @@ fn make_core_syn_env_types() -> SynEnv {
                 // Apply the Amber rule; assume the `mu`ed names are subtypes to subtype the bodies
                 let mut amber_environment = mu_parts.env.clone();
                 for (&ee_r, ee_l) in r_params.iter().zip(l_params.iter()) {
-                    let (p_r, p_l) = if let (ExtendEnv(r, _), ExtendEnv(l, _)) = (ee_r, ee_l) {
-                        (&**r, &**l)
+                    let (p_r, p_l) = if let (ExtendEnv(r, _), ExtendEnv(l, _))
+                            = (ee_r.c(), ee_l.c()) {
+                        (&*r, &*l)
                     } else {
                         icp!("ill-formed mu_type")
                     };
@@ -338,7 +339,7 @@ fn make_core_syn_env_types() -> SynEnv {
             use crate::util::mbe::EnvMBE;
             let arg_res = tapp_parts.get_rep_res(n("arg"))?;
             let rator_res = tapp_parts.get_res(n("type_rator"))?;
-            match rator_res {
+            match rator_res.c() {
                 VariableReference(rator_vr) => {
                     // e.g. `X<int, Y>` underneath `mu X. ...`
 
@@ -347,7 +348,7 @@ fn make_core_syn_env_types() -> SynEnv {
                     //  we wish to avoid aliasing problems at the type level.
                     // In System F, this is avoided by performing capture-avoiding substitution.
                     let mut new__tapp_parts = EnvMBE::new_from_leaves(
-                        assoc_n!("type_rator" => VariableReference(rator_vr)),
+                        assoc_n!("type_rator" => ast!((vr *rator_vr))),
                     );
 
                     let mut args = vec![];
@@ -358,8 +359,8 @@ fn make_core_syn_env_types() -> SynEnv {
                     }
                     new__tapp_parts.add_anon_repeat(args);
 
-                    if let Node(ref f, _, ref exp) = tapp_parts.this_ast {
-                        Ok(Node(/* forall */ f.clone(), new__tapp_parts, exp.clone()))
+                    if let Node(ref f, _, ref exp) = tapp_parts.this_ast.c() {
+                        Ok(raw_ast!(Node(/* forall */ f.clone(), new__tapp_parts, exp.clone())))
                     } else {
                         icp!()
                     }
@@ -367,7 +368,7 @@ fn make_core_syn_env_types() -> SynEnv {
                 Node(ref got_f, ref lhs_parts, ref exports) if is_primitive(got_f) => {
                     // Like the above; don't descend into `Expr`
                     let mut new__tapp_parts = EnvMBE::new_from_leaves(assoc_n!("type_rator" =>
-                            Node(got_f.clone(), lhs_parts.clone(), exports.clone())));
+                            raw_ast!(Node(got_f.clone(), lhs_parts.clone(), exports.clone()))));
                     let mut args = vec![];
                     for individual__arg_res in arg_res {
                         args.push(EnvMBE::new_from_leaves(
@@ -376,8 +377,8 @@ fn make_core_syn_env_types() -> SynEnv {
                     }
                     new__tapp_parts.add_anon_repeat(args);
 
-                    if let Node(ref f, _, ref exp) = tapp_parts.this_ast {
-                        Ok(Node(/* forall */ f.clone(), new__tapp_parts, exp.clone()))
+                    if let Node(f, _, exp) = tapp_parts.this_ast.c() {
+                        Ok(raw_ast!(Node(/* forall */ f.clone(), new__tapp_parts, exp.clone())))
                     } else {
                         icp!()
                     }

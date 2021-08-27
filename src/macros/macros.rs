@@ -43,7 +43,7 @@ macro_rules! beta_connector {
     ($lhs:tt = $rhs:tt) => {
         crate::beta::SameAs(
             crate::name::n(expr_ify!($lhs)),
-            Box::new(crate::ast::VariableReference(crate::name::n(expr_ify!($rhs)))),
+            Box::new(raw_ast!(VariableReference(crate::name::n(expr_ify!($rhs))))),
         )
     };
     // TODO: this needs a better notation, somehow
@@ -147,23 +147,42 @@ macro_rules! t_elt {
 
 // Ast
 
+// AstContents to Ast.
+// Whenever possible, use `ast!` directly (or, in tests, `u!`).
+macro_rules! raw_ast {
+    ($ast_kind:ident) => {
+        crate::ast::Ast(std::rc::Rc::new(crate::ast::LocatedAst {
+            c: crate::ast::AstContents::$ast_kind,
+            // TODO: would Rust file info be useful?
+            filename: 0, begin: 0, end: 0
+        }))
+    };
+    ($ast_kind:ident ( $( $body:expr ),* ) ) => {
+        crate::ast::Ast(std::rc::Rc::new(crate::ast::LocatedAst {
+            c: crate::ast::AstContents::$ast_kind( $( $body ),* ),
+            // TODO: would Rust file info be useful?
+            filename: 0, begin: 0, end: 0
+        }))
+    }
+}
+
 macro_rules! ast_shape {
-    ($($contents:tt)*) => { crate::ast::Shape(vec![ $(  ast!($contents) ),* ] )};
+    ($($contents:tt)*) => { raw_ast!(Shape(vec![ $(  ast!($contents) ),* ] ))};
 }
 
 macro_rules! ast {
-    ( (trivial) ) => { crate::ast::Trivial };
+    ( (trivial) ) => { raw_ast!(Trivial) };
     ( (++ $pos:tt $sub:tt) ) => {
-        crate::ast::QuoteMore(Box::new(ast!($sub)), $pos)
+        raw_ast!(QuoteMore(ast!($sub), $pos))
     };
     ( (-- $depth:tt $sub:tt ) ) => {
-        crate::ast::QuoteLess(Box::new(ast!($sub)), $depth)
+        raw_ast!(QuoteLess(ast!($sub), $depth))
     };
     ( (import $beta:tt $sub:tt) ) => {
-        crate::ast::ExtendEnv(Box::new(ast!($sub)), beta!($beta))
+        raw_ast!(ExtendEnv(ast!($sub), beta!($beta)))
     };
     ( (import_phaseless $beta:tt $sub:tt) ) => {
-        crate::ast::ExtendEnvPhaseless(Box::new(ast!($sub)), beta!($beta))
+        raw_ast!(ExtendEnvPhaseless(ast!($sub), beta!($beta)))
     };
     /* // not sure we'll need this
     ( (* $env:expr => $new_env:ident / $($n:expr),* ; $($sub_ar"gs:tt)*) ) => {
@@ -177,31 +196,34 @@ macro_rules! ast {
             Shape(res)
         }
     };*/
-    ( (vr $var:expr) ) => { crate::ast::VariableReference(crate::name::n($var)) };
+    ( (vr $var:expr) ) => { raw_ast!(VariableReference(crate::name::Name::from($var))) };
+    // Like the last clause, but explicit about being an atom:
+    ( (at $var:expr) ) => { raw_ast!(Atom(crate::name::Name::from($var))) };
     ( (, $interpolate:expr)) => { $interpolate };
     // TODO: maybe we should use commas for consistency:
-    ( ( $( $list:tt )* ) ) => { ast_shape!($($list)*)};
+    ( ( $( $list:tt )* ) ) => { ast_shape!( $($list)* ) };
     ( { - $($mbe_arg:tt)* } ) => {
-        crate::ast::IncompleteNode(mbe!( $($mbe_arg)* ))
+        raw_ast!(IncompleteNode(mbe!( $($mbe_arg)* )))
     };
     ( { $nt:tt $form:tt => $beta:tt : $($mbe_arg:tt)*} ) => {
-        crate::ast::Node(crate::core_forms::find($nt, $form), mbe!( $($mbe_arg)* ),
-                    ebeta!($beta))
+        raw_ast!(Node(crate::core_forms::find($nt, $form), mbe!( $($mbe_arg)* ),
+                    ebeta!($beta)))
     };
     ( { $form:expr => $beta:tt ; $($mbe_arg:tt)*} ) => {
-        crate::ast::Node($form, mbe!( $($mbe_arg)* ), ebeta!($beta))
+        raw_ast!(Node($form, mbe!( $($mbe_arg)* ), ebeta!($beta)))
     };
     ( { $form:expr; [ $($mbe_arg:tt)* ] }) => {
         ast!( { $form ; $($mbe_arg)* } )
     };
     ( { $form:expr; $($mbe_arg:tt)* }) => {
-        crate::ast::Node($form, mbe!( $($mbe_arg)* ), crate::beta::ExportBeta::Nothing)
+        raw_ast!(Node($form, mbe!( $($mbe_arg)* ), crate::beta::ExportBeta::Nothing))
     };
     ( { $nt:tt $form:tt : $($mbe_arg:tt)* }) => {
-        crate::ast::Node(crate::core_forms::find($nt, $form), mbe!( $($mbe_arg)* ),
-                    crate::beta::ExportBeta::Nothing)
+        raw_ast!(Node(crate::core_forms::find($nt, $form), mbe!( $($mbe_arg)* ),
+                    crate::beta::ExportBeta::Nothing))
     };
-    ($e:expr) => { crate::ast::Atom(crate::name::n($e))}
+    // Accepts either `&str` (most common) or `Names`:
+    ($e:expr) => { raw_ast!(Atom(crate::name::Name::from($e))) };
 }
 
 // These construct spanned type errors (so, for type synthesis, not subtyping)
@@ -604,7 +626,7 @@ macro_rules! without_freshening {
 macro_rules! expect_node {
     ( ($node:expr ; $form:expr) $env:ident ; $body:expr ) => {
         // This is tied to the signature of `Custom`
-        if let Node(ref f, ref $env, _) = $node {
+        if let crate::ast::Node(ref f, ref $env, _) = $node.c() {
             if *f == $form {
                 $body
             } else {

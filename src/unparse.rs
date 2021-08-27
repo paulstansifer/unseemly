@@ -1,5 +1,5 @@
 use crate::{
-    ast::Ast::{self, *},
+    ast::{Ast, AstContents, AstContents::*},
     grammar::{
         FormPat::{self, *},
         SynEnv,
@@ -43,11 +43,11 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
     }
 }
 
-pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv) -> String {
+pub fn unparse_mbe(pat: &FormPat, actl: &AstContents, context: &EnvMBE<Ast>, s: &SynEnv) -> String {
     // HACK: handle underdetermined forms
     let undet = crate::ty_compare::underdetermined_form.with(|u| u.clone());
-    match *actl {
-        Node(ref form, ref body, _) if form == &undet => {
+    match actl {
+        Node(form, body, _) if form == &undet => {
             return crate::ty_compare::unification.with(|unif| {
                 let var = body.get_leaf_or_panic(&n("id")).to_name();
                 let looked_up = unif.borrow().get(&var).cloned();
@@ -67,7 +67,7 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
     match (pat, actl) {
         (&Named(name, ref body), _) => {
             // TODO: why does the `unwrap_or` case happen once after each variable is printed?
-            unparse_mbe(&*body, context.get_leaf(name).unwrap_or(&Atom(n(""))), context, s)
+            unparse_mbe(&*body, context.get_leaf(name).unwrap_or(&ast!((at ""))).c(), context, s)
         }
         (&Call(sub_form), _) => unparse_mbe(s.find_or_panic(&sub_form), actl, context, s),
         (&Anyways(_), _) | (&Impossible, _) => "".to_string(),
@@ -139,19 +139,19 @@ pub fn unparse_mbe(pat: &FormPat, actl: &Ast, context: &EnvMBE<Ast>, s: &SynEnv)
         (&Scope(_, _), _) => "".to_string(), // Non-match
         (&Pick(ref body, _), _) | (&Common(ref body), _) => unparse_mbe(&*body, actl, context, s),
         (&NameImport(ref body, _), &ExtendEnv(ref actl_body, _)) => {
-            unparse_mbe(&*body, &*actl_body, context, s)
+            unparse_mbe(&*body, actl_body.c(), context, s)
         }
         (&NameImport(_, _), _) => format!("[Missing import]→{:#?}←", actl),
         (&NameImportPhaseless(ref body, _), &ExtendEnvPhaseless(ref actl_body, _)) => {
-            unparse_mbe(&*body, &*actl_body, context, s)
+            unparse_mbe(&*body, actl_body.c(), context, s)
         }
         (&NameImportPhaseless(_, _), _) => format!("[Missing import]±→{:#?}←±", actl),
         (&QuoteDeepen(ref body, _), &QuoteMore(ref actl_body, _)) => {
-            unparse_mbe(&*body, &*actl_body, context, s)
+            unparse_mbe(&*body, actl_body.c(), context, s)
         }
         (&QuoteDeepen(_, _), _) => format!("[Missing qm]{:#?}", actl),
         (&QuoteEscape(ref body, _), &QuoteLess(ref actl_body, _)) => {
-            unparse_mbe(&*body, &*actl_body, context, s)
+            unparse_mbe(&*body, actl_body.c(), context, s)
         }
         (&QuoteEscape(_, _), _) => format!("[Missing ql]{:#?}", actl),
         (&SynImport(ref _lhs_grammar, ref _rhs, _), &Node(_, _, _)) => {

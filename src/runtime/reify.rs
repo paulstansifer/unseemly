@@ -43,7 +43,7 @@ pub trait Reifiable {
     /// (Types using this type will use this, rather than `ty`)
     /// Don't override this.
     fn ty_invocation() -> Ast {
-        let name_ref = Ast::VariableReference(Self::ty_name());
+        let name_ref = ast!((vr Self::ty_name()));
         match Self::concrete_arguments() {
             None => name_ref,
             Some(args) => ast!({ "Type" "type_apply" :
@@ -219,11 +219,11 @@ impl<T0: Reifiable, T1: Reifiable> Reifiable for (T0, T1) {
 impl Reifiable for String {
     fn ty_name() -> Name { n("Rust_str") }
 
-    fn reify(&self) -> Value { Value::AbstractSyntax(Ast::Atom(n(self))) }
+    fn reify(&self) -> Value { val!(ast (at self)) }
 
     fn reflect(v: &Value) -> Self {
         match v {
-            eval::AbstractSyntax(Ast::Atom(name)) => name.orig_sp(),
+            eval::AbstractSyntax(at_ast) => at_ast.to_name().orig_sp(),
             _ => icp!(),
         }
     }

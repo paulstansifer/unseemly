@@ -11,12 +11,32 @@
 // It's not unsafe to use `u!` for runtime operations, but there's a runtime cost, so don't do it.
 
 use crate::{
-    ast::Ast::{self, *},
+    ast::{Ast, AstContents::*},
     grammar::FormPat,
     name::*,
     util::mbe::EnvMBE,
 };
 use std::iter::{Iterator, Peekable};
+
+// AstContents to Ast
+macro_rules! raw_ast {
+    ($ast_kind:ident) => {
+        crate::ast::Ast(std::rc::Rc::new(crate::ast::LocatedAst {
+            c: crate::ast::AstContents::$ast_kind,
+            // TODO: would Rust file info be useful?
+            filename: 0, begin: 0, end: 0
+        }))
+    };
+    ($ast_kind:ident ( $( $body:expr ),* ) ) => {
+        crate::ast::Ast(std::rc::Rc::new(crate::ast::LocatedAst {
+            c: crate::ast::AstContents::$ast_kind( $( $body ),* ),
+            // TODO: would Rust file info be useful?
+            filename: 0,
+            begin: 0,
+            end: 0
+        }))
+    }
+}
 
 // First, transforms from `[a b c; d e f; g h i]` to `[g h i] {[a b c] [d e f]}`
 //   to get around a Rust macro parsing restriction,
@@ -30,14 +50,14 @@ macro_rules! u_rep {
     };
     ([] [] {}) => {
         // Empty repeat
-        crate::ast::Shape(vec![crate::ast::Atom(n("REP"))])
+        raw_ast!(Shape(vec![raw_ast!(Atom(n("REP")))]))
     };
     ([]  [ $( $acc_cur:tt )* ] { $( [ $( $acc_rest:tt )* ] )* }) => {
-        crate::ast::Shape(vec![
-            crate::ast::Atom(n("REP")),
+        raw_ast!(Shape(vec![
+            raw_ast!(Atom(n("REP"))),
             $( u_shape_if_many!(  $($acc_rest)* ), )*
             u_shape_if_many!(  $($acc_cur)* )
-        ])
+        ]))
     };
 }
 
@@ -60,13 +80,13 @@ thread_local! {
 macro_rules! u {
     ($atom:ident) => {
         // Default to this, because `Call` will use whatever it's given, without a grammar:
-        crate::ast::VariableReference(n(stringify!($atom)))
+        raw_ast!(VariableReference(n(stringify!($atom))))
     };
     ( [ , $seq:expr ] ) => {
         {
             let mut contents: Vec<Ast> = $seq;
-            contents.insert(0, crate::ast::Atom(n("REP")));
-            crate::ast::Shape(contents)
+            contents.insert(0, raw_ast!(Atom(n("REP"))));
+            raw_ast!(Shape(contents))
         }
     };
     ( [ $( $ts:tt )*  ] ) => {
@@ -77,10 +97,10 @@ macro_rules! u {
             let f = crate::macros::flimsy_syntax::default_nt.with(|def_nt| {
                 crate::core_forms::find_core_form(&def_nt.borrow(), stringify!($form))
             });
-            crate::ast::Node(f.clone(),
+            raw_ast!(Node(f.clone(),
                 crate::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
                     .unwrap_or_else(crate::util::mbe::EnvMBE::new),
-                crate::beta::ExportBeta::Nothing)
+                crate::beta::ExportBeta::Nothing))
         }
     };
     ( { $nt:ident $form:ident : $( $ts:tt )*} ) => {
@@ -93,10 +113,10 @@ macro_rules! u {
 
                 crate::core_forms::find_core_form(&nt, stringify!($form))
             });
-            let res = crate::ast::Node(f.clone(),
+            let res = raw_ast!(Node(f.clone(),
                 crate::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
                     .unwrap_or_else(crate::util::mbe::EnvMBE::new),
-                crate::beta::ExportBeta::Nothing);
+                crate::beta::ExportBeta::Nothing));
             crate::macros::flimsy_syntax::default_nt.with(|def_nt| {
                 *def_nt.borrow_mut() = old_default_nt;
             });
@@ -110,10 +130,10 @@ macro_rules! u {
             let f = crate::macros::flimsy_syntax::default_nt.with(|def_nt| {
                 crate::core_forms::find_core_form(&def_nt.borrow(), stringify!($form))
             });
-            crate::ast::Node(f.clone(),
+            raw_ast!(Node(f.clone(),
                 crate::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
                     .unwrap_or_else(crate::util::mbe::EnvMBE::new),
-                ebeta!($ebeta))
+                ebeta!($ebeta)))
         }
     };
     ( { $nt:ident $form:ident => $ebeta:tt : $( $ts:tt )*} ) => {
@@ -128,10 +148,10 @@ macro_rules! u {
                 crate::core_forms::find_core_form(&nt, stringify!($form))
             });
 
-            let res =crate::ast::Node(f.clone(),
+            let res =raw_ast!(Node(f.clone(),
                     crate::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
                         .unwrap_or_else(crate::util::mbe::EnvMBE::new),
-                    ebeta!($ebeta));
+                    ebeta!($ebeta)));
             crate::macros::flimsy_syntax::default_nt.with(|def_nt| {
                 *def_nt.borrow_mut() = old_default_nt;
             });
@@ -141,10 +161,10 @@ macro_rules! u {
     ( { $form:expr ; $( $ts:tt )*} ) => {
         {
             let f = $form;
-            crate::ast::Node(f.clone(),
+            raw_ast!(Node(f.clone(),
                 crate::macros::flimsy_syntax::parse_flimsy_mbe(&u!( (~ $($ts)* ) ), &f.grammar)
                     .unwrap_or_else(crate::util::mbe::EnvMBE::new),
-                crate::beta::ExportBeta::Nothing)
+                crate::beta::ExportBeta::Nothing))
         }
     };
     ({ $( $anything:tt )* }) => {
@@ -152,13 +172,13 @@ macro_rules! u {
     };
     // Currently, nested `Seq`s need to correspond to nested `SEQ`s, so this creates one explicitly:
     ((~ $($ts:tt)*)) => {
-        crate::ast::Shape(vec![
-            crate::ast::Atom(n("SEQ")),
+        raw_ast!(Shape(vec![
+            raw_ast!(Atom(n("SEQ"))),
             $( u!( $ts ) ),*
-        ])
+        ]))
     };
     ((at $t:tt)) => {
-        crate::ast::Atom(n(stringify!($t)))
+        raw_ast!(Atom(n(stringify!($t))))
     };
     ((prim $t:tt)) => {
         crate::core_type_forms::get__primitive_type(n(stringify!($t)))
@@ -168,10 +188,10 @@ macro_rules! u {
     };
     // Two or more token trees (avoid infinite regress by not handling the one-element case)
     ( $t_first:tt $t_second:tt $( $t:tt )* ) => {
-        ::ast::Shape(vec![
-            ::ast::Atom(n("SEQ")),
+        raw_ast!(Shape(vec![
+            raw_ast!(Atom(n("SEQ"))),
             u!( $t_first ), u!( $t_second ), $( u!( $t ) ),*
-        ])
+        ]))
     };
 }
 
@@ -221,12 +241,13 @@ where I: Iterator<Item = &'a Ast> {
                 },
                 _ => true,
             };
-            let flimsy = *match flimsy_seq.peek() {
+            let trivial = raw_ast!(Trivial);
+            let flimsy = match flimsy_seq.peek() {
                 None if consuming => return EnvMBE::new(), // Or is this an error?
-                None => &&Ast::Trivial,
+                None => &trivial,
                 Some(f) => f,
             };
-            match parse_flimsy_mbe(flimsy, grammar) {
+            match parse_flimsy_mbe(&flimsy, grammar) {
                 None => EnvMBE::new(),
                 Some(res) => {
                     if consuming {
@@ -246,9 +267,9 @@ pub fn parse_flimsy_mbe(flimsy: &Ast, grammar: &FormPat) -> Option<EnvMBE<Ast>> 
         Literal(_, _) => None,
         Call(_) => None,
         Scan(_) => None,
-        Seq(_) => match flimsy {
+        Seq(_) => match flimsy.c() {
             Shape(flimsy_parts) => {
-                if flimsy_parts[0] != Atom(n("SEQ")) {
+                if flimsy_parts[0].c() != &Atom(n("SEQ")) {
                     panic!("Needed a SEQ, got {}", flimsy)
                 }
                 let mut fpi = flimsy_parts[1..].iter().peekable();
@@ -257,9 +278,9 @@ pub fn parse_flimsy_mbe(flimsy: &Ast, grammar: &FormPat) -> Option<EnvMBE<Ast>> 
             }
             _ => panic!("Needed a SEQ shape, got {}", flimsy),
         },
-        Star(ref body) | Plus(ref body) => match flimsy {
+        Star(ref body) | Plus(ref body) => match flimsy.c() {
             Shape(flimsy_parts) => {
-                if flimsy_parts[0] != Atom(n("REP")) {
+                if flimsy_parts[0].c() != &Atom(n("REP")) {
                     panic!("Need a REP, got {}", flimsy_parts[0])
                 }
 
@@ -292,25 +313,25 @@ fn parse_flimsy_ast(flimsy: &Ast, grammar: &FormPat) -> Ast {
         Anyways(ref a) => a.clone(),
         Impossible => unimplemented!(),
         Scan(_) => flimsy.clone(),
-        Literal(_, _) => Trivial,
-        VarRef(_) => match flimsy {
-            VariableReference(a) => VariableReference(*a),
+        Literal(_, _) => raw_ast!(Trivial),
+        VarRef(_) => match flimsy.c() {
+            VariableReference(a) => raw_ast!(VariableReference(*a)),
             non_atom => panic!("Needed an atom, got {}", non_atom),
         },
         NameImport(body, beta) => {
-            ExtendEnv(Box::new(parse_flimsy_ast(flimsy, &*body)), beta.clone())
+            raw_ast!(ExtendEnv(parse_flimsy_ast(flimsy, &*body), beta.clone()))
         }
         NameImportPhaseless(body, beta) => {
-            ExtendEnvPhaseless(Box::new(parse_flimsy_ast(flimsy, &*body)), beta.clone())
+            raw_ast!(ExtendEnvPhaseless(parse_flimsy_ast(flimsy, &*body), beta.clone()))
         }
-        QuoteDeepen(body, pos) => QuoteMore(Box::new(parse_flimsy_ast(flimsy, &*body)), *pos),
-        QuoteEscape(body, depth) => QuoteLess(Box::new(parse_flimsy_ast(flimsy, &*body)), *depth),
+        QuoteDeepen(body, pos) => raw_ast!(QuoteMore(parse_flimsy_ast(flimsy, &*body), *pos)),
+        QuoteEscape(body, depth) => raw_ast!(QuoteLess(parse_flimsy_ast(flimsy, &*body), *depth)),
 
         Call(name) => {
             // HACK: don't descend into `Call(n("DefaultAtom"))
             if *name == n("DefaultAtom") || *name == n("AtomNotInPat") {
-                match flimsy {
-                    VariableReference(a) => Atom(*a),
+                match flimsy.c() {
+                    VariableReference(a) => raw_ast!(Atom(*a)),
                     non_atom => panic!("Needed an atom, got {}", non_atom),
                 }
             } else {

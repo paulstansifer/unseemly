@@ -46,7 +46,7 @@ impl WalkMode for ExpandMacros {
 
     fn walk_var(name: Name, _parts: &LazyWalkReses<ExpandMacros>) -> Result<Value, Self::Err> {
         use crate::runtime::reify::Reifiable;
-        Ok(crate::ast::VariableReference(name).reify()) // Even variables are literal in macro expansion!
+        Ok(ast!((vr name)).reify()) // Even variables are literal in macro expansion!
     }
 }
 impl WalkMode for UnusedNegativeExpandMacros {
@@ -193,8 +193,8 @@ fn expand_basic_macros() {
             );
             x // let_pat
             five // let_val
-            (, Ast::ExtendEnv(Box::new(u!({apply : times [x ; eight]})),
-                              beta!(["let_pat" = "let_val"]))) // let_body
+            (, raw_ast!(ExtendEnv(u!({apply : times [x ; eight]}),
+                                  beta!(["let_pat" = "let_val"])))) // let_body
         })),
         Ok(u!({match : five [x {apply : times [x ; eight]}]}))
     );

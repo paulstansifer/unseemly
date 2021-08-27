@@ -1,6 +1,6 @@
 use crate::{
     alpha::{freshen, freshen_with},
-    ast::Ast::{self, *},
+    ast::{Ast, AstContents, AstContents::*},
     ast_walk::{walk, Clo, LazyWalkReses, OutEnvHandle, WalkRule},
     form::Form,
     name::*,
@@ -188,7 +188,7 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
     fn walk_quasi_literally(a: Ast, cnc: &LazyWalkReses<Self::Mode>) -> Res<Self::Mode> {
         // TODO: this needs to handle splicing, like the negative w_q_l does.
         // (Wait, in what way does it not?!?)
-        match a {
+        match a.c() {
             Node(f, parts, exports) => {
                 // TODO: This can probably be simplified:
                 //  We need something that's like `map`,
@@ -201,7 +201,7 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
                 let mut walked = parts
                     .map_marched_against(
                         &mut |p: &Ast, cnc_m: &LazyWalkReses<Self::Mode>| {
-                            match *p {
+                            match p.c() {
                                 // Yes, `walk`, not `w_q_l`;
                                 //  the mode is in charge of figuring things out.
                                 Node(_, _, _)
@@ -218,7 +218,7 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
 
                 // HACK: recognize `Shape` as the output of `core_qq_forms::dotdotdot` (TODO #40?):
                 walked
-                    .heal_splices::<()>(&|a| match a {
+                    .heal_splices::<()>(&|a| match a.c() {
                         Shape(ref v) => Ok(Some(v.clone())),
                         _ => Ok(None),
                     })
@@ -227,7 +227,11 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
                 // TODO: it should be a type error (or at least an obvious runtime error)
                 // to put a splice (i.e. a `...[]...`) somewhere it can't be healed.
 
-                Ok(<Self::Mode as WalkMode>::Elt::from_ast(&Node(f, walked, exports)))
+                Ok(<Self::Mode as WalkMode>::Elt::from_ast(&a.with_c(Node(
+                    f.clone(),
+                    walked,
+                    exports.clone(),
+                ))))
             }
             orig => {
                 // TODO #40: This mess is to push `Shape` down past a wrapper (i.e. `ExtendEnv`),
@@ -241,31 +245,31 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
                     | QuoteLess(ref b, _) => b,
                     _ => icp!(),
                 };
-                let sub_result = Mode::Elt::to_ast(&walk(&**body, cnc)?);
+                let sub_result = Mode::Elt::to_ast(&walk(&*body, cnc)?);
 
-                fn handle_wrapper<Mode: WalkMode>(orig: &Ast, a: Ast) -> Ast {
-                    let boxed = Box::new(a);
+                fn handle_wrapper<Mode: WalkMode>(orig: &AstContents, a: &Ast) -> AstContents {
+                    let a = a.clone();
                     match orig {
                         // Environment extension is handled at `walk`
-                        ExtendEnv(_, beta) => ExtendEnv(boxed, beta.clone()),
-                        ExtendEnvPhaseless(_, beta) => ExtendEnvPhaseless(boxed, beta.clone()),
-                        QuoteMore(_, pos) => QuoteMore(boxed, *pos),
-                        QuoteLess(_, depth) => QuoteLess(boxed, *depth),
+                        ExtendEnv(_, beta) => ExtendEnv(a, beta.clone()),
+                        ExtendEnvPhaseless(_, beta) => ExtendEnvPhaseless(a, beta.clone()),
+                        QuoteMore(_, pos) => QuoteMore(a, *pos),
+                        QuoteLess(_, depth) => QuoteLess(a, *depth),
                         _ => icp!(),
                     }
                 }
 
-                let res: Ast = match sub_result {
+                let res: AstContents = match sub_result.c() {
                     Shape(sub_results) => Shape(
                         sub_results
                             .into_iter()
-                            .map(|sub| handle_wrapper::<Self::Mode>(&orig, sub))
+                            .map(|sub| sub.with_c(handle_wrapper::<Self::Mode>(orig, sub)))
                             .collect(),
                     ),
-                    sub_result => handle_wrapper::<Self::Mode>(&orig, sub_result),
+                    _ => handle_wrapper::<Self::Mode>(&orig, &sub_result),
                 };
 
-                Ok(Mode::Elt::from_ast(&res))
+                Ok(Mode::Elt::from_ast(&sub_result.with_c(res)))
             }
         }
     }
@@ -313,8 +317,8 @@ impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
             }
             // HACK: force walking to automatically succeed, avoiding return type muckery
             None => (
-                Atom(negative_ret_val()),
-                cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(&Trivial)),
+                ast!((at negative_ret_val())),
+                cnc.with_context(<Self::Mode as WalkMode>::Elt::from_ast(&ast!((trivial)))),
             ),
         }
     }
@@ -330,7 +334,7 @@ impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
         // TODO: is it possible we need `map_reduce_with_marched_against`?
         cnc.parts.map_reduce_with(
             &parts_actual,
-            &|model: &Rc<LazilyWalkedTerm<Mode>>, actual: &Ast| match model.term {
+            &|model: &Rc<LazilyWalkedTerm<Mode>>, actual: &Ast| match model.term.c() {
                 Node(_, _, _)
                 | VariableReference(_)
                 | ExtendEnv(_, _)
@@ -413,7 +417,7 @@ pub trait NegativeWalkMode: WalkMode {
         _env: Assoc<Name, Self::Elt>,
     ) -> Result<EnvMBE<Ast>, <Self as WalkMode>::Err> {
         // break apart the node, and walk it element-wise
-        match (expected, got) {
+        match (expected.c(), got.c()) {
             // `pre_walk` has already freshened for us
             (&Node(ref f, _, _), &Node(ref f_actual, ref parts_actual, _)) if *f == *f_actual => {
                 Ok(parts_actual.clone())

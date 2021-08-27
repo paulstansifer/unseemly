@@ -46,7 +46,7 @@ impl Value {
     /// Turns this `Value` into a "magic" `Ast` that evaluates to it.
     /// The `Ast` will have the universal type
     pub fn prefab(self) -> Ast {
-        Ast::Node(
+        raw_ast!(Node(
             typed_form!(
                 "prefab_internal",
                 (impossible), // no syntax
@@ -58,8 +58,8 @@ impl Value {
                 cust_rc_box!(move |_| Ok(self.clone()))
             ),
             crate::util::mbe::EnvMBE::new(),
-            crate::beta::ExportBeta::Nothing,
-        )
+            crate::beta::ExportBeta::Nothing
+        ))
     }
 }
 
@@ -68,7 +68,7 @@ impl Value {
 impl Closure {
     pub fn prefab(&self) -> Ast {
         ast!({"Expr" "lambda" :
-            "param" => (@"p" ,seq self.params.iter().map(|n| Ast::Atom(*n))),
+            "param" => (@"p" ,seq self.params.iter().map(|n| ast!(*n))),
             "p_t" => (@"p" ,seq self.params.iter().map(|_| ast!((trivial)))),
             "body" => (import [* ["param" : "p_t"]] (,
                 crate::alpha::substitute(&self.body,
@@ -260,12 +260,8 @@ impl WalkMode for QQuote {
     type D = crate::walk_mode::Positive<QQuote>;
     type ExtraInfo = ();
 
-    fn walk_var(n: Name, _: &LazyWalkReses<Self>) -> Result<Value, ()> {
-        Ok(val!(ast (, Ast::VariableReference(n))))
-    }
-    fn walk_atom(n: Name, _: &LazyWalkReses<Self>) -> Result<Value, ()> {
-        Ok(val!(ast (, Ast::Atom(n))))
-    }
+    fn walk_var(n: Name, _: &LazyWalkReses<Self>) -> Result<Value, ()> { Ok(val!(ast (vr n))) }
+    fn walk_atom(n: Name, _: &LazyWalkReses<Self>) -> Result<Value, ()> { Ok(val!(ast (at n))) }
     // TODO #26: Just special-case "unquote" and "dotdotdot"
     fn get_walk_rule(f: &Form) -> WalkRule<QQuote> { f.quasiquote.pos().clone() }
     fn automatically_extend_env() -> bool { false }
@@ -283,7 +279,7 @@ impl WalkMode for QQuoteDestr {
     type ExtraInfo = ();
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Self>) -> Result<Assoc<Name, Value>, ()> {
-        let val = val!(ast (, Ast::VariableReference(n)));
+        let val = val!(ast (vr n));
         if cnc.context_elt() == &val {
             Ok(Assoc::<Name, Value>::new())
         } else {
@@ -291,7 +287,7 @@ impl WalkMode for QQuoteDestr {
         }
     }
     fn walk_atom(n: Name, cnc: &LazyWalkReses<Self>) -> Result<Assoc<Name, Value>, ()> {
-        let val = val!(ast (, Ast::Atom(n)));
+        let val = val!(ast (at n));
         if cnc.context_elt() == &val {
             Ok(Assoc::<Name, Value>::new())
         } else {

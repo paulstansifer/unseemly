@@ -17,7 +17,8 @@
 // Also, it turns out that implementing an Earley parser goes pretty smoothly. Yay!
 
 use crate::{
-    ast::Ast,
+    ast,
+    ast::{Ast, LocatedAst},
     ast_walk::LazyWalkReses,
     grammar::{
         FormPat::{self, *},
@@ -479,21 +480,27 @@ impl Item {
                         // Using `c_parse` instead of `local_parse` here is weird,
                         //  but probably necessary to allow `Call` under `Reserved`.
                         Reserved(_, ref name_list) => match self.c_parse(chart, cur_idx) {
-                            Ok(Ast::Atom(name)) | Ok(Ast::VariableReference(name)) => {
-                                if name_list.contains(&name) {
-                                    vec![]
-                                } else {
-                                    waiting_item.finish_with(me_justif, 0)
+                            Ok(ast_with_name) => match ast_with_name.c() {
+                                ast::Atom(name) | ast::VariableReference(name) => {
+                                    if name_list.contains(&name) {
+                                        vec![]
+                                    } else {
+                                        waiting_item.finish_with(me_justif, 0)
+                                    }
                                 }
-                            }
+                                _ => {
+                                    log!("found something unusual {:?}", ast_with_name);
+                                    vec![]
+                                }
+                            },
                             _ => {
                                 log!("found something unusual {:?}", other);
                                 vec![]
                             }
                         },
                         Literal(_, expected) => match self.c_parse(chart, cur_idx) {
-                            Ok(Ast::Atom(name)) => {
-                                if name == expected {
+                            Ok(ast) => {
+                                if ast.c() == &ast::Atom(expected) {
                                     waiting_item.finish_with(me_justif, 0)
                                 } else {
                                     vec![]
@@ -562,7 +569,12 @@ impl Item {
                         Some((start, end)) => {
                             // These are byte indices!
                             self.finish_with(
-                                ParsedAtom(Ast::Atom(n(&toks[cur_idx + start..cur_idx + end]))),
+                                ParsedAtom(Ast(Rc::new(LocatedAst {
+                                    c: ast::Atom(n(&toks[cur_idx + start..cur_idx + end])),
+                                    filename: 0, // TODO
+                                    begin: cur_idx + start,
+                                    end: cur_idx + end,
+                                }))),
                                 caps.get(0).unwrap().1, // End of the *whole string consumed*
                             )
                         }
@@ -716,6 +728,16 @@ impl Item {
         first_found.expect("ICP: no parse after successful recognition")
     }
 
+    /// Put location information on an `AstContents`, forming an `Ast`.
+    fn locate(&self, done_tok: usize, c: ast::AstContents) -> Ast {
+        Ast(Rc::new(ast::LocatedAst {
+            c: c,
+            filename: 0, // TODO
+            begin: self.start_idx,
+            end: done_tok,
+        }))
+    }
+
     /// After the chart is built, we parse...
     fn c_parse(&self, chart: &[Vec<Item>], done_tok: usize) -> ParseResult {
         log!("Tring to parse {:#?}...\n", self);
@@ -725,13 +747,16 @@ impl Item {
             Impossible => icp!("Parser parsed the impossible!"),
             Scan(_) => match self.local_parse.borrow().clone() {
                 ParsedAtom(a) => Ok(a),
-                NothingYet => Ok(Ast::Trivial),
+                NothingYet => Ok(ast!((trivial))), // TODO: should we fake location info here?
                 _ => icp!(),
             },
-            VarRef(_) => match self.find_wanted(chart, done_tok).c_parse(chart, done_tok)? {
-                Ast::Atom(a) => Ok(Ast::VariableReference(a)),
-                _ => icp!("no atom saved"),
-            },
+            VarRef(_) => {
+                let var_ast = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
+                match var_ast.c() {
+                    ast::Atom(a) => Ok(var_ast.with_c(ast::VariableReference(*a))),
+                    _ => icp!("no atom saved"),
+                }
+            }
             Literal(_, _) | Alt(_) | Biased(_, _) | Call(_) | Reserved(_, _) | Common(_) => {
                 self.find_wanted(chart, done_tok).c_parse(chart, done_tok)
             }
@@ -777,22 +802,25 @@ impl Item {
                 }
                 subtrees.reverse();
 
-                match *self.rule {
-                    Seq(_) | SynImport(_, _, _) => Ok(Ast::Shape(subtrees)),
-                    Star(_) | Plus(_) => Ok(Ast::IncompleteNode(EnvMBE::new_from_anon_repeat(
+                Ok(self.locate(done_tok, match *self.rule {
+                    Seq(_) | SynImport(_, _, _) => ast::Shape(subtrees),
+                    Star(_) | Plus(_) => ast::IncompleteNode(EnvMBE::new_from_anon_repeat(
                         subtrees.into_iter().map(|a| a.flatten()).collect(),
-                    ))),
+                    )),
                     _ => icp!("seriously, this can't happen"),
-                }
+                }))
             }
             Named(name, _) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
-                Ok(Ast::IncompleteNode(EnvMBE::new_from_leaves(Assoc::single(name, sub_parsed))))
+                Ok(sub_parsed.with_c(ast::IncompleteNode(EnvMBE::new_from_leaves(Assoc::single(
+                    name,
+                    sub_parsed.clone(),
+                )))))
             }
             Scope(ref form, ref export) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
                 // TODO #14: We should add zero-length repeats of missing `Named`s,
-                Ok(Ast::Node(form.clone(), sub_parsed.flatten(), export.clone()))
+                Ok(sub_parsed.with_c(ast::Node(form.clone(), sub_parsed.flatten(), export.clone())))
             }
             Pick(_, name) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
@@ -806,19 +834,19 @@ impl Item {
             }
             NameImport(_, ref beta) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
-                Ok(Ast::ExtendEnv(Box::new(sub_parsed), beta.clone()))
+                Ok(sub_parsed.with_c(ast::ExtendEnv(sub_parsed.clone(), beta.clone())))
             }
             NameImportPhaseless(_, ref beta) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
-                Ok(Ast::ExtendEnvPhaseless(Box::new(sub_parsed), beta.clone()))
+                Ok(sub_parsed.with_c(ast::ExtendEnvPhaseless(sub_parsed.clone(), beta.clone())))
             }
             QuoteDeepen(_, pos) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
-                Ok(Ast::QuoteMore(Box::new(sub_parsed), pos))
+                Ok(sub_parsed.with_c(ast::QuoteMore(sub_parsed.clone(), pos)))
             }
             QuoteEscape(_, depth) => {
                 let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
-                Ok(Ast::QuoteLess(Box::new(sub_parsed), depth))
+                Ok(sub_parsed.with_c(ast::QuoteLess(sub_parsed.clone(), depth)))
             }
         };
         log!(">>>{:#?}<<<\n", res);
@@ -1020,7 +1048,7 @@ fn earley_simple_recognition() {
 
     assert_eq!(recognize(&*atom, &main_grammar, tokens_s!()), false);
 
-    assert_eq!(recognize(&Anyways(Ast::Trivial), &main_grammar, tokens_s!()), true);
+    assert_eq!(recognize(&Anyways(ast!((trivial))), &main_grammar, tokens_s!()), true);
 
     assert_eq!(recognize(&Seq(vec![]), &main_grammar, tokens_s!()), true);
 

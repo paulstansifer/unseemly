@@ -57,7 +57,7 @@
 //  because all syntax should be constructable and matchable.
 
 use crate::{
-    ast::Ast::{self, *},
+    ast::{Ast, AstContents::*},
     beta::*,
     name::*,
     runtime::{eval, reify},
@@ -80,7 +80,7 @@ impl<Elt: WalkElt> Clo<Elt> {
         let o_different_env = other.env.cut_common(&self.env);
 
         let o_renaming =
-            o_different_env.keyed_map_borrow_f(&mut |name, _| VariableReference(name.freshen()));
+            o_different_env.keyed_map_borrow_f(&mut |name, _| ast!((vr name.freshen())));
 
         let mut fresh_o_env = Assoc::new();
         for (o_name, o_val) in o_different_env.iter_pairs() {
@@ -115,7 +115,7 @@ pub fn walk<Mode: WalkMode>(
         // TODO: can we get rid of the & in front of our arguments and save the cloning?
         // TODO: this has a lot of direction-specific runtime hackery.
         //  Maybe we want separate positive and negative versions?
-        let (a, walk_ctxt) = match *a {
+        let (a, walk_ctxt) = match a.c() {
           // HACK: We want to process EE before pre_match before everything else.
           // This probably means we should find a way to get rid of pre_match.
           // But we can't just swap `a` and the ctxt when `a` is LiteralLike and the ctxt isn't.
@@ -131,12 +131,12 @@ pub fn walk<Mode: WalkMode>(
         // lc!(ast_walk_layer, ld_enabled, " in: {}", walk_ctxt.env/*.map_borrow_f(&mut |_| "…")*/);
 
         let literally : Option<bool> = // If we're under a wrapper, `this_ast` might not be a Node
-            match a {
+            match a.c() {
                 QuoteMore(_,_) | QuoteLess(_,_) | ExtendEnv(_,_) | ExtendEnvPhaseless(_,_) => {
-                    match walk_ctxt.this_ast {
+                    match walk_ctxt.this_ast.c() {
                         // `this_ast` might be `NotWalked` (and non-literal) if under `switch_mode`.
                         // It's weird, but seems to be the right thing
-                        Node(ref f, _, _) => Some(Mode::get_walk_rule(f).is_literally()),
+                        Node(f, _, _) => Some(Mode::get_walk_rule(f).is_literally()),
                         _ => None
                     }
                 }
@@ -144,8 +144,8 @@ pub fn walk<Mode: WalkMode>(
             };
 
 
-        match a {
-            Node(ref f, ref parts, _) => {
+        match a.c() {
+            Node(f, parts, _) => {
                 let mut new_walk_ctxt = walk_ctxt.switch_ast(parts, a.clone());
                 heal__lwr_splices(&mut new_walk_ctxt)?;
 
@@ -157,16 +157,16 @@ pub fn walk<Mode: WalkMode>(
                     NotWalked =>          icp!("{:#?} should not be walked at all!", a)
                 }
             }
-            IncompleteNode(ref parts) => { icp!("{:#?} isn't a complete node", parts)}
+            IncompleteNode(parts) => { icp!("{:#?} isn't a complete node", parts)}
 
-            VariableReference(n) => { Mode::walk_var(n, &walk_ctxt) }
-            Atom(n) => { Mode::walk_atom(n, &walk_ctxt) }
+            VariableReference(n) => { Mode::walk_var(*n, &walk_ctxt) }
+            Atom(n) => { Mode::walk_atom(*n, &walk_ctxt) }
 
             // TODO: we need to preserve these in LiteralLike contexts!!
 
             // So do we just set the context element at the wrong level and then grab it for the shift?
             // I guess so.
-            QuoteMore(ref body, pos_inside) => {
+            QuoteMore(body, pos_inside) => {
                 let oeh_m = Mode::D::oeh_if_negative();
                 let old_ctxt_elt = walk_ctxt.maybe__context_elt();
 
@@ -184,7 +184,7 @@ pub fn walk<Mode: WalkMode>(
                 // If both are positive, return the result (so the form can do `Nat` → `Expr<Nat>`).
                 // Otherwise, the context (expected type) is the result.
 
-                if pos_inside == currently_positive { // stay in the same mode?
+                if pos_inside == &currently_positive { // stay in the same mode?
                     let inner_walk_ctxt = walk_ctxt.quote_more(oeh_m.clone());
                     let res = maybe_literally__walk(&a, body, inner_walk_ctxt, old_ctxt_elt,
                                                     literally)?;
@@ -206,12 +206,12 @@ pub fn walk<Mode: WalkMode>(
                     }
                 }
             }
-            QuoteLess(ref body, depth) => {
+            QuoteLess(body, depth) => {
                 let old_ctxt_elt = walk_ctxt.maybe__context_elt();
 
                 let mut oeh = None;
                 let mut walk_ctxt = walk_ctxt;
-                for _ in 0..depth {
+                for _ in 0..*depth {
                     let (oeh_new, walk_ctxt_new) = walk_ctxt.quote_less();
                     oeh = oeh_new;
                     walk_ctxt = walk_ctxt_new;
@@ -229,11 +229,11 @@ pub fn walk<Mode: WalkMode>(
             }
 
             ExtendEnv(ref body, ref beta) | ExtendEnvPhaseless(ref body, ref beta) => {
-                let phaseless = match a { ExtendEnvPhaseless(_,_) => true, _ => false };
+                let phaseless = match a.c() { ExtendEnvPhaseless(_,_) => true, _ => false };
 
                 fn extract__ee_body<Mode: WalkMode>(e: <Mode as WalkMode>::Elt)
                         -> <Mode as WalkMode>::Elt {
-                    match e.to_ast() {
+                    match e.to_ast().c() {
                         ExtendEnv(ref body, _) | ExtendEnvPhaseless(ref body, _) => {
                             <Mode as WalkMode>::Elt::from_ast(&*body)
                         }
@@ -264,7 +264,7 @@ pub fn walk<Mode: WalkMode>(
                 // The context element is sometimes leftover from a previous negative walk.
                     new__walk_ctxt.with_context(extract__ee_body::<Mode>(
                         walk_ctxt.env.find(&negative_ret_val()).unwrap_or(
-                            &<Mode as WalkMode>::Elt::from_ast(&Trivial)).clone()));
+                            &<Mode as WalkMode>::Elt::from_ast(&ast!((trivial)))).clone()));
 
                 maybe_literally__walk(&a, body, new__walk_ctxt,
                     walk_ctxt.maybe__context_elt().map(extract__ee_body::<Mode>), literally)
@@ -286,7 +286,7 @@ fn heal__lwr_splices<Mode: WalkMode>(walk_ctxt: &mut LazyWalkReses<Mode>) -> Res
 
     if Mode::D::is_positive() {
         walk_ctxt.parts.heal_splices::<Mode::Err>(&|lwt: &Rc<LazilyWalkedTerm<Mode>>| {
-            if let Node(ref sub_f, ref sub_parts, _) = lwt.term {
+            if let Node(sub_f, sub_parts, _) = lwt.term.c() {
                 if let Some((envs, new_term)) = Mode::perform_splice_positive(
                     sub_f,
                     &orig_walk_ctxt.clone().switch_ast(&sub_parts, lwt.term.clone()),
@@ -312,7 +312,7 @@ fn heal__lwr_splices<Mode: WalkMode>(walk_ctxt: &mut LazyWalkReses<Mode>) -> Res
     } else {
         let its_a_trivial_ast = EnvMBE::new();
         let context_ast = walk_ctxt.context_elt().to_ast();
-        let other_parts = match (&context_ast, &walk_ctxt.this_ast) {
+        let other_parts = match (&context_ast.c(), &walk_ctxt.this_ast.c()) {
             (&Node(ref f, ref p, _), &Node(ref f_this, _, _)) => {
                 if f != f_this {
                     // Mismatched ASTs; some subtyping rules allow this, but healing is nonsensical
@@ -330,7 +330,7 @@ fn heal__lwr_splices<Mode: WalkMode>(walk_ctxt: &mut LazyWalkReses<Mode>) -> Res
         walk_ctxt.parts.heal_splices__with::<Mode::Err, Ast>(
             other_parts,
             &|lwt: &Rc<LazilyWalkedTerm<Mode>>, sub_other_thunk: &dyn Fn() -> Vec<Ast>| {
-                if let Node(ref sub_f, ref sub_parts, _) = lwt.term {
+                if let Node(ref sub_f, ref sub_parts, _) = lwt.term.c() {
                     // TODO: negative
                     if let Some((envs, new_term)) = Mode::perform_splice_negative(
                         sub_f,
@@ -672,7 +672,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     }
 
     pub fn this_form(&self) -> Rc<crate::form::Form> {
-        match self.this_ast {
+        match self.this_ast.c() {
             Node(ref f, _, _) => f.clone(),
             _ => icp!(),
         }

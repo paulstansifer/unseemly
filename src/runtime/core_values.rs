@@ -43,7 +43,7 @@ pub fn string_operations() -> Assoc<Name, TypedValue> {
                 "param" => [{"Type" "Ident" :}],
                 "ret" => {"Type" "String" :}
             },
-            (AbstractSyntax(Ast::Atom(name))) => Text(name.orig_sp())},
+            (AbstractSyntax(ast_for_atom)) => Text(ast_for_atom.to_name().orig_sp())},
         "concat" => tyf! {
             {"Type" "fn" :
                 "param" => [{"Type" "String" :}, {"Type" "String" :}],
@@ -506,10 +506,7 @@ fn type_sequence_operations() {
     );
 
     assert_eq!(
-        synth_type(
-            &u!({apply : map [one_two ; (, Ast::VariableReference(n("zero?"))) ]}),
-            prelude.clone()
-        ),
+        synth_type(&u!({apply : map [one_two ; (, ast!((vr "zero?"))) ]}), prelude.clone()),
         synth_type(&uty!({type_apply : Sequence [Bool]}), prelude.clone())
     );
 
@@ -535,10 +532,7 @@ fn eval_sequence_operations() {
     assert_eq!(eval(&u!({apply : index [one_two ; one]}), prelude.clone()), Ok(val!(i 2)));
 
     assert_eq!(
-        eval(
-            &u!({apply : map [one_two ; (, Ast::VariableReference(n("zero?"))) ]}),
-            prelude.clone()
-        ),
+        eval(&u!({apply : map [one_two ; (, ast!((vr "zero?"))) ]}), prelude.clone()),
         Ok(val!(seq (b false) (b false)))
     );
 

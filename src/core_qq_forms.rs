@@ -1,5 +1,6 @@
 use crate::{
-    ast::{Ast, Ast::*},
+    ast,
+    ast::{Ast, AstContents::*},
     ast_walk::WalkRule::*,
     core_type_forms::{less_quoted_ty, more_quoted_ty, nt_is_positive, nt_to_type},
     form::{Both, Form, Negative, Positive},
@@ -108,18 +109,19 @@ fn change_mu_opacity(parts: crate::ast_walk::LazyWalkReses<MuProtect>) -> Result
             return Ok(crate::core_forms::strip_ee(&parts.get_term(n("body"))).clone());
         }
     }
-    match parts.this_ast {
-        Ast::Node(f, mut mu_parts, export) => {
+    Ok(parts.this_ast.c_map(&|c| match c {
+        ast::Node(f, mu_parts, export) => {
+            let mut mu_parts = mu_parts.clone();
             if let Some(opacity) = opacity {
                 mu_parts.add_leaf(
                     n("opacity_for_different_phase"),
-                    Ast::Atom(n(&(opacity + delta).to_string())),
+                    ast!((at n(&(opacity + delta).to_string()))),
                 );
             }
-            Ok(Ast::Node(f, mu_parts, export))
+            ast::Node(f.clone(), mu_parts, export.clone())
         }
         _ => icp!(),
-    }
+    }))
 }
 
 impl WalkMode for MuProtect {
@@ -143,18 +145,18 @@ impl WalkMode for MuProtect {
 
     fn walk_var(name: Name, parts: &crate::ast_walk::LazyWalkReses<MuProtect>) -> Result<Ast, ()> {
         if parts.extra_info <= 0 {
-            return Ok(VariableReference(name));
+            return Ok(ast!((vr name)));
         }
         Ok(parts.env.find(&name).map(Clone::clone).unwrap_or_else(|| {
             ast!({"Type" "mu_type" :
-                "opacity_for_different_phase" => (, Ast::Atom(n(&parts.extra_info.to_string()))),
-                "param" => [(import [prot "param"] (, Ast::VariableReference(name)))],
-                "body" => (import [* [prot "param"]] (, Ast::VariableReference(name)))})
+                "opacity_for_different_phase" => (at &parts.extra_info.to_string()),
+                "param" => [(import [prot "param"] (vr name))],
+                "body" => (import [* [prot "param"]] (vr name))})
         }))
     }
 
     // TODO: it seems like we always need to define this; think about this more.
-    fn underspecified(name: Name) -> Ast { VariableReference(name) }
+    fn underspecified(name: Name) -> Ast { ast!((vr name)) }
 }
 
 impl WalkMode for UnusedNegativeMuProtect {
@@ -201,7 +203,7 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
             //  so it's optional
             Rc::new(if pos_quot {
                 form_pat!((delim form_delim_start, "[",
-                    [(named "nt", (anyways (, VariableReference(nt)))),
+                    [(named "nt", (anyways (vr nt))),
                      (alt
                         [],
                         [(name_lit__by_name nt),
@@ -211,7 +213,7 @@ pub fn unquote_form(nt: Name, pos_quot: bool, depth: u8) -> Rc<Form> {
                      (named "body", (-- depth (call "Expr")))]))
             } else {
                 form_pat!((delim form_delim_start, "[",
-                    [(named "nt", (anyways (, VariableReference(nt)))),
+                    [(named "nt", (anyways (vr nt))),
                      (alt
                         [],
                         [(name_lit__by_name nt),
@@ -340,7 +342,7 @@ macro_rules! ddd_type__body {
     ($ddd_parts:expr) => {
         {
             let drivers : Vec<Name> = $ddd_parts.get_rep_term(n("driver")).into_iter().map(|a| {
-                match a {
+                match a.c() {
                     QuoteLess(ref d, _) => d.vr_to_name(),
                     _ => icp!()
                 }
@@ -355,14 +357,18 @@ macro_rules! ddd_type__body {
             let mut walked_env = Assoc::new();
 
             let repeats = match ddd_parts_uq.env.find(&drivers[0]) {
-                Some(&Node(ref form, ref parts, _)) if form.name == n("tuple") => {
-                    parts.get_rep_leaf_or_panic(n("component")).len()
-                }
-                // TODO: what if some are `tuple` and others are `dotdotdot`?
-                Some(&Node(ref form, _, _)) if form.name == n("dotdotdot") => 1,
-                Some(other_t) => {
-                    ty_err!(UnableToDestructure(other_t.clone(), n("tuple"))
-                                at ddd_parts_uq.this_ast);
+                Some(ast) => {
+                    match ast.c() {
+                        &Node(ref form, ref parts, _) if form.name == n("tuple") => {
+                            parts.get_rep_leaf_or_panic(n("component")).len()
+                        }
+                        // TODO: what if some are `tuple` and others are `dotdotdot`?
+                        &Node(ref form, _, _) if form.name == n("dotdotdot") => 1,
+                        _ => {
+                            ty_err!(UnableToDestructure(ast.clone(), n("tuple"))
+                                        at ddd_parts_uq.this_ast);
+                        }
+                    }
                 }
                 _ => ty_err!(UnboundName(drivers[0]) at ddd_parts_uq.this_ast),
             };
@@ -372,7 +378,7 @@ macro_rules! ddd_type__body {
             for i in 0..repeats {
                 for (name, ty) in ddd_parts_uq.env.iter_pairs() {
                     if drivers.contains(name) {
-                        walked_env = walked_env.set(*name, match ty {
+                        walked_env = walked_env.set(*name, match ty.c() {
                             Node(ref form, ref parts, _) if form.name == n("tuple") => {
                                 let component
                                     = parts.get_rep_leaf_or_panic(n("component"))[i].clone();
@@ -390,7 +396,7 @@ macro_rules! ddd_type__body {
                             {
                                 parts.get_leaf_or_panic(&n("body")).clone()
                             }
-                            t => ty_err!(UnableToDestructure(t.clone(), n("tuple")) at t),
+                            _ => ty_err!(UnableToDestructure(ty.clone(), n("tuple")) at ty),
                         });
                     } else {
                         walked_env = walked_env.set(*name, ty.clone());
@@ -432,7 +438,7 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
             let drivers: Vec<Name> = ddd_parts_uq
                 .get_rep_term(n("driver"))
                 .into_iter()
-                .map(|a| match a {
+                .map(|a| match a.c() {
                     QuoteLess(ref d, _) => d.vr_to_name(),
                     _ => icp!(),
                 })
@@ -471,7 +477,7 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
             }
 
             // HACK: this tells `walk_quasi_literally` to splice (TODO #40?)
-            Ok(Value::from_ast(&Shape(reps)))
+            Ok(Value::from_ast(&raw_ast!(Shape(reps))))
         })),
     })
 }
@@ -489,7 +495,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
     use crate::{earley::ParseContext, grammar::FormPat::*};
 
     let perform_quotation = move |pc: ParseContext, starter_info: Ast| -> ParseContext {
-        let starter_nt = match starter_info {
+        let starter_nt = match starter_info.c() {
             IncompleteNode(ref parts) => parts.get_leaf_or_panic(&n("nt")).vr_to_name(),
             _ => icp!("malformed quotation"),
         };
@@ -531,7 +537,7 @@ pub fn quote(pos: bool) -> Rc<Form> {
                 n("QuotationBody"),
                 Rc::new(form_pat!(
                     // HACK: The `nt` from outside isn't in the same Scope, it seems:
-                    [(named "nt", (anyways (, VariableReference(starter_nt)))),
+                    [(named "nt", (anyways (vr starter_nt))),
                      (alt
                         [],
                         [(call "DefaultSeparator"), (scan r"(<)"),
@@ -604,9 +610,9 @@ pub fn quote(pos: bool) -> Rc<Form> {
         eval: if pos {
             Positive(cust_rc_box!(|quote_parts| {
                 let mq_parts = quote_parts.switch_mode::<QQuote>().quote_more(None);
-                match mq_parts.get_term_ref(n("body")) {
+                match mq_parts.get_term_ref(n("body")).c() {
                     // Strip the `QuoteMore`:
-                    QuoteMore(ref a, _) => crate::ast_walk::walk::<QQuote>(&*a, &mq_parts),
+                    QuoteMore(a, _) => crate::ast_walk::walk::<QQuote>(&*a, &mq_parts),
                     _ => icp!(),
                 }
             }))
@@ -616,11 +622,9 @@ pub fn quote(pos: bool) -> Rc<Form> {
 
                 let mq_parts =
                     quote_parts.switch_mode::<QQuoteDestr>().quote_more(None).with_context(context);
-                match mq_parts.get_term_ref(n("body")) {
+                match mq_parts.get_term_ref(n("body")).c() {
                     // Strip the `QuoteMore`:
-                    QuoteMore(ref body, _) => {
-                        crate::ast_walk::walk::<QQuoteDestr>(&*body, &mq_parts)
-                    }
+                    QuoteMore(body, _) => crate::ast_walk::walk::<QQuoteDestr>(&*body, &mq_parts),
                     _ => icp!(),
                 }
             }))

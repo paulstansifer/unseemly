@@ -61,13 +61,13 @@ impl WalkMode for SynthTy {
         match parts.env.find(&name) {
             None => Err(crate::util::err::sp(TyErr::UnboundName(name), parts.this_ast.clone())),
             // If name is protected, stop:
-            Some(ty) if &VariableReference(name) == ty => Ok(ty.clone()),
+            Some(ty) if &VariableReference(name) == ty.c() => Ok(ty.clone()),
             Some(ref ty) => synth_type(ty, parts.env.clone()),
         }
     }
 
     // Simply protect the name; don't try to unify it.
-    fn underspecified(name: Name) -> Ast { VariableReference(name) }
+    fn underspecified(name: Name) -> Ast { ast!((vr name)) }
 }
 
 impl WalkMode for UnpackTy {
@@ -83,7 +83,7 @@ impl WalkMode for UnpackTy {
     fn get_walk_rule(f: &Form) -> WalkRule<UnpackTy> { f.synth_type.neg().clone() }
     fn automatically_extend_env() -> bool { true }
 
-    fn underspecified(name: Name) -> Ast { VariableReference(name) }
+    fn underspecified(name: Name) -> Ast { ast!((vr name)) }
 }
 
 impl crate::walk_mode::NegativeWalkMode for UnpackTy {
@@ -262,7 +262,7 @@ fn basic_type_synth() {
 fn type_specialization() {
     let nat_ty = ast!( { "Type" "Nat" : });
 
-    fn tbn(nm: &'static str) -> Ast { crate::ast::Ast::VariableReference(n(nm)) }
+    fn tbn(nm: &'static str) -> Ast { ast!((vr nm)) }
 
     let _para_ty_env = assoc_n!(
         "some_int" => ast!( { "Type" "Int" : }),
