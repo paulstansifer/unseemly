@@ -1,12 +1,11 @@
 use crate::{
     ast::{Ast, AstContents::*},
     ast_walk::{LazyWalkReses, WalkRule::*},
-    core_forms::outermost_form,
     core_type_forms::get__primitive_type,
     grammar::FormPat,
     name::*,
     runtime::eval::Value,
-    util::{assoc::Assoc, mbe::EnvMBE},
+    util::mbe::EnvMBE,
 };
 use std::rc::Rc;
 
@@ -71,88 +70,6 @@ pub fn extend__capture_language(
     }
 }
 
-/// Run the file (which hopefully evaluates to `capture_language`), and get the language it defines.
-/// Returns the parse context, the type environment, the phaseless version of the type environment,
-/// and the value environment.
-/// TODO: we only need the phaseless
-pub fn language_from_file(
-    path: &std::path::Path,
-) -> (crate::earley::ParseContext, Assoc<Name, Ast>, Assoc<Name, Ast>, Assoc<Name, Value>) {
-    let mut raw_lib = String::new();
-
-    use std::io::Read;
-    let orig_dir = std::env::current_dir().unwrap();
-    std::fs::File::open(path)
-        .expect("Error opening file")
-        .read_to_string(&mut raw_lib)
-        .expect("Error reading file");
-    // Evaluate the file in its own directory:
-    if let Some(dir) = path.parent() {
-        // Might be empty:
-        if dir.is_dir() {
-            std::env::set_current_dir(dir).unwrap();
-        }
-    }
-
-    let orig_pc = crate::core_forms::outermost__parse_context();
-
-    // TODO: I guess syntax extensions ought to return `Result`, too...
-    let lib_ast = crate::grammar::parse(&outermost_form(), orig_pc.clone(), &raw_lib).unwrap();
-    // TODO: This gets roundtripped (LazyWalkReses -> Assoc -> LazyWalkReses). Just call `walk`?
-    let lib_typed = crate::ty::synth_type(&lib_ast, orig_pc.type_ctxt.env).unwrap();
-    let lib_expanded = crate::expand::expand(&lib_ast).unwrap();
-    let lib_evaled = crate::runtime::eval::eval(&lib_expanded, orig_pc.eval_ctxt.env).unwrap();
-    let (new_pc, new__value_env) = if let Value::Sequence(mut lang_and_env) = lib_evaled {
-        let env_value = lang_and_env.pop().unwrap();
-        let lang_value = lang_and_env.pop().unwrap();
-        let new_pc = match &*lang_value {
-            Value::Language(boxed_pc) => (**boxed_pc).clone(),
-            _ => icp!("[type error] not a language"),
-        };
-        let new__value_env = if let Value::Struct(ref env) = *env_value {
-            let mut new__value_env = Assoc::new();
-            // We need to un-freshen the names that we're importing
-            //  so they can actually be referred to.
-            for (k, v) in env.iter_pairs() {
-                new__value_env = new__value_env.set(k.unhygienic_orig(), v.clone())
-            }
-            new__value_env
-        } else {
-            icp!("[type error] Unexpected lib syntax structure: {:#?}", env_value)
-        };
-        (new_pc, new__value_env)
-    } else {
-        icp!("[type error] Unexpected lib syntax strucutre: {:#?}", lib_evaled);
-    };
-
-    node_let!(lib_typed => {Type tuple}
-        lang_and_types *= component);
-    node_let!(lang_and_types[1] => {Type struct}
-        keys *= component_name, values *= component);
-
-    let mut new__type_env = Assoc::<Name, Ast>::new();
-    for (k, v) in keys.into_iter().zip(values.into_iter()) {
-        // As above, unfreshen:
-        new__type_env = new__type_env.set(k.to_name().unhygienic_orig(), v.clone());
-    }
-
-    // Do it again, to unpack the phaseless type environment:
-    node_let!(lang_and_types[2] => {Type struct}
-        pl_keys *= component_name, pl_values *= component);
-
-    let mut new__type_env__phaseless = Assoc::<Name, Ast>::new();
-    for (k, v) in pl_keys.into_iter().zip(pl_values.into_iter()) {
-        // As above, unfreshen:
-        new__type_env__phaseless =
-            new__type_env__phaseless.set(k.to_name().unhygienic_orig(), v.clone());
-    }
-
-    // Go back to the original directory:
-    std::env::set_current_dir(orig_dir).unwrap();
-
-    (new_pc, new__type_env, new__type_env__phaseless, new__value_env)
-}
-
 // Shift the parser into the language specified in "filename".
 // TODO: This is probably unhygenic in some sense. Perhaps this needs to be a new kind of `Beta`?
 fn extend_import(
@@ -171,7 +88,7 @@ fn extend_import(
     };
 
     let (new_pc, new__type_env, new__type_env__phaseless, new__value_env) =
-        language_from_file(&std::path::Path::new(&filename));
+        crate::language_from_file(&std::path::Path::new(&filename));
 
     crate::earley::ParseContext {
         grammar: new_pc.grammar.set(

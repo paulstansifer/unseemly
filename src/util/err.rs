@@ -1,13 +1,13 @@
 use codespan_reporting::{
     diagnostic::{Diagnostic, Label},
-    term::termcolor::{ColorChoice, StandardStream, WriteColor, Ansi},
+    term::termcolor::{Ansi, ColorChoice, StandardStream, WriteColor},
 };
 use std::fmt::{Debug, Display, Formatter, Result};
 
 custom_derive! {
-    #[derive(Reifiable, Clone, PartialEq, Eq)]
+    #[derive(Reifiable, Clone, PartialEq)]
     pub struct Spanned<T> {
-        // The actual conents are ignored; only the span information is used.
+        // The actual contents are ignored; only the span information is used.
         pub loc: crate::ast::Ast,
         pub body: T
     }
@@ -25,8 +25,7 @@ impl<T: Display> Spanned<T> {
         let config = codespan_reporting::term::Config::default();
 
         crate::earley::files.with(|f| {
-            codespan_reporting::term::emit(&mut writer, &config, &*f.borrow(), &diagnostic)
-                .unwrap()
+            codespan_reporting::term::emit(&mut writer, &config, &*f.borrow(), &diagnostic).unwrap()
         });
     }
 

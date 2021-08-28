@@ -26,11 +26,11 @@ tap = "1.0.1"
 color-backtrace = "0"
 im-rc = "15.0"
 codespan-reporting = "0.11.1"
+ansi-to-html = "0.1.0"
 
 [[bin]]
 name = "unseemly"
 path = "src/main.rs"
-test = true
 
 [profile.dev]
 # After minor changes, using `cargo test` to build and test is slightly *faster* at this opt level:
