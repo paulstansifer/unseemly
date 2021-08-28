@@ -45,7 +45,7 @@ pub enum AstContents {
 pub struct LocatedAst {
     /// "contents"
     pub c: AstContents,
-    pub filename: usize,
+    pub file_id: usize,
     pub begin: usize,
     pub end: usize,
 }
@@ -167,7 +167,7 @@ impl Ast {
     pub fn with_c(&self, c: AstContents) -> Ast {
         Ast(Rc::new(LocatedAst {
             c: c,
-            filename: self.0.filename,
+            file_id: self.0.file_id,
             begin: self.0.begin,
             end: self.0.end,
         }))

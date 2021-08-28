@@ -43,6 +43,9 @@ thread_local! {
     // For parse error reporting: how far have we gotten?
     static best_token: RefCell<(usize, Rc<FormPat>, usize)>
         = RefCell::new((0, Rc::new(Impossible), 0));
+
+    pub static files: RefCell<codespan_reporting::files::SimpleFiles<String, String>>
+        = RefCell::new(codespan_reporting::files::SimpleFiles::new())
 }
 
 fn get_next_id() -> UniqueId {
@@ -130,6 +133,8 @@ pub struct Item {
     // -- Just for error messages --
     /// This rule is too commonplace to be informative in a parse error
     common: bool,
+    /// What file are we in?
+    file_id: usize,
 
     // -- Everything after this line is nonstandard, and is just here as an optimization--
     /// Identity for the purposes of `wanted_by` and `local_parse`
@@ -204,6 +209,7 @@ impl Clone for Item {
             pos: self.pos,
             pc: self.pc.clone(),
             common: self.common,
+            file_id: self.file_id,
             id: get_next_id(),
             done: self.done.clone(),
             local_parse: RefCell::new(LocalParse::NothingYet),
@@ -214,7 +220,12 @@ impl Clone for Item {
 
 /// Progress through the state sets
 // TODO: this ought to produce an Option<ParseError>, not a bool!
-fn create_chart(rule: Rc<FormPat>, pc: ParseContext, toks: &str) -> (UniqueId, Vec<Vec<Item>>) {
+fn create_chart(
+    rule: Rc<FormPat>,
+    pc: ParseContext,
+    toks: &str,
+    file_id: usize,
+) -> (UniqueId, Vec<Vec<Item>>) {
     let toks = toks.trim(); // HACK: tokens don't consume trailing whitespace
     let mut chart: Vec<Vec<Item>> = vec![];
     chart.resize_with(toks.len() + 1, std::default::Default::default);
@@ -227,6 +238,7 @@ fn create_chart(rule: Rc<FormPat>, pc: ParseContext, toks: &str) -> (UniqueId, V
         pos: 0,
         pc: Rc::new(pc),
         common: false,
+        file_id: file_id,
         id: get_next_id(),
         done: RefCell::new(false),
         local_parse: RefCell::new(LocalParse::NothingYet),
@@ -245,9 +257,14 @@ fn create_chart(rule: Rc<FormPat>, pc: ParseContext, toks: &str) -> (UniqueId, V
 }
 
 /// Recognize `rule` in `grammar` (but assume no code will need to be executed)
+/// For testing only; doesn't set the filename properly!
 fn recognize(rule: &FormPat, grammar: &SynEnv, toks: &str) -> bool {
-    let (start_but_startier, chart) =
-        create_chart(Rc::new(rule.clone()), ParseContext::new_from_grammar(grammar.clone()), toks);
+    let (start_but_startier, chart) = create_chart(
+        Rc::new(rule.clone()),
+        ParseContext::new_from_grammar(grammar.clone()),
+        toks,
+        0,
+    );
 
     chart[chart.len() - 1].iter().any(|item| {
         (*item.wanted_by.borrow()).iter().any(|idr| start_but_startier.is(*idr))
@@ -406,6 +423,7 @@ impl Item {
                 done: RefCell::new(false),
                 pc: self.pc.clone(),
                 common: self.common,
+                file_id: self.file_id,
                 local_parse: RefCell::new(LocalParse::NothingYet),
                 id: get_next_id(),
                 wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()])),
@@ -571,7 +589,7 @@ impl Item {
                             self.finish_with(
                                 ParsedAtom(Ast(Rc::new(LocatedAst {
                                     c: ast::Atom(n(&toks[cur_idx + start..cur_idx + end])),
-                                    filename: 0, // TODO
+                                    file_id: self.file_id,
                                     begin: cur_idx + start,
                                     end: cur_idx + end,
                                 }))),
@@ -666,6 +684,7 @@ impl Item {
                         done: RefCell::new(false),
                         pc: Rc::new(new_ctxt),
                         common: false,
+                        file_id: self.file_id,
                         local_parse: RefCell::new(LocalParse::NothingYet),
                         id: get_next_id(),
                         wanted_by: Rc::new(RefCell::new(vec![self.id.get_ref()])),
@@ -732,7 +751,7 @@ impl Item {
     fn locate(&self, done_tok: usize, c: ast::AstContents) -> Ast {
         Ast(Rc::new(ast::LocatedAst {
             c: c,
-            filename: 0, // TODO
+            file_id: self.file_id,
             begin: self.start_idx,
             end: done_tok,
         }))
@@ -870,7 +889,9 @@ pub fn parse(rule: &FormPat, pc: ParseContext, toks: &str) -> ParseResult {
         orig
     });
 
-    let (start_but_startier, chart) = create_chart(Rc::new(rule.clone()), pc, toks);
+    let file_id = files.with(|f| f.borrow_mut().add("[filename]".to_string(), toks.to_string()));
+
+    let (start_but_startier, chart) = create_chart(Rc::new(rule.clone()), pc, toks, file_id);
     let final_item = chart[chart.len() - 1].iter().find(|item| {
         (*item.wanted_by.borrow()).iter().any(|idr| start_but_startier.is(*idr))
             && *item.done.borrow()
@@ -924,6 +945,7 @@ fn earley_merging() {
         pos: 0,
         pc: Rc::new(ParseContext::new_from_grammar(main_grammar.clone())),
         common: false,
+        file_id: 0,
         id: get_next_id(),
         done: RefCell::new(false),
         local_parse: RefCell::new(LocalParse::NothingYet),

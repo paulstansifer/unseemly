@@ -24,14 +24,14 @@ macro_rules! raw_ast {
         crate::ast::Ast(std::rc::Rc::new(crate::ast::LocatedAst {
             c: crate::ast::AstContents::$ast_kind,
             // TODO: would Rust file info be useful?
-            filename: 0, begin: 0, end: 0
+            file_id: 0, begin: 0, end: 0
         }))
     };
     ($ast_kind:ident ( $( $body:expr ),* ) ) => {
         crate::ast::Ast(std::rc::Rc::new(crate::ast::LocatedAst {
             c: crate::ast::AstContents::$ast_kind( $( $body ),* ),
             // TODO: would Rust file info be useful?
-            filename: 0,
+            file_id: 0,
             begin: 0,
             end: 0
         }))

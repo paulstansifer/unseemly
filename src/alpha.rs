@@ -213,6 +213,8 @@ pub fn freshen(a: &Ast) -> Ast {
                     ),
                     export.clone(),
                 );
+
+                // Diagnostic output for "watching freshening".
                 watching.with(|watching_name| {
                     if let Some(name) = watching_name {
                         let freshened_to = fresh_ast_and_rens.map_reduce(
