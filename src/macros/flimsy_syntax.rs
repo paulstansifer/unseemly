@@ -38,6 +38,12 @@ macro_rules! raw_ast {
     }
 }
 
+macro_rules! atom {
+    ($nm:tt) => {
+        raw_ast!(Atom(crate::name::n($nm)))
+    };
+}
+
 // First, transforms from `[a b c; d e f; g h i]` to `[g h i] {[a b c] [d e f]}`
 //   to get around a Rust macro parsing restriction,
 //  then makes a REP flimsy shape for it.
@@ -50,11 +56,11 @@ macro_rules! u_rep {
     };
     ([] [] {}) => {
         // Empty repeat
-        raw_ast!(Shape(vec![raw_ast!(Atom(n("REP")))]))
+        raw_ast!(Shape(vec![atom!("REP")]))
     };
     ([]  [ $( $acc_cur:tt )* ] { $( [ $( $acc_rest:tt )* ] )* }) => {
         raw_ast!(Shape(vec![
-            raw_ast!(Atom(n("REP"))),
+            atom!("REP"),
             $( u_shape_if_many!(  $($acc_rest)* ), )*
             u_shape_if_many!(  $($acc_cur)* )
         ]))
@@ -85,7 +91,7 @@ macro_rules! u {
     ( [ , $seq:expr ] ) => {
         {
             let mut contents: Vec<Ast> = $seq;
-            contents.insert(0, raw_ast!(Atom(n("REP"))));
+            contents.insert(0, atom!("REP"));
             raw_ast!(Shape(contents))
         }
     };
@@ -173,7 +179,7 @@ macro_rules! u {
     // Currently, nested `Seq`s need to correspond to nested `SEQ`s, so this creates one explicitly:
     ((~ $($ts:tt)*)) => {
         raw_ast!(Shape(vec![
-            raw_ast!(Atom(n("SEQ"))),
+            atom!("SEQ"),
             $( u!( $ts ) ),*
         ]))
     };
@@ -189,7 +195,7 @@ macro_rules! u {
     // Two or more token trees (avoid infinite regress by not handling the one-element case)
     ( $t_first:tt $t_second:tt $( $t:tt )* ) => {
         raw_ast!(Shape(vec![
-            raw_ast!(Atom(n("SEQ"))),
+            atom!("SEQ"),
             u!( $t_first ), u!( $t_second ), $( u!( $t ) ),*
         ]))
     };

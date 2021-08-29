@@ -510,7 +510,8 @@ macro_rules! negative_typed_form {
 }
 
 // Value
-
+// (This is exported so `cli.rs` can use it. TODO: bring those tests back into the library.)
+#[macro_export]
 macro_rules! val {
     (i $i:expr) => { crate::runtime::eval::Value::Int(::num::bigint::BigInt::from($i)) };
     (b $b:expr) => {
@@ -606,6 +607,7 @@ macro_rules! core_fn {
 }
 
 // Alpha
+#[macro_export]
 macro_rules! without_freshening {
     ($( $body:tt )*) => {{
         let mut orig: bool = false;
@@ -744,7 +746,7 @@ macro_rules! vrep_accum {
 }
 
 // Testing
-
+#[macro_export]
 macro_rules! assert_m {
     ($got:expr, $expected:pat => $body:stmt) => {{
         let got = $got;

@@ -30,6 +30,12 @@ ansi-to-html = "0.1.0"
 
 [[bin]]
 name = "unseemly"
+path = "src/cli.rs"
+# Seems a lot faster to have all the tests in the library.
+test = false
+
+[lib]
+name = "libunseemly"
 path = "src/main.rs"
 
 [profile.dev]
