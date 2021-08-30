@@ -1,0 +1,6 @@
+*.wasm
+*.d.ts
+*.js
+README.md
+package.json
+LICENSE

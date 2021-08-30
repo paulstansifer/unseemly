@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Unseemly Web IDE</title>
+    <link rel="icon" href="./unseemly.png" type="image/png">
+    <style type="text/css" media="screen">
+        .row {
+            display: flex;
+        }
+
+        /* Two half-width columns */
+        .column {
+            flex: 50%;
+            padding: 10px;
+            height: 100vh;
+        }
+
+        .prose {
+            font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="row">
+        <div id="editor" class="column">(plus one one)</div>
+        <div class="column prose">
+            <div id="output"></div>
+        </div>
+    </div>
+
+    <script src="https://pagecdn.io/lib/ace/1.4.12/ace.min.js" type="text/javascript" charset="utf-8"></script>
+    <script src="https://pagecdn.io/lib/ace/1.4.12/ext-settings_menu.js" type="text/javascript"
+        charset="utf-8"></script>
+    <script type="module">
+        var editor = ace.edit("editor");
+        ace.config.set('basePath', 'https://pagecdn.io/lib/ace/1.4.12/')
+        editor.setTheme("ace/theme/monokai");
+        // editor.session.setMode("ace/mode/javascript");
+
+        import init, { html__eval_program } from "./libunseemly.js";
+        init();
+
+        editor.commands.addCommand({
+            name: "showKeyboardShortcuts",
+            bindKey: { win: "Ctrl-Alt-h", mac: "Command-Alt-h" },
+            exec: function (editor) {
+                ace.config.loadModule("ace/ext/keybinding_menu", function (module) {
+                    module.init(editor);
+                    editor.showKeyboardShortcuts()
+                })
+            }
+        })
+
+        editor.commands.addCommand({
+            name: "build",
+            bindKey: { win: "Ctrl-Shift-b", mac: "Command-Shift-b" },
+            exec: function (editor) {
+                output = document.getElementById("output");
+                output.innerHTML = html__eval_program(editor.getValue());
+            }
+        })
+
+    </script>
+</body>
+
+</html>

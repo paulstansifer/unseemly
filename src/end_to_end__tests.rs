@@ -1,12 +1,12 @@
-use crate::ast::{Ast};
-use crate::core_forms;
-use crate::expand;
-use crate::grammar;
-use crate::name::{n, Name};
-use crate::runtime::{core_values, eval, eval::Value};
-use std::{cell::RefCell};
-use crate::ty;
-use crate::util::assoc::Assoc;
+use crate::{
+    ast::Ast,
+    core_forms, eval_unseemly_program_top, expand, grammar,
+    name::{n, Name},
+    runtime::{core_values, eval, eval::Value},
+    ty, type_unseemly_program_top,
+    util::assoc::Assoc,
+};
+use std::cell::RefCell;
 
 // HACK: the non-test code in here is copied from `cli.rs`.
 
@@ -78,6 +78,12 @@ fn assign_t_var(name: &str, t: &str) -> Result<Ast, String> {
     }
 
     res
+}
+
+fn ignore__this_function() {
+    // Suppress unused variable warnings for functions only used in tests.
+    let _ = eval_unseemly_program_top;
+    let _ = type_unseemly_program_top;
 }
 
 // Many of these tests should be converted to `u!`-based tests.
@@ -334,4 +340,152 @@ fn end_to_end_quotation_advanced() {
     //                     '[Expr<Int> | five]')"),
     //          eval_unseemly_program("'[Expr<Int> | (.[x : Int . match x {y => five}].  eight)]'"));
     //  }
+}
+
+#[test]
+fn simple_end_to_end_eval() {
+    assert_eq!(eval_unseemly_program_top("(zero? zero)"), Ok(val!(b true)));
+
+    assert_eq!(eval_unseemly_program_top("(plus one one)"), Ok(val!(i 2)));
+
+    assert_eq!(
+        eval_unseemly_program_top("(.[x : Int  y : Int . (plus x y)]. one one)"),
+        Ok(val!(i 2))
+    );
+
+    assert_eq!(
+        eval_unseemly_program_top(
+            "((fix .[ again : [ -> [ Int -> Int ]] .
+            .[ n : Int .
+                match (zero? n) {
+                    +[True]+ => one
+                    +[False]+ => (times n ((again) (minus n one))) } ]. ].) five)"
+        ),
+        Ok(val!(i 120))
+    );
+}
+
+#[test]
+fn end_to_end_quotation_basic() {
+    assert_m!(eval_unseemly_program_top("'[Expr | .[ x : Int . x ]. ]'"), Ok(_));
+
+    assert_m!(eval_unseemly_program_top("'[Expr | (plus five five) ]'"), Ok(_));
+
+    assert_m!(eval_unseemly_program_top("'[Expr | '[Expr | (plus five five) ]' ]'"), Ok(_));
+
+    //≫ .[s : Expr<Int> . '[Expr | ( ,[Expr | s], '[Expr | ,[Expr | s], ]')]' ].
+}
+
+#[test]
+fn language_building() {
+    assert_eq!(
+        eval_unseemly_program_top(
+            r"extend_syntax
+                DefaultSeparator ::= /((?:\s|#[^\n]*)*)/ ;
+            in
+                # Now we have comments! (just not after the last token)
+            five"
+        ),
+        Ok(val!(i 5))
+    );
+
+    let bound_wrong_prog = "extend_syntax
+            Expr ::=also forall T S . '{
+                [
+                    lit ,{ DefaultToken }, = 'let'
+                    [
+                        pat := ( ,{ Pat<S> }, )
+                        lit ,{ DefaultToken }, = '='
+                        value := ( ,{ Expr<S> }, )
+                        lit ,{ DefaultToken }, = ';'
+                    ] *
+                    lit ,{ DefaultToken }, = 'in'
+                    body := ( ,{ Expr<T> }, <-- ...[pat = value]... )
+                ]
+            }' let_macro -> .{
+                '[Expr |
+                    match ...[,value, >> ,[value], ]...
+                        { ...[,pat, >> ,[pat],]... => ,[body], } ]'
+            }. ;
+        in
+        let x = eight ;
+            y = times ;
+        in (plus x y)";
+    let bound_wrong_ast = grammar::parse(
+        &core_forms::outermost_form(),
+        core_forms::outermost__parse_context(),
+        bound_wrong_prog,
+    )
+    .unwrap();
+
+    assert_m!(
+        ty::synth_type(&bound_wrong_ast, crate::runtime::core_values::core_types()),
+        ty_err_p!(Mismatch(x, y)) => {
+            assert_eq!(x, uty!({Int :}));
+            assert_eq!(y, uty!({fn : [{Int :}; {Int :}] {Int :}}));
+        }
+    );
+
+    let inner_expr_wrong_prog = "extend_syntax
+            Expr ::=also forall T S . '{
+                [
+                    lit ,{ DefaultToken }, = 'let'
+                    [
+                        pat := ( ,{ Pat<S> }, )
+                        lit ,{ DefaultToken }, = '='
+                        value := ( ,{ Expr<S> }, )
+                        lit ,{ DefaultToken }, = ';'
+                    ] *
+                    lit ,{ DefaultToken }, = 'in'
+                    body := ( ,{ Expr< T > }, <-- ...[pat = value]... )
+                ]
+            }' let_macro -> .{
+                '[Expr |
+                    match ...[,value, >> ,[value], ]...
+                        { ...[,pat, >> ,[pat],]... => ,[body], } ]'
+            }. ;
+        in
+        let x = eight ;
+            y = four ;
+        in (plus x times)";
+    let inner_expr_wrong_ast = grammar::parse(
+        &core_forms::outermost_form(),
+        core_forms::outermost__parse_context(),
+        inner_expr_wrong_prog,
+    )
+    .unwrap();
+
+    assert_m!(
+        ty::synth_type(&inner_expr_wrong_ast, crate::runtime::core_values::core_types()),
+        ty_err_p!(Mismatch(x, times)) => {
+            assert_eq!(x, uty!({Int :}));
+            assert_eq!(times, uty!({fn : [{Int :}; {Int :}] {Int :}}));
+        }
+    );
+
+    // TODO: leaving out the `**[ ]**` results in an ICP; it should be a static error.
+
+    let let_macro_prog = "extend_syntax
+            Expr ::=also forall T S . '{
+                [
+                    lit ,{ DefaultToken }, = 'let'
+                    [
+                        pat := ( ,{ Pat<S> }, )
+                        lit ,{ DefaultToken }, = '='
+                        value := ( ,{ Expr<S> }, )
+                        lit ,{ DefaultToken }, = ';'
+                    ] *
+                    lit ,{ DefaultToken }, = 'in'
+                    body := ( ,{ Expr<T> }, <-- ...[pat = value]... )
+                ]
+            }' let_macro -> .{
+                '[Expr |
+                    match **[...[,value, >> ,[value], ]... ]**
+                        { **[...[,pat, >> ,[pat],]... ]** => ,[body], } ]'
+            }. ;
+        in
+        let x = eight ;
+            y = four ;
+        in (plus y (plus x y))";
+    assert_eq!(eval_unseemly_program_top(let_macro_prog), Ok(val!(i 16)));
 }
