@@ -623,7 +623,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             less_quoted_out_env: vec![],
             parts: match this_ast.maybe_node_parts() {
                 Some(parts_unwalked) => parts_unwalked.map(&mut LazilyWalkedTerm::new),
-                None => EnvMBE::new()
+                None => EnvMBE::new(),
             },
             this_ast: this_ast,
             extra_info: std::default::Default::default(),
@@ -955,8 +955,8 @@ fn quote_more_and_less() {
         assoc_n!("a" => ast!({"Type" "Nat" :})),
         Assoc::new(),
         // we'll pretend this is under an unquote or something:
-        &mbe!("body" => "bind_me"),
-        ast!("[ignored]"),
+        ast!({crate::form::simple_form("-", crate::grammar::FormPat::Impossible) ;
+            "body" => "bind_me"}),
     );
 
     let parts = parts.with_context(ast!({"Type" "Int" :}));
