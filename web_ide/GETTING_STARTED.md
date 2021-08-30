@@ -19,5 +19,5 @@ You can't use a `file://` URL;
   or `python3 -m http.server`.
   or `npm i local-web-server` and then `ws`.
 
-To publish, just host all of the files in this directory together (maybe excluding the *.md files).
+To publish, host the files together (deleting the `.gitignore` and the human-readable files).
 One option is to use [GitHub Pages](https://pages.github.com/).

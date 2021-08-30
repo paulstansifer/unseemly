@@ -5,8 +5,13 @@
     <title>Unseemly Web IDE</title>
     <link rel="icon" href="./unseemly.png" type="image/png">
     <style type="text/css" media="screen">
+        body {
+            margin: 0;
+        }
+
         .row {
             display: flex;
+            height: 100vh;
         }
 
         /* Two half-width columns */
@@ -14,6 +19,7 @@
             flex: 50%;
             padding: 10px;
             height: 100vh;
+            box-sizing: border-box;
         }
 
         .prose {
@@ -47,7 +53,7 @@
         <div class="column prose">
             <div id="output"></div>
             <div id="working" style="display: none">working...</div>
-            <i> Use Ctrl-E to execute. Use Ctrl-, to open settings. Use Ctrl-Alt-Right to
+            <i> Use Ctrl-E to execute. Use Ctrl-, to open settings. Use Ctrl-D to
                 multi-select. Use Ctrl-Alt-H to see keyboard shortcuts.</i>
         </div>
     </div>
@@ -59,6 +65,8 @@
         var editor = ace.edit("editor");
         ace.config.set('basePath', 'https://pagecdn.io/lib/ace/1.4.12/')
         editor.setTheme("ace/theme/monokai");
+        editor.setOption("printMarginColumn", 100);
+        editor.setKeyboardHandler("ace/keyboard/vscode");
         var unseemly_worker = new Worker("unseemly_worker.js");
 
         // Load example code:
