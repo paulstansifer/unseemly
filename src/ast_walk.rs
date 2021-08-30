@@ -613,7 +613,6 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
     pub fn new(
         env: ResEnv<Mode::Elt>,
         prelude_env: ResEnv<Mode::Elt>,
-        parts_unwalked: &EnvMBE<Ast>, // TODO: get rid of this argument; use `this_ast`
         this_ast: Ast,
     ) -> LazyWalkReses<Mode> {
         LazyWalkReses {
@@ -622,7 +621,10 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             more_quoted_env: vec![],
             less_quoted_env: vec![],
             less_quoted_out_env: vec![],
-            parts: parts_unwalked.map(&mut LazilyWalkedTerm::new),
+            parts: match this_ast.maybe_node_parts() {
+                Some(parts_unwalked) => parts_unwalked.map(&mut LazilyWalkedTerm::new),
+                None => EnvMBE::new()
+            },
             this_ast: this_ast,
             extra_info: std::default::Default::default(),
         }

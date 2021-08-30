@@ -158,7 +158,7 @@ pub fn eval_program(
 
     let _type = ast_walk::walk::<ty::SynthTy>(
         &ast,
-        &ast_walk::LazyWalkReses::new(type_env, type_env__phaseless, ast.node_parts(), ast.clone()),
+        &ast_walk::LazyWalkReses::new(type_env, type_env__phaseless, ast.clone()),
     )
     .map_err(|e| format!("{}", e))?;
 
@@ -190,7 +190,7 @@ pub fn type_unseemly_program_top(program: &str) -> Result<Ast, String> {
 
     ast_walk::walk::<ty::SynthTy>(
         &ast,
-        &ast_walk::LazyWalkReses::new(type_env.clone(), type_env, ast.node_parts(), ast.clone()),
+        &ast_walk::LazyWalkReses::new(type_env.clone(), type_env, ast.clone()),
     )
     .map_err(|e| format!("{}", e))
 }

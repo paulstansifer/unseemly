@@ -224,6 +224,14 @@ impl Ast {
             _ => icp!(),
         }
     }
+
+    pub fn maybe_node_parts(&self) -> Option<&EnvMBE<Ast>> {
+        match self.c() {
+            Node(_, ref body, _) => Some(body),
+            _ => None,
+        }
+    }
+
     pub fn node_form(&self) -> &Form {
         match self.c() {
             Node(ref form, _, _) => form,
