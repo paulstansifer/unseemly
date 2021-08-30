@@ -350,16 +350,20 @@ macro_rules! form_pat {
             crate::name::n($e))
     };
     ((lit_aat $e:expr)) => {
-        crate::grammar::FormPat::Literal(std::rc::Rc::new(crate::grammar::new_scan(r"\s*(\S+)")),
-                                    crate::name::n($e))
+        crate::grammar::FormPat::Literal(
+            std::rc::Rc::new(crate::grammar::new_scan(r"\s*(\S+)", None)),
+            crate::name::n($e))
     };
     ((name_lit__by_name $e:expr)) => {
         crate::grammar::FormPat::Literal(
             std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("DefaultWord"))),
             $e)
     };
+    ((scan_cat $e:expr, $cat:expr)) => {
+        crate::grammar::new_scan($e, Some(String::from($cat)))
+    };
     ((scan $e:expr)) => {
-        crate::grammar::new_scan($e)
+        crate::grammar::new_scan($e, None)
     };
     ((reserved $body:tt, $( $res:tt )*)) => {
         crate::grammar::FormPat::Reserved(std::rc::Rc::new(form_pat!($body)), vec![$( n($res) ),*])
@@ -380,7 +384,7 @@ macro_rules! form_pat {
         std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n($n)))
     ) };
     (varref_aat) => { crate::grammar::FormPat::VarRef(
-        std::rc::Rc::new(crate::grammar::new_scan(r"\s*(\S+)"))
+        std::rc::Rc::new(crate::grammar::new_scan(r"\s*(\S+)", None))
     ) };
     ((delim $n:expr, $d:expr, $body:tt)) => {
         crate::grammar::FormPat::Seq(vec![

@@ -174,7 +174,7 @@ pub fn make_core_extra_forms() -> FormPat {
             Body(n("body")),
             Body(n("body"))),
         typed_form!("string_literal",
-            (named "body", (scan r#"\s*"((?:[^"\\]|\\"|\\\\)*)""#)),
+            (named "body", (scan_cat r#"\s*"((?:[^"\\]|\\"|\\\\)*)""#, "string.quoted.double")),
             cust_rc_box!(|_| {
                 Ok(ast!({"Type" "String" :}))
             }),

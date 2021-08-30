@@ -39,7 +39,7 @@ fn node_names_mentioned(pat: &FormPat) -> Vec<Name> {
             res.append(&mut node_names_mentioned(&*rhs));
             res
         }
-        Anyways(_) | Impossible | Scan(_) | Call(_) | SynImport(_, _, _) => vec![],
+        Anyways(_) | Impossible | Scan(_, _) | Call(_) | SynImport(_, _, _) => vec![],
     }
 }
 
@@ -72,8 +72,8 @@ pub fn unparse_mbe(pat: &FormPat, actl: &AstContents, context: &EnvMBE<Ast>, s: 
         (&Call(sub_form), _) => unparse_mbe(s.find_or_panic(&sub_form), actl, context, s),
         (&Anyways(_), _) | (&Impossible, _) => "".to_string(),
         (&Literal(_, n), _) => n.print(),
-        (&Scan(_), &Atom(n)) => n.print(),
-        (&Scan(_), _) => "".to_string(), // HACK for `Alt`
+        (&Scan(_, _), &Atom(n)) => n.print(),
+        (&Scan(_, _), _) => "".to_string(), // HACK for `Alt`
         (&VarRef(ref sub_form), &VariableReference(n)) => {
             unparse_mbe(&*sub_form, &Atom(n), context, s)
         }

@@ -272,7 +272,7 @@ pub fn parse_flimsy_mbe(flimsy: &Ast, grammar: &FormPat) -> Option<EnvMBE<Ast>> 
     match grammar {
         Literal(_, _) => None,
         Call(_) => None,
-        Scan(_) => None,
+        Scan(_, _) => None,
         Seq(_) => match flimsy.c() {
             Shape(flimsy_parts) => {
                 if flimsy_parts[0].c() != &Atom(n("SEQ")) {
@@ -318,7 +318,7 @@ fn parse_flimsy_ast(flimsy: &Ast, grammar: &FormPat) -> Ast {
     match grammar {
         Anyways(ref a) => a.clone(),
         Impossible => unimplemented!(),
-        Scan(_) => flimsy.clone(),
+        Scan(_, _) => flimsy.clone(),
         Literal(_, _) => raw_ast!(Trivial),
         VarRef(_) => match flimsy.c() {
             VariableReference(a) => raw_ast!(VariableReference(*a)),

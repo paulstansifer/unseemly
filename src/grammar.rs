@@ -26,8 +26,8 @@ custom_derive! {
 
         /// Matches actual text!
         /// The regex must have a single capturing group.
-        /// The contents of the capturing group are
-        Scan(Scanner),
+        /// The optional string is a TextMate syntax category.
+        Scan(Scanner, Option<String>),
 
         /// Marks this rule as too commonly-used to be informative;
         ///  prevents display of this rule in parse errors,
@@ -97,7 +97,7 @@ impl FormPat {
                 }
             }
             Impossible => format!("impossible"),
-            Scan(ref scanner) => format!("/{}/", scanner.0),
+            Scan(ref scanner, _) => format!("/{}/", scanner.0),
             Common(ref body) => format!("common ({})", body),
             Reserved(ref body, ref names) => format!(
                 "{} reserving {}",
@@ -169,7 +169,7 @@ impl FormPat {
             Biased(ref body_a, ref body_b) => {
                 body_a.binders().tap_mut(|v| v.append(&mut body_b.binders()))
             }
-            Anyways(_) | Impossible | Literal(_, _) | Scan(_) | VarRef(_) | Call(_) => vec![],
+            Anyways(_) | Impossible | Literal(_, _) | Scan(_, _) | VarRef(_) | Call(_) => vec![],
         }
     }
 
@@ -191,7 +191,7 @@ impl FormPat {
             Call(_) => None,
             // TODO: `Pick` should return a result.
             Scope(_, _) | Pick(_, _) => None, // Only look in the current scope
-            Anyways(_) | Impossible | Scan(_) => None,
+            Anyways(_) | Impossible | Scan(_, _) => None,
             Star(ref body)
             | Plus(ref body)
             | SynImport(ref body, _, _)
@@ -214,6 +214,57 @@ impl FormPat {
             }
             Biased(ref body_a, ref body_b) => {
                 body_a.find_named_call(n).or_else(|| body_b.find_named_call(n))
+            }
+        }
+    }
+
+    /// Map regular expressions (as strings) to their TextMate categories.
+    /// This is a loose approximation of the impossible task of syntax-highlighting a `FormPat`.
+    pub fn textmate_categories(&self) -> Vec<(String, String)> {
+        match self {
+            Scan(scanner, name) => match name {
+                Some(name) => vec![(
+                    format!("{}", scanner.0).strip_prefix("^").unwrap().to_string(),
+                    name.clone(),
+                )],
+                None => vec![],
+            },
+            Reserved(body, reserved) => {
+                let mut res = body.textmate_categories();
+                for word in reserved {
+                    // TODO: escape `word` in the unlikely event it has regex special characters.
+                    // TODO: modify `Reserved` to allow customization
+                    res.push((word.orig_sp(), "keyword.operator".to_string()));
+                }
+                res
+            }
+            // `Scope` indirectly contains synatx, but it's unlikely to be scanners,
+            //  and we also probably don't want them to be globally-highlighted
+            Scope(_, _) => vec![],
+            Anyways(_) | Impossible | Call(_) => vec![],
+            Common(body)
+            | Literal(body, _)
+            | VarRef(body)
+            | Star(body)
+            | Plus(body)
+            | SynImport(_, body, _)
+            | Named(_, body)
+            | Pick(body, _)
+            | NameImport(body, _)
+            | NameImportPhaseless(body, _)
+            | QuoteDeepen(body, _)
+            | QuoteEscape(body, _) => body.textmate_categories(),
+            Biased(lhs, rhs) => {
+                let mut res = lhs.textmate_categories();
+                res.append(&mut rhs.textmate_categories());
+                res
+            }
+            Seq(bodies) | Alt(bodies) => {
+                let mut res = vec![];
+                for body in bodies {
+                    res.append(&mut body.textmate_categories());
+                }
+                res
             }
         }
     }
@@ -247,8 +298,8 @@ impl std::fmt::Debug for SyntaxExtension {
     }
 }
 
-pub fn new_scan(regex: &str) -> FormPat {
-    Scan(Scanner(regex::Regex::new(&format!("^{}", regex)).unwrap()))
+pub fn new_scan(regex: &str, cat: Option<String>) -> FormPat {
+    Scan(Scanner(regex::Regex::new(&format!("^{}", regex)).unwrap()), cat)
 }
 
 #[derive(Clone)]
@@ -288,8 +339,10 @@ use self::FormPat::*;
 
 #[test]
 fn basic_parsing() {
-    fn mk_lt(s: &str) -> Rc<FormPat> { Rc::new(Literal(Rc::new(new_scan(r"\s*(\S+)")), n(s))) }
-    let atom = Rc::new(new_scan(r"\s*(\S+)"));
+    fn mk_lt(s: &str) -> Rc<FormPat> {
+        Rc::new(Literal(Rc::new(new_scan(r"\s*(\S+)", None)), n(s)))
+    }
+    let atom = Rc::new(new_scan(r"\s*(\S+)", None));
 
     assert_eq!(parse_top(&Seq(vec![atom.clone()]), tokens_s!("asdf")).unwrap(), ast_shape!("asdf"));
 
@@ -514,7 +567,7 @@ fn extensible_parsing() {
         .len();
 
         ParseContext::new_from_grammar(
-            assoc_n!("count" => Rc::new(Literal(Rc::new(new_scan(r"\s*(\S+)")),
+            assoc_n!("count" => Rc::new(Literal(Rc::new(new_scan(r"\s*(\S+)", None)),
                                             n(&count.to_string())))),
         )
     }

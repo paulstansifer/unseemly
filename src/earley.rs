@@ -453,7 +453,7 @@ impl Item {
                     //  in `shift_or_predict` for leaves.
                     // Except for `Seq`. TODO: why?
                     let mut more = match *waiting_item.rule {
-                        Anyways(_) | Impossible | Scan(_) => {
+                        Anyways(_) | Impossible | Scan(_, _) => {
                             icp!("{:#?} should not be waiting for anything!", waiting_item)
                         }
                         Seq(ref subs) => {
@@ -580,7 +580,7 @@ impl Item {
             (0, &Anyways(ref a)) => self.finish_with(ParsedAtom(a.clone()), 0),
             (_, &Impossible) => vec![],
             (0, &Literal(ref sub, _)) => self.start(sub, cur_idx),
-            (0, &Scan(crate::grammar::Scanner(ref regex))) => {
+            (0, &Scan(crate::grammar::Scanner(ref regex), _)) => {
                 let mut caps = regex.capture_locations();
                 if regex.captures_read(&mut caps, &toks[cur_idx..]).is_some() {
                     match caps.get(1) {
@@ -764,7 +764,7 @@ impl Item {
         let res = match *self.rule {
             Anyways(ref a) => Ok(a.clone()),
             Impossible => icp!("Parser parsed the impossible!"),
-            Scan(_) => match self.local_parse.borrow().clone() {
+            Scan(_, _) => match self.local_parse.borrow().clone() {
                 ParsedAtom(a) => Ok(a),
                 NothingYet => Ok(ast!((trivial))), // TODO: should we fake location info here?
                 _ => icp!(),
@@ -933,7 +933,7 @@ fn parse_top(rule: &FormPat, toks: &str) -> ParseResult {
 
 #[test]
 fn earley_merging() {
-    let one_rule = crate::grammar::new_scan("whatever");
+    let one_rule = crate::grammar::new_scan("whatever", None);
     let another_rule = Impossible;
     let main_grammar = assoc_n!("a" => Rc::new(form_pat!((scan "irrelevant"))));
     let another_grammar = assoc_n!("a" => Rc::new(form_pat!((scan "irrelevant"))));
@@ -1064,7 +1064,7 @@ fn earley_merging() {
 fn earley_simple_recognition() {
     let main_grammar = Assoc::new();
 
-    let atom = Rc::new(crate::grammar::new_scan(r"\s*(\S+)"));
+    let atom = Rc::new(crate::grammar::new_scan(r"\s*(\S+)", None));
 
     // 0-length strings
 
@@ -1211,7 +1211,7 @@ fn earley_simple_recognition() {
 #[test]
 fn earley_env_recognition() {
     fn mk_lt(s: &str) -> Rc<FormPat> {
-        Rc::new(Literal(Rc::new(crate::grammar::new_scan(r"\s*(\S+)")), n(s)))
+        Rc::new(Literal(Rc::new(crate::grammar::new_scan(r"\s*(\S+)", None)), n(s)))
     }
     let env = assoc_n!(
         "empty" => Rc::new(Seq(vec![])),
@@ -1283,10 +1283,10 @@ fn earley_env_recognition() {
 #[test]
 fn basic_parsing_e() {
     fn mk_lt(s: &str) -> Rc<FormPat> {
-        Rc::new(Literal(Rc::new(crate::grammar::new_scan(r"\s*(\S+)")), n(s)))
+        Rc::new(Literal(Rc::new(crate::grammar::new_scan(r"\s*(\S+)", None)), n(s)))
     }
 
-    let atom = Rc::new(crate::grammar::new_scan(r"\s*(\S+)"));
+    let atom = Rc::new(crate::grammar::new_scan(r"\s*(\S+)", None));
 
     assert_eq!(parse_top(&*atom, tokens_s!("asdf")), Ok(ast!("asdf")));
 

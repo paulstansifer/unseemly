@@ -587,7 +587,8 @@ pub fn make_core_macro_forms() -> SynEnv {
             name: n("scan"),
             grammar: Rc::new(form_pat!(
                 (named "pat", (pick
-                    [(call "DefaultSeparator"), (named "pat", (scan r"/((?:[^/\\]|\\.)*)/"))],
+                    [(call "DefaultSeparator"), (named "pat", (scan r"/((?:[^/\\]|\\.)*)/")),
+                     (alt [], [(lit "as"), (named "category", (scan r"((?:\p{Letter}|[-.])*)"))])],
                     "pat"))
             )),
             type_compare: Both(NotWalked,NotWalked), // Not a type
@@ -597,7 +598,10 @@ pub fn make_core_macro_forms() -> SynEnv {
             eval: Positive(cust_rc_box!(|parts| {
                 let regex = parts.get_term(n("pat")).to_name().orig_sp()
                     .replace(r#"\/"#, r#"/"#);
-                Ok(crate::grammar::new_scan(&regex).reify())
+                Ok(crate::grammar::new_scan(
+                    &regex,
+                    parts.maybe_get_term(n("category")).map(|a| a.to_name().orig_sp())
+                ).reify())
             })),
             quasiquote: Both(LiteralLike, LiteralLike)
         }) => [],
@@ -785,12 +789,12 @@ pub fn extend_syntax() -> Rc<Form> {
 fn formpat_reflection() {
     use crate::{core_forms::find_form, runtime::eval::eval_top};
     let macro_forms = make_core_macro_forms()
-        .set(n("DefaultToken"), Rc::new(crate::grammar::new_scan(r"\s*(\S+)")))
+        .set(n("DefaultToken"), Rc::new(crate::grammar::new_scan(r"\s*(\S+)", None)))
         .set(n("DefaultAtom"), Rc::new(FormPat::Call(n("DefaultToken"))))
         .set(n("AtomNotInPat"), Rc::new(FormPat::Call(n("DefaultToken"))))
         .set(n("DefaultReference"), Rc::new(VarRef(Rc::new(FormPat::Call(n("DefaultToken"))))))
         .set(n("Type"), Rc::new(FormPat::Call(n("DefaultReference"))))
-        .set(n("DefaultSeparator"), Rc::new(crate::grammar::new_scan(r"(\s*)")));
+        .set(n("DefaultSeparator"), Rc::new(crate::grammar::new_scan(r"(\s*)", None)));
 
     fn syntax_to_form_pat(a: Ast) -> FormPat { FormPat::reflect(&eval_top(&a).unwrap()) }
 
@@ -816,7 +820,7 @@ fn formpat_reflection() {
         )
     };
 
-    assert_eq!(string_to_form_pat(r"/\s*(\S+)/"), crate::grammar::new_scan(r"\s*(\S+)"));
+    assert_eq!(string_to_form_pat(r"/\s*(\S+)/"), crate::grammar::new_scan(r"\s*(\S+)", None));
     assert_eq!(string_to_form_pat(r"lit /\s*(\S+)/ = 'x'"), form_pat!((lit_aat "x")));
     assert_eq!(
         string_to_form_pat(r"[ lit /\s*(\S+)/ = 'write_this' ,{ Expr < Int > }, <-- nothing ]"),

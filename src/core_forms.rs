@@ -529,14 +529,16 @@ pub fn make_core_syn_env() -> SynEnv {
         "DefaultSeparator" => (scan r"(\s*)"),
         "DefaultAtom" => (common (reserved_by_name_vec (call "DefaultWord"), reserved_names)),
         "DefaultWord" => (common (pick [(call "DefaultSeparator"),
-            (named "name", (scan r"(\p{Letter}(?:\p{Letter}|\p{Number}|[_?])*)"))],
+            (named "name", (scan_cat r"(\p{Letter}(?:\p{Letter}|\p{Number}|[_?])*)",
+                                     "variable"))],
                 "name")),
         // TODO: come up with more normal tokenization rules.
         // HACK: it's really confusing to weld semicolon and colon onto brackets, so exempt them.
         "DefaultToken" =>
            (common (pick [(call "DefaultSeparator"),
                    (named "tok",
-                       (scan r"([\]\)\}][^\[\]\(\)\{\}\s;:]*|[^\[\]\(\)\{\}\s;:]*[\[\(\{]|[^\[\]\(\)\{\}\s]+)"))],
+                       (scan_cat r"([\]\)\}][^\[\]\(\)\{\}\s;:]*|[^\[\]\(\)\{\}\s;:]*[\[\(\{]|[^\[\]\(\)\{\}\s]+)",
+                            "keyword.other"))],
             "tok"))
     )
     .set_assoc(&ctf) // throw in types!
