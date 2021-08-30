@@ -212,6 +212,12 @@ fn html_render(res: Result<Value, String>) -> String {
 }
 
 #[wasm_bindgen]
+pub fn wasm_init() {
+    #[cfg(target_arch = "wasm32")]
+    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+}
+
+#[wasm_bindgen]
 pub fn html__eval_program(program: &str) -> String {
     html_render(eval_unseemly_program_top(program))
 }

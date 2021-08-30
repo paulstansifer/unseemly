@@ -31,6 +31,9 @@ wasm-bindgen = "0.2.76"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rustyline = "8.0.0"
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.6"
+
 [[bin]]
 name = "unseemly"
 path = "src/cli.rs"

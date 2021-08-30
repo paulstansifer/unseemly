@@ -1,0 +1,175 @@
+
+extend_syntax
+    DefaultSeparator ::= /((?s:\s|#[^\n|][^\n]*|#\|.*?\|#)*)/ ;
+in
+    # This file demonstrates how to bootstrap a (somewhat more) useable language in Unseemly.
+    # You should copy it and play around (it's under the MIT license).
+    # There are some corner cases requiring magical incantations,
+    #  so
+
+    # Unseemly doesn't have comments,
+    #  so the above `extend_syntax` added Python-style #-to-end-of-line comments
+    #   and Racket-style #| inline |# comments.
+    # `DefaultSeparator`, in the base Unseemly grammar, is matched before each token,
+    #  but only matches whitespace `/(\s*)/`,
+    #  so we changed it out for a regex that includes comments, too.
+    # After the `in`, the changes to the language take effect, so we can use comments!
+    # But there's a lot more work to do...
+extend_syntax
+    ### Introduce `single_let` expressions.
+    # Using `::=also` in a grammar definition extends, rather than overwrites,
+    #  the definition of `Expr`:
+    Expr ::=also
+        # The new form is a macro, and there are two unknown types, which we'll call `T` and `S`:
+        forall T S . '{ [
+            # When specifying a literal, one also provides a nonterminal responsible for lexing.
+            # `DefaultToken` is just `DefaultSeparator` followed be a lexer
+            #  that matches some nonwhitespace characters.
+            lit ,{ DefaultToken }, = 'single_let'
+            # After `single_let` comes an arbitrary number of bindings.
+            # We allow arbitrary patterns, not just variable names, in part to nice
+            #  ...and in part because `Atom` is a weird special case
+            #   that Unseemly can't interpolate properly in a lot of cases ) :
+            pat := ( ,{ Pat<S> }, )
+            lit ,{ DefaultToken }, = '='
+            value := ( ,{ Expr<S> }, )
+            lit ,{ DefaultToken }, = ';'
+            lit ,{ DefaultToken }, = 'in'
+            # The body of the `single_let` is an expression in which each `pat` binds its names.
+            # A crucial feature for type safety in Unseemly
+            #  is that bindings are specified in macro grammars (with `<--`).
+            # Both `pat` and `value` are syntax; the `=` says that
+            #  we should use the names in `pat`, assuming `pat` has the same type as `value`.
+            body := ( ,{ Expr<T> }, <-- ...[pat = value]... )
+        ] }' single_let_macro -> .{
+            # Now for the actual implementation of the single_let macro.
+            # We use syntax quotation (`'[NonterminalName| ]'`) to produce a `match` statement.
+            #   and `,[value],` is unquotation; it interpolates the expression `value`.
+            # A very similiar process builds a pattern that matches all of those values,
+            #  for binding inside `body`.
+            '[Expr | match ,[value], {  ,[pat], => ,[body], } ]'
+        }. ;
+in
+single_let eleven = (plus ten one) ; # use it!
+in
+extend_syntax
+    ### Introduce `let` expressions.
+    # Like `single_let`, but this can bind multiple patterns at once:
+    Expr ::=also
+        # The new form is a macro, and there are two unknown types, which we'll call `T` and `S`:
+        forall T S . '{ [
+            lit ,{ DefaultToken }, = 'let'
+            # After `let` comes an arbitrary number of bindings.
+            # `S` will be a tuple type, each of whose elements is the type of one arm.
+            [
+                pat := ( ,{ Pat<S> }, )
+                lit ,{ DefaultToken }, = '='
+                value := ( ,{ Expr<S> }, )
+                lit ,{ DefaultToken }, = ';'
+            ] *
+            lit ,{ DefaultToken }, = 'in'
+            # The `...[ ]...` is necessary because `pat` and `value` match multiple times.
+            body := ( ,{ Expr<T> }, <-- ...[pat = value]... )
+        ] }' let_macro -> .{
+            # We use `**[ ]**` to build a tuple literal:
+            #  `...[,value, >>  ]...` walks over the elements of `value`,
+            #   (underneath it, `value` is a single expression).
+            '[Expr |
+                match **[...[,value, >> ,[value], ]... ]**
+                    { **[...[,pat, >> ,[pat],]... ]** => ,[body], } ]'
+        }. ;
+in
+extend_syntax
+    ### Introduce `for` loops
+    # This uses `let` (by expanding to it).
+    # Invokes `body` once per element in `seq`, which must be of type `Sequence<T>`.
+    Expr ::=also forall T . '{ [
+        lit ,{ DefaultToken }, = 'for'
+        pat := ( ,{ Pat<T> }, )
+        lit ,{ DefaultToken }, = 'in'
+        seq := ( ,{ Expr<Sequence<T>> }, )
+        # This uses `:` instead of `=`, because `T` is a type.
+        # `body` returns `Unit`; it's just being invoked for side-effects.
+        body := ( ,{ Expr<Unit> }, <-- pat : T )
+    ] }' for_loop -> .{
+        '[Expr |
+            # Unseemly uses Lisp-style function application (function name inside the parens).
+            # `**[]**` is an empty tuple (the only value with type `Unit`).
+            # `.[ ].` is a lambda (this one has two arguments, `unit`, and `arg`).
+            # `prefab_type T` is an expression that produces syntax for the type `T`.
+            #  (oddly, syntax for the type `T` has the type `Type<T>`. It works, though!)
+            (foldl ,[seq],
+                **[]**
+                .[unit : Unit  arg : ,[prefab_type T], .
+                    let ,[pat], = arg ; in ,[body],
+                ]. )
+        ]'
+    }. ;
+in
+extend_syntax
+    ### Add numeric literals.
+    Expr ::=also
+        # This macro doesn't have any unknown types,
+        #  so the `forall` that's part of the syntax looks a little weird.
+        forall . '{
+            # The awkward `pick` construction here is so that these literals
+            #  benefit from the standard whitespace/comment consumption.
+            # We have to call `DefaultSeparator`, but then we have to throw it out
+            #  and just look at `tok`, the actual digits.
+            digit_string := (pick tok in [,{DefaultSeparator}, tok := (/([0-9]+)/) ])
+        }' base_ten_literal -> .{
+            # Here we use the `let` (as opposed to just invoking it) in some "real" Unseemly code
+            #  (which is to say that it's not just a syntax quotation).
+            # `new_cell` creates a mutable value. `assign` and `value` write and read it.
+            let number = (new_cell zero) ; in
+            # Block, for sequencing side-effects:
+            -{
+                for digit in (string_to_sequence (ident_to_string digit_string))
+                    (assign number (plus (times (value number) ten)
+                                         # The character for digit 0 is codepoint 48:
+                                         (minus digit (plus (times ten four) eight)))) ;
+                (prefab (value number))
+            }-
+        }. ;
+in
+extend_syntax
+    ### Introduce `letfn` for defining 2-argument functions.
+    # Currently, one has to make a separate macro for each number of arguments,
+    #  because `...[]...` can only be put around a whole expression/pattern/type (issue #38).
+    Expr ::=also
+        forall I0 I1 O T . '{ [
+            lit ,{ DefaultToken }, = 'letfn'
+            lit ,{ DefaultToken }, = '('
+            fn_name := ( ,{ Pat< [I0 I1 -> O] > }, )
+            arg_name0 := ( ,{ Pat<I0> }, )
+            lit ,{ DefaultToken }, = ':'
+            arg_type0 := ( ,{ Type<I0> }, )
+            arg_name1 := ( ,{ Pat<I1> }, )
+            lit ,{ DefaultToken }, = ':'
+            arg_type1 := ( ,{ Type<I1> }, )
+            lit ,{ DefaultToken }, = ')'
+            lit ,{ DefaultToken }, = '->'
+            ret_type := ( ,{ Type<O> }, )
+            lit ,{ DefaultToken }, = '='
+            # `[  o>  ]` means "bind the LHS, then bind the RHS".
+            fn_body := ( ,{ Expr<O> }, <-- [ arg_name0 = arg_type0 o> arg_name1 = arg_type1 ] )
+            lit ,{ DefaultToken }, = ';'
+            lit ,{ DefaultToken }, = 'in'
+            body := ( ,{ Expr<T> }, <-- fn_name = [ arg_type0 arg_type1 -> ret_type ]  )
+        ] }' let_fn2 -> .{
+            # In case the function is recursive, wrap it in `fix`:
+            '[Expr | let ,[fn_name], = (fix
+                .[ again: [ -> [ ,[arg_type0], ,[arg_type1], -> ,[ret_type], ] ] .
+                    .[ a0: ,[arg_type0], a1: ,[arg_type1], .
+                        # Workaround for not being able to interpolate atoms:
+                        let ,[arg_name0], = a0; ,[arg_name1], = a1; in ,[fn_body], ].
+            ].) ; in
+                ,[body],
+             ]'
+        }. ;
+in
+let eleven = (plus 10 one) ;
+in
+letfn (plusplusplus a: Int  b: Int) -> Int = (plus a b) ;
+in
+(plusplusplus eleven one)

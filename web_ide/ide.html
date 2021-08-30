@@ -19,6 +19,25 @@
         .prose {
             font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
         }
+
+        #working {
+            display: inline-block;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            from {
+                margin-left: 0em;
+            }
+
+            50% {
+                margin-left: 4em;
+            }
+
+            to {
+                margin-left: 0em;
+            }
+        }
     </style>
 </head>
 
@@ -27,6 +46,9 @@
         <div id="editor" class="column">(plus one one)</div>
         <div class="column prose">
             <div id="output"></div>
+            <div id="working" style="display: none">working...</div>
+            <i> Use Ctrl-E to execute. Use Ctrl-, to open settings. Use Ctrl-Alt-Right to
+                multi-select. Use Ctrl-Alt-H to see keyboard shortcuts.</i>
         </div>
     </div>
 
@@ -37,10 +59,11 @@
         var editor = ace.edit("editor");
         ace.config.set('basePath', 'https://pagecdn.io/lib/ace/1.4.12/')
         editor.setTheme("ace/theme/monokai");
-        // editor.session.setMode("ace/mode/javascript");
+        var unseemly_worker = new Worker("unseemly_worker.js");
 
-        import init, { html__eval_program } from "./libunseemly.js";
-        init();
+        // Load example code:
+        fetch('example.unseemly')
+            .then((response) => response.text().then((text) => editor.setValue(text)));
 
         editor.commands.addCommand({
             name: "showKeyboardShortcuts",
@@ -55,10 +78,14 @@
 
         editor.commands.addCommand({
             name: "build",
-            bindKey: { win: "Ctrl-Shift-b", mac: "Command-Shift-b" },
+            bindKey: { win: "Ctrl-e", mac: "Command-e" },
             exec: function (editor) {
-                output = document.getElementById("output");
-                output.innerHTML = html__eval_program(editor.getValue());
+                unseemly_worker.addEventListener('message', function (res) {
+                    document.getElementById("working").style.display = "none";
+                    document.getElementById("output").innerHTML = res.data;
+                }, false)
+                document.getElementById("working").style.display = "block";
+                unseemly_worker.postMessage(editor.getValue());
             }
         })
 
