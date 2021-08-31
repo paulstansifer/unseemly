@@ -154,9 +154,9 @@ pub fn unparse_mbe(pat: &FormPat, actl: &AstContents, context: &EnvMBE<Ast>, s: 
             unparse_mbe(&*body, actl_body.c(), context, s)
         }
         (&QuoteEscape(_, _), _) => format!("[Missing ql]{:#?}", actl),
-        (&SynImport(ref _lhs_grammar, ref _rhs, _), &Node(_, _, _)) => {
+        (&SynImport(ref _lhs_grammar, ref _rhs, _), &Node(_, ref actl_body, _)) => {
             // TODO: I think we need to store the LHS or the new SynEnv to make this pretty.
-            format!("?syntax import? {:#?} ?si?", actl)
+            format!("?syntax import? {}", actl_body)
         }
         (&SynImport(_, _, _), _) => "".to_string(),
         (&Reserved(ref body, _), _) => unparse_mbe(body, actl, context, s),

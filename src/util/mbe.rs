@@ -187,6 +187,36 @@ impl<T: Clone + fmt::Debug> fmt::Debug for EnvMBE<T> {
     }
 }
 
+impl<T: Clone + fmt::Display> fmt::Display for EnvMBE<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.leaves.empty() && self.repeats.is_empty() {
+            write!(f, "∅")
+        } else {
+            write!(f, "{{MBE {}, ✶", self.leaves)?;
+            let mut first = true;
+            for (i, rep) in self.repeats.iter().enumerate() {
+                if !first {
+                    write!(f, ", ")?;
+                }
+                first = false;
+
+                // is it a named repeat?
+                for (name, idx_maybe) in self.named_repeats.iter_pairs() {
+                    if let Some(idx) = *idx_maybe {
+                        if idx == i {
+                            write!(f, "⋯({})⋯ ", name)?;
+                        }
+                    }
+                }
+                for mbe in &**rep {
+                    write!(f, "{} ", mbe)?;
+                }
+            }
+            write!(f, "}}")
+        }
+    }
+}
+
 impl<T: Clone> EnvMBE<T> {
     pub fn new() -> EnvMBE<T> {
         EnvMBE {
