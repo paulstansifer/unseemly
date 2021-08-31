@@ -534,11 +534,18 @@ pub fn make_core_syn_env() -> SynEnv {
                 "name")),
         // TODO: come up with more normal tokenization rules.
         // HACK: it's really confusing to weld semicolon and colon onto brackets, so exempt them.
+        "OpenDelim" =>
+            (common (pick [(call "DefaultSeparator"),
+                (named "tok",
+                    (scan_cat r"([^\[\]\(\)\{\}\s;:]*[\[\(\{])", "paren.lparen"))], "tok")),
+        "CloseDelim" =>
+            (common (pick [(call "DefaultSeparator"),
+                (named "tok",
+                    (scan_cat r"([\]\)\}][^\[\]\(\)\{\}\s;:]*)", "paren.rparen"))], "tok")),
         "DefaultToken" =>
            (common (pick [(call "DefaultSeparator"),
                    (named "tok",
-                       (scan_cat r"([\]\)\}][^\[\]\(\)\{\}\s;:]*|[^\[\]\(\)\{\}\s;:]*[\[\(\{]|[^\[\]\(\)\{\}\s]+)",
-                            "keyword.other"))],
+                       (scan r"([^\[\]\(\)\{\}\s]+)"))],
             "tok"))
     )
     .set_assoc(&ctf) // throw in types!

@@ -230,20 +230,22 @@ impl FormPat {
                 None => vec![],
             },
             Reserved(body, reserved) => {
+                // TODO: modify `Reserved` to allow customization
                 let mut res = body.textmate_categories();
-                for word in reserved {
-                    // TODO: escape `word` in the unlikely event it has regex special characters.
-                    // TODO: modify `Reserved` to allow customization
-                    res.push((word.orig_sp(), "keyword.operator".to_string()));
-                }
+                let matcher = reserved
+                    .iter()
+                    .map(|word| regex::escape(&word.orig_sp()))
+                    .collect::<Vec<_>>()
+                    .join("|");
+                res.push((matcher, "keyword".to_string()));
                 res
             }
-            // `Scope` indirectly contains synatx, but it's unlikely to be scanners,
-            //  and we also probably don't want them to be globally-highlighted
-            Scope(_, _) => vec![],
+            Literal(_, lit) => {
+                vec![(regex::escape(&lit.orig_sp()), "keyword.operator".to_string())]
+            }
+            Scope(form, _) => form.grammar.textmate_categories(),
             Anyways(_) | Impossible | Call(_) => vec![],
             Common(body)
-            | Literal(body, _)
             | VarRef(body)
             | Star(body)
             | Plus(body)

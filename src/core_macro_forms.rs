@@ -535,7 +535,7 @@ pub fn make_core_macro_forms() -> SynEnv {
         //     This has to have the same named parts as `unquote`, because it reuses its typechecker
         //     But the type walk (as an overall quotation and locally) is always negative.
         syntax_syntax!( ([(named "part_name", atom), (lit ":="),
-                          (lit "("), (named "body", (call "Syntax")), (lit ")")])
+                          (delim "(", "(", (named "body", (call "Syntax")))])
         Named {
             |parts| {
                 let binder = parts.get_term(n("part_name")).to_name();
@@ -790,6 +790,8 @@ fn formpat_reflection() {
     use crate::{core_forms::find_form, runtime::eval::eval_top};
     let macro_forms = make_core_macro_forms()
         .set(n("DefaultToken"), Rc::new(crate::grammar::new_scan(r"\s*(\S+)", None)))
+        .set(n("OpenDelim"), Rc::new(crate::grammar::new_scan(r"\s*(\S+)", None)))
+        .set(n("CloseDelim"), Rc::new(crate::grammar::new_scan(r"\s*(\S+)", None)))
         .set(n("DefaultAtom"), Rc::new(FormPat::Call(n("DefaultToken"))))
         .set(n("AtomNotInPat"), Rc::new(FormPat::Call(n("DefaultToken"))))
         .set(n("DefaultReference"), Rc::new(VarRef(Rc::new(FormPat::Call(n("DefaultToken"))))))
@@ -1073,9 +1075,9 @@ fn define_and_parse_macros() {
         crate::core_forms::outermost__parse_context(),
         "extend_syntax
              Expr ::=also forall T . '{
-                 [ lit ,{ DefaultToken }, = '['
+                 [ lit ,{ OpenDelim }, = '['
                      body := ( ,{ Expr< Int > }, )
-                   lit ,{ DefaultToken }, = ']'
+                   lit ,{ CloseDelim }, = ']'
                  ]
              }' add_one__macro -> .{ '[ Expr | (plus one ,[body], ) ]' }. ;
         in [ [ [ one ] ] ]",

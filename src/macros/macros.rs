@@ -389,14 +389,14 @@ macro_rules! form_pat {
     ((delim $n:expr, $d:expr, $body:tt)) => {
         crate::grammar::FormPat::Seq(vec![
             std::rc::Rc::new(crate::grammar::FormPat::Literal(
-                std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("DefaultToken"))),
+                std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("OpenDelim"))),
                 crate::name::n($n))),
             std::rc::Rc::new(form_pat!($body)),
             {
                 let mut main_tok = $n.to_owned();
                 main_tok.pop();
                 std::rc::Rc::new(crate::grammar::FormPat::Literal(
-                    std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("DefaultToken"))),
+                    std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("CloseDelim"))),
                     crate::name::n(&format!("{}{}", crate::read::delim($d).close(), main_tok))))
             }])
     };

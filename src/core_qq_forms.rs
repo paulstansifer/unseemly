@@ -414,9 +414,9 @@ pub fn dotdotdot_form(nt: Name) -> Rc<Form> {
     Rc::new(Form {
         name: n("dotdotdot"),
         grammar: Rc::new(form_pat!((delim "...[", "[",
-            [(star [(call "DefaultSeparator"), (scan "(,)"),
+            [(star [(call "DefaultSeparator"), (scan_cat "(,)", "keyword.operator"),
              (named "driver", (-- 1 varref)),
-             (call "DefaultSeparator"), (scan "(,)")]), (lit ">>"),
+             (call "DefaultSeparator"), (scan_cat "(,)", "keyword.operator")]), (lit ">>"),
              (named "body", (call_by_name nt))]))),
         type_compare: Positive(NotWalked), // this is not a type form
         synth_type: Both(

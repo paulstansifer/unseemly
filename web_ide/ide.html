@@ -62,12 +62,14 @@
     <script src="https://pagecdn.io/lib/ace/1.4.12/ace.min.js" type="text/javascript" charset="utf-8"></script>
     <script src="https://pagecdn.io/lib/ace/1.4.12/ext-settings_menu.js" type="text/javascript"
         charset="utf-8"></script>
+    <script src="unseemly_mode.js" type="text/javascript" charset="utf-8"></script>
     <script type="module">
         var editor = ace.edit("editor");
         ace.config.set('basePath', 'https://pagecdn.io/lib/ace/1.4.12/')
         editor.setTheme("ace/theme/monokai");
         editor.setOption("printMarginColumn", 100);
         editor.setKeyboardHandler("ace/keyboard/vscode");
+        editor.getSession().setMode("ace/mode/unseemly");
         var unseemly_worker = new Worker("unseemly_worker.js");
 
         var saved_doc = localStorage.getItem('unseemly_document');
@@ -76,9 +78,12 @@
         } else {
             // Load example code:
             fetch('example.unseemly')
-                .then((response) => response.text().then((text) => editor.setValue(text)));
+                .then((response) => response.text().then((text) => {
+                    editor.setValue(text);
+                    editor.clearSelection();
+                }));
         }
-        editor.clearSelection();
+
 
 
         editor.commands.addCommand({

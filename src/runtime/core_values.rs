@@ -137,6 +137,45 @@ pub fn string_operations() -> Assoc<Name, TypedValue> {
                     Err(_) => val!(enum "None", )
                 }
             }
+        },
+        "language_highlight" => tyf! {
+            {"Type" "forall_type" :
+                "param" => ["T", "S"],
+                "body" => (import [* [forall "param"]] { "Type" "fn" :
+                    "param" => [{"Type" "tuple" :
+                        "component" => [
+                            (, get__primitive_type(n("LanguageSyntax"))),
+                            (vr "T"),
+                            (vr "S")
+                        ]
+                    }],
+                    "ret" => {"Type" "String" :}})},
+            (Sequence(tuple)) => {
+                extract!((tuple[0]) Language = (ref lang) => {
+                    let mut categories = vec![];
+                    for (_, nt_grammar) in lang.grammar.iter_pairs() {
+                        categories.append(&mut nt_grammar.textmate_categories());
+                    }
+                    categories.sort();
+                    categories.dedup();
+                    // Make sure that the reserved words, then variables, are in front:
+                    categories.sort_by(|a, b| (b.1 == "variable").cmp(&(a.1 == "variable")));
+                    categories.sort_by(|a, b| (b.1 == "keyword").cmp(&(a.1 == "keyword")));
+
+                    let mut res = "patterns = (\n".to_string();
+                    for (pat, name) in categories {
+                        res.push_str(&format!("{{ token: '{}', regex: '{}' }},\n",
+                            name,
+                            // The Ace editor, at least, doesn't support \p :
+                            pat.replace(r"\p{Letter}",r"[a-zA-Z\xa1-\uFFFF]")
+                                .replace(r"\p{Number}",r"[0-9]")
+                                .replace("\\", "\\\\") // Quotes were handled by regex::escape.
+                        ))
+                    }
+                    res.push_str(");");
+                    Text(res)
+                })
+            }
         }
     )
 }
