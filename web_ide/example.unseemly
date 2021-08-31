@@ -5,18 +5,19 @@ in
     # This file demonstrates how to bootstrap a (somewhat more) useable language in Unseemly.
     # You should copy it and play around (it's under the MIT license).
     # There are some corner cases requiring magical incantations,
-    #  so
+    #  so there's no shame in copying what works.
 
     # Unseemly doesn't have comments,
     #  so the above `extend_syntax` added Python-style #-to-end-of-line comments
     #   and Racket-style #| inline |# comments.
-    # `DefaultSeparator`, in the base Unseemly grammar, is matched before each token,
+    # In the base Unseemly grammar, `DefaultSeparator is matched before each token,
     #  but only matches whitespace `/(\s*)/`,
-    #  so we changed it out for a regex that includes comments, too.
+    #  so when we changed it out, we made it possible to put comments anywhere.
+    # The
     # After the `in`, the changes to the language take effect, so we can use comments!
     # But there's a lot more work to do...
 extend_syntax
-    ### Introduce `single_let` expressions.
+    ### Introduce a simple let-binding expression.
     # Using `::=also` in a grammar definition extends, rather than overwrites,
     #  the definition of `Expr`:
     Expr ::=also
@@ -26,8 +27,7 @@ extend_syntax
             # `DefaultToken` is just `DefaultSeparator` followed be a lexer
             #  that matches some nonwhitespace characters.
             lit ,{ DefaultToken }, = 'single_let'
-            # After `single_let` comes an arbitrary number of bindings.
-            # We allow arbitrary patterns, not just variable names, in part to nice
+            # We allow arbitrary patterns, not just variable names, in part to be nice
             #  ...and in part because `Atom` is a weird special case
             #   that Unseemly can't interpolate properly in a lot of cases ) :
             pat := ( ,{ Pat<S> }, )
@@ -35,7 +35,7 @@ extend_syntax
             value := ( ,{ Expr<S> }, )
             lit ,{ DefaultToken }, = ';'
             lit ,{ DefaultToken }, = 'in'
-            # The body of the `single_let` is an expression in which each `pat` binds its names.
+            # The body of the `single_let` is an expression in which `pat` binds its names.
             # A crucial feature for type safety in Unseemly
             #  is that bindings are specified in macro grammars (with `<--`).
             # Both `pat` and `value` are syntax; the `=` says that
@@ -50,13 +50,12 @@ extend_syntax
             '[Expr | match ,[value], {  ,[pat], => ,[body], } ]'
         }. ;
 in
-single_let eleven = (plus ten one) ; # use it!
+single_let eleven = (plus ten one) ;  # use it!
 in
 extend_syntax
     ### Introduce `let` expressions.
     # Like `single_let`, but this can bind multiple patterns at once:
     Expr ::=also
-        # The new form is a macro, and there are two unknown types, which we'll call `T` and `S`:
         forall T S . '{ [
             lit ,{ DefaultToken }, = 'let'
             # After `let` comes an arbitrary number of bindings.
@@ -81,8 +80,8 @@ extend_syntax
 in
 extend_syntax
     ### Introduce `for` loops
-    # This uses `let` (by expanding to it).
     # Invokes `body` once per element in `seq`, which must be of type `Sequence<T>`.
+    # This macro will use our existing `let` macro.
     Expr ::=also forall T . '{ [
         lit ,{ DefaultToken }, = 'for'
         pat := ( ,{ Pat<T> }, )
@@ -96,8 +95,8 @@ extend_syntax
             # Unseemly uses Lisp-style function application (function name inside the parens).
             # `**[]**` is an empty tuple (the only value with type `Unit`).
             # `.[ ].` is a lambda (this one has two arguments, `unit`, and `arg`).
-            # `prefab_type T` is an expression that produces syntax for the type `T`.
-            #  (oddly, syntax for the type `T` has the type `Type<T>`. It works, though!)
+            # `prefab_type T` is an expression that produces *syntax* for the type `T`.
+            #  (Oddly, syntax for the type `T` has the type `Type<T>`. It works, though!)
             (foldl ,[seq],
                 **[]**
                 .[unit : Unit  arg : ,[prefab_type T], .
@@ -118,11 +117,14 @@ extend_syntax
             #  and just look at `tok`, the actual digits.
             digit_string := (pick tok in [,{DefaultSeparator}, tok := (/([0-9]+)/) ])
         }' base_ten_literal -> .{
-            # Here we use the `let` (as opposed to just invoking it) in some "real" Unseemly code
-            #  (which is to say that it's not just a syntax quotation).
+            # All our previous macros immediately expanded to
+            #  a syntax quotation with a few trivial interpolations.
+            # This one will actually execute some nontrivial code to decide what to expand to.
+            # Here we use the `let` (as opposed to just expanding to it).
+            # Also, we demonstrate Unseemly's highly-non-ergonomic side-effect features:
             # `new_cell` creates a mutable value. `assign` and `value` write and read it.
+            # `-{ }-` is a block, for sequencing operations.
             let number = (new_cell zero) ; in
-            # Block, for sequencing side-effects:
             -{
                 for digit in (string_to_sequence (ident_to_string digit_string))
                     (assign number (plus (times (value number) ten)
