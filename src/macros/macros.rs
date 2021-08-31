@@ -359,6 +359,11 @@ macro_rules! form_pat {
             std::rc::Rc::new(crate::grammar::FormPat::Call(crate::name::n("DefaultWord"))),
             $e)
     };
+    ((lit_tok $tok:tt, $lit:expr)) => {
+        crate::grammar::FormPat::Literal(
+            std::rc::Rc::new(form_pat!($tok)),
+            crate::name::n($lit))
+    };
     ((scan_cat $e:expr, $cat:expr)) => {
         crate::grammar::new_scan($e, Some(String::from($cat)))
     };

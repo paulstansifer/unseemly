@@ -329,11 +329,11 @@ fn make_core_syn_env_types() -> SynEnv {
     // We restrict the LHS to being a name, because that's "normal". Should we?
     let type_apply = type_defn_complex(
         "type_apply",
-        // TODO: invoking `scan` directly to ad-hoc tokenize ... isn't ideal.
+        // TODO: this ad-hoc rule to allow `A<B>` without spaces ... isn't ideal.
         form_pat!([(named "type_rator", (call "Type")),
-                   (call "DefaultSeparator"), (scan r"(<)"),
+                   (call "DefaultSeparator"), (lit_tok (scan "(<)"), "<"),
                    (star (named "arg", (call "Type"))),
-                   (call "DefaultSeparator"), (scan r"(>)")]),
+                   (call "DefaultSeparator"), (lit_tok (scan "(>)"), ">")]),
         // TODO: shouldn't it be "args"?
         cust_rc_box!(move |tapp_parts| {
             use crate::util::mbe::EnvMBE;
