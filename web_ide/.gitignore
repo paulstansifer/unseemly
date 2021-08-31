@@ -1,6 +1,6 @@
 *.wasm
 *.d.ts
-*.js
+libunseemly.js
 README.md
 package.json
 LICENSE
