@@ -53,8 +53,9 @@
         <div class="column prose">
             <div id="output"></div>
             <div id="working" style="display: none">working...</div>
+            <div id="saved" style="display: none">Saved to local storage.</div>
             <i> Use Ctrl-E to execute. Use Ctrl-, to open settings. Use Ctrl-D to
-                multi-select. Use Ctrl-Alt-H to see keyboard shortcuts.</i>
+                multi-select. Use Ctrl-M to save. Use Ctrl-S to see keyboard shortcuts.</i>
         </div>
     </div>
 
@@ -69,9 +70,16 @@
         editor.setKeyboardHandler("ace/keyboard/vscode");
         var unseemly_worker = new Worker("unseemly_worker.js");
 
-        // Load example code:
-        fetch('example.unseemly')
-            .then((response) => response.text().then((text) => editor.setValue(text)));
+        var saved_doc = localStorage.getItem('unseemly_document');
+        if (saved_doc) {
+            editor.setValue(saved_doc)
+        } else {
+            // Load example code:
+            fetch('example.unseemly')
+                .then((response) => response.text().then((text) => editor.setValue(text)));
+        }
+        editor.clearSelection();
+
 
         editor.commands.addCommand({
             name: "showKeyboardShortcuts",
@@ -82,7 +90,7 @@
                     editor.showKeyboardShortcuts()
                 })
             }
-        })
+        });
 
         editor.commands.addCommand({
             name: "build",
@@ -95,6 +103,19 @@
                 document.getElementById("working").style.display = "block";
                 unseemly_worker.postMessage(editor.getValue());
             }
+        });
+
+        editor.commands.addCommand({
+            name: "save",
+            bindKey: { win: "Ctrl-m", mac: "Command-m" },
+            exec: function (editor) {
+                window.localStorage.setItem('unseemly_document', editor.getValue())
+                document.getElementById("saved").style.display = 'block';
+            }
+        });
+
+        editor.on("change", function () {
+            document.getElementById("saved").style.display = 'none';
         })
 
     </script>
