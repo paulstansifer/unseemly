@@ -13,7 +13,7 @@ in
     # In the base Unseemly grammar, `DefaultSeparator is matched before each token,
     #  but only matches whitespace `/(\s*)/`,
     #  so when we changed it out, we made it possible to put comments anywhere.
-    # The
+
     # After the `in`, the changes to the language take effect, so we can use comments!
     # But there's a lot more work to do...
 extend_syntax
@@ -141,7 +141,7 @@ extend_syntax
     Expr ::=also
         forall I0 I1 O T . '{ [
             lit ,{ DefaultToken }, = 'letfn'
-            lit ,{ DefaultToken }, = '('
+            lit ,{ OpenDelim }, = '('
             fn_name := ( ,{ Pat< [I0 I1 -> O] > }, )
             arg_name0 := ( ,{ Pat<I0> }, )
             lit ,{ DefaultToken }, = ':'
@@ -149,7 +149,7 @@ extend_syntax
             arg_name1 := ( ,{ Pat<I1> }, )
             lit ,{ DefaultToken }, = ':'
             arg_type1 := ( ,{ Type<I1> }, )
-            lit ,{ DefaultToken }, = ')'
+            lit ,{ CloseDelim }, = ')'
             lit ,{ DefaultToken }, = '->'
             ret_type := ( ,{ Type<O> }, )
             lit ,{ DefaultToken }, = '='
