@@ -37,7 +37,7 @@ console_error_panic_hook = "0.1.6"
 [[bin]]
 name = "unseemly"
 path = "src/cli.rs"
-# Seems a lot faster to have all the tests in the library.
+# Seems a lot faster to run all the tests in the library.
 test = false
 
 [lib]

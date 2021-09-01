@@ -55,7 +55,7 @@ pub fn extend__capture_language(
                     cust_rc_box!(move |parts| {
                         Ok(Value::Sequence(vec![
                             // The captured language syntax:
-                            Rc::new(Value::Language(Box::new(pc.clone()))),
+                            Rc::new(Value::ParseContext(Box::new(pc.clone()))),
                             // Reifying the value environment is easy:
                             Rc::new(Value::Struct(parts.env))
                         ]))})
@@ -87,11 +87,11 @@ fn extend_import(
         _ => icp!("Unexpected structure {:#?}", starter_info),
     };
 
-    let (new_pc, new__type_env, new__type_env__phaseless, new__value_env) =
+    let crate::Language { pc, type_env, type_env__phaseless, value_env } =
         crate::language_from_file(&std::path::Path::new(&filename));
 
     crate::earley::ParseContext {
-        grammar: new_pc.grammar.set(
+        grammar: pc.grammar.set(
             n("ImportStarter"),
             Rc::new(FormPat::Scope(
                 basic_typed_form!(
@@ -99,25 +99,25 @@ fn extend_import(
                     cust_rc_box!(move |parts| {
                         // HACK: Copied from `ExtendEnvPhaseless`
                         LazyWalkReses {
-                            env: parts.env.set_assoc(&new__type_env)
-                                .set_assoc(&new__type_env__phaseless),
-                            prelude_env: parts.prelude_env.set_assoc(&new__type_env__phaseless),
+                            env: parts.env.set_assoc(&type_env)
+                                .set_assoc(&type_env__phaseless),
+                            prelude_env: parts.prelude_env.set_assoc(&type_env__phaseless),
                             more_quoted_env: parts.more_quoted_env.iter().map(
-                                |e| e.set_assoc(&new__type_env__phaseless)).collect(),
+                                |e| e.set_assoc(&type_env__phaseless)).collect(),
                             less_quoted_env: parts.less_quoted_env.iter().map(
-                                |e| e.set_assoc(&new__type_env__phaseless)).collect(),
+                                |e| e.set_assoc(&type_env__phaseless)).collect(),
                             .. parts.clone()
                         }.get_res(n("body"))
                     }),
                     cust_rc_box!(move |parts| {
                         parts.with_environment(
-                            parts.env.set_assoc(&new__value_env)).get_res(n("body"))
+                            parts.env.set_assoc(&value_env)).get_res(n("body"))
                     })
                 ),
                 crate::beta::ExportBeta::Nothing,
             )),
         ),
-        ..new_pc
+        ..pc
     }
 }
 

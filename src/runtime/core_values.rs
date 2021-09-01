@@ -151,7 +151,7 @@ pub fn string_operations() -> Assoc<Name, TypedValue> {
                     }],
                     "ret" => {"Type" "String" :}})},
             (Sequence(tuple)) => {
-                extract!((tuple[0]) Language = (ref lang) => {
+                extract!((tuple[0]) ParseContext = (ref lang) => {
                     let mut categories = vec![];
                     for (_, nt_grammar) in lang.grammar.iter_pairs() {
                         categories.append(&mut nt_grammar.textmate_categories());

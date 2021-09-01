@@ -178,7 +178,8 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
     type Mode = Mode;
 
     fn pre_walk(node: Ast, cnc: LazyWalkReses<Self::Mode>) -> (Ast, LazyWalkReses<Self::Mode>) {
-        (freshen(&node), cnc) // No-op
+        // TODO: Per issue #49, this ought to be removable. But EXCITING ERRORS happen if we do.
+        (freshen(&node), cnc) // Nothing to do.
     }
 
     /// Turn `a` from an `Ast` into an `Elt` using `::from_ast()`... except:

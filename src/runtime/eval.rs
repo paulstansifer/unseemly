@@ -30,7 +30,7 @@ pub enum Value {
     Cell(Rc<std::cell::RefCell<Value>>),
     // Reifying `Form`s causes loss of identity, so have an explicit (opaque) representation.
     // Perhaps drop reification entirely, and just use an opaque type based on `std::any::Any`?
-    Language(Box<crate::earley::ParseContext>),
+    ParseContext(Box<crate::earley::ParseContext>),
 }
 
 pub use self::Value::*;
@@ -141,7 +141,7 @@ impl std::fmt::Display for Value {
             }
             Text(ref st) => write!(f, "{}", st),
             Cell(ref cell) => write!(f, "{}", cell.borrow()),
-            Language(_) => write!(f, "[a language]"),
+            ParseContext(_) => write!(f, "[a language]"),
         }
     }
 }

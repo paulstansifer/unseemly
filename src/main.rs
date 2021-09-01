@@ -59,15 +59,31 @@ use crate::{
 
 use wasm_bindgen::prelude::*;
 
+/// Everything you need to turn text into behavior.
+pub struct Language {
+    pub pc: crate::earley::ParseContext,
+    pub type_env: Assoc<Name, Ast>,
+    pub type_env__phaseless: Assoc<Name, Ast>,
+    pub value_env: Assoc<Name, Value>,
+}
+
+/// Generate Unseemly.
+/// (This is the core language.)
+pub fn unseemly() -> Language {
+    Language {
+        pc: crate::core_forms::outermost__parse_context(),
+        type_env: crate::runtime::core_values::core_types(),
+        type_env__phaseless: crate::runtime::core_values::core_types(),
+        value_env: crate::runtime::core_values::core_values(),
+    }
+}
 /// Run the file (which hopefully evaluates to `capture_language`), and get the language it defines.
 /// Returns the parse context, the type environment, the phaseless version of the type environment,
 ///  and the value environment.
 /// This doesn't take a language 4-tuple -- it assumes that the language is in Unseemly
 ///  (but of course it may do `include /[some_language.unseemly]/` itself).
 /// TODO: we only need the phaselessness for macros, and maybe we can get rid of it there?
-pub fn language_from_file(
-    path: &std::path::Path,
-) -> (crate::earley::ParseContext, Assoc<Name, Ast>, Assoc<Name, Ast>, Assoc<Name, Value>) {
+pub fn language_from_file(path: &std::path::Path) -> Language {
     let mut raw_lib = String::new();
 
     use std::io::Read;
@@ -97,7 +113,7 @@ pub fn language_from_file(
         let env_value = lang_and_env.pop().unwrap();
         let lang_value = lang_and_env.pop().unwrap();
         let new_pc = match &*lang_value {
-            Value::Language(boxed_pc) => (**boxed_pc).clone(),
+            Value::ParseContext(boxed_pc) => (**boxed_pc).clone(),
             _ => icp!("[type error] not a language"),
         };
         let new__value_env = if let Value::Struct(ref env) = *env_value {
@@ -131,66 +147,58 @@ pub fn language_from_file(
     node_let!(lang_and_types[2] => {Type struct}
         pl_keys *= component_name, pl_values *= component);
 
-    let mut new__type_env__phaseless = Assoc::<Name, Ast>::new();
+    let mut new___type_env__phaseless = Assoc::<Name, Ast>::new();
     for (k, v) in pl_keys.into_iter().zip(pl_values.into_iter()) {
         // As above, unfreshen:
-        new__type_env__phaseless =
-            new__type_env__phaseless.set(k.to_name().unhygienic_orig(), v.clone());
+        new___type_env__phaseless =
+            new___type_env__phaseless.set(k.to_name().unhygienic_orig(), v.clone());
     }
 
     // Go back to the original directory:
     std::env::set_current_dir(orig_dir).unwrap();
 
-    (new_pc, new__type_env, new__type_env__phaseless, new__value_env)
+    Language {
+        pc: new_pc,
+        type_env: new__type_env,
+        type_env__phaseless: new___type_env__phaseless,
+        value_env: new__value_env,
+    }
 }
 
 /// Evaluate a program written in some language.
 /// The last four arguments match the values returned by `language_from_file`.
-pub fn eval_program(
-    program: &str,
-    pc: crate::earley::ParseContext,
-    type_env: Assoc<Name, Ast>,
-    type_env__phaseless: Assoc<Name, Ast>,
-    value_env: Assoc<Name, Value>,
-) -> Result<Value, String> {
-    let ast: Ast =
-        crate::grammar::parse(&core_forms::outermost_form(), pc, program).map_err(|e| e.msg)?;
+pub fn eval_program(program: &str, lang: Language) -> Result<Value, String> {
+    // TODO: looks like `outermost_form` ought to be a property of `ParseContext`
+    let ast: Ast = crate::grammar::parse(&core_forms::outermost_form(), lang.pc, program)
+        .map_err(|e| e.msg)?;
 
     let _type = ast_walk::walk::<ty::SynthTy>(
         &ast,
-        &ast_walk::LazyWalkReses::new(type_env, type_env__phaseless, ast.clone()),
+        &ast_walk::LazyWalkReses::new(lang.type_env, lang.type_env__phaseless, ast.clone()),
     )
     .map_err(|e| format!("{}", e))?;
 
     let core_ast = crate::expand::expand(&ast).map_err(|_| "???".to_string())?;
 
-    eval(&core_ast, value_env).map_err(|_| "???".to_string())
+    eval(&core_ast, lang.value_env).map_err(|_| "???".to_string())
 }
 
 /// Evaluate a program written in Unseemly.
 /// Of course, it may immediately do `include /[something]/` to switch languages.
 pub fn eval_unseemly_program_top(program: &str) -> Result<Value, String> {
-    eval_program(
-        program,
-        crate::core_forms::outermost__parse_context(),
-        crate::runtime::core_values::core_types(),
-        crate::runtime::core_values::core_types(),
-        crate::runtime::core_values::core_values(),
-    )
+    eval_program(program, unseemly())
 }
 
 /// Type program written in Unseemly.
 /// Of course, it may immediately do `include /[something]/` to switch languages.
 pub fn type_unseemly_program_top(program: &str) -> Result<Ast, String> {
-    let pc = crate::core_forms::outermost__parse_context();
-    let type_env = crate::runtime::core_values::core_types();
-
-    let ast: Ast =
-        crate::grammar::parse(&core_forms::outermost_form(), pc, program).map_err(|e| e.msg)?;
+    let unseemly = unseemly();
+    let ast: Ast = crate::grammar::parse(&core_forms::outermost_form(), unseemly.pc, program)
+        .map_err(|e| e.msg)?;
 
     ast_walk::walk::<ty::SynthTy>(
         &ast,
-        &ast_walk::LazyWalkReses::new(type_env.clone(), type_env, ast.clone()),
+        &ast_walk::LazyWalkReses::new(unseemly.type_env, unseemly.type_env__phaseless, ast.clone()),
     )
     .map_err(|e| format!("{}", e))
 }

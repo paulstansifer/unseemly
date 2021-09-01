@@ -41,8 +41,7 @@ fn main() {
         }
         libunseemly::terminal_display(libunseemly::eval_unseemly_program_top(&raw_input));
     } else if arguments.len() == 3 {
-        let (pc, type_env, type_env__phaseless, value_env) =
-            libunseemly::language_from_file(&std::path::Path::new(&arguments[1]));
+        let lang = libunseemly::language_from_file(&std::path::Path::new(&arguments[1]));
 
         // Run the second program in the language defined by the first:
         let mut second_program = String::new();
@@ -56,13 +55,7 @@ fn main() {
                 std::env::set_current_dir(dir).unwrap();
             }
         }
-        libunseemly::terminal_display(libunseemly::eval_program(
-            &second_program,
-            pc,
-            type_env,
-            type_env__phaseless,
-            value_env,
-        ));
+        libunseemly::terminal_display(libunseemly::eval_program(&second_program, lang));
     }
 }
 

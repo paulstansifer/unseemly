@@ -92,11 +92,11 @@ impl crate::runtime::reify::Reifiable for ParseContext {
     fn ty_name() -> Name { n("Language") }
 
     fn reify(&self) -> crate::runtime::eval::Value {
-        crate::runtime::eval::Value::Language(Box::new(self.clone()))
+        crate::runtime::eval::Value::ParseContext(Box::new(self.clone()))
     }
 
     fn reflect(v: &crate::runtime::eval::Value) -> ParseContext {
-        extract!((v) crate::runtime::eval::Value::Language = (ref lang)
+        extract!((v) crate::runtime::eval::Value::ParseContext = (ref lang)
             => (**lang).clone())
     }
 }

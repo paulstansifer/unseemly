@@ -153,7 +153,7 @@ impl fmt::Display for AstContents {
             ExtendEnv(ref body, _) => write!(f, "{}↓", body),
             ExtendEnvPhaseless(ref body, _) => write!(f, "{}±↓", body),
             QuoteMore(body, _) => {
-                    write!(f, "``{}``", body)
+                write!(f, "``{}``", body)
             }
             QuoteLess(body, _) => write!(f, ",,{},,", body),
             _ => write!(f, "{:#?}", self),
