@@ -8,7 +8,7 @@ Unseemly is not ergonomic; it's a "core" language
 in which a usable langage can be implemented as a library of macros.
 
 This is a reference guide. It might be easier to get started by looking at the "tutorial"
- in `src/examples/worked_example.unseemly`.
+ in `examples/worked_example.unseemly`.
 
 For example, the `fold` and `unfold` operations are, in a normal language,
 implicit in data constructors and `match` respectively.
@@ -269,7 +269,7 @@ These are defined in `core_forms.rs`, and their definitions are relatively short
 * `[Beta o> Beta]` does left-to-right shadowing between two `Beta`s
 
 ## Example unseemly programs
-*(in `src/examples/`)*
+*(in `examples/`)*
 
 *  `fact.unseemly` takes 5 factorial.
     Demonstrates recursion with `fix`

@@ -1,5 +1,5 @@
 Ways you can contribute:
- * You can write code in Unseemly! It needs testing! You can add examples to `src/examples`, and
+ * You can write code in Unseemly! It needs testing! You can add examples to `examples`, and
    file bugs in the [issue  tracker] when things don't work.
  * You can fix a bug. There are some in the [issue tracker]. Issues that don't require much
    context about the language and are on the smaller side are marked ["good first issue"].

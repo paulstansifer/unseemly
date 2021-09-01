@@ -46,11 +46,11 @@ Install Rust, if you haven't already:
 
 From your Unseemly repository directory, run an example program:
 
-    cargo run --release src/examples/sum_list.unseemly
+    cargo run --release examples/sum_list.unseemly
 
 (Recommended) Get the default prelude for the Unseemly REPL:
 
-    cp src/examples/.unseemly_prelude ~/
+    cp examples/.unseemly_prelude ~/
 
 Start the REPL:
 
@@ -84,7 +84,7 @@ It provides sound language extensions, but
 
 (TODO: are the extensions themselves statically verified to be type-preserving?
  I think so, but I don't remember for sure.)
- 
+
 ### Practical languages
 #### [Scala](https://www.scala-lang.org/)
 
