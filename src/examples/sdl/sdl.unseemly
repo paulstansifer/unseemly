@@ -71,11 +71,11 @@ extend_syntax
                 '[Expr| *[x: ,[x],  y: ,[y],  z: ,[z],]*]'
             }.
             forall . '{[
-                lit ,{ DefaultToken }, = '('
+                lit ,{ OpenDelim }, = '('
                 lit ,{ DefaultToken }, = 'box'
                 corner_a := ( ,{Expr<Coord>}, )
                 corner_b := ( ,{Expr<Coord>}, )
-                lit ,{ DefaultToken }, = ')'
+                lit ,{ CloseDelim }, = ')'
             ]}' box -> .{
                 '[Expr| +[Box ,[corner_a], ,[corner_b], ]+ : Shape]'
             }.

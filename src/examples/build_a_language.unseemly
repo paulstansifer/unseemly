@@ -77,14 +77,14 @@ extend_syntax
     Expr ::=also
         forall I0 O T . '{ [
             lit ,{ DefaultToken }, = 'letfn'
-            lit ,{ DefaultToken }, = '('
+            lit ,{ OpenDelim }, = '('
             fn_name := ( ,{ Pat< [I0 -> O] > }, )
             arg_name0 := ( ,{ Pat<I0> }, )
             lit ,{ DefaultToken }, = ':'
             # The fact that the syntax `[Int -> Int]` has type `Type<[Int -> Int]>` is weird,
             #  but so far it works fine!
             arg_type0 := ( ,{ Type<I0> }, )
-            lit ,{ DefaultToken }, = ')'
+            lit ,{ CloseDelim }, = ')'
             lit ,{ DefaultToken }, = '->'
             ret_type := ( ,{ Type<O> }, )
             lit ,{ DefaultToken }, = '='
@@ -109,7 +109,7 @@ extend_syntax
     Expr ::=also
         forall I0 I1 O T . '{ [
             lit ,{ DefaultToken }, = 'letfn'
-            lit ,{ DefaultToken }, = '('
+            lit ,{ OpenDelim }, = '('
             fn_name := ( ,{ Pat< [I0 I1 -> O] > }, )
             arg_name0 := ( ,{ Pat<I0> }, )
             lit ,{ DefaultToken }, = ':'
@@ -119,7 +119,7 @@ extend_syntax
             arg_name1 := ( ,{ Pat<I1> }, )
             lit ,{ DefaultToken }, = ':'
             arg_type1 := ( ,{ Type<I1> }, )
-            lit ,{ DefaultToken }, = ')'
+            lit ,{ CloseDelim }, = ')'
             lit ,{ DefaultToken }, = '->'
             ret_type := ( ,{ Type<O> }, )
             lit ,{ DefaultToken }, = '='
