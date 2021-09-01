@@ -12,7 +12,7 @@ async function run() {
     self.addEventListener('message', function (msg) {
         var result = "[error]";
         try {
-            result = html__eval_program(msg.data);
+            result = html__eval_program(msg.data, "unseemly");
         } finally {
             self.postMessage(result);
         }

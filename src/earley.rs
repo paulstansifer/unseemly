@@ -111,6 +111,7 @@ impl ParseContext {
     pub fn new_from_grammar(se: SynEnv) -> ParseContext {
         ParseContext {
             grammar: se,
+            // TODO: uh, I think this is unused?
             type_ctxt: LazyWalkReses::<crate::ty::SynthTy>::new_empty(),
             eval_ctxt: LazyWalkReses::<crate::runtime::eval::Eval>::new_empty(),
         }

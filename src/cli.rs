@@ -177,9 +177,6 @@ pub fn repl() {
     println!("    `:pd <expr>` to parse `<expr>` and debug-print its AST output.");
     println!("    Command history is saved over sessions.");
     println!("    Tab-completion works on variables, and lots of Bash-isms work.");
-    println!();
-    println!("This virtual machine kills cyber-fascists.");
-
     if let Ok(prelude_file) = File::open(&prelude_filename) {
         let prelude = std::io::BufReader::new(prelude_file);
         for line in prelude.lines() {
@@ -198,6 +195,8 @@ pub fn repl() {
         }
         println!("    [prelude loaded from {}]", prelude_filename.display());
     }
+    println!();
+    println!("This virtual machine kills cyber-fascists.");
 
     let _ = rl.load_history(&history_filename);
     while let Ok(line) = rl.readline("\x1b[1;36m≫\x1b[0m ") {

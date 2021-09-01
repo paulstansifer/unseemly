@@ -60,8 +60,11 @@ use crate::{
 use wasm_bindgen::prelude::*;
 
 /// Everything you need to turn text into behavior.
+#[derive(Clone)]
 pub struct Language {
     pub pc: crate::earley::ParseContext,
+    // TODO: how do these differ from the corresponding elements of `ParseContext`?
+    //  Should we get rid of `Language` in favor of it???
     pub type_env: Assoc<Name, Ast>,
     pub type_env__phaseless: Assoc<Name, Ast>,
     pub value_env: Assoc<Name, Value>,
@@ -77,6 +80,7 @@ pub fn unseemly() -> Language {
         value_env: crate::runtime::core_values::core_values(),
     }
 }
+
 /// Run the file (which hopefully evaluates to `capture_language`), and get the language it defines.
 /// Returns the parse context, the type environment, the phaseless version of the type environment,
 ///  and the value environment.
@@ -100,15 +104,24 @@ pub fn language_from_file(path: &std::path::Path) -> Language {
         }
     }
 
-    let orig_pc = crate::core_forms::outermost__parse_context();
+    let lang = get_language(&raw_lib, unseemly());
 
+    // Go back to the original directory:
+    std::env::set_current_dir(orig_dir).unwrap();
+
+    return lang;
+}
+
+pub fn get_language(program: &str, lang: Language) -> Language {
     // TODO: I guess syntax extensions ought to return `Result`, too...
-    let lib_ast =
-        crate::grammar::parse(&core_forms::outermost_form(), orig_pc.clone(), &raw_lib).unwrap();
-    // TODO: This gets roundtripped (LazyWalkReses -> Assoc -> LazyWalkReses). Just call `walk`?
-    let lib_typed = crate::ty::synth_type(&lib_ast, orig_pc.type_ctxt.env).unwrap();
+    let lib_ast = crate::grammar::parse(&core_forms::outermost_form(), lang.pc, &program).unwrap();
+    let lib_typed = ast_walk::walk::<ty::SynthTy>(
+        &lib_ast,
+        &ast_walk::LazyWalkReses::new(lang.type_env, lang.type_env__phaseless, lib_ast.clone()),
+    )
+    .unwrap();
     let lib_expanded = crate::expand::expand(&lib_ast).unwrap();
-    let lib_evaled = crate::runtime::eval::eval(&lib_expanded, orig_pc.eval_ctxt.env).unwrap();
+    let lib_evaled = crate::runtime::eval::eval(&lib_expanded, lang.value_env).unwrap();
     let (new_pc, new__value_env) = if let Value::Sequence(mut lang_and_env) = lib_evaled {
         let env_value = lang_and_env.pop().unwrap();
         let lang_value = lang_and_env.pop().unwrap();
@@ -153,9 +166,6 @@ pub fn language_from_file(path: &std::path::Path) -> Language {
         new___type_env__phaseless =
             new___type_env__phaseless.set(k.to_name().unhygienic_orig(), v.clone());
     }
-
-    // Go back to the original directory:
-    std::env::set_current_dir(orig_dir).unwrap();
 
     Language {
         pc: new_pc,
@@ -225,7 +235,24 @@ pub fn wasm_init() {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 }
 
+use std::iter::FromIterator;
+
+thread_local! {
+    static language_stash: std::cell::RefCell<std::collections::HashMap<String, Language>>
+        = std::cell::RefCell::new(std::collections::HashMap::from_iter(
+            vec![("unseemly".to_string(), unseemly())].into_iter()));
+}
+
 #[wasm_bindgen]
-pub fn html__eval_program(program: &str) -> String {
-    html_render(eval_unseemly_program_top(program))
+pub fn html__eval_program(program: &str, stashed_lang: &str) -> String {
+    let lang: Language =
+        language_stash.with(|ls| (*ls.borrow()).get(stashed_lang).unwrap().clone());
+    html_render(eval_program(program, lang))
+}
+
+#[wasm_bindgen]
+pub fn stash_lang(result_name: &str, program: &str, orig_stashed: &str) {
+    let orig_lang = language_stash.with(|ls| (*ls.borrow()).get(orig_stashed).unwrap().clone());
+    let new_lang = get_language(program, orig_lang);
+    language_stash.with(|ls| ls.borrow_mut().insert(result_name.to_string(), new_lang));
 }
