@@ -62,16 +62,67 @@
     <script src="https://pagecdn.io/lib/ace/1.4.12/ace.min.js" type="text/javascript" charset="utf-8"></script>
     <script src="https://pagecdn.io/lib/ace/1.4.12/ext-settings_menu.js" type="text/javascript"
         charset="utf-8"></script>
-    <script src="unseemly_mode.js" type="text/javascript" charset="utf-8"></script>
     <script type="module">
+        function set_highlighter(editor, rules, lang_name) {
+            // Generate the rules, and define them to Ace:
+            Function(`
+ace.define(
+    'ace/mode/${lang_name}',
+    ['require', 'exports', 'module', 'ace/lib/oop', 'ace/mode/text_highlight_rules'],
+    function (require, exports, module) {
+        "use strict";
+
+        var oop = require("../lib/oop");
+        var TextHighlightRules = require("./text_highlight_rules").TextHighlightRules;
+        var TextMode = require("./text").Mode;
+
+        var CustomHighlightRules = function () {
+            this.$rules = {
+                start:
+                    [ ${rules}
+                      // HACK: comments aren't part of the base language:
+                      { token: 'comment', regex: '#[^\\\\n|][^\\\\n]*|#\\\\|.*?\\\\|#' },
+                    ] };
+                    this.normalizeRules();
+        };
+
+        CustomHighlightRules.metaData = {
+            fileTypes: ['${lang_name}'],
+            name: '${lang_name}',
+            scopeName: 'source.${lang_name}'
+        };
+
+        oop.inherits(CustomHighlightRules, TextHighlightRules);
+
+        var Mode = function() {
+            this.HighlightRules = CustomHighlightRules;
+            // TODO: this.foldingRules
+            // TODO: this.$behavior
+        };
+        oop.inherits(Mode, TextMode);
+
+        exports.Mode = Mode;
+
+    });`)();
+            editor.getSession().setMode("ace/mode/" + lang_name);
+        }
+        const unseemly_worker = new Worker("unseemly_worker.js");
+
+
         var editor = ace.edit("editor");
         ace.config.set('basePath', 'https://pagecdn.io/lib/ace/1.4.12/')
         editor.setTheme("ace/theme/monokai");
         editor.setOption("printMarginColumn", 100);
         editor.setKeyboardHandler("ace/keyboard/vscode");
-        editor.getSession().setMode("ace/mode/unseemly");
-        var unseemly_worker = new Worker("unseemly_worker.js");
 
+        // Load syntax highlighter:
+        unseemly_worker.addEventListener('message', function (msg) {
+            if (msg.data.task == 'ace_rules') {
+                set_highlighter(editor, msg.data.output, "unseemly");
+            }
+        }, false)
+
+        // Load saved document or a default example:
         var saved_doc = localStorage.getItem('unseemly_document');
         if (saved_doc) {
             editor.setValue(saved_doc)
@@ -84,7 +135,7 @@
                 }));
         }
 
-
+        // Set keyboard shortcut commands
 
         editor.commands.addCommand({
             name: "showKeyboardShortcuts",
@@ -98,15 +149,18 @@
         });
 
         editor.commands.addCommand({
-            name: "build",
+            name: "execute",
             bindKey: { win: "Ctrl-e", mac: "Command-e" },
             exec: function (editor) {
-                unseemly_worker.addEventListener('message', function (res) {
-                    document.getElementById("working").style.display = "none";
-                    document.getElementById("output").innerHTML = res.data;
+                unseemly_worker.addEventListener('message', function (msg) {
+                    if (msg.data.task == 'execute') {
+                        document.getElementById("working").style.display = "none";
+                        document.getElementById("output").innerHTML = msg.data.output;
+                    }
                 }, false)
                 document.getElementById("working").style.display = "block";
-                unseemly_worker.postMessage(editor.getValue());
+                unseemly_worker.postMessage(
+                    { task: 'execute', program: editor.getValue() } );
             }
         });
 

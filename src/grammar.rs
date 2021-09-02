@@ -337,6 +337,31 @@ pub fn parse_top(f: &FormPat, toks: &str) -> Result<Ast, crate::earley::ParseErr
     crate::earley::parse_in_syn_env(f, Assoc::new(), toks)
 }
 
+pub fn ace_rules__for(se: &SynEnv) -> String {
+    let mut categories = vec![];
+    for (_, nt_grammar) in se.iter_pairs() {
+        categories.append(&mut nt_grammar.textmate_categories());
+    }
+    categories.sort();
+    categories.dedup();
+    // Make sure that the reserved words, then variables, are in front:
+    categories.sort_by(|a, b| (b.1 == "variable").cmp(&(a.1 == "variable")));
+    categories.sort_by(|a, b| (b.1 == "keyword").cmp(&(a.1 == "keyword")));
+
+    let mut res = String::new();
+    for (pat, name) in categories {
+        res.push_str(&format!("{{ token: '{}', regex: '{}' }},\n",
+            name,
+            // The Ace editor doesn't support \p :
+            pat.replace(r"\p{Letter}",r"[a-zA-Z\xa1-\uFFFF]")
+                .replace(r"\p{Number}",r"[0-9]")
+                .replace("\\", "\\\\")
+                .replace("'", "\\'")
+        ))
+    }
+    res
+}
+
 use self::FormPat::*;
 
 #[test]
