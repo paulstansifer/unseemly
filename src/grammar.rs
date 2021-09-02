@@ -339,22 +339,37 @@ pub fn parse_top(f: &FormPat, toks: &str) -> Result<Ast, crate::earley::ParseErr
 
 pub fn ace_rules__for(se: &SynEnv) -> String {
     let mut categories = vec![];
+    let mut keyword_operators = vec![];
     for (_, nt_grammar) in se.iter_pairs() {
-        categories.append(&mut nt_grammar.textmate_categories());
+        // Separate "keyword.operator" out; there are so many of them.
+        // TODO: The principled thing to do would be to do this for each name...
+        let (keyword_operator, mut normal) = nt_grammar
+            .textmate_categories()
+            .into_iter()
+            .partition(|(_, cat)| cat == "keyword.operator");
+        categories.append(&mut normal);
+        keyword_operators.append(&mut keyword_operator.into_iter().map(|(pat, _)| pat).collect());
     }
+
+    keyword_operators.sort();
+    keyword_operators.dedup();
+
     categories.sort();
     categories.dedup();
     // Make sure that the reserved words, then variables, are in front:
     categories.sort_by(|a, b| (b.1 == "variable").cmp(&(a.1 == "variable")));
     categories.sort_by(|a, b| (b.1 == "keyword").cmp(&(a.1 == "keyword")));
+    // Make one big rule for all of them (will perform better, probably):
+    categories.push((keyword_operators.join("|"), "keyword.operator".to_string()));
 
     let mut res = String::new();
     for (pat, name) in categories {
-        res.push_str(&format!("{{ token: '{}', regex: '{}' }},\n",
+        res.push_str(&format!(
+            "{{ token: '{}', regex: '{}' }},\n",
             name,
             // The Ace editor doesn't support \p :
-            pat.replace(r"\p{Letter}",r"[a-zA-Z\xa1-\uFFFF]")
-                .replace(r"\p{Number}",r"[0-9]")
+            pat.replace(r"\p{Letter}", r"[a-zA-Z\xa1-\uFFFF]")
+                .replace(r"\p{Number}", r"[0-9]")
                 .replace("\\", "\\\\")
                 .replace("'", "\\'")
         ))

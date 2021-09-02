@@ -259,6 +259,6 @@ pub fn stash_lang(result_name: &str, program: &str, orig_stashed: &str) {
 
 #[wasm_bindgen]
 pub fn generate__ace_rules(stashed_lang: &str) -> String {
-    language_stash.with(|ls|
-        grammar::ace_rules__for(&(*ls.borrow()).get(stashed_lang).unwrap().pc.grammar))
+    language_stash
+        .with(|ls| grammar::ace_rules__for(&(*ls.borrow()).get(stashed_lang).unwrap().pc.grammar))
 }
