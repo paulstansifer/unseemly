@@ -71,7 +71,6 @@
             // This avoids leaking memory from all the mode definitions, right?
             delete ace.define.modules["ace/mode/" + lang_name + idx];
             // TODO: do we even need to do ace.define? Probably not, right?
-
             idx += 1;
             // TODO: all of these definitions will surely be a memory leak...
             // Generate the rules, and define them to Ace:
@@ -116,7 +115,7 @@ ace.define(
 
         var editor = ace.edit("editor");
         ace.config.set('basePath', 'https://pagecdn.io/lib/ace/1.4.12/')
-        editor.setTheme("ace/theme/monokai");
+        editor.setTheme("ace/theme/twilight");
         editor.setOption("printMarginColumn", 100);
         editor.setKeyboardHandler("ace/keyboard/vscode");
 

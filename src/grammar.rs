@@ -354,13 +354,25 @@ pub fn ace_rules(se: &SynEnv) -> String {
     keyword_operators.sort();
     keyword_operators.dedup();
 
-    categories.sort();
-    categories.dedup();
-    // Make sure that the reserved words, then variables, are in front:
-    categories.sort_by(|a, b| (b.1 == "variable").cmp(&(a.1 == "variable")));
-    categories.sort_by(|a, b| (b.1 == "keyword").cmp(&(a.1 == "keyword")));
     // Make one big rule for all of them (will perform better, probably):
     categories.push((keyword_operators.join("|"), "keyword.operator".to_string()));
+
+    // Order, roughly, by specificity of syntax:
+    categories.sort_by(|a, b| {
+        if a.1 == "keyword" { return std::cmp::Ordering::Less; }
+        if b.1 == "keyword" { return std::cmp::Ordering::Greater; }
+        if a.1.starts_with("string") { return std::cmp::Ordering::Less; }
+        if b.1.starts_with("string") { return std::cmp::Ordering::Greater; }
+        if a.1.starts_with("paren") { return std::cmp::Ordering::Less; }
+        if b.1.starts_with("paren") { return std::cmp::Ordering::Greater; }
+        if a.1.starts_with("keyword.operator") { return std::cmp::Ordering::Less; }
+        if b.1.starts_with("keyword.operator") { return std::cmp::Ordering::Greater; }
+        if a.1.starts_with("variable") { return std::cmp::Ordering::Less; }
+        if b.1.starts_with("variable") { return std::cmp::Ordering::Greater; }
+
+        return std::cmp::Ordering::Equal;
+    });
+    categories.dedup();
 
     let mut res = String::new();
     for (pat, name) in categories {

@@ -587,7 +587,7 @@ pub fn make_core_macro_forms() -> SynEnv {
             name: n("scan"),
             grammar: Rc::new(form_pat!(
                 [(call "DefaultSeparator"),
-                 (named "pat", (scan r"/((?:[^/\\]|\\.)*)/")),
+                 (named "pat", (scan_cat r"/((?:[^/\\]|\\.)*)/", "string.regexp")),
                  (alt [], [
                      (lit "as"), (call "DefaultSeparator"),
                      (named "category", (scan r"((?:\p{Letter}|[-.])*)"))])])),
