@@ -152,7 +152,7 @@ pub fn string_operations() -> Assoc<Name, TypedValue> {
                     "ret" => {"Type" "String" :}})},
             (Sequence(tuple)) => {
                 extract!((tuple[0]) ParseContext = (ref lang) => {
-                    Text(crate::grammar::ace_rules__for(&lang.grammar))
+                    Text(crate::grammar::ace_rules(&lang.grammar))
                 })
             }
         }

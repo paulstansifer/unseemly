@@ -259,6 +259,15 @@ pub fn stash_lang(result_name: &str, program: &str, orig_stashed: &str) {
 
 #[wasm_bindgen]
 pub fn generate__ace_rules(stashed_lang: &str) -> String {
-    language_stash
-        .with(|ls| grammar::ace_rules__for(&(*ls.borrow()).get(stashed_lang).unwrap().pc.grammar))
+    let rules = language_stash
+        .with(|ls| grammar::ace_rules(&(*ls.borrow()).get(stashed_lang).unwrap().pc.grammar));
+    format!("start: [ {} // HACK: comments aren't part of the base language:
+        {{ token: 'comment', regex: '#[^\\\\n|][^\\\\n]*|#\\\\|.*?\\\\|#' }}]", rules)
+}
+
+#[wasm_bindgen]
+pub fn generate__ace_rules__for(program: &str, stashed_lang: &str) -> String {
+    let lang = language_stash.with(|ls| (*ls.borrow()).get(stashed_lang).unwrap().clone());
+
+    grammar::dynamic__ace_rules(program, &lang)
 }

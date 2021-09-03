@@ -279,6 +279,8 @@ impl Ast {
             _ => icp!("{:#?} is not an atom", self),
         }
     }
+
+    pub fn orig_str<'a, 'b>(&'a self, prog: &'b str) -> &'b str { &prog[self.0.begin..self.0.end] }
 }
 
 // This is used by combine::many, which is used by the Star parser

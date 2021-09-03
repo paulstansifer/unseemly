@@ -337,7 +337,7 @@ pub fn parse_top(f: &FormPat, toks: &str) -> Result<Ast, crate::earley::ParseErr
     crate::earley::parse_in_syn_env(f, Assoc::new(), toks)
 }
 
-pub fn ace_rules__for(se: &SynEnv) -> String {
+pub fn ace_rules(se: &SynEnv) -> String {
     let mut categories = vec![];
     let mut keyword_operators = vec![];
     for (_, nt_grammar) in se.iter_pairs() {
@@ -365,16 +365,90 @@ pub fn ace_rules__for(se: &SynEnv) -> String {
     let mut res = String::new();
     for (pat, name) in categories {
         res.push_str(&format!(
-            "{{ token: '{}', regex: '{}' }},\n",
+            "{{ token: '{}', regex: /{}/ }},\n",
             name,
-            // The Ace editor doesn't support \p :
+            // Remove some regexp concepts not supported by JS:
             pat.replace(r"\p{Letter}", r"[a-zA-Z\xa1-\uFFFF]")
                 .replace(r"\p{Number}", r"[0-9]")
-                .replace("\\", "\\\\")
-                .replace("'", "\\'")
+                .replace("/", "\\/")  // Escape slashes
         ))
     }
     res
+}
+
+pub fn dynamic__ace_rules(prog: &str, lang: &crate::Language) -> String {
+    // This only works with the Unseemly syntax extension form, which sets this side-channel:
+    crate::core_macro_forms::syn_envs__for__highlighting.with(|envs| envs.borrow_mut().clear());
+
+    // Errors are okay, especially late!
+    let _ = parse(&crate::core_forms::outermost_form(), lang.pc.clone(), prog);
+
+    let mut result = String::new();
+
+    crate::core_macro_forms::syn_envs__for__highlighting.with(|envs| {
+        use indoc::writedoc;
+        use std::fmt::Write;
+
+        let mut prev_grammar = lang.pc.grammar.clone();
+        let mut cur_rule_name = "start".to_string();
+        let mut idx = 0;
+
+        for (extender_ast, grammar) in &*envs.borrow() {
+            let longest_line = extender_ast
+                .orig_str(prog)
+                .split("\n")
+                .map(str::trim)
+                .max_by(|a, b| a.len().cmp(&b.len()))
+                .unwrap();
+
+            writedoc!(
+                result,
+                "
+                {}: [
+                {{ token: 'text', regex: /(?={})/, next: 'still_{}' }}, {}
+                ],
+                ",
+                cur_rule_name,
+                regex::escape(longest_line).replace("/", "\\/"),
+                cur_rule_name,
+                ace_rules(&prev_grammar),
+            )
+            .unwrap();
+
+            idx += 1;
+            let next_rule_name = format!("lang_{}", idx);
+
+            // Stay in the current language until we hit `in`.
+            writedoc!(
+                result,
+                "
+                still_{}: [
+                {{ token: 'keyword.operator', regex: 'in', next: '{}' }}, {}
+                ],
+                ",
+                cur_rule_name,
+                next_rule_name,
+                ace_rules(&prev_grammar),
+            )
+            .unwrap();
+
+            cur_rule_name = next_rule_name;
+
+            prev_grammar = grammar.clone();
+        }
+
+        writedoc!(
+            result,
+            "
+            {}: [
+            {} ],",
+            cur_rule_name,
+            ace_rules(&prev_grammar),
+        )
+        .unwrap();
+    });
+
+    result
 }
 
 use self::FormPat::*;

@@ -63,11 +63,21 @@
     <script src="https://pagecdn.io/lib/ace/1.4.12/ext-settings_menu.js" type="text/javascript"
         charset="utf-8"></script>
     <script type="module">
+        var edited_since_last_highlight = true;
+
+        var idx = 0;
+
         function set_highlighter(editor, rules, lang_name) {
+            // This avoids leaking memory from all the mode definitions, right?
+            delete ace.define.modules["ace/mode/" + lang_name + idx];
+            // TODO: do we even need to do ace.define? Probably not, right?
+
+            idx += 1;
+            // TODO: all of these definitions will surely be a memory leak...
             // Generate the rules, and define them to Ace:
-            Function(`
+            var mode = Function(`
 ace.define(
-    'ace/mode/${lang_name}',
+    'ace/mode/${lang_name}${idx}',
     ['require', 'exports', 'module', 'ace/lib/oop', 'ace/mode/text_highlight_rules'],
     function (require, exports, module) {
         "use strict";
@@ -77,13 +87,8 @@ ace.define(
         var TextMode = require("./text").Mode;
 
         var CustomHighlightRules = function () {
-            this.$rules = {
-                start:
-                    [ ${rules}
-                      // HACK: comments aren't part of the base language:
-                      { token: 'comment', regex: '#[^\\\\n|][^\\\\n]*|#\\\\|.*?\\\\|#' },
-                    ] };
-                    this.normalizeRules();
+            this.$rules = { ${rules} };
+            this.normalizeRules();
         };
 
         CustomHighlightRules.metaData = {
@@ -104,7 +109,7 @@ ace.define(
         exports.Mode = Mode;
 
     });`)();
-            editor.getSession().setMode("ace/mode/" + lang_name);
+            editor.getSession().setMode("ace/mode/" + lang_name + idx);
         }
         const unseemly_worker = new Worker("unseemly_worker.js");
 
@@ -121,6 +126,15 @@ ace.define(
                 set_highlighter(editor, msg.data.output, "unseemly");
             }
         }, false)
+
+        setInterval(function () {
+            if (edited_since_last_highlight) {
+                edited_since_last_highlight = false;
+                unseemly_worker.postMessage({
+                    task: 'ace_rules', program: editor.getValue(), lang: "unseemly"
+                })
+            }
+        }, 2000);
 
         // Load saved document or a default example:
         var saved_doc = localStorage.getItem('unseemly_document');
@@ -160,7 +174,7 @@ ace.define(
                 }, false)
                 document.getElementById("working").style.display = "block";
                 unseemly_worker.postMessage(
-                    { task: 'execute', program: editor.getValue() } );
+                    { task: 'execute', program: editor.getValue() });
             }
         });
 
@@ -175,6 +189,7 @@ ace.define(
 
         editor.on("change", function () {
             document.getElementById("saved").style.display = 'none';
+            edited_since_last_highlight = true;
         })
 
     </script>

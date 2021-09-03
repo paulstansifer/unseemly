@@ -586,11 +586,11 @@ pub fn make_core_macro_forms() -> SynEnv {
         Rc::new(Form {
             name: n("scan"),
             grammar: Rc::new(form_pat!(
-                (named "pat", (pick
-                    [(call "DefaultSeparator"), (named "pat", (scan r"/((?:[^/\\]|\\.)*)/")),
-                     (alt [], [(lit "as"), (named "category", (scan r"((?:\p{Letter}|[-.])*)"))])],
-                    "pat"))
-            )),
+                [(call "DefaultSeparator"),
+                 (named "pat", (scan r"/((?:[^/\\]|\\.)*)/")),
+                 (alt [], [
+                     (lit "as"), (call "DefaultSeparator"),
+                     (named "category", (scan r"((?:\p{Letter}|[-.])*)"))])])),
             type_compare: Both(NotWalked,NotWalked), // Not a type
             synth_type: Both(
                 cust_rc_box!(|_| { Ok(ast!({"Type" "Ident" :})) }),
@@ -720,6 +720,13 @@ pub fn make_core_macro_forms() -> SynEnv {
         "Beta" => Rc::new(beta_grammar))
 }
 
+thread_local! {
+    /// Per-file highlighting keeps track of the successive languages,
+    ///  and looks for the syntax extensions that trigger them:
+    pub static syn_envs__for__highlighting: std::cell::RefCell<Vec<(Ast, SynEnv)>>
+        = std::cell::RefCell::new(vec![]);
+}
+
 pub fn extend_syntax() -> Rc<Form> {
     use crate::earley::ParseContext;
     let perform_extension = move |pc: ParseContext, extension_info: Ast| -> ParseContext {
@@ -752,6 +759,11 @@ pub fn extend_syntax() -> Rc<Form> {
                 }),
             )
         }
+
+        syn_envs__for__highlighting.with(|envs| {
+            // For per-file highlighting:
+            envs.borrow_mut().push((extension_info, syn_env.clone()));
+        });
 
         ParseContext { grammar: syn_env, type_ctxt: pc.type_ctxt, eval_ctxt: pc.eval_ctxt }
     };
