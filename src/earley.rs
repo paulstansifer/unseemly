@@ -174,6 +174,7 @@ enum LocalParse {
     NothingYet,
     JustifiedByItemPlanB(UniqueIdRef), // Looking for a better parse, though... (for `Biased`)
     JustifiedByItem(UniqueIdRef),
+    /// This might be more than an atom, but *only* in the rare `Anyways` case.
     ParsedAtom(Ast),
     /// ⊥; contradiction (TMI!)
     Ambiguous(Box<LocalParse>, Box<LocalParse>),
@@ -318,7 +319,7 @@ impl std::fmt::Debug for Item {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "[({:#?}){}({:#?}.{}){}<{:#?} - {:#?}>]",
+            "[({:?}){}({}.{}){}<{:?} - {:?}>]",
             self.id,
             self.start_idx,
             self.rule,
@@ -361,7 +362,7 @@ impl Item {
         use std::cmp::Ordering::*;
         let comparison = other.local_parse.borrow().partial_cmp(&*self.local_parse.borrow());
         log!(
-            "\n(For {}) Merging {:#?} and {:#?}... ",
+            "\n(For {}) Merging {:?} and {:?}... ",
             self.id.0,
             *other.local_parse.borrow(),
             *self.local_parse.borrow()
@@ -372,6 +373,9 @@ impl Item {
             }
             Some(Equal) | Some(Less) => { /* no new information */ }
             None => {
+                // TODO: maybe it would be nice to ignore ambiguities that "don't matter".
+                // But even if `local_parse` is different, the resulting `Ast` can be the same.
+                // So, maybe have `Ambiguous` store all possible ambiguities
                 let amb = LocalParse::Ambiguous(
                     Box::new(self.local_parse.borrow().clone()),
                     Box::new(other.local_parse.borrow().clone()),
@@ -512,9 +516,9 @@ impl Item {
                                     vec![]
                                 }
                             },
-                            _ => {
-                                log!("found something unusual {:?}", other);
-                                vec![]
+                            Err(_) => {
+                                log!("passing an error through `Reserved`");
+                                waiting_item.finish_with(me_justif, 0)
                             }
                         },
                         Literal(_, expected) => match self.c_parse(chart, cur_idx) {
@@ -525,9 +529,9 @@ impl Item {
                                     vec![]
                                 }
                             }
-                            _ => {
-                                log!("found something unusual {:?}", other);
-                                vec![]
+                            _other => {
+                                log!("passing an error through `Literal`");
+                                waiting_item.finish_with(me_justif, 0)
                             }
                         },
                         Biased(ref _plan_a, ref plan_b) => {
@@ -648,13 +652,28 @@ impl Item {
             (0, &SynImport(ref lhs, _, _)) => self.start(&lhs, cur_idx),
             (1, &SynImport(_, ref body, ref f)) => {
                 // TODO: handle errors properly! Probably need to memoize, also!
+                // TODO: an ambiguity or error here leads to a pretty confusing parse failure.
+                // It ought to be an outright parse error,
+                //  even if it theoretically could get papered over,
+                //  but we don't have a way to communicate those here.
                 let partial_parse = match *self.local_parse.borrow() {
-                    NothingYet | Ambiguous(_, _) => return vec![],
+                    NothingYet => return vec![],
+                    Ambiguous(_, _) => {
+                        println!(
+                            "Warning: ambiguity in syntax import! {:?}",
+                            *self.local_parse.borrow()
+                        );
+                        return vec![];
+                    }
                     ParsedAtom(ref a) => a.clone(),
                     JustifiedByItem(_) | JustifiedByItemPlanB(_) => {
-                        match self.find_wanted(chart, cur_idx).c_parse(chart, cur_idx) {
-                            Ok(ast) => ast,
-                            Err(_) => {
+                        match self
+                            .find_wanted(chart, cur_idx)
+                            .map(|item| item.c_parse(chart, cur_idx))
+                        {
+                            Ok(Ok(ast)) => ast,
+                            e => {
+                                println!("Warning: error in syntax import! {:?}", e);
                                 return vec![];
                             }
                         }
@@ -711,7 +730,11 @@ impl Item {
         }
     }
 
-    fn find_wanted<'f, 'c>(&'f self, chart: &'c [Vec<Item>], done_tok: usize) -> &'c Item {
+    fn find_wanted<'f, 'c>(
+        &'f self,
+        chart: &'c [Vec<Item>],
+        done_tok: usize,
+    ) -> Result<&'c Item, ParseError> {
         let mut first_found: Option<&Item> = None;
         let local_parse = self.local_parse.borrow().clone();
         let desired_id = match local_parse {
@@ -726,7 +749,9 @@ impl Item {
                 let l_res = self.c_parse(chart, done_tok).unwrap();
                 *self.local_parse.borrow_mut() = r;
                 let r_res = self.c_parse(chart, done_tok).unwrap();
-                panic!("Ambiguity! \n=L=>{}\n=R=>{}\n", l_res, r_res)
+                return Err(ParseError {
+                    msg: format!("Ambiguity! \n=L=>{}\n=R=>{}\n", l_res, r_res),
+                });
             }
             _ => icp!("tried to parse unjustified item: {:#?} ", self),
         };
@@ -745,7 +770,7 @@ impl Item {
             }
         }
 
-        first_found.expect("ICP: no parse after successful recognition")
+        Ok(first_found.expect("ICP: no parse after successful recognition"))
     }
 
     /// Put location information on an `AstContents`, forming an `Ast`.
@@ -771,14 +796,14 @@ impl Item {
                 _ => icp!(),
             },
             VarRef(_) => {
-                let var_ast = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
+                let var_ast = self.find_wanted(chart, done_tok)?.c_parse(chart, done_tok)?;
                 match var_ast.c() {
                     ast::Atom(a) => Ok(var_ast.with_c(ast::VariableReference(*a))),
                     _ => icp!("no atom saved"),
                 }
             }
             Literal(_, _) | Alt(_) | Biased(_, _) | Call(_) | Reserved(_, _) | Common(_) => {
-                self.find_wanted(chart, done_tok).c_parse(chart, done_tok)
+                self.find_wanted(chart, done_tok)?.c_parse(chart, done_tok)
             }
             Seq(_) | Star(_) | Plus(_) | SynImport(_, _, _) => {
                 let mut step = self;
@@ -796,7 +821,7 @@ impl Item {
                         break;
                     }
 
-                    let sub = step.find_wanted(chart, pos);
+                    let sub = step.find_wanted(chart, pos)?;
                     subtrees.push(sub.c_parse(chart, pos)?);
                     if sub.start_idx == self.start_idx && step.pos == 1 {
                         break;
@@ -831,19 +856,19 @@ impl Item {
                 }))
             }
             Named(name, _) => {
-                let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
+                let sub_parsed = self.find_wanted(chart, done_tok)?.c_parse(chart, done_tok)?;
                 Ok(sub_parsed.with_c(ast::IncompleteNode(EnvMBE::new_from_leaves(Assoc::single(
                     name,
                     sub_parsed.clone(),
                 )))))
             }
             Scope(ref form, ref export) => {
-                let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
+                let sub_parsed = self.find_wanted(chart, done_tok)?.c_parse(chart, done_tok)?;
                 // TODO #14: We should add zero-length repeats of missing `Named`s,
                 Ok(sub_parsed.with_c(ast::Node(form.clone(), sub_parsed.flatten(), export.clone())))
             }
             Pick(_, name) => {
-                let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
+                let sub_parsed = self.find_wanted(chart, done_tok)?.c_parse(chart, done_tok)?;
                 sub_parsed
                     .flatten()
                     .get_leaf(name)
@@ -853,23 +878,23 @@ impl Item {
                     .map(std::clone::Clone::clone)
             }
             NameImport(_, ref beta) => {
-                let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
+                let sub_parsed = self.find_wanted(chart, done_tok)?.c_parse(chart, done_tok)?;
                 Ok(sub_parsed.with_c(ast::ExtendEnv(sub_parsed.clone(), beta.clone())))
             }
             NameImportPhaseless(_, ref beta) => {
-                let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
+                let sub_parsed = self.find_wanted(chart, done_tok)?.c_parse(chart, done_tok)?;
                 Ok(sub_parsed.with_c(ast::ExtendEnvPhaseless(sub_parsed.clone(), beta.clone())))
             }
             QuoteDeepen(_, pos) => {
-                let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
+                let sub_parsed = self.find_wanted(chart, done_tok)?.c_parse(chart, done_tok)?;
                 Ok(sub_parsed.with_c(ast::QuoteMore(sub_parsed.clone(), pos)))
             }
             QuoteEscape(_, depth) => {
-                let sub_parsed = self.find_wanted(chart, done_tok).c_parse(chart, done_tok)?;
+                let sub_parsed = self.find_wanted(chart, done_tok)?.c_parse(chart, done_tok)?;
                 Ok(sub_parsed.with_c(ast::QuoteLess(sub_parsed.clone(), depth)))
             }
         };
-        log!(">>>{:#?}<<<\n", res);
+        log!(">>>{:?}<<<\n", res);
 
         res
     }
@@ -897,7 +922,7 @@ pub fn parse(rule: &FormPat, pc: ParseContext, toks: &str) -> ParseResult {
         (*item.wanted_by.borrow()).iter().any(|idr| start_but_startier.is(*idr))
             && *item.done.borrow()
     });
-    log!("-------\n");
+    log!("\n-------\n");
     let result = match final_item {
         Some(i) => i.c_parse(&chart, chart.len() - 1),
         None => best_token.with(|bt| {
@@ -1397,4 +1422,25 @@ fn basic_parsing_e() {
         parse_in_syn_env(&form_pat!((lit "Moon")), env.clone(), tokens_s!("Moon")),
         Ok(ast!("Moon"))
     );
+}
+
+#[test]
+fn ambiguity() {
+    let no_env = Assoc::new();
+    // TODO: prevent an infinite loop in this case:
+    let _star_star = form_pat![(star (scan "a*"))];
+
+    let a_vs_a = form_pat![(alt (scan "a"), (scan "a"))];
+
+    assert_eq!(recognize(&a_vs_a, &no_env, "a"), true);
+    assert_m!(parse_top(&a_vs_a, ""), Err(_));
+
+    let a_vs_aa__twice = form_pat![[(alt (scan "a"), (scan "aa")),
+                                    (alt (scan "a"), (scan "aa"))]];
+
+    assert_eq!(recognize(&a_vs_aa__twice, &no_env, "aaa"), true);
+    assert_m!(parse_top(&a_vs_aa__twice, "aaa"), Err(_));
+
+    assert_eq!(recognize(&a_vs_aa__twice, &no_env, "aaaa"), true);
+    assert_m!(parse_top(&a_vs_aa__twice, "aaaa"), Ok(_)); // Shape of trivials. Sure.
 }
