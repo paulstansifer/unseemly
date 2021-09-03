@@ -446,8 +446,16 @@ impl<T: Clone> EnvMBE<T> {
                 .iter()
                 .enumerate()
                 .map(|(rpt_idx, rc_vec_mbe): (usize, &Rc<Vec<EnvMBE<T>>>)| {
-                    let this_rpt_name = self.leaf_locations.find_value(&Some(rpt_idx)).unwrap();
-                    let marched_ctxts = ctxt.march_all(&[*this_rpt_name]);
+                    let marched_ctxts =
+                        match self.leaf_locations.find_value(&Some(rpt_idx)) {
+                            Some(this_rpt_name) => ctxt.march_all(&[*this_rpt_name]),
+                            None => { // This repeat has no leaves.
+                                let mut res = vec![];
+                                res.resize(rc_vec_mbe.len(), ctxt.clone());
+                                res
+                            }
+                        };
+
                     Rc::new(
                         rc_vec_mbe
                             .iter()
