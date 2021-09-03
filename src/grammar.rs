@@ -364,13 +364,20 @@ pub fn ace_rules(se: &SynEnv) -> String {
 
     let mut res = String::new();
     for (pat, name) in categories {
+        if let Ok(re) = regex::Regex::new(&pat) {
+            if re.is_match("") {
+                continue; // TODO: warn about regexes matching empty strings!
+            }
+        } else {
+            continue; // TODO: warn about bad regexes!
+        }
         res.push_str(&format!(
             "{{ token: '{}', regex: /{}/ }},\n",
             name,
             // Remove some regexp concepts not supported by JS:
             pat.replace(r"\p{Letter}", r"[a-zA-Z\xa1-\uFFFF]")
                 .replace(r"\p{Number}", r"[0-9]")
-                .replace("/", "\\/")  // Escape slashes
+                .replace("/", "\\/") // Escape slashes
         ))
     }
     res
