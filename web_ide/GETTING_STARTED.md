@@ -7,10 +7,10 @@ Then:
 
 ```
 cargo install wasm-pack
-wasm-pack build --target no-modules --out-dir web_ide/ --no-typescript --release
+wasm-pack build --target no-modules --out-dir web_ide/wasm/ --no-typescript --release
 ```
 
-This will create files in `web_ide/` (this directory), but they will be `.gitignore`d.
+This will create files in `web_ide/wasm/`, but they will be `.gitignore`d.
 
 To test that it worked, load `ide.html`.
 You can't use a `file://` URL;
