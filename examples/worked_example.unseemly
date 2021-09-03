@@ -1,17 +1,14 @@
-
 extend_syntax
-    DefaultSeparator ::= /((?s:\s|#[^\n|][^\n]*|#\|.*?\|#)*)/ ;
+    DefaultSeparator ::= alt[ /(#[^\n|][^\n]*)/ as comment
+                              /\s+/ ]alt * ;
 in
     # This file demonstrates how to bootstrap a (somewhat more) useable language in Unseemly.
     # You should copy it and play around (it's under the MIT license).
-    # There are some corner cases requiring magical incantations,
-    #  so there's no shame in copying what works.
 
     # Unseemly doesn't have comments,
-    #  so the above `extend_syntax` added Python-style #-to-end-of-line comments
-    #   and Racket-style #| inline |# comments.
+    #  so the above `extend_syntax` added Python-style #-to-end-of-line comments.
     # In the base Unseemly grammar, `DefaultSeparator is matched before each token,
-    #  but only matches whitespace `/(\s*)/`,
+    #  but only matches whitespace `/\s*/`,
     #  so when we changed it out, we made it possible to put comments anywhere.
 
     # After the `in`, the changes to the language take effect, so we can use comments!
@@ -115,7 +112,8 @@ extend_syntax
             #  benefit from the standard whitespace/comment consumption.
             # We have to call `DefaultSeparator`, but then we have to throw it out
             #  and just look at `tok`, the actual digits.
-            digit_string := (pick tok in [,{DefaultSeparator}, tok := (/([0-9]+)/) ])
+            digit_string := (pick tok in
+                [,{DefaultSeparator}, tok := (/([0-9]+)/ as constant.number) ])
         }' base_ten_literal -> .{
             # All our previous macros immediately expanded to
             #  a syntax quotation with a few trivial interpolations.
