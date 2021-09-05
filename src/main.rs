@@ -48,6 +48,8 @@ pub mod core_macro_forms;
 pub mod core_qq_forms;
 pub mod core_type_forms;
 
+pub mod highlighter_generation;
+
 mod end_to_end__tests;
 
 use crate::{
@@ -259,8 +261,9 @@ pub fn stash_lang(result_name: &str, program: &str, orig_stashed: &str) {
 
 #[wasm_bindgen]
 pub fn generate__ace_rules(stashed_lang: &str) -> String {
-    let rules = language_stash
-        .with(|ls| grammar::ace_rules(&(*ls.borrow()).get(stashed_lang).unwrap().pc.grammar));
+    let rules = language_stash.with(|ls| {
+        highlighter_generation::ace_rules(&(*ls.borrow()).get(stashed_lang).unwrap().pc.grammar)
+    });
     format!(
         "start: [ {} // HACK: comments aren't part of the base language:
         {{ token: 'comment', regex: '#[^\\\\n|][^\\\\n]*|#\\\\|.*?\\\\|#' }}]",
@@ -272,5 +275,5 @@ pub fn generate__ace_rules(stashed_lang: &str) -> String {
 pub fn generate__ace_rules__for(program: &str, stashed_lang: &str) -> String {
     let lang = language_stash.with(|ls| (*ls.borrow()).get(stashed_lang).unwrap().clone());
 
-    grammar::dynamic__ace_rules(program, &lang)
+    highlighter_generation::dynamic__ace_rules(program, &lang)
 }
