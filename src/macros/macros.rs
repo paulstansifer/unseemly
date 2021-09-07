@@ -689,6 +689,7 @@ macro_rules! node_let {
     )
 }
 
+// TODO: get rid of these; just use `form_pat!((alt …))` directly.
 macro_rules! forms_to_form_pat {
     ( $( $form:expr ),* ) => {
         form_pat!((alt $( (scope $form) ),* ))

@@ -48,10 +48,7 @@ use crate::{
         WalkRule::{self, *},
     },
     form::{simple_form, BiDiWR, Both, Form, Positive},
-    grammar::{
-        FormPat::{self, *},
-        SynEnv,
-    },
+    grammar::{FormPat, SynEnv},
     name::*,
     ty::{synth_type, SynthTy, TyErr},
     ty_compare::{Canonicalize, Subtype},
@@ -411,25 +408,27 @@ fn make_core_syn_env_types() -> SynEnv {
         Both(LiteralLike, LiteralLike),
     );
 
-    assoc_n!("Type" => Rc::new(Biased(Rc::new(forms_to_form_pat![
-        fn_type,
-        // TODO: these should turn into `primitive_type`s in the core type environment.
-        // First, we need a really simple core type environment for testing,
-        //  and then to change all the `uty!({Type Int :})`s into `uty!(Int)`s
-        //  (and `ast!({"Type" "Int" :})`s into `ast!((vr "Int"))`).
-        type_defn("Ident", form_pat!((name_lit "Ident"))),
-        type_defn("Int", form_pat!((name_lit "Int"))),
-        type_defn("Nat", form_pat!((name_lit "Nat"))),
-        type_defn("Float", form_pat!((name_lit "Float"))),
-        type_defn("String", form_pat!((name_lit "String"))),
-        enum_type,
-        struct_type,
-        tuple_type,
-        forall_type,
-        dotdotdot_type,
-        mu_type,
-        type_apply
-        ]), Rc::new(VarRef(Rc::new(Call(n("DefaultAtom"))))))))
+    assoc_n!("Type" => Rc::new(form_pat![
+        (alt
+            (scope fn_type),
+            // TODO: these should turn into `primitive_type`s in the core type environment.
+            // First, we need a really simple core type environment for testing,
+            //  and then to change all the `uty!({Type Int :})`s into `uty!(Int)`s
+            //  (and `ast!({"Type" "Int" :})`s into `ast!((vr "Int"))`).
+            (scope type_defn("Ident", form_pat!((name_lit "Ident")))),
+            (scope type_defn("Int", form_pat!((name_lit "Int")))),
+            (scope type_defn("Nat", form_pat!((name_lit "Nat")))),
+            (scope type_defn("Float", form_pat!((name_lit "Float")))),
+            (scope type_defn("String", form_pat!((name_lit "String")))),
+            (scope enum_type),
+            (scope struct_type),
+            (scope tuple_type),
+            (scope forall_type),
+            (scope dotdotdot_type),
+            (scope mu_type),
+            (scope type_apply),
+            varref)
+    ]))
 }
 
 thread_local! {

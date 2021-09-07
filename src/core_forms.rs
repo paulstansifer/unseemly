@@ -503,9 +503,11 @@ pub fn make_core_syn_env() -> SynEnv {
     let reserved_names = vec![
         n("forall"),
         n("mu_type"),
-        n("Int"),
         n("Ident"),
+        n("Int"),
+        n("Nat"),
         n("Float"),
+        n("String"),
         n("match"),
         n("enum"),
         n("struct"),
