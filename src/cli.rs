@@ -8,7 +8,7 @@ use libunseemly::{
     core_forms, expand, grammar,
     name::{n, Name},
     runtime::{core_values, eval, eval::Value},
-    ty,
+    ty, ty_compare,
     util::assoc::Assoc,
 };
 use std::{borrow::Cow, cell::RefCell, io::BufRead};
@@ -156,6 +156,7 @@ pub fn repl() {
     let just_eval = regex::Regex::new(r"^:e (.*)$").unwrap();
     let type_and_expand = regex::Regex::new(r"^:x (.*)$").unwrap();
     let canon_type = regex::Regex::new(r"^:tt (.*)$").unwrap();
+    let subtype = regex::Regex::new(r"^:sub (.*)\s*<:\s*(.*)$").unwrap();
     let assign_value = regex::Regex::new(r"^(\w+)\s*:=(.*)$").unwrap();
     let save_value = regex::Regex::new(r"^:s +((\w+)\s*:=(.*))$").unwrap();
     let assign_type = regex::Regex::new(r"^(\w+)\s*t=(.*)$").unwrap();
@@ -170,6 +171,7 @@ pub fn repl() {
     println!("    `<name> := <expr>` to bind a name for this session.");
     println!("    `:t <expr>` to synthesize the type of <expr>.");
     println!("    `:tt <type>` to canonicalize <type>.");
+    println!("    `:sub <type_a> <: <type_b>` to check that `<type_a>` is a subtype of `<type_b>`");
     println!("    `<name> t= <type>` to bind a type for this session.");
     println!("    `:s <name> := <expr>` to save a binding to the prelude for the future.");
     println!("    `:s <name> t= <expr>` to save a type binding to the prelude.");
@@ -219,6 +221,8 @@ pub fn repl() {
             type_and_expand_unseemly_program(&caps[1]).map(|x| format!("{}", x))
         } else if let Some(caps) = canon_type.captures(&line) {
             canonicalize_type(&caps[1]).map(|x| format!("{}", x))
+        } else if let Some(caps) = subtype.captures(&line) {
+            check_subtype(&caps[1], &caps[2]).map(|x| format!("{}", x))
         } else if let Some(caps) = assign_value.captures(&line) {
             assign_variable(&caps[1], &caps[2]).map(|x| format!("{}", x))
         } else if let Some(caps) = save_value.captures(&line) {
@@ -311,6 +315,38 @@ fn canonicalize_type(t: &str) -> Result<Ast, String> {
     .map_err(|e| e.msg)?;
 
     TY_ENV.with(|tys| ty::synth_type(&ast, tys.borrow().clone()).map_err(|e| format!("{}", e)))
+}
+
+fn check_subtype(t_a: &str, t_b: &str) -> Result<Ast, String> {
+    let ast_a = grammar::parse(
+        &grammar::FormPat::Call(n("Type")),
+        core_forms::outermost__parse_context(),
+        t_a,
+    )
+    .map_err(|e| e.msg)?;
+
+    let ast_b = grammar::parse(
+        &grammar::FormPat::Call(n("Type")),
+        core_forms::outermost__parse_context(),
+        t_b,
+    )
+    .map_err(|e| e.msg)?;
+
+    TY_ENV.with(|tys| {
+        ty_compare::must_subtype(&ast_a, &ast_b, tys.borrow().clone())
+            .map(
+                // TODO: just figure out how to import `ast!` instead:
+                |env| {
+                    ast::Ast(std::rc::Rc::new(ast::LocatedAst {
+                        c: ast::Atom(n(&format!("OK, under this environment: {}", env))),
+                        begin: 0,
+                        end: 0,
+                        file_id: 0,
+                    }))
+                },
+            )
+            .map_err(|e| format!("{}", e))
+    })
 }
 
 fn parse_unseemly_program(program: &str, pretty: bool) -> Result<String, String> {
