@@ -409,25 +409,27 @@ fn make_core_syn_env_types() -> SynEnv {
     );
 
     assoc_n!("Type" => Rc::new(form_pat![
-        (alt
-            (scope fn_type),
-            // TODO: these should turn into `primitive_type`s in the core type environment.
-            // First, we need a really simple core type environment for testing,
-            //  and then to change all the `uty!({Type Int :})`s into `uty!(Int)`s
-            //  (and `ast!({"Type" "Int" :})`s into `ast!((vr "Int"))`).
-            (scope type_defn("Ident", form_pat!((name_lit "Ident")))),
-            (scope type_defn("Int", form_pat!((name_lit "Int")))),
-            (scope type_defn("Nat", form_pat!((name_lit "Nat")))),
-            (scope type_defn("Float", form_pat!((name_lit "Float")))),
-            (scope type_defn("String", form_pat!((name_lit "String")))),
-            (scope enum_type),
-            (scope struct_type),
-            (scope tuple_type),
+        // Disambiguate `forall T. Foo<T>` so it doesn't get parsed as `(forall T. Foo)<T>`:
+        (biased
             (scope forall_type),
-            (scope dotdotdot_type),
-            (scope mu_type),
-            (scope type_apply),
-            varref)
+            (alt
+                (scope fn_type),
+                // TODO: these should turn into `primitive_type`s in the core type environment.
+                // First, we need a really simple core type environment for testing,
+                //  and then to change all the `uty!({Type Int :})`s into `uty!(Int)`s
+                //  (and `ast!({"Type" "Int" :})`s into `ast!((vr "Int"))`).
+                (scope type_defn("Ident", form_pat!((name_lit "Ident")))),
+                (scope type_defn("Int", form_pat!((name_lit "Int")))),
+                (scope type_defn("Nat", form_pat!((name_lit "Nat")))),
+                (scope type_defn("Float", form_pat!((name_lit "Float")))),
+                (scope type_defn("String", form_pat!((name_lit "String")))),
+                (scope enum_type),
+                (scope struct_type),
+                (scope tuple_type),
+                (scope dotdotdot_type),
+                (scope mu_type),
+                (scope type_apply),
+                varref))
     ]))
 }
 
