@@ -484,9 +484,13 @@ pub fn must_subtype(
 }
 
 // TODO: I think we need to route some other things (especially in macros.rs) through this...
-pub fn must_equal(lhs: &Ast, rhs: &Ast, env: Assoc<Name, Ast>) -> Result<(), TyErr> {
-    let lwr_env = &LazyWalkReses::new_wrapper(env);
-    if walk::<Canonicalize>(lhs, lwr_env) == walk::<Canonicalize>(rhs, lwr_env) {
+pub fn must_equal(
+    lhs: &Ast,
+    rhs: &Ast,
+    parts: &LazyWalkReses<crate::ty::SynthTy>,
+) -> Result<(), TyErr> {
+    let canon_parts = parts.switch_mode::<Canonicalize>();
+    if walk::<Canonicalize>(lhs, &canon_parts) == walk::<Canonicalize>(rhs, &canon_parts) {
         Ok(())
     } else {
         Err(TyErr::Mismatch(lhs.clone(), rhs.clone()))

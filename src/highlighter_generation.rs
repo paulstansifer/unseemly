@@ -1,5 +1,4 @@
-use crate::grammar::SynEnv;
-use crate::earley::parse;
+use crate::{earley::parse, grammar::SynEnv};
 
 pub fn ace_rules(se: &SynEnv) -> String {
     let mut categories = vec![];

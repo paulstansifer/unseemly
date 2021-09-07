@@ -199,7 +199,7 @@ pub fn make_core_extra_forms() -> FormPat {
                         "type_rator" => (vr "Sequence"), "arg" => [(vr "T")]})})),
                     Some(ref t) => {
                         for ref other_elt in elts {
-                            crate::ty_compare::must_equal(t, other_elt, parts.env.clone()).map_err(
+                            crate::ty_compare::must_equal(t, other_elt, &parts).map_err(
                                 |e| crate::util::err::sp(e, parts.this_ast.clone())
                             )?;
                         }
