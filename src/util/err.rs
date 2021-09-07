@@ -8,6 +8,7 @@ custom_derive! {
     #[derive(Reifiable, Clone, PartialEq)]
     pub struct Spanned<T> {
         // The actual contents are ignored; only the span information is used.
+        // (Unless the span is a ficitious `Ast`, which Should Not Happen, but does.)
         pub loc: crate::ast::Ast,
         pub body: T
     }
@@ -24,9 +25,11 @@ impl<T: Display> Spanned<T> {
 
         let config = codespan_reporting::term::Config::default();
 
-        crate::earley::files.with(|f| {
-            codespan_reporting::term::emit(&mut writer, &config, &*f.borrow(), &diagnostic).unwrap()
-        });
+        if let Err(_) = crate::earley::files.with(|f| {
+            codespan_reporting::term::emit(&mut writer, &config, &*f.borrow(), &diagnostic)
+        }) {
+            writer.write(format!("[NO FILE] {} at {}", self.body, self.loc).as_bytes()).unwrap();
+        }
     }
 
     pub fn emit(&self) {
@@ -49,5 +52,11 @@ impl<T: Display> Display for Spanned<T> {
 
 // Force pretty version
 impl<T: Display> Debug for Spanned<T> {
-    fn fmt(&self, f: &mut Formatter) -> Result { write!(f, "{}", self) }
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        let mut writer = Ansi::new(Vec::<u8>::new());
+
+        self.emit_to_writer(&mut writer);
+
+        write!(f, "{}", std::str::from_utf8(&writer.into_inner()).unwrap())
+    }
 }
