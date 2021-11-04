@@ -178,7 +178,6 @@ pub fn get_language(program: &str, lang: Language) -> Language {
 }
 
 /// Evaluate a program written in some language.
-/// The last four arguments match the values returned by `language_from_file`.
 pub fn eval_program(program: &str, lang: Language) -> Result<Value, String> {
     // TODO: looks like `outermost_form` ought to be a property of `ParseContext`
     let ast: Ast = crate::grammar::parse(&core_forms::outermost_form(), lang.pc, program)
@@ -253,8 +252,8 @@ pub fn html__eval_program(program: &str, stashed_lang: &str) -> String {
 }
 
 #[wasm_bindgen]
-pub fn stash_lang(result_name: &str, program: &str, orig_stashed: &str) {
-    let orig_lang = language_stash.with(|ls| (*ls.borrow()).get(orig_stashed).unwrap().clone());
+pub fn stash_lang(result_name: &str, program: &str, lang_of_progam: &str) {
+    let orig_lang = language_stash.with(|ls| (*ls.borrow()).get(lang_of_progam).unwrap().clone());
     let new_lang = get_language(program, orig_lang);
     language_stash.with(|ls| ls.borrow_mut().insert(result_name.to_string(), new_lang));
 }
