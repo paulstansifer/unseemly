@@ -61,7 +61,8 @@
     <script src="https://pagecdn.io/lib/ace/1.4.12/ace.min.js" type="text/javascript" charset="utf-8"></script>
     <script src="https://pagecdn.io/lib/ace/1.4.12/ext-settings_menu.js" type="text/javascript"
         charset="utf-8"></script>
-    <script type="module">
+    <script src="config.js" type="text/javascript" charset="utf-8"></script>
+        <script type="module">
         var edited_since_last_highlight = true;
 
         var idx = 0;
@@ -124,14 +125,22 @@ ace.define(
             }
         }, false)
 
-        setInterval(function () {
-            if (edited_since_last_highlight) {
-                edited_since_last_highlight = false;
-                unseemly_worker.postMessage({
-                    task: 'ace_rules', program: editor.getValue(), lang: "unseemly"
-                })
-            }
-        }, 2000);
+        if (dynamic_highlighting) {
+            // Every 2 seconds, recalculate the dynamic highlighting:
+            setInterval(function () {
+                if (edited_since_last_highlight) {
+                    edited_since_last_highlight = false;
+                    unseemly_worker.postMessage({
+                        task: 'ace_rules', program: editor.getValue(), lang: "unseemly"
+                    })
+                }
+            }, 2000);
+        } else {
+            // Get a syntax highlighter (but wait for the worker to start up):
+            setTimeout(function() {
+                unseemly_worker.postMessage({task: 'ace_rules', lang: "unseemly"});
+            }, 1000)
+        }
 
         // Load example code:
         fetch('example.unseemly')
