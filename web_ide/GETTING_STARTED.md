@@ -25,5 +25,5 @@ You can't use a `file://` URL;
 
 Then, edit `config.js` to configure the IDE.
 
-To publish, host the files together (deleting the `.gitignore` and the human-readable files).
+To publish, host the files together (you can delete the `.gitignore` and the human-readable files).
 One option is to use [GitHub Pages](https://pages.github.com/).

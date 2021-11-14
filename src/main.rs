@@ -230,12 +230,6 @@ fn html_render(res: Result<Value, String>) -> String {
     }
 }
 
-#[wasm_bindgen]
-pub fn wasm_init() {
-    #[cfg(target_arch = "wasm32")]
-    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-}
-
 use std::iter::FromIterator;
 
 thread_local! {
@@ -251,6 +245,8 @@ pub fn html__eval_program(program: &str, stashed_lang: &str) -> String {
     html_render(eval_program(program, lang))
 }
 
+/// Evaluate `program` in `lang_of_program`, and stash the resulting language in `result_name`.
+/// "unseemly" starts out in the stash, so it's possible to start from somewhere.
 #[wasm_bindgen]
 pub fn stash_lang(result_name: &str, program: &str, lang_of_progam: &str) {
     let orig_lang = language_stash.with(|ls| (*ls.borrow()).get(lang_of_progam).unwrap().clone());

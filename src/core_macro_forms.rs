@@ -189,7 +189,7 @@ fn type_macro_invocation(
     )
     .map_err(|e| crate::util::err::sp(e, parts.this_ast.clone()))?;
 
-    // TODO: I think `Assoc` should implement `From<Vec<(K,V)>>`, maybe?
+    // TODO: `Assoc` should implement `From<Vec<(K,V)>>`
     let mut res = Assoc::new();
     for (k, v) in q_arguments {
         res = res.set(k, v.clone())

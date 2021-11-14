@@ -255,7 +255,11 @@ fn type__forall_expr(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
 
 /// This is the Unseemly language.
 pub fn make_core_syn_env() -> SynEnv {
-    color_backtrace::install(); // HACK: this is around the first thing that happens in any test.
+     // HACK: this is around the first thing that happens, so install a panic hook.
+    #[cfg(not(target_arch = "wasm32"))]
+    color_backtrace::install();  // Nice backtraces
+    #[cfg(target_arch = "wasm32")]
+    std::panic::set_hook(Box::new(console_error_panic_hook::hook));  // Backtrace to console
 
     let ctf: SynEnv = get_core_types();
     let cmf: SynEnv = crate::core_macro_forms::make_core_macro_forms();
