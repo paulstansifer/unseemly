@@ -1,0 +1,25 @@
+extend_syntax
+    DefaultSeparator ::= alt[ /(\/\/[^\n|][^\n]*)/ as comment
+                              /\s+/ ]alt * ;
+in
+    // Now we've got comments!
+extend_syntax
+    // Introduce `let` expressions.
+    Expr ::=also
+        forall T S . '{ [
+            lit ,{ DefaultToken }, = 'let'
+            [
+                pat := ( ,{ Pat<S> }, )
+                lit ,{ DefaultToken }, = '='
+                val := ( ,{ Expr<S> }, )
+                lit ,{ DefaultToken }, = ';'
+            ] *
+            lit ,{ DefaultToken }, = 'in'
+            body := ( ,{ Expr<T> }, <-- ...[pat = val]... )
+        ] }' let_macro -> .{
+            '[Expr |
+                match **[...[,val, >> ,[val], ]... ]**
+                    { **[...[,pat, >> ,[pat],]... ]** => ,[body], } ]'
+        }. ;
+in
+capture_language

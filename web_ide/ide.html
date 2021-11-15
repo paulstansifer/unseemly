@@ -58,14 +58,15 @@
         </div>
     </div>
 
-    <script src="https://pagecdn.io/lib/ace/1.4.12/ace.min.js" type="text/javascript" charset="utf-8"></script>
+    <script src="https://pagecdn.io/lib/ace/1.4.12/ace.min.js" type="text/javascript"
+        charset="utf-8"></script>
     <script src="https://pagecdn.io/lib/ace/1.4.12/ext-settings_menu.js" type="text/javascript"
         charset="utf-8"></script>
     <script src="config.js" type="text/javascript" charset="utf-8"></script>
-        <script type="module">
+    <script type="module">
         var edited_since_last_highlight = true;
 
-        var idx = 0;
+        var idx = 0; // which generation of the dynamic syntax highlighter we're on
 
         function set_highlighter(editor, rules, lang_name) {
             // This avoids leaking memory from all the mode definitions, right?
@@ -109,6 +110,26 @@ ace.define(
     });`)();
             editor.getSession().setMode("ace/mode/" + lang_name + idx);
         }
+
+        function language_setup() {
+            if (dynamic_highlighting) {
+                // Every 2 seconds, recalculate the dynamic highlighting:
+                setInterval(function () {
+                    if (edited_since_last_highlight) {
+                        edited_since_last_highlight = false;
+                        unseemly_worker.postMessage({
+                            task: 'ace_rules', program: editor.getValue(), lang: ide_lang
+                        })
+                    }
+                }, 2000);
+            } else {
+                // Get a syntax highlighter (but wait for the worker to start up):
+                setTimeout(function () {
+                    unseemly_worker.postMessage({ task: 'ace_rules', lang: ide_lang });
+                }, 1000)
+            }
+        }
+
         const unseemly_worker = new Worker("unseemly_worker.js");
 
 
@@ -118,39 +139,47 @@ ace.define(
         editor.setOption("printMarginColumn", 100);
         editor.setKeyboardHandler("ace/keyboard/vscode");
 
-        // Load syntax highlighter:
+        // Receive syntax highlighters:
         unseemly_worker.addEventListener('message', function (msg) {
             if (msg.data.task == 'ace_rules') {
-                set_highlighter(editor, msg.data.output, "unseemly");
+                set_highlighter(editor, msg.data.output, ide_lang);
             }
         }, false)
 
-        if (dynamic_highlighting) {
-            // Every 2 seconds, recalculate the dynamic highlighting:
-            setInterval(function () {
-                if (edited_since_last_highlight) {
-                    edited_since_last_highlight = false;
-                    unseemly_worker.postMessage({
-                        task: 'ace_rules', program: editor.getValue(), lang: "unseemly"
-                    })
+        var ide_lang = "unseemly";
+        unseemly_worker.addEventListener('message', function (msg) {
+            if (msg.data.task == 'startup') {
+                if (base_language != '') {
+                    ide_lang = "next_lang"
+                    unseemly_worker.addEventListener('message', function (msg) {
+                        // Wait until the language is ready to get its syntax-highlighter.
+                        if (msg.data.task == 'stash') {
+                            language_setup()
+                        }
+                    });
+
+                    fetch(base_language)
+                        .then((response) => response.text().then((program) => {
+                            unseemly_worker.postMessage({
+                                task: 'stash', lang: 'unseemly',
+                                store_as: ide_lang, program: program
+                            })
+                        }));
+                } else {
+                    language_setup()
                 }
-            }, 2000);
-        } else {
-            // Get a syntax highlighter (but wait for the worker to start up):
-            setTimeout(function() {
-                unseemly_worker.postMessage({task: 'ace_rules', lang: "unseemly"});
-            }, 1000)
-        }
+            }
+        })
+
 
         // Load example code:
-        fetch('example.unseemly')
+        fetch(starter_file)
             .then((response) => response.text().then((text) => {
                 editor.setValue(text);
                 editor.clearSelection();
             }));
 
-        // Set keyboard shortcut commands
-
+        // Set keyboard shortcut commands:
         editor.commands.addCommand({
             name: "showKeyboardShortcuts",
             bindKey: { win: "Ctrl-Alt-h", mac: "Command-Alt-h" },
@@ -174,7 +203,7 @@ ace.define(
                 }, false)
                 document.getElementById("working").style.display = "block";
                 unseemly_worker.postMessage(
-                    { task: 'execute', program: editor.getValue() });
+                    { task: 'execute', program: editor.getValue(), lang: ide_lang });
             }
         });
 

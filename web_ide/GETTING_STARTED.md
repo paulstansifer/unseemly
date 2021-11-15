@@ -24,6 +24,10 @@ You can't use a `file://` URL;
   or `npm i local-web-server` and then `ws`.
 
 Then, edit `config.js` to configure the IDE.
+For example,
+ `base_language = "newlang.unseemly"` and `starter_file = "example.newlang"`
+  to make an IDE for the language defined in `newlang.unseemly`.
+(Files that you reference need to be in this directory.)
 
 To publish, host the files together (you can delete the `.gitignore` and the human-readable files).
 One option is to use [GitHub Pages](https://pages.github.com/).
