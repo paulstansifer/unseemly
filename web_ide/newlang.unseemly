@@ -1,10 +1,10 @@
 extend_syntax
-    DefaultSeparator ::= alt[ /(\/\/[^\n|][^\n]*)/ as comment
+    DefaultSeparator ::= alt[ /(#[^\n|][^\n]*)/ as comment
                               /\s+/ ]alt * ;
 in
-    // Now we've got comments!
+    # Now we've got comments!
 extend_syntax
-    // Introduce `let` expressions.
+    # Introduce `let` expressions.
     Expr ::=also
         forall T S . '{ [
             lit ,{ DefaultToken }, = 'let'

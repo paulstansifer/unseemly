@@ -1,4 +1,4 @@
-// Hi!
+# Hi!
 
 let many = (plus one two) ; in
 (times many many)
