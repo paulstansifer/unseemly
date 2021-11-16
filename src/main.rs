@@ -268,7 +268,8 @@ pub fn generate__ace_rules(stashed_lang: &str) -> String {
 
 #[wasm_bindgen]
 pub fn generate__ace_rules__for(program: &str, stashed_lang: &str) -> String {
-    let lang = language_stash.with(|ls| (*ls.borrow()).get(stashed_lang).unwrap().clone());
+    let lang = language_stash
+        .with(|ls| (*ls.borrow()).get(stashed_lang).expect("Language not defined").clone());
 
     highlighter_generation::dynamic__ace_rules(program, &lang)
 }

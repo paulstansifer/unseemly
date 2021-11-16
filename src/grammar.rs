@@ -224,7 +224,11 @@ impl FormPat {
         match self {
             Scan(scanner, name) => match name {
                 Some(name) => vec![(
-                    format!("{}", scanner.0).strip_prefix("^").unwrap().to_string(),
+                    format!("{}", scanner.0)
+                        .strip_prefix("^")
+                        .unwrap()
+                        .replace(r#"\/"#, r#"/"#)
+                        .to_string(),
                     name.clone(),
                 )],
                 None => vec![],
