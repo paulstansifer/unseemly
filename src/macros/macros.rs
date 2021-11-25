@@ -236,7 +236,7 @@ macro_rules! ty_err_val {
 
 macro_rules! ty_err {
     ( $name:tt ( $($arg:expr),* ) at $loc:expr) => {
-        return Err(ty_err_val!( $name ( $($arg),* ) at $loc));
+        return Err(ty_err_val!( $name ( $($arg),* ) at $loc))
     }
 }
 
