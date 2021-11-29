@@ -147,12 +147,14 @@ impl WalkMode for MuProtect {
         if parts.extra_info <= 0 {
             return Ok(ast!((vr name)));
         }
-        Ok(parts.env.find(&name).map(Clone::clone).unwrap_or_else(|| {
-            ast!({"Type" "mu_type" :
+        if parts.env.find(&name) == None {
+            return Ok(ast!({"Type" "mu_type" :
                 "opacity_for_different_phase" => (at &parts.extra_info.to_string()),
                 "param" => [(import [prot "param"] (vr name))],
-                "body" => (import [* [prot "param"]] (vr name))})
-        }))
+                "body" => (import [* [prot "param"]] (vr name))}))
+        } else {
+            return Ok(ast!((vr name)));
+        }
     }
 
     // TODO: it seems like we always need to define this; think about this more.
