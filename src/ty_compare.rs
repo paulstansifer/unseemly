@@ -877,3 +877,30 @@ fn basic_resolve() {
                           "type_rator" => (vr "List"), "arg" => [(,ud0.clone())]} ]]})})
     );
 }
+
+#[test]
+fn forall_on_both_sides() {
+    let list_ty = uty!({forall_type : [Datum]
+        {mu_type : [List] {enum : [Nil [] ; Cons [Datum ; {type_apply : List [Datum]}] ]}}});
+
+    let t_env = assoc_n!("List" => list_ty.clone());
+
+    assert_m!(
+        must_subtype(
+            &uty!({forall_type : [T] {type_apply : List [T]}}),
+            &uty!({forall_type : [S] {type_apply : List [S]}}),
+            t_env.clone()
+        ),
+        Ok(_)
+    );
+
+    // TODO: This ... has a stack overflow?
+    // assert_m!(
+    // must_subtype(
+    // &uty!({forall_type : [T] {type_apply : List [{type_apply : List [T]}]}}),
+    // &uty!({forall_type : [S] {type_apply : List [S]}}),
+    // t_env.clone()
+    // ),
+    // Ok(_)
+    // );
+}

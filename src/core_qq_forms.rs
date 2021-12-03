@@ -65,7 +65,7 @@ use std::rc::Rc;
 // We don't want to capture the whole environment,
 //  so we want the typechecker to treat `T` opaquely (i.e. without looking up),
 //   which is what "mu_type" does.
-// We just need to write a walk for it (and annotate those `mu_type`s with a depth)
+// This walk installs (or removes) "mu_type"s on any free variables
 
 fn adjust_opacity(t: &Ast, env: Assoc<Name, Ast>, delta: i32) -> Ast {
     let ctxt = crate::ast_walk::LazyWalkReses {
@@ -151,7 +151,7 @@ impl WalkMode for MuProtect {
             return Ok(ast!({"Type" "mu_type" :
                 "opacity_for_different_phase" => (at &parts.extra_info.to_string()),
                 "param" => [(import [prot "param"] (vr name))],
-                "body" => (import [* [prot "param"]] (vr name))}))
+                "body" => (import [* [prot "param"]] (vr name))}));
         } else {
             return Ok(ast!((vr name)));
         }

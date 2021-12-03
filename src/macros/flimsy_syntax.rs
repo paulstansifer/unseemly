@@ -10,6 +10,26 @@
 
 // It's not unsafe to use `u!` for runtime operations, but there's a runtime cost, so don't do it.
 
+// TODO #20: Translate most `ast!`s in tests to `u!`s.
+//
+// `u!` is for expressions, and `uty!` is for types.
+//
+// Simple example:
+//   `{apply : plus [one ; one]}` represents `(plus one one)`.
+// * Use a bareword (`apply`) to find the AST node,
+//    and then put arguments in the order they appear in the syntax,
+//     in this case, first the rator and then the rands.
+// * Use `[ ]` around a repeated argument.
+// * Variable references (`one`) and atoms are just plain barewords.
+//
+// Another example:
+//   `{lambda : [a {Type Int :} ; b {Type Int :}]  {apply : plus [a ; b]}}`
+// * Note that arguments repeated together can be grouped
+//    (just put a semicolon between the repetitions).
+// * Also, you need to explicitly use `{Type <form_name> : ...}` or `{Expr <form_name> : ...}`
+//    to switch nonterminals.
+// * Note that the difference between variable references and atoms is inferred.
+
 use crate::{
     ast::{Ast, AstContents::*},
     grammar::FormPat,
@@ -208,6 +228,24 @@ macro_rules! uty {
             crate::macros::flimsy_syntax::default_nt.with(|def_nt| {
                 old_default_nt = def_nt.borrow().clone();
                 *def_nt.borrow_mut() = "Type".to_owned();
+            });
+            let res = u!( $($ts)* );
+
+            crate::macros::flimsy_syntax::default_nt.with(|def_nt| {
+                *def_nt.borrow_mut() = old_default_nt;
+            });
+            res
+        }
+    };
+}
+
+macro_rules! upat {
+    ($( $ts:tt )*) => {
+        {
+            let mut old_default_nt = "".to_owned();
+            crate::macros::flimsy_syntax::default_nt.with(|def_nt| {
+                old_default_nt = def_nt.borrow().clone();
+                *def_nt.borrow_mut() = "Pat".to_owned();
             });
             let res = u!( $($ts)* );
 
