@@ -598,7 +598,7 @@ checksum = "f14ee04d9415b52b3aeab06258a3f07093182b88ba0f9b8d203f211a7a7d41c7"
 
 [[package]]
 name = "unseemly"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "ansi-to-html",
  "codespan-reporting",

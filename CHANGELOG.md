@@ -1,5 +1,11 @@
 ## Changelog
 
+## 0.0.3 - 2021-12-02
+### Added
+ - Added a Web IDE, with automatically-generated syntax-highlighting.
+### Fixed
+ - Improved the parser somewhat.
+
 ## 0.0.2 - 2021-08-22
 ### Added
  - Added more builtin functions, and the `Option<T>` type.
