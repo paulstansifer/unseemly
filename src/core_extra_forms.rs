@@ -151,7 +151,10 @@ pub fn make_core_extra_forms() -> FormPat {
             (delim "-{", "{", [(star [(named "effect", (call "Expr")), (lit ";")]),
                             (named "result", (call "Expr"))]),
             /* type */
-            Body(n("result")),
+            cust_rc_box!(move |part_types| {
+                let _ = part_types.get_rep_res(n("effect"))?;
+                part_types.get_res(n("result"))
+            }),
             /* evaluation */
             cust_rc_box!( move | part_values | {
                 for effect_values in part_values.march_all(&[n("effect")]) {
