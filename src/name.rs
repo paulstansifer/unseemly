@@ -139,12 +139,8 @@ impl Name {
                 })
             };
 
-            // If we're faking freshness, make the freshened name findable. Otherwise...
-            let id = if freshen && !fake_freshness_ {
-                claim_id() // ...don't put it in the table
-            } else {
-                *id_map_.borrow_mut().entry(unique_spelling.clone()).or_insert_with(claim_id)
-            };
+            // Claim our `unique_spelling` and a fresh ID:
+            let id = *id_map_.borrow_mut().entry(unique_spelling.clone()).or_insert_with(claim_id);
 
             Name { id: id }
         })
@@ -188,6 +184,7 @@ fn name_interning() {
 
     assert_ne!(a, n("x🍅"));
     assert_ne!(a.freshen(), a.freshen());
+    assert_ne!(a.freshen().sp(), a.freshen().sp());
 
     assert_ne!(n("a"), n("y"));
 
