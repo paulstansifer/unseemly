@@ -238,6 +238,8 @@ impl<T: Clone> EnvMBE<T> {
     }
 
     /// Creates an `EnvMBE` containing a single anonymous repeat
+    /// (HACK: there's no way to represent a name repeating zero times this way;
+    ///  use `new_from_empty_anon_repeat`)
     pub fn new_from_anon_repeat(r: Vec<EnvMBE<T>>) -> EnvMBE<T> {
         let mut res = EnvMBE::new();
         res.add_anon_repeat(r);
@@ -245,11 +247,33 @@ impl<T: Clone> EnvMBE<T> {
     }
 
     /// Creates an `EnvMBE` containing a single named repeat
+    /// (HACK: there's no way to represent a name repeating zero times this way;
+    ///  use `new_from_empty_named_repeat`)
     pub fn new_from_named_repeat(n: Name, r: Vec<EnvMBE<T>>) -> EnvMBE<T> {
         let mut res = EnvMBE::new();
         res.add_named_repeat(n, r);
         res
     }
+
+    pub fn new_from_empty_anon_repeat(ks: &[Name]) -> EnvMBE<T> {
+        let mut res = EnvMBE::new();
+        for k in ks {
+            res.leaf_locations.mut_set(*k, Some(0));
+        }
+        res.repeats.push(Rc::new(vec![]));
+        res
+    }
+
+    pub fn new_from_empty_named_repeat(n: Name, ks: &[Name]) -> EnvMBE<T> {
+        let mut res = EnvMBE::new();
+        for k in ks {
+            res.leaf_locations.mut_set(*k, Some(0));
+        }
+        res.repeats.push(Rc::new(vec![]));
+        res.named_repeats.mut_set(n, Some(0));
+        res
+    }
+
 
     /// Combine two `EnvMBE`s whose names (both environment names and repeat names) are disjoint,
     /// or just overwrite the contents of the previous one.
@@ -286,14 +310,45 @@ impl<T: Clone> EnvMBE<T> {
 
         for (n, rep_idx) in rhs.named_repeats.iter_pairs() {
             if let Some(rep_idx) = *rep_idx {
-                res.add_named_repeat(*n, (*rhs.repeats[rep_idx]).clone());
+                if rhs.repeats[rep_idx].len() > 0 {
+                    res.add_named_repeat(*n, (*rhs.repeats[rep_idx]).clone());
+                } else {
+                    // Maybe pull this out as `.add_empty_named_repeat`?
+                    let empty_idx = if let Some(Some(rep_idx)) = res.named_repeats.find(n) {
+                        if res.repeats[*rep_idx].len() != 0 {
+                            panic!("Length mismatch; {} is supposed to repeat empty", n);
+                        }
+                        *rep_idx
+                    } else {
+                        let new_idx = res.repeats.len();
+                        res.repeats.push(Rc::new(vec![]));
+                        res.named_repeats.mut_set(*n, Some(new_idx));
+                        new_idx
+                    };
+                    for (leaf_name, leaf_loc) in rhs.leaf_locations.iter_pairs() {
+                        if leaf_loc == &Some(rep_idx) {
+                            res.leaf_locations.mut_set(*leaf_name, Some(empty_idx));
+                        }
+                    }
+                }
                 rhs_idx_is_named[rep_idx] = true;
             }
         }
 
         for (idx, rep) in rhs.repeats.iter().enumerate() {
             if !rhs_idx_is_named[idx] {
-                res.add_anon_repeat((**rep).clone());
+                if rep.len() > 0 {
+                    res.add_anon_repeat((**rep).clone());
+                } else {
+                    // Maybe pull this out as `.addempty__anon_repeat`?
+                    let empty_idx = res.repeats.len();
+                    res.repeats.push(Rc::new(vec![]));
+                    for (leaf_name, leaf_loc) in rhs.leaf_locations.iter_pairs() {
+                        if leaf_loc == &Some(idx) {
+                            res.leaf_locations.mut_set(*leaf_name, Some(empty_idx));
+                        }
+                    }
+                }
             }
         }
 
@@ -817,7 +872,9 @@ impl<T: Clone + fmt::Debug> EnvMBE<T> {
     pub fn get_leaf_or_panic(&self, n: &Name) -> &T {
         match self.leaves.find(n) {
             Some(v) => v,
-            None => panic!(" {:#?} not found in {:#?} (perhaps it is still repeated?)", n, self),
+            None => panic!(
+                " {} not found in {} (perhaps it is still repeated?)",
+                n, self.leaves.map(|_| "…")),
         }
     }
 
@@ -1049,4 +1106,12 @@ fn splice_healing() {
     // assert_eq!(with__too_short.heal_splices__with(&other__too_short, &steal_from_other), ???);
 
     // TODO: test this more!
+}
+
+#[test]
+fn empty_mbe() {
+    let no_foos : EnvMBE<crate::ast::Ast> = mbe!("foo" => []);
+
+    let no_asts : Vec<&crate::ast::Ast> = vec![];
+    assert_eq!(no_foos.get_rep_leaf_or_panic(n("foo")), no_asts);
 }

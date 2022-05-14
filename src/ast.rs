@@ -304,7 +304,7 @@ fn combine_from_kleene_star() {
     use std::iter::FromIterator;
 
     let parse_parts = vec![
-        ast!({ - "b" => "8.0"}),
+        ast!({ - "a" => [], "b" => "8.0"}),
         ast!({ - "a" => ["1", "2"], "b" => "8.1"}),
         ast!({ - "a" => ["1", "2", "3"], "b" => "8.2"}),
     ];

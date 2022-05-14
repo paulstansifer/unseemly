@@ -282,14 +282,27 @@ macro_rules! mbe_one_name {
         }
     };
 
-    ($k:tt => [@ $n:tt $($elt:tt),*]) => {
+    // HACK: `new_from_{named,anon}_repeat` don't work if the repeat is empty!
+    ($k:tt => [@ $n:tt ]) => {
+        crate::util::mbe::EnvMBE::<crate::ast::Ast>::new_from_empty_named_repeat(
+            crate::name::n(expr_ify!($n)),
+            &vec![crate::name::n(expr_ify!($k))]
+        )
+    };
+    ($k:tt => []) => {
+        crate::util::mbe::EnvMBE::<crate::ast::Ast>::new_from_empty_anon_repeat(
+            &vec![crate::name::n(expr_ify!($k))]
+        )
+    };
+
+    ($k:tt => [@ $n:tt $($elt:tt),+]) => {
         crate::util::mbe::EnvMBE::new_from_named_repeat(
             crate::name::n(expr_ify!($n)),
             vec![ $( mbe_one_name!($k => $elt) ),* ]
         )
     };
 
-    ($k:tt => [$($elt:tt),*]) => {
+    ($k:tt => [$($elt:tt),+]) => {
         crate::util::mbe::EnvMBE::new_from_anon_repeat(
             vec![ $( mbe_one_name!($k => $elt) ),* ])
     };
@@ -679,7 +692,7 @@ macro_rules! _get_leaf_operation {
 // TODO: use this a lot more
 macro_rules! node_let {
     ( $node:expr => {$nt:tt $form:tt } $( $n:ident $operation:tt $name:tt ),* ) => (
-        // Extra element is the ensure it's a tuple and not trigger `unused_params`.
+        // Extra element is to ensure it's a tuple and not trigger `unused_params`.
         let ( (), $( $n ),* ) = {
             expect_node!( ($node ;
                 crate::core_forms::find_core_form(stringify!($nt), stringify!($form))) env ;
