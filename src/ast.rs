@@ -10,7 +10,7 @@ use crate::{
     name::*,
     util::mbe::EnvMBE,
 };
-use std::{fmt, iter, rc::Rc};
+use std::{fmt, rc::Rc};
 
 // TODO: This really ought to be an `Rc` around an `enum`
 #[derive(Clone, PartialEq)]
@@ -281,40 +281,6 @@ impl Ast {
     }
 
     pub fn orig_str<'a, 'b>(&'a self, prog: &'b str) -> &'b str { &prog[self.0.begin..self.0.end] }
-}
-
-// This is used by combine::many, which is used by the Star parser
-impl iter::FromIterator<Ast> for Ast {
-    fn from_iter<I: IntoIterator<Item = Ast>>(i: I) -> Self {
-        raw_ast!(IncompleteNode(EnvMBE::new_from_anon_repeat(
-            i.into_iter().map(|a| a.flatten()).collect()
-        )))
-    }
-}
-
-// This is also sort of a test of MBE, since we need `Ast`s to make them with the macros
-//
-// Suppose we have the following series of `Ast`s:
-// [b = 8] [a = [1 2], b = 8] [a = [3 4 5], b = 8]
-//
-// We should turn them into the following `Ast`
-// [a = [[] [1 2] [3 4 5]], b = [8 8 8]]
-#[test]
-fn combine_from_kleene_star() {
-    use std::iter::FromIterator;
-
-    let parse_parts = vec![
-        ast!({ - "a" => [], "b" => "8.0"}),
-        ast!({ - "a" => ["1", "2"], "b" => "8.1"}),
-        ast!({ - "a" => ["1", "2", "3"], "b" => "8.2"}),
-    ];
-    let parsed = Ast::from_iter(parse_parts);
-
-    let mut expected_mbe = mbe!("a" => [@"triple" [], ["1", "2"], ["1", "2", "3"]],
-             "b" => [@"triple" "8.0", "8.1", "8.2"]);
-    expected_mbe.anonimize_repeat(n("triple"));
-
-    assert_eq!(parsed.c(), &IncompleteNode(expected_mbe));
 }
 
 #[test]
