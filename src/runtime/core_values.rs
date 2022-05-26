@@ -125,6 +125,15 @@ pub fn string_operations() -> Assoc<Name, TypedValue> {
                     .stdout).unwrap().to_string())
             }
         },
+        "print" => tyf! {
+            {"Type" "fn" :
+                "param" => [{"Type" "String" :}],
+                "ret" => (vr "Unit")
+            },
+            (Text(contents)) => {
+                print!("{}", contents);
+                Sequence(vec![])
+            }},
         "env_var" => tyf! {
             {"Type" "fn" :
                 "param" => [{"Type" "String" :}],

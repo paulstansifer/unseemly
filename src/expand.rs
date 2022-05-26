@@ -97,6 +97,7 @@ fn expand_basic_macros() {
             macro_invocation(
                 form_pat!((lit "just_add_1_and_2")),
                 n("just_add_1_and_2_macro"),
+                vec![],
                 eval::Closure { body: macro_body_0_args, params: vec![], env: Assoc::new() },
                 vec![],
             );
@@ -125,6 +126,7 @@ fn expand_basic_macros() {
                 // duplicates the syntax syntax above
                 form_pat!([(lit "add_1"), (named "e", (call "Expr"))]),
                 n("add_1_macro"),
+                vec![],
                 eval::Closure { body: macro_body_1_arg, params: vec![n("e")], env: Assoc::new() },
                 vec![],
             );
@@ -159,6 +161,7 @@ fn expand_basic_macros() {
                 form_pat!([(lit "let"), (named "let_pat", (call "Pat")),
                            (named "let_val", (call "Expr")), (named "let_body", (call "Expr"))]),
                 n("let_macro"),
+                vec![u!(T), u!(S)],
                 eval::Closure {
                     body: macro_body_let.clone(),
                     params: vec![n("let_val"), n("let_pat"), n("let_body")],
@@ -184,6 +187,7 @@ fn expand_basic_macros() {
                            (named "let_val", (call "Expr")),
                            (named "let_body", (import ["let_pat" = "let_val"], (call "Expr")))]),
                 n("let_macro"),
+                vec![u!(T), u!(S)],
                 eval::Closure {
                     body: macro_body_let,
                     params: vec![n("let_val"), n("let_pat"), n("let_body")],
@@ -231,6 +235,7 @@ fn expand_basic_macros() {
                            (star (named "let_val", (call "Expr"))),
                            (named "let_body", (call "Expr"))]),
                 n("nary_let_macro"),
+                vec![u!(T), u!(S)],
                 eval::Closure {
                     body: macro_body_nary_let,
                     params: vec![n("let_val"), n("let_pat"), n("let_body")],

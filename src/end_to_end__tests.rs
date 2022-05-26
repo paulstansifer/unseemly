@@ -489,3 +489,52 @@ fn language_building() {
         in (plus y (plus x y))";
     assert_eq!(eval_unseemly_program_top(let_macro_prog), Ok(val!(i 16)));
 }
+
+#[test]
+fn for_loop__macro() {
+    // For whatever reason, this program uncovered a bunch of bugs.
+    assert_eq!(
+        eval_unseemly_program_top(
+            r"
+        extend_syntax
+            Expr ::=also
+                forall T S . '{ [
+                    lit ,{ DefaultToken }, = 'let'
+                    [
+                        pat := ( ,{ Pat<S> }, )
+                        lit ,{ DefaultToken }, = '='
+                        val := ( ,{ Expr<S> }, )
+                        lit ,{ DefaultToken }, = ';'
+                    ] *
+                    lit ,{ DefaultToken }, = 'in'
+                    body := ( ,{ Expr<T> }, <-- ...[pat = val]... )
+                ] }' let_macro -> .{
+                    '[Expr |
+                        match **[...[,val, >> ,[val], ]... ]**
+                            { **[...[,pat, >> ,[pat],]... ]** => ,[body], } ]'
+                }. ;
+        in
+        extend_syntax
+            Expr ::=also forall T . '{ [
+                lit ,{ DefaultToken }, = 'for'
+                pat := ( ,{ Pat<T> }, )
+                lit ,{ DefaultToken }, = 'in'
+                seq := ( ,{ Expr<Sequence<T>> }, )
+                body := ( ,{ Expr<Unit> }, <-- pat : T )
+            ] }' for_loop -> .{
+                '[Expr |
+                    (foldl ,[seq],
+                        **[]**
+                        .[unit : Unit  arg : ,[prefab_type T], .
+                            let ,[pat], = arg ; in ,[body],
+                        ]. )
+                ]'
+            }. ;
+        in
+        let foo = seven ; in
+        for x in (range one three) (print (anything_to_string x))"
+        ),
+        Ok(val!(seq))
+    );
+
+}

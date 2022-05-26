@@ -149,6 +149,26 @@ fn type_macro_invocation(
     // Typecheck the subterms, and then quote them:
     let mut q_arguments = vec![];
 
+    // We need the macro's type vars to be usable in betas
+    //  (which is a little weird, but looks fine (see `for` in `build_a_language.unseemly`)).
+    // So, we bind those names as terms referring to the environment,
+    //  and put them in the environment as if 'forall'ed.
+    // Can't use `node_let!` because "macro_type_params" is a `trivial_form`.
+    let macro__type_params = parts.get_term(n("macro__type_params"));
+    let mut new_terms = parts.parts.clone();
+    let mut new_env = parts.env.clone();
+    let mut ty_vars = vec![];
+    for param in macro__type_params.node_parts().get_rep_leaf_or_panic(n("params")) {
+        let param = param.to_name();
+        new_terms.add_leaf(
+            param,
+            crate::ast_walk::LazilyWalkedTerm::new(&raw_ast!(VariableReference(param))),
+        );
+        new_env = new_env.set(param, raw_ast!(VariableReference(param)));
+        ty_vars.push(param);
+    }
+    let parts = LazyWalkReses { parts: new_terms, env: new_env, ..parts.clone() };
+
     for (binder, depth) in grammar.binders() {
         // Things like `token := (/some_stuff/)` are well-typed in all invocations;
         //  examine things like `token := (,{Expr<T>},)
@@ -183,7 +203,7 @@ fn type_macro_invocation(
     use crate::walk_mode::WalkMode;
 
     let _ = crate::ty_compare::is_subtype(
-        &macro_type(&[], q_arguments.clone(), expected_return),
+        &macro_type(&ty_vars, q_arguments.clone(), expected_return),
         &parts.get_res(n("macro_name"))?,
         &parts,
     )
@@ -204,6 +224,7 @@ fn type_macro_invocation(
 pub fn macro_invocation(
     grammar: FormPat,
     macro_name: Name,
+    ty_params: Vec<Ast>,
     implementation: crate::runtime::eval::Closure,
     export_names: Vec<Name>,
 ) -> Rc<Form> {
@@ -219,10 +240,15 @@ pub fn macro_invocation(
 
     let grammar1 = grammar.clone();
     let grammar2 = grammar.clone();
+
+    let trivial_form = crate::core_type_forms::type_defn("unused", form_pat!((impossible)));
+    let params_holder = ast!({trivial_form ; "params" => (,seq ty_params)});
+
     Rc::new(Form {
         name: n("macro_invocation"), // TODO: maybe generate a fresh name?
         grammar: Rc::new(form_pat!([
-            // `type_macro_invocation` expects "macro_name" to be set
+            // `type_macro_invocation` expect these two to be set
+            (named "macro__type_params", (anyways (, params_holder))),
             (named "macro_name", (anyways (vr macro_name))),
             // Capture this here so that its environmental names get freshened properly.
             // Need to store this one phase unquoted.
@@ -704,6 +730,7 @@ pub fn make_core_macro_forms() -> SynEnv {
                 Ok(Scope(macro_invocation(
                         FormPat::reflect(&parts.get_res(n("syntax"))?),
                         parts.get_term(n("macro_name")).to_name(),
+                        parts.get_rep_term(n("param")),
                         crate::runtime::eval::Closure{ body: implementation,
                             params: macro_params,
                             env: parts.env
@@ -945,6 +972,9 @@ fn type_basic_macro_invocation() {
 
     );
 
+    let trivial_form = crate::core_type_forms::type_defn("unused", form_pat!((impossible)));
+
+    // TODO: Maybe we should just have a special case for this in `u!`.
     let impl_clo =
         crate::runtime::eval::Closure { body: ast!((trivial)), params: vec![], env: Assoc::new() };
     assert_eq!(
@@ -952,8 +982,9 @@ fn type_basic_macro_invocation() {
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke basic_int_macro"), (named "a", (call "Expr"))]),
-                    n("basic_int_macro"), impl_clo.clone(), vec![]) ;
+                    n("basic_int_macro"), vec![], impl_clo.clone(), vec![]) ;
                 "macro_name" => (vr "basic_int_macro"),
+                "macro__type_params" => {trivial_form.clone() ; "params" => []},
                 "a" => (vr "int_var")
             }),
             env.clone()
@@ -966,8 +997,9 @@ fn type_basic_macro_invocation() {
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke basic_t_macro"), (named "a", (call "Expr"))]),
-                    n("basic_t_macro"), impl_clo.clone(), vec![]) ;
+                    n("basic_t_macro"), vec![u!(T)], impl_clo.clone(), vec![]) ;
                 "macro_name" => (vr "basic_t_macro"),
+                "macro__type_params" => {trivial_form.clone() ; "params" => [(at "T")]},
                 "a" => (vr "nat_var")
             }),
             env.clone()
@@ -980,8 +1012,9 @@ fn type_basic_macro_invocation() {
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke basic_int_macro"), (named "a", (call "Expr"))]),
-                    n("basic_int_macro"), impl_clo.clone(), vec![]) ;
+                    n("basic_int_macro"), vec![], impl_clo.clone(), vec![]) ;
                 "macro_name" => (vr "basic_int_macro"),
+                "macro__type_params" => {trivial_form.clone() ; "params" => []},
                 "a" => (vr "nat_var")
             }),
             env.clone()
@@ -994,8 +1027,9 @@ fn type_basic_macro_invocation() {
             &ast!({
                 macro_invocation(
                     form_pat!([(lit "invoke basic_pattern_macro"), (named "a", (call "Pat"))]),
-                    n("basic_pattern_macro"), impl_clo.clone(), vec![n("a")]) => ["a"];
+                    n("basic_pattern_macro"), vec![u!(T)], impl_clo.clone(), vec![n("a")]) => ["a"];
                 "macro_name" => (vr "basic_pattern_macro"),
+                "macro__type_params" => {trivial_form.clone() ; "params" => [(at "T")]},
                 "a" => "should_be_nat"
             }),
             env.clone().set(negative_ret_val(), ast!({"Type" "Nat" :}))
@@ -1011,8 +1045,9 @@ fn type_basic_macro_invocation() {
                                (named "val", (call "Expr")),
                                (named "binding", (call "Pat")),
                                (named "body", (import ["binding" = "val"], (call "Expr")))]),
-                    n("let_like_macro"), impl_clo.clone(), vec![]) ;
+                    n("let_like_macro"), vec![u!(T), u!(S)], impl_clo.clone(), vec![]) ;
                 "macro_name" => (vr "let_like_macro"),
+                "macro__type_params" => {trivial_form.clone() ; "params" => [(at "T"), (at "S")]},
                 "val" => (vr "nat_var"),
                 "binding" => "x",
                 "body" => (import ["binding" = "val"] (vr "x"))
@@ -1030,8 +1065,9 @@ fn type_basic_macro_invocation() {
                                (named "t", (call "Type")),
                                (named "body", (call "Pat")),
                                (named "cond_expr", (import ["body" : "t"], (call "Expr")))]),
-                    n("pattern_cond_like_macro"), impl_clo.clone(), vec![n("body")]) ;
+                    n("pattern_cond_like_macro"), vec![u!(T), u!(S)], impl_clo.clone(), vec![n("body")]) ;
                 "macro_name" => (vr "pattern_cond_like_macro"),
+                "macro__type_params" => {trivial_form.clone() ; "params" => [(at "T"), (at "S")]},
                 "t" => {"Type" "Int" :},
                 "body" => "x",
                 "cond_expr" => (import ["body" : "t"] (vr "x"))
@@ -1061,6 +1097,8 @@ fn type_ddd_macro() {
                             (n("body"), s_expr_type.clone())],
                        s_expr_type.clone()));
 
+    let trivial_form = crate::core_type_forms::type_defn("unused", form_pat!((impossible)));
+
     assert_eq!(
         crate::ty::synth_type(
             &ast!({
@@ -1069,8 +1107,9 @@ fn type_ddd_macro() {
                                 (star (named "val", (call "Expr"))),
                                 (star (named "binding", (call "Pat"))),
                                 (named "body", (import [* ["binding" = "val"]], (call "Expr")))]),
-                    n("let_like_macro"), impl_clo, vec![]) ;
+                    n("let_like_macro"), vec![u!(T), u!(S)], impl_clo, vec![]) ;
                 "macro_name" => (vr "let_like_macro"),
+                "macro__type_params" => {trivial_form.clone() ; "params" => [(at "T"), (at "S")]},
                 "val" => [@"arm" (vr "nat_var"), (vr "nat_var")],
                 "binding" => [@"arm" "x1", "x2"],
                 "body" => (import [* ["binding" = "val"]] (vr "x1"))
