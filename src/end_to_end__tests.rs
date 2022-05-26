@@ -536,5 +536,4 @@ fn for_loop__macro() {
         ),
         Ok(val!(seq))
     );
-
 }

@@ -274,7 +274,6 @@ impl<T: Clone> EnvMBE<T> {
         res
     }
 
-
     /// Combine two `EnvMBE`s whose names (both environment names and repeat names) are disjoint,
     /// or just overwrite the contents of the previous one.
     /// This should maybe not be `pub` if we can avoid it.
@@ -874,7 +873,9 @@ impl<T: Clone + fmt::Debug> EnvMBE<T> {
             Some(v) => v,
             None => panic!(
                 " {} not found in {} (perhaps it is still repeated?)",
-                n, self.leaves.map(|_| "…")),
+                n,
+                self.leaves.map(|_| "…")
+            ),
         }
     }
 
@@ -1110,8 +1111,8 @@ fn splice_healing() {
 
 #[test]
 fn empty_mbe() {
-    let no_foos : EnvMBE<crate::ast::Ast> = mbe!("foo" => []);
+    let no_foos: EnvMBE<crate::ast::Ast> = mbe!("foo" => []);
 
-    let no_asts : Vec<&crate::ast::Ast> = vec![];
+    let no_asts: Vec<&crate::ast::Ast> = vec![];
     assert_eq!(no_foos.get_rep_leaf_or_panic(n("foo")), no_asts);
 }

@@ -849,19 +849,19 @@ impl Item {
 
                 Ok(self.locate(done_tok, match *self.rule {
                     Seq(_) | SynImport(_, _, _) => ast::Shape(subtrees),
-                    Star(_) | Plus(_) => {
-                        ast::IncompleteNode(if subtrees.len() > 0 {
-                            EnvMBE::new_from_anon_repeat(
-                                subtrees.into_iter().map(|a| a.flatten()).collect())
-                        } else {
-                            EnvMBE::new_from_empty_anon_repeat(
-                                &self.rule.binders().into_iter().map(|(n, depth)| {
-                                    if depth != 1 { panic!("how is {} repeated?", n) }
-                                    n
-                                }).collect::<Vec<Name>>()
-                            )
-                        })
-                    }
+                    Star(_) | Plus(_) => ast::IncompleteNode(if subtrees.len() > 0 {
+                        EnvMBE::new_from_anon_repeat(
+                            subtrees.into_iter().map(|a| a.flatten()).collect(),
+                        )
+                    } else {
+                        let depth_is_one = |(n, depth)| {
+                            assert_eq!(depth, 1, "how is {} repeated?", n);
+                            n
+                        };
+                        EnvMBE::new_from_empty_anon_repeat(
+                            &self.rule.binders().into_iter().map(depth_is_one).collect::<Vec<_>>(),
+                        )
+                    }),
                     _ => icp!("seriously, this can't happen"),
                 }))
             }
