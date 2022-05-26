@@ -68,8 +68,8 @@ impl Value {
 impl Closure {
     pub fn prefab(&self) -> Ast {
         ast!({"Expr" "lambda" :
-            "param" => (@"p" ,seq self.params.iter().map(|n| ast!(*n))),
-            "p_t" => (@"p" ,seq self.params.iter().map(|_| ast!((trivial)))),
+            "param" => (@"p" ,seq self.params.iter().map(|n| ast!(*n)).collect::<Vec<Ast>>()),
+            "p_t" => (@"p" ,seq self.params.iter().map(|_| ast!((trivial))).collect::<Vec<Ast>>()),
             "body" => (import [* ["param" : "p_t"]] (,
                 crate::alpha::substitute(&self.body,
                     &self.env.map(|v| v.clone().prefab())

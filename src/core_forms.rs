@@ -195,7 +195,8 @@ fn eval_struct_expr(part_values: LazyWalkReses<Eval>) -> Result<Value, ()> {
 
 // tuple_expr ==> [component: Expr]*
 fn type_tuple_expr(part_types: LazyWalkReses<SynthTy>) -> TypeResult {
-    Ok(uty!({tuple : [, part_types.get_rep_res(n("component"))? ]}))
+    Ok(ast!({ find_type("tuple") ;
+        "component" => (,seq part_types.get_rep_res(n("component"))?)}))
 }
 fn eval_tuple_expr(part_values: LazyWalkReses<Eval>) -> Result<Value, ()> {
     Ok(crate::runtime::eval::Value::Sequence(

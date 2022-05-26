@@ -310,21 +310,32 @@ macro_rules! mbe_one_name {
     // since `Ast`s go on the RHS, we have to have a distinctive interpolation syntax
     ($k:tt => (,seq $e:expr)) => {
         {
-            let mut v = vec![];
-            for elt in $e {
-                v.push(crate::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => elt)))
+            let seq_expr = $e;
+            if (seq_expr.is_empty()) {
+                crate::util::mbe::EnvMBE::new_from_empty_anon_repeat(&[crate::name::n(expr_ify!($k))])
+            } else {
+                let mut v = vec![];
+                for elt in seq_expr {
+                    v.push(crate::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => elt)))
+                }
+                crate::util::mbe::EnvMBE::new_from_anon_repeat(v)
             }
-            crate::util::mbe::EnvMBE::new_from_anon_repeat(v)
         }
     };
 
     ($k:tt => (@ $rep_n:tt ,seq $e:expr)) => {
         {
-            let mut v = vec![];
-            for elt in $e {
-                v.push(crate::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => elt)))
+            let seq_expr = $e;
+            if (seq_expr.is_empty()) {
+                crate::util::mbe::EnvMBE::new_from_empty_named_repeat(
+                    crate::name::n(expr_ify!($rep_n)), &[crate::name::n(expr_ify!($k))])
+            } else {
+                let mut v = vec![];
+                for elt in seq_expr {
+                    v.push(crate::util::mbe::EnvMBE::new_from_leaves(assoc_n!($k => elt)))
+                }
+                crate::util::mbe::EnvMBE::new_from_named_repeat(crate::name::n(expr_ify!($rep_n)), v)
             }
-            crate::util::mbe::EnvMBE::new_from_named_repeat(crate::name::n(expr_ify!($rep_n)), v)
         }
     };
 
@@ -836,7 +847,7 @@ macro_rules! ld {
 // "Layer debug, continued"
 macro_rules! lc {
     ($layer:ident, $enabled:expr, $template:tt, $($arg:expr),*) => {{
-        if $enabledwith(|e| *) {
+        if $enabled.with(|e| *e) {
             let layers = $layer.with(|l| l.borrow().0) - 1;
             for i in 1..(layers+1) {
                 if i % 2 == 0 {
