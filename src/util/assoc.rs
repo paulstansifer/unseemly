@@ -173,7 +173,7 @@ impl<K: Eq + Hash + Clone, V: Clone> Assoc<K, V> {
 
     pub fn find_or_panic<'assoc, 'f>(&'assoc self, target: &'f K) -> &'assoc V
     where K: fmt::Display {
-        self.find(target).unwrap_or_else(|| icp!("{} not found in {}", target, self.map(|_| "…")))
+        self.find(target).unwrap_or_else(|| icp!("'{}' not found in {}", target, self.map(|_| "…")))
     }
 
     pub fn remove<'assoc, 'f>(&'assoc mut self, target: &'f K) -> Option<V> {
