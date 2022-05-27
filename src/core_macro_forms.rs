@@ -230,13 +230,7 @@ pub fn macro_invocation(
 ) -> Rc<Form> {
     use crate::{ty_compare, walk_mode::WalkMode};
 
-    // TODO: instead of stripping the lambda, we should be invoking it with the syntax arguments.
-    let prefab_impl = implementation.prefab();
-    // Strip off the lambda (`env` now binds its names for us):
-    node_let!(prefab_impl => {Expr lambda}
-        impl_body__with__ee = body);
-    // ...and its binding:
-    let impl_body = strip_ee(&impl_body__with__ee).clone();
+    let impl_prefab = crate::runtime::eval::Value::Function(Rc::new(implementation)).prefab();
 
     let grammar1 = grammar.clone();
     let grammar2 = grammar.clone();
@@ -252,7 +246,7 @@ pub fn macro_invocation(
             (named "macro_name", (anyways (vr macro_name))),
             // Capture this here so that its environmental names get freshened properly.
             // Need to store this one phase unquoted.
-            (named "impl", (-- 1 (anyways (,impl_body)))),
+            (named "impl", (-- 1 (anyways (,impl_prefab)))),
             (, grammar.clone())
         ])),
         type_compare: Both(NotWalked, NotWalked),
@@ -313,6 +307,7 @@ pub fn macro_invocation(
             }),
         ),
         // Kind of a HACK, but we re-use `eval` instead of having a separate field.
+        // (maybe this should be a special case in the walk lookup instead?)
         eval: Positive(cust_rc_box!(move |parts| {
             use crate::runtime::eval::Value;
             // This code is like that for "apply".
@@ -342,10 +337,16 @@ pub fn macro_invocation(
                     env = env.set(*param, rhs);
                 }
             }
-            let expanded = Ast::reflect(&crate::runtime::eval::eval(
+            let impl_val = crate::runtime::eval::eval(
                 crate::core_forms::strip_ql(parts.get_term_ref(n("impl"))),
-                env,
-            )?);
+                assoc_n!(),
+            )?;
+            let impl_clos = match &impl_val {
+                Value::Function(clos) => clos,
+                _ => icp!(),
+            };
+
+            let expanded = Ast::reflect(&crate::runtime::eval::eval(&impl_clos.body, env)?);
 
             // Expand any macros produced by expansion, or that were already present in subterms:
             Ok(crate::expand::expand(&expanded)?.reify())

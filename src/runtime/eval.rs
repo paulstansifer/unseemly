@@ -50,6 +50,7 @@ impl Value {
             typed_form!(
                 "prefab_internal",
                 (impossible), // no syntax
+                // TODO: Do we even need to be well-typed?
                 cust_rc_box!(move |_| Ok(ast!(
                         // Cheat: has the universal type, but we know it's safe because <mumble>.
                         {"Type" "forall_type" :
@@ -60,22 +61,6 @@ impl Value {
             crate::util::mbe::EnvMBE::new(),
             crate::beta::ExportBeta::Nothing
         ))
-    }
-}
-
-/// Creates an (ill-typed!) lambda expression that behaves like the closure.
-/// Free names in `self.body` remain free.
-impl Closure {
-    pub fn prefab(&self) -> Ast {
-        ast!({"Expr" "lambda" :
-            "param" => (@"p" ,seq self.params.iter().map(|n| ast!(*n)).collect::<Vec<Ast>>()),
-            "p_t" => (@"p" ,seq self.params.iter().map(|_| ast!((trivial))).collect::<Vec<Ast>>()),
-            "body" => (import [* ["param" : "p_t"]] (,
-                crate::alpha::substitute(&self.body,
-                    &self.env.map(|v| v.clone().prefab())
-                )
-            ))
-        })
     }
 }
 
