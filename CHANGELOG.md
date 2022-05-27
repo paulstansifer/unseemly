@@ -1,5 +1,9 @@
 ## Changelog
 
+## Current version
+### Fixed
+ - Macro type parameters can now be used in defining the macro.
+
 ## 0.0.3 - 2021-12-02
 ### Added
  - Added a Web IDE, with automatically-generated syntax-highlighting.
