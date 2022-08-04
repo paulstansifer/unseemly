@@ -17,7 +17,7 @@ appveyor = { repository = "paulstansifer/unseemly", service = "github" }
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-regex = "1.4.6"
+regex = "1.5.5"
 num = "0.4.0"
 custom_derive = "0.1.7"
 dirs = "3.0.2"
