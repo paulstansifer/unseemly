@@ -27,11 +27,11 @@ Unseemly is still pretty early-stage, so, while all of the features below exist,
  * Hygenic macros (all operations respect α-equivalence)
  * Macro By Example (easily implement n-ary forms without writing boilerplate loops).
 ### Unusual features
- * Typechecking under syntax quotation
-   (so `'[Expr | (plus one ,[e1],)]'` is a type error if `e1` has the type `Expr<String>`)
  * No type errors in generated code
    (if a macro invocation typechecks, the code it expands to doesn't need typechecking)†.
- * Extensible parsing and lexing (write real SQL or real regexes inline, not strings).
+   * Typechecking under syntax quotation
+   (so `'[Expr | (plus one ,[e1],)]'` is a type error if `e1` has the type `Expr<String>`)
+ * Extensible parsing and lexing (for embedded languages like SQL and regex).
 
 † Except that there are [known soundness bugs](https://github.com/paulstansifer/unseemly/issues?q=is%3Aissue+is%3Aopen+label%3Asoundness).
 ### Other features

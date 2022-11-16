@@ -357,6 +357,9 @@ impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
                 }
                 _ => Ok(Assoc::new()),
             },
+            // TODO: This can't be right.
+            // What happens if two subterms impose different constraints on the same variable?
+            // We need a mode-dependent way to combine constraints.
             &|result, next| Ok(result?.set_assoc(&next?)),
             Ok(Assoc::new()),
         )

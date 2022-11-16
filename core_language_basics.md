@@ -272,7 +272,7 @@ These are defined in `core_forms.rs`, and their definitions are relatively short
 *(in `examples/`)*
 
 *  `fact.unseemly` takes 5 factorial.
-    Demonstrates recursion with `fix`
+    Demonstrates recursion with `fix`.
 
 *  `sum_list.unseemly` sums the list "1, 2, 3".
     Demonstrates `let_type`, `match`, `fold`, `unfold`, and the need for a macro system.
