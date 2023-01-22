@@ -127,6 +127,14 @@ pub trait WalkMode: Debug + Copy + Clone + Reifiable {
     /// Side-effects under the covers make this work.
     fn underspecified(_: Name) -> Self::Elt { icp!("no underspecified_elt") }
 
+    /// We have two environments from negative walks; merge them.
+    /// The handling of duplicate elements is what needs to vary.
+    /// This default handling just arbitrarily picks the last result to win,
+    ///  which is probably wrong if it matters,
+    fn neg__env_merge(lhs: &Assoc<Name, Self::Elt>, rhs: &Assoc<Name, Self::Elt>) -> Result<Assoc<Name, Self::Elt>, Self::Err> {
+        Ok(lhs.set_assoc(rhs))
+    }
+
     fn name() -> &'static str;
 }
 
@@ -357,10 +365,8 @@ impl<Mode: WalkMode<D = Self> + NegativeWalkMode> Dir for Negative<Mode> {
                 }
                 _ => Ok(Assoc::new()),
             },
-            // TODO: This can't be right.
-            // What happens if two subterms impose different constraints on the same variable?
-            // We need a mode-dependent way to combine constraints.
-            &|result, next| Ok(result?.set_assoc(&next?)),
+            // Merging two environments is mode-specific:
+            &|result, next| Mode::neg__env_merge(&result?, &next?),
             Ok(Assoc::new()),
         )
     }
