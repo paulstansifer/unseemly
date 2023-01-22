@@ -27,8 +27,8 @@ use std::rc::Rc; // type forms are kinda bulky
 /// (TODO: think about what "just" means here. It's super-subtle!)
 pub fn strip_ee(a: &Ast) -> &Ast {
     match a.c() {
-        ExtendEnv(body, _) => (&*body),
-        ExtendEnvPhaseless(body, _) => (&*body),
+        ExtendEnv(body, _) => &*body,
+        ExtendEnvPhaseless(body, _) => &*body,
         _ => icp!("Not an EE"),
     }
 }
