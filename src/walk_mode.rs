@@ -254,7 +254,7 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
                     | QuoteLess(ref b, _) => b,
                     _ => icp!(),
                 };
-                let sub_result = Mode::Elt::to_ast(&walk(&*body, cnc)?);
+                let sub_result = Mode::Elt::to_ast(&walk(body, cnc)?);
 
                 fn handle_wrapper<Mode: WalkMode>(orig: &AstContents, a: &Ast) -> AstContents {
                     let a = a.clone();
@@ -271,11 +271,11 @@ impl<Mode: WalkMode<D = Self>> Dir for Positive<Mode> {
                 let res: AstContents = match sub_result.c() {
                     Shape(sub_results) => Shape(
                         sub_results
-                            .into_iter()
+                            .iter()
                             .map(|sub| sub.with_c(handle_wrapper::<Self::Mode>(orig, sub)))
                             .collect(),
                     ),
-                    _ => handle_wrapper::<Self::Mode>(&orig, &sub_result),
+                    _ => handle_wrapper::<Self::Mode>(orig, &sub_result),
                 };
 
                 Ok(Mode::Elt::from_ast(&sub_result.with_c(res)))

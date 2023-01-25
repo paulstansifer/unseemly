@@ -101,7 +101,7 @@ impl<Elt: WalkElt> Clo<Elt> {
 thread_local! {
     // Tuple elements are (layers deep, number of steps taken).
     pub static ast_walk_layer: RefCell<(u32, u32)> = RefCell::new((0, 0));
-    pub static ld_enabled: bool = std::env::var(&"UNSEEMLY_TRACE").map(|t| t == "full") == Ok(true);
+    pub static ld_enabled: bool = std::env::var("UNSEEMLY_TRACE").map(|t| t == "full") == Ok(true);
 }
 
 /// Make a `<Mode::D as Dir>::Out` by walking `node` in the environment from `walk_ctxt`.
@@ -194,7 +194,7 @@ pub fn walk<Mode: WalkMode>(
                         Some(oeh) => { Ok( Mode::env_as_out((*oeh.borrow()).clone()) ) }
                     }
                 } else {
-                    let inner_walk_ctxt = walk_ctxt.clone()
+                    let inner_walk_ctxt = walk_ctxt
                         .switch_mode::<Mode::Negated>().quote_more(oeh_m.clone());
                     let _ = maybe_literally__walk(&a, body, inner_walk_ctxt, old_ctxt_elt,
                                                   literally)?;
@@ -229,13 +229,13 @@ pub fn walk<Mode: WalkMode>(
             }
 
             ExtendEnv(ref body, ref beta) | ExtendEnvPhaseless(ref body, ref beta) => {
-                let phaseless = match a.c() { ExtendEnvPhaseless(_,_) => true, _ => false };
+                let phaseless = matches!(a.c(), ExtendEnvPhaseless(_,_));
 
                 fn extract__ee_body<Mode: WalkMode>(e: <Mode as WalkMode>::Elt)
                         -> <Mode as WalkMode>::Elt {
                     match e.to_ast().c() {
                         ExtendEnv(ref body, _) | ExtendEnvPhaseless(ref body, _) => {
-                            <Mode as WalkMode>::Elt::from_ast(&*body)
+                            <Mode as WalkMode>::Elt::from_ast(body)
                         }
                         _ => { e } // Match will fail
                     }
@@ -289,7 +289,7 @@ fn heal__lwr_splices<Mode: WalkMode>(walk_ctxt: &mut LazyWalkReses<Mode>) -> Res
             if let Node(sub_f, sub_parts, _) = lwt.term.c() {
                 if let Some((envs, new_term)) = Mode::perform_splice_positive(
                     sub_f,
-                    &orig_walk_ctxt.clone().switch_ast(&sub_parts, lwt.term.clone()),
+                    &orig_walk_ctxt.clone().switch_ast(sub_parts, lwt.term.clone()),
                 )? {
                     Ok(Some(
                         envs.into_iter()
@@ -334,7 +334,7 @@ fn heal__lwr_splices<Mode: WalkMode>(walk_ctxt: &mut LazyWalkReses<Mode>) -> Res
                     // TODO: negative
                     if let Some((envs, new_term)) = Mode::perform_splice_negative(
                         sub_f,
-                        &orig_walk_ctxt.clone().switch_ast(&sub_parts, lwt.term.clone()),
+                        &orig_walk_ctxt.clone().switch_ast(sub_parts, lwt.term.clone()),
                         sub_other_thunk,
                     )? {
                         Ok(Some(
@@ -399,12 +399,7 @@ pub enum WalkRule<Mode: WalkMode> {
 }
 
 impl<Mode: WalkMode> WalkRule<Mode> {
-    fn is_literally(&self) -> bool {
-        match self {
-            LiteralLike => true,
-            _ => false,
-        }
-    }
+    fn is_literally(&self) -> bool { matches!(self, LiteralLike) }
 }
 
 // trait bounds on parameters and functions are not yet supported by `Reifiable!`
@@ -731,7 +726,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
             part_name,
             depth,
             &|_| -> <Mode::D as Dir>::Out { generate() },
-            &|v: Vec<<Mode::D as Dir>::Out>| {
+            &&|v: Vec<<Mode::D as Dir>::Out>| {
                 let mut accum = vec![];
                 for elt in v {
                     accum.push(elt);
@@ -864,7 +859,7 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
         let less_quoted_env = self.less_quoted_env;
 
         let out_env: Option<OutEnvHandle<Mode>> =
-            self.less_quoted_out_env.pop().unwrap_or_else(|| Mode::D::oeh_if_negative());
+            self.less_quoted_out_env.pop().unwrap_or_else(Mode::D::oeh_if_negative);
         let less_quoted_out_env = self.less_quoted_out_env;
 
         self.more_quoted_env.push(self.env);
