@@ -51,15 +51,12 @@ pub trait AsterMarchable<'a, T: 'a>: Sized + Clone + Copy {
     /// Returns an iterator of `AsterMarchable<T>`s
     fn march(self) -> std::vec::IntoIter<AsterismSlice<'a, T>> {
         let mut subs = vec![];
-        if self.inner().len() == 0 {
+        if self.inner().is_empty() {
             return subs.into_iter();
         }
 
         // A `PackedNodes` means the rest of the slice is our children (all leaves):
-        let depth_1: bool = match self.inner()[0] {
-            LeafOrNode::PackedNodes => true,
-            _ => false,
-        };
+        let depth_1: bool = matches!(self.inner()[0], LeafOrNode::PackedNodes);
         let mut i = if depth_1 { 1 } else { 0 }; // Skip the `PackedNodes`
 
         while i < self.inner().len() {
@@ -97,13 +94,10 @@ pub trait AsterMarchable<'a, T: 'a>: Sized + Clone + Copy {
 
     fn is_leaf(self) -> bool {
         let inner = self.as_slice().0;
-        if inner.len() == 0 {
+        if inner.is_empty() {
             return false;
         }
-        match inner[0] {
-            LeafOrNode::Leaf(_) => true,
-            _ => false,
-        }
+        matches!(inner[0], LeafOrNode::Leaf(_))
     }
 
     fn as_leaf(self) -> &'a T {
@@ -118,7 +112,7 @@ pub trait AsterMarchable<'a, T: 'a>: Sized + Clone + Copy {
     }
 
     fn as_depth_1(self) -> Box<dyn Iterator<Item = &'a T> + 'a> {
-        if self.as_slice().0.len() == 0 {
+        if self.as_slice().0.is_empty() {
             // The "official" representation of an empty depth-1 node is a sequence with 1 `PN`.
             // ...but `Asterism::join(vec![])` doesn't know whether it's depth-1 or not!
             // So we also support an empty vector.
@@ -149,23 +143,18 @@ impl<'a, T> AsterMarchable<'a, T> for &'a Asterism<T> {
 impl<T> Asterism<T> {
     pub fn join(subs: Vec<Asterism<T>>) -> Asterism<T> {
         let mut res = vec![];
-        if subs.len() == 0 {
+        if subs.is_empty() {
             return Asterism(vec![LeafOrNode::Node(0)]);
         }
-        if subs[0].0.len() != 0 {
-            match subs[0].0[0] {
-                LeafOrNode::Leaf(_) => {
-                    let mut res = vec![LeafOrNode::PackedNodes];
-                    for mut leaf_asterism in subs {
-                        if !leaf_asterism.is_leaf() {
-                            icp!("Not a valid leaf");
-                        }
-                        res.push(leaf_asterism.0.remove(0));
-                    }
-                    return Asterism(res);
+        if !subs[0].0.is_empty() && matches!(subs[0].0[0], LeafOrNode::Leaf(_)) {
+            let mut res = vec![LeafOrNode::PackedNodes];
+            for mut leaf_asterism in subs {
+                if !leaf_asterism.is_leaf() {
+                    icp!("Not a valid leaf");
                 }
-                _ => {}
+                res.push(leaf_asterism.0.remove(0));
             }
+            return Asterism(res);
         }
 
         for mut aster in subs {

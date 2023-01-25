@@ -16,7 +16,7 @@ type SkySlice<'a, T> = Assoc<Name, AsterismSlice<'a, T>>;
 impl<'a, T> SkySlice<'a, T>
 where T: Clone
 {
-    fn get(&self, n: Name) -> AsterismSlice<'a, T> { self.find_or_panic(&n).clone() }
+    fn get(&self, n: Name) -> AsterismSlice<'a, T> { *self.find_or_panic(&n) }
 
     fn combine_overriding(&self, rhs: &Self) -> Assoc<Name, AsterismSlice<'a, T>> {
         self.set_assoc(rhs)
@@ -115,12 +115,12 @@ impl<T: Clone> Sky<T> {
     pub fn new_from_named_repeat(_n: Name, r: Vec<Self>) -> Self { Self::new_from_anon_repeat(r) }
 
     pub fn new_from_anon_repeat(mut r: Vec<Self>) -> Self {
-        if r.len() == 0 {
+        if r.is_empty() {
             return Sky::new();
         }
         let mut res = Assoc::<Name, Asterism<T>>::new();
-        if r.len() > 0 {
-            let keys: Vec<Name> = r[0].iter_keys().map(|k| *k).collect();
+        if !r.is_empty() {
+            let keys: Vec<Name> = r[0].iter_keys().copied().collect();
             for k in keys {
                 let per_name_asterisms: Vec<Asterism<T>> =
                     r.iter_mut().map(|sky| sky.remove_or_panic(&k)).collect();
@@ -155,7 +155,7 @@ impl<T: Clone> Sky<T> {
     // TODO: how DO we construct in a general case?
     #[deprecated(note = "inefficent")]
     pub fn add_anon_repeat(&mut self, sub: Vec<Sky<T>>) {
-        if (sub.len() == 0) || sub[0].empty() {
+        if sub.is_empty() || sub[0].empty() {
             return;
         }
         for n in sub[0].iter_keys() {
