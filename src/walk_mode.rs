@@ -131,7 +131,10 @@ pub trait WalkMode: Debug + Copy + Clone + Reifiable {
     /// The handling of duplicate elements is what needs to vary.
     /// This default handling just arbitrarily picks the last result to win,
     ///  which is probably wrong if it matters,
-    fn neg__env_merge(lhs: &Assoc<Name, Self::Elt>, rhs: &Assoc<Name, Self::Elt>) -> Result<Assoc<Name, Self::Elt>, Self::Err> {
+    fn neg__env_merge(
+        lhs: &Assoc<Name, Self::Elt>,
+        rhs: &Assoc<Name, Self::Elt>,
+    ) -> Result<Assoc<Name, Self::Elt>, Self::Err> {
         Ok(lhs.set_assoc(rhs))
     }
 

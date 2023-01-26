@@ -3,8 +3,11 @@
 
 tasks:
   - init: cargo build
-    command: cargo watch -x run
+    command: cargo watch -x test
 
 vscode:
   extensions:
     - rust-lang.rust-analyzer
+
+image:
+  file: .gitpod.Dockerfile
