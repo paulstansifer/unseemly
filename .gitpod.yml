@@ -1,0 +1,10 @@
+# Reference:
+# https://www.gitpod.io/docs/introduction/learn-gitpod/gitpod-yaml
+
+tasks:
+  - init: cargo build
+    command: cargo watch -x run
+
+vscode:
+  extensions:
+    - rust-lang.rust-analyzer

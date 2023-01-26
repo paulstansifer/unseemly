@@ -53,7 +53,7 @@ pub fn ace_rules(se: &SynEnv) -> String {
             return std::cmp::Ordering::Greater;
         }
 
-        return std::cmp::Ordering::Equal;
+        std::cmp::Ordering::Equal
     });
     categories.dedup();
 
@@ -98,7 +98,7 @@ pub fn dynamic__ace_rules(prog: &str, lang: &crate::Language) -> String {
         for (extender_ast, grammar) in &*envs.borrow() {
             let longest_line = extender_ast
                 .orig_str(prog)
-                .split("\n")
+                .split('\n')
                 .map(str::trim)
                 .max_by(|a, b| a.len().cmp(&b.len()))
                 .unwrap();
@@ -111,7 +111,7 @@ pub fn dynamic__ace_rules(prog: &str, lang: &crate::Language) -> String {
                 ],
                 ",
                 cur_rule_name,
-                regex::escape(longest_line).replace("/", "\\/"),
+                regex::escape(longest_line).replace('/', "\\/"),
                 cur_rule_name,
                 ace_rules(&prev_grammar),
             )
