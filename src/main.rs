@@ -36,6 +36,7 @@ pub mod form;
 
 pub mod ast_walk;
 pub mod expand;
+pub mod subtype;
 pub mod ty;
 pub mod ty_compare;
 pub mod walk_mode;

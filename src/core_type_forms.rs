@@ -165,7 +165,7 @@ fn make_core_syn_env_types() -> SynEnv {
         "struct",
         form_pat!(
              (delim "*[", "[", (star [(named "component_name", atom), (lit ":"),
-                                     (named "component", (call "Type"))]))),
+                                      (named "component", (call "Type"))]))),
         LiteralLike, // synth is normal
         Both(
             LiteralLike,

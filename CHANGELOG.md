@@ -35,7 +35,7 @@
 - Introduced value and type "prefabs".
   * `(prefab v)` produces (imaginary) syntax for an expression that returns `v`.
   * `prefab_type T` produces (imaginary) syntax for the type `T`.
-- Added support for `UNSEEMLY_FRESHEN_WATCH
+- Added support for `UNSEEMLY_FRESHEN_WATCH`.
 ### Fixed
 - Display of multiline error messages now uses newlines instead of "\n".
 - Macros can now be *used* in the implementation of other macros, not just expanded-to.

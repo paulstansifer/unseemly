@@ -534,6 +534,8 @@ fn for_loop__macro() {
         let foo = seven ; in
         for x in (range one three) (print (anything_to_string x))"
         ),
+        // TODO: When subtyping has been improved, this should work:
+        // `for x in (range one three) (print (anything_to_string (plus one x)))`
         Ok(val!(seq))
     );
 }

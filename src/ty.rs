@@ -102,6 +102,7 @@ pub fn neg_synth_type(pat: &Ast, env: Assoc<Name, Ast>) -> Result<Assoc<Name, As
     walk::<UnpackTy>(pat, &LazyWalkReses::new_wrapper(env))
 }
 
+// TODO: Rename this. (Maybe `TypeComplaint`?)
 custom_derive! {
     #[derive(Reifiable, Clone, PartialEq)]
     pub enum TyErr {

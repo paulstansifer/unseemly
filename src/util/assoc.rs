@@ -112,6 +112,11 @@ impl<K: Eq + Hash + Clone, V: Clone> Assoc<K, V> {
         Self::from_hamt(other.hamt.clone().union(self.hamt.clone()))
     }
 
+    pub fn union_with<F>(&self, other: &Self, f: F) -> Self
+    where F: FnMut(V, V) -> V {
+        Self::from_hamt(self.hamt.clone().union_with(other.hamt.clone(), f))
+    }
+
     pub fn mut_set(&mut self, key: K, value: V) { self.hamt.insert(key, value); }
 
     pub fn single(key: K, value: V) -> Self { Self::new().set(key, value) }
