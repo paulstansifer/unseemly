@@ -627,6 +627,8 @@ impl<Mode: WalkMode> LazyWalkReses<Mode> {
 
     /// Slight hack: this is just to get a recursion started with some environment.
     /// Only use this in tests or at the top level; this discards any non-phase-0-environments!
+    /// TODO: this is actually used a bunch of places; maybe we should be passing LWR instead.
+    /// Maybe LWR should be renamed.
     pub fn new_wrapper(env: ResEnv<Mode::Elt>) -> LazyWalkReses<Mode> {
         LazyWalkReses {
             env: env.clone(),

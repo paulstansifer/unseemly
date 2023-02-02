@@ -27,7 +27,12 @@ fn new_mystery(supers: Vec<Ast>, subs: Vec<Ast>) -> Ast {
     ]))
 }
 
-fn unpack_mystery(mystery: Ast) -> (Vec<Ast>, Vec<Ast>) {
+fn is_mystery(a: &Ast) -> bool {
+    let Shape(shape_parts) = a.c() else { return false; };
+    return !shape_parts.is_empty() && shape_parts[0].c() == &Atom(mystery_id());
+}
+
+fn unpack_mystery(mystery: &Ast) -> (Vec<Ast>, Vec<Ast>) {
     let Shape(mystery_parts) = mystery.c() else { icp!() };
     let Shape(subs) = mystery_parts[2].c().clone() else {icp!() };
     let Shape(supers) = mystery_parts[1].c().clone() else {icp!() };
@@ -37,7 +42,7 @@ fn unpack_mystery(mystery: Ast) -> (Vec<Ast>, Vec<Ast>) {
 
 fn complete_mystery() -> Ast { new_mystery(vec![], vec![]) }
 
-fn constrain_mystery(mystery: Ast, constraint: Ast, super_type: bool) -> Ast {
+fn constrain_mystery(mystery: &Ast, constraint: Ast, super_type: bool) -> Ast {
     let (mut supers, mut subs) = unpack_mystery(mystery);
 
     let constraints = if super_type { &mut supers } else { &mut subs };
@@ -49,7 +54,7 @@ fn constrain_mystery(mystery: Ast, constraint: Ast, super_type: bool) -> Ast {
     new_mystery(supers, subs)
 }
 
-fn merge_mysteries(mystery_lhs: Ast, mystery_rhs: Ast) -> Ast {
+fn merge_mysteries(mystery_lhs: &Ast, mystery_rhs: &Ast) -> Ast {
     let mut lhs = unpack_mystery(mystery_lhs);
     let rhs = unpack_mystery(mystery_rhs);
 
@@ -66,6 +71,28 @@ fn merge_mysteries(mystery_lhs: Ast, mystery_rhs: Ast) -> Ast {
     }
 
     new_mystery(lhs.0, lhs.1)
+}
+
+fn mystery_satisfiable(mystery: &Ast, parts: &LazyWalkReses<Subtype>) -> Result<(), TypeError> {
+    let (supers, subs) = unpack_mystery(mystery);
+
+    // Pick a maximally-constrained constraint on one side;
+    //  does it satisfy all the constraints on the other?
+    // TODO: Does this always find a satisfaction if there is one?
+    for super_constraint in &supers {
+        if !supers
+            .iter()
+            .all(|other_super| must_subtype(super_constraint, other_super, parts).is_ok())
+        {
+            continue;
+        }
+        // all other super constraints are a supertype to this
+
+        for sub_constriant in &subs {
+            must_subtype(sub_constriant, super_constraint, parts)?
+        }
+    }
+    Ok(())
 }
 
 // TODO: we should really have some sort of general mechanism...
@@ -112,13 +139,14 @@ impl WalkMode for Subtype {
     fn automatically_extend_env() -> bool { true }
 
     fn walk_var(n: Name, cnc: &LazyWalkReses<Subtype>) -> Result<Assoc<Name, Ast>, TypeError> {
-        Ok(Assoc::single(n, match cnc.env.find(&n) {
+        // TODO: actually constrain unknowns, and ignore non-unknowns
+        match cnc.env.find(&n) {
             // If it's protected, stop:
-            Some(t) if &VariableReference(n) == t.c() => t.clone(),
-            Some(t) => crate::ty::synth_type(t, cnc.env.clone())?,
+            Some(t) if &VariableReference(n) == t.c() => Ok(Assoc::new()),
+            Some(t) => Ok(Assoc::single(n, crate::ty::synth_type(t, cnc.env.clone())?)),
             // Or  canonicalize(t, cnc.env.clone()),  ?
-            None => ast!((vr n)), // TODO why can this happen?
-        }))
+            None => ty_err!(UnboundName(n) at cnc.this_ast),
+        }
     }
 
     // Simply protect the name; don't try to unify it.
@@ -129,7 +157,10 @@ impl WalkMode for Subtype {
         rhs: &Assoc<Name, Ast>,
     ) -> Result<Assoc<Name, Ast>, TypeError> {
         // combine constraints
-        Ok(lhs.union_with(rhs, merge_mysteries))
+        Ok(lhs.union_with(rhs, |l: Ast, r: Ast| merge_mysteries(&l, &r)))
+        // TODO: we need to handle
+        //  - mysteries merged with non-mysteries (OK if the non-mystery satisfiees)
+        //  - types with mysteries embedded in them (use recursion in some sense??)
     }
 }
 
@@ -155,4 +186,21 @@ impl WalkMode for UnusedPositiveSubtype {
 
     fn get_walk_rule(_: &Form) -> WalkRule<UnusedPositiveSubtype> { icp!() }
     fn automatically_extend_env() -> bool { icp!() }
+}
+
+pub fn must_subtype(sub: &Ast, sup: &Ast, parts: &LazyWalkReses<Subtype>) -> Result<(), TypeError> {
+    if sub as *const Ast == sup as *const Ast {
+        return Ok(());
+    }
+    if sub == sup {
+        return Ok(());
+    }
+
+    let result_env = walk::<Subtype>(sup, &parts.with_context(sub.clone()))?;
+    let result_parts = parts.with_environment(result_env.clone());
+
+    for mystery in result_env.iter_values() {
+        mystery_satisfiable(mystery, &result_parts)?
+    }
+    return Ok(());
 }
