@@ -54,6 +54,14 @@ fn constrain_mystery(mystery: &Ast, constraint: Ast, super_type: bool) -> Ast {
     new_mystery(supers, subs)
 }
 
+// If `ty` is a mystery, return it; otherwise, make it a fully-constrained mystery
+fn ensure_mystery(ty: Ast) -> Ast {
+    if is_mystery(&ty) {
+        return ty;
+    }
+    new_mystery(vec![ty.clone()], vec![ty])
+}
+
 fn merge_mysteries(mystery_lhs: &Ast, mystery_rhs: &Ast) -> Ast {
     let mut lhs = unpack_mystery(mystery_lhs);
     let rhs = unpack_mystery(mystery_rhs);
@@ -111,6 +119,15 @@ fn destr_forall(a: &Ast) -> Option<(Vec<Name>, &Ast)> {
     }
 }
 
+fn merge_bindings(lhs: Ast, rhs: Ast) -> Ast {
+    // As an optimization, if the types are spelled the same, we know they're equivalent:
+    if lhs == rhs {
+        return lhs;
+    }
+
+    merge_mysteries(&ensure_mystery(lhs), &ensure_mystery(rhs))
+}
+
 impl WalkMode for Subtype {
     fn name() -> &'static str { "Subtype" }
 
@@ -157,10 +174,9 @@ impl WalkMode for Subtype {
         rhs: &Assoc<Name, Ast>,
     ) -> Result<Assoc<Name, Ast>, TypeError> {
         // combine constraints
-        Ok(lhs.union_with(rhs, |l: Ast, r: Ast| merge_mysteries(&l, &r)))
-        // TODO: we need to handle
-        //  - mysteries merged with non-mysteries (OK if the non-mystery satisfiees)
-        //  - types with mysteries embedded in them (use recursion in some sense??)
+        Ok(lhs.union_with(rhs, merge_bindings))
+        // TODO: handle types with mysteries embedded in them
+        // Perhaps we can just recur into them at the end?
     }
 }
 
@@ -203,4 +219,9 @@ pub fn must_subtype(sub: &Ast, sup: &Ast, parts: &LazyWalkReses<Subtype>) -> Res
         mystery_satisfiable(mystery, &result_parts)?
     }
     return Ok(());
+}
+
+pub fn must_equal(lhs: &Ast, rhs: &Ast, parts: &LazyWalkReses<Subtype>) -> Result<(), TypeError> {
+    must_subtype(lhs, rhs, parts)?;
+    must_subtype(rhs, lhs, parts)
 }
