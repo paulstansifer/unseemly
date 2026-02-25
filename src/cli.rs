@@ -18,7 +18,7 @@ thread_local! {
     pub static VAL_ENV : RefCell<Assoc<Name, Value>> = RefCell::new(core_values::core_values());
 }
 
-#[cfg_attr(tarpaulin, skip)]
+#[cfg(not(tarpaulin_include))]
 fn main() {
     let arguments: Vec<String> = std::env::args().collect();
 
