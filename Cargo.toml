@@ -4,6 +4,7 @@ description = "A typed macro language"
 version = "0.0.3"
 authors = ["Paul Stansifer <paul.stansifer@gmail.com>"]
 edition = "2018"
+rust-version = "1.91"
 
 homepage = "https://unseemly.github.io/"
 repository = "https://github.com/paulstansifer/unseemly/"

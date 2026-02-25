@@ -1,0 +1,5 @@
+[toolchain]
+# This makes `cargo fmt` use nightly, so the nighly-only formatting options are respected:
+# https://web.archive.org/web/20250904025109/https://github.com/nik-rev/nightly-trick
+# It doesn't make VS Code do the right thing; for that you need to add "+nightly" to the Rustfmt "extra args" option.
+channel = "nightly"
