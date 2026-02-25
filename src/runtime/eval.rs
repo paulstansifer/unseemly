@@ -65,7 +65,7 @@ impl Value {
 }
 
 // Built-in function
-pub struct BIF(pub Rc<(dyn Fn(Vec<Value>) -> Value)>);
+pub struct BIF(pub Rc<dyn Fn(Vec<Value>) -> Value>);
 
 pub fn apply__function_value(f: &Value, args: Vec<Value>) -> Value {
     match *f {

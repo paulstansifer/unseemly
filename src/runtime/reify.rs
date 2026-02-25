@@ -241,7 +241,7 @@ impl Reifiable for Value {
 // TODO: when returning traits works, just make functions `Reifiable`
 // TOUNDERSTAND: 'x also allows things to be owned instead?!?
 pub fn reify_1ary_function<A: Reifiable + 'static, R: Reifiable + 'static>(
-    f: Rc<Box<(dyn Fn(A) -> R)>>,
+    f: Rc<Box<dyn Fn(A) -> R>>,
 ) -> Value {
     Value::BuiltInFunction(eval::BIF(Rc::new(move |args: Vec<Value>| {
         ((*f)(A::reflect(&args[0]))).reify()
@@ -250,7 +250,7 @@ pub fn reify_1ary_function<A: Reifiable + 'static, R: Reifiable + 'static>(
 
 pub fn reflect_1ary_function<A: Reifiable + 'static, R: Reifiable + 'static>(
     f_v: Value,
-) -> Rc<Box<(dyn Fn(A) -> R)>> {
+) -> Rc<Box<dyn Fn(A) -> R>> {
     Rc::new(Box::new(move |a: A| {
         extract!((&f_v)
         Value::BuiltInFunction = (ref bif) => R::reflect(&(*bif.0)(vec![a.reify()]));
@@ -267,7 +267,7 @@ pub fn reify_2ary_function<
     B: Reifiable + 'static,
     R: Reifiable + 'static,
 >(
-    f: Rc<Box<(dyn Fn(A, B) -> R)>>,
+    f: Rc<Box<dyn Fn(A, B) -> R>>,
 ) -> Value {
     Value::BuiltInFunction(eval::BIF(Rc::new(move |args: Vec<Value>| {
         ((*f)(A::reflect(&args[0]), B::reflect(&args[1]))).reify()
@@ -280,7 +280,7 @@ pub fn reflect_2ary_function<
     R: Reifiable + 'static,
 >(
     f_v: Value,
-) -> Rc<Box<(dyn Fn(A, B) -> R)>> {
+) -> Rc<Box<dyn Fn(A, B) -> R>> {
     Rc::new(Box::new(move |a: A, b: B| {
         extract!((&f_v)
         Value::BuiltInFunction = (ref bif) =>

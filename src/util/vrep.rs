@@ -110,7 +110,7 @@ impl<T> VRep<T> {
         }
     }
 
-    pub fn iter(&self) -> std::slice::Iter<VRepElt<T>> { self.0.iter() }
+    pub fn iter(&self) -> std::slice::Iter<'_, VRepElt<T>> { self.0.iter() }
 
     pub fn map<'a, U, F>(&'a self, mut f: F) -> VRep<U>
     where F: FnMut(&'a T) -> U {

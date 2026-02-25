@@ -123,11 +123,11 @@ impl<K: Eq + Hash + Clone, V: Clone> Assoc<K, V> {
 
     pub fn empty(&self) -> bool { self.hamt.is_empty() }
 
-    pub fn iter_pairs(&self) -> im_rc::hashmap::Iter<K, V> { self.hamt.iter() }
+    pub fn iter_pairs(&self) -> im_rc::hashmap::Iter<'_, K, V> { self.hamt.iter() }
 
-    pub fn iter_keys(&self) -> im_rc::hashmap::Keys<K, V> { self.hamt.keys() }
+    pub fn iter_keys(&self) -> im_rc::hashmap::Keys<'_, K, V> { self.hamt.keys() }
 
-    pub fn iter_values(&self) -> im_rc::hashmap::Values<K, V> { self.hamt.values() }
+    pub fn iter_values(&self) -> im_rc::hashmap::Values<'_, K, V> { self.hamt.values() }
 
     pub fn map<NewV: Clone, F>(&self, mut f: F) -> Assoc<K, NewV>
     where F: FnMut(&V) -> NewV {

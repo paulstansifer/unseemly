@@ -387,7 +387,7 @@ pub enum WalkRule<Mode: WalkMode> {
     ///  to the type/value of this form.
     /// The environment is accessible via the `LazyWalkReses`.
     /// Any of the other `WalkRule`s can be implemented as a simple `Custom`.
-    Custom(Rc<Box<(dyn Fn(LazyWalkReses<Mode>) -> Result<<Mode::D as Dir>::Out, Mode::Err>)>>),
+    Custom(Rc<Box<dyn Fn(LazyWalkReses<Mode>) -> Result<<Mode::D as Dir>::Out, Mode::Err>>>),
     /// "this form has the same type/value as one of its subforms".
     /// (useful for forms that only exist as wrapper s around other AST nodes)
     Body(Name),

@@ -278,7 +278,7 @@ impl FormPat {
 
 #[derive(Clone)]
 pub struct SyntaxExtension(
-    pub Rc<Box<(dyn Fn(crate::earley::ParseContext, Ast) -> crate::earley::ParseContext)>>,
+    pub Rc<Box<dyn Fn(crate::earley::ParseContext, Ast) -> crate::earley::ParseContext>>,
 );
 
 impl PartialEq for SyntaxExtension {
