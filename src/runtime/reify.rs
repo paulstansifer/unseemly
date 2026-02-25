@@ -508,10 +508,7 @@ fn basic_r_and_r_roundtrip() {
 
     assert_eq!(Rc::new(bev0.clone()), Rc::reflect(&Rc::new(bev0.clone()).reify()));
 
-    assert_eq!(
-        std::boxed::Box::new(bev0.clone()),
-        std::boxed::Box::reflect(&bev0.clone().reify())
-    );
+    assert_eq!(std::boxed::Box::new(bev0.clone()), std::boxed::Box::reflect(&bev0.clone().reify()));
 
     let bleo = BasicLifetimeEnum::Only(new_oldname(n("AlexanderHamilton")));
 

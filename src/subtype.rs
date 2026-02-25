@@ -28,14 +28,16 @@ fn new_mystery(supers: Vec<Ast>, subs: Vec<Ast>) -> Ast {
 }
 
 fn is_mystery(a: &Ast) -> bool {
-    let Shape(shape_parts) = a.c() else { return false; };
+    let Shape(shape_parts) = a.c() else {
+        return false;
+    };
     return !shape_parts.is_empty() && shape_parts[0].c() == &Atom(mystery_id());
 }
 
 fn unpack_mystery(mystery: &Ast) -> (Vec<Ast>, Vec<Ast>) {
     let Shape(mystery_parts) = mystery.c() else { icp!() };
-    let Shape(subs) = mystery_parts[2].c().clone() else {icp!() };
-    let Shape(supers) = mystery_parts[1].c().clone() else {icp!() };
+    let Shape(subs) = mystery_parts[2].c().clone() else { icp!() };
+    let Shape(supers) = mystery_parts[1].c().clone() else { icp!() };
 
     (supers, subs)
 }

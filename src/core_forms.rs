@@ -314,20 +314,20 @@ pub fn make_core_syn_env() -> SynEnv {
         //   point = pair<int, int>
         // in ...
         typed_form!("let_type",
-            [(lit "let_type"),
-             (named "type_kind_stx", (anyways "*")),
-             (star [(named "type_name", atom),
-                    (lit "="),
-                    (named "type_def", (import [* ["type_name" = "type_def"]], (call "Type")))]),
-             (lit "in"),
-             (named "body", (import [* ["type_name" = "type_def"]], (call "Expr")))],
-            Body(n("body")),
-            // HACK: like `Body(n("body"))`, but ignoring the binding, since it's type-level.
-            // This feels like it ought to be better-handled by `beta`, or maybe a kind system.
-            cust_rc_box!( move | let_type_parts | {
-                crate::ast_walk::walk::<Eval>(
-                    strip_ee(&let_type_parts.get_term(n("body"))), &let_type_parts)
-            })),
+        [(lit "let_type"),
+         (named "type_kind_stx", (anyways "*")),
+         (star [(named "type_name", atom),
+                (lit "="),
+                (named "type_def", (import [* ["type_name" = "type_def"]], (call "Type")))]),
+         (lit "in"),
+         (named "body", (import [* ["type_name" = "type_def"]], (call "Expr")))],
+        Body(n("body")),
+        // HACK: like `Body(n("body"))`, but ignoring the binding, since it's type-level.
+        // This feels like it ought to be better-handled by `beta`, or maybe a kind system.
+        cust_rc_box!( move | let_type_parts | {
+            crate::ast_walk::walk::<Eval>(
+                strip_ee(&let_type_parts.get_term(n("body"))), &let_type_parts)
+        })),
         // e.g. where List = ∀ X. μ List. enum { Nil(), Cons(X, List<X>) }
         // .[x : List<X>  . match (unfold x) ... ].
         // (unfold is needed because `match` wants an `enum`, not a `μ`)

@@ -279,12 +279,12 @@ fn make_core_syn_env_types() -> SynEnv {
                 // Apply the Amber rule; assume the `mu`ed names are subtypes to subtype the bodies
                 let mut amber_environment = mu_parts.env.clone();
                 for (&ee_r, ee_l) in r_params.iter().zip(l_params.iter()) {
-                    let (p_r, p_l) = if let (ExtendEnv(r, _), ExtendEnv(l, _))
-                            = (ee_r.c(), ee_l.c()) {
-                        (&*r, &*l)
-                    } else {
-                        icp!("ill-formed mu_type")
-                    };
+                    let (p_r, p_l) =
+                        if let (ExtendEnv(r, _), ExtendEnv(l, _)) = (ee_r.c(), ee_l.c()) {
+                            (&*r, &*l)
+                        } else {
+                            icp!("ill-formed mu_type")
+                        };
                     if p_r == p_l // short-circuit if the names are the same...
                         || mu_parts.env.find(&p_r.vr_to_name()) // ...or Amber assumed so already
                              == Some(p_l)
@@ -297,9 +297,7 @@ fn make_core_syn_env_types() -> SynEnv {
 
                 walk::<Subtype>(
                     &mu_parts.get_term(n("body")),
-                    &mu_parts
-                        .with_environment(amber_environment)
-                        .with_context(rhs_body.clone()),
+                    &mu_parts.with_environment(amber_environment).with_context(rhs_body.clone()),
                 )
             }),
         ),
@@ -344,9 +342,8 @@ fn make_core_syn_env_types() -> SynEnv {
                     // This kind of thing is necessary because
                     //  we wish to avoid aliasing problems at the type level.
                     // In System F, this is avoided by performing capture-avoiding substitution.
-                    let mut new__tapp_parts = EnvMBE::new_from_leaves(
-                        assoc_n!("type_rator" => ast!((vr *rator_vr))),
-                    );
+                    let mut new__tapp_parts =
+                        EnvMBE::new_from_leaves(assoc_n!("type_rator" => ast!((vr *rator_vr))));
 
                     let mut args = vec![];
                     for individual__arg_res in arg_res {
@@ -357,7 +354,12 @@ fn make_core_syn_env_types() -> SynEnv {
                     new__tapp_parts.add_anon_repeat(args);
 
                     if let Node(ref f, _, ref exp) = tapp_parts.this_ast.c() {
-                        Ok(raw_ast!(Node(/* forall */ f.clone(), new__tapp_parts, exp.clone())))
+                        Ok(raw_ast!(Node(
+                            // forall
+                            f.clone(),
+                            new__tapp_parts,
+                            exp.clone()
+                        )))
                     } else {
                         icp!()
                     }
@@ -375,7 +377,12 @@ fn make_core_syn_env_types() -> SynEnv {
                     new__tapp_parts.add_anon_repeat(args);
 
                     if let Node(f, _, exp) = tapp_parts.this_ast.c() {
-                        Ok(raw_ast!(Node(/* forall */ f.clone(), new__tapp_parts, exp.clone())))
+                        Ok(raw_ast!(Node(
+                            // forall
+                            f.clone(),
+                            new__tapp_parts,
+                            exp.clone()
+                        )))
                     } else {
                         icp!()
                     }
